@@ -65,4 +65,6 @@ export interface Building {
   pendingTurn: Count;
   /** Residents queued to die after a breach. @range 0–residents @unit people @readBy building processes */
   pendingDie: Count;
+  /** Occupiers queued to re-instantiate onto the street, drained under a per-tick cap. @range 0–zombiesInside @unit zombies @readBy building processes */
+  pendingSpill: Count;
 }

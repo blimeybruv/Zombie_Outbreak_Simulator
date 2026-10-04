@@ -80,6 +80,12 @@ export interface World {
   roster: SimId[];
   /** @range see Counters @unit people @readBy invariant, promotion trigger, stalemate, end stats */
   counters: Counters;
+  /**
+   * Anonymous residents who died in a breach. They never had a Sim record, so this
+   * is the only trace the full recount can count them from.
+   * @range 0–population @unit people @readBy invariant recount, end stats
+   */
+  residentDeaths: Count;
 
   /** Last tick any sim converted; the stalemate controller's clock. @range tick | null @unit tick @readBy stalemate controller */
   lastConversionAt: Tick | null;

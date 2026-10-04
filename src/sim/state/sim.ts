@@ -148,6 +148,12 @@ export interface Sim {
   stamina: Unit01;
   /** Null when outdoors. @range building id | null @unit id @readBy spatial hash, ticking, counters, combat */
   insideBuilding: BuildingId | null;
+  /**
+   * Street the sim stood on at its last observation; null off-street or indoors.
+   * Kept while the sim stays within half the street's width of its centreline.
+   * @range street id | null @unit id @readBy perception (radius, lighting), memory writes on entering a street
+   */
+  street: StreetId | null;
   /** Tick an in-progress exit completes (fortification * 40 ticks); null when not leaving. @range tick | null @unit tick @readBy building processes */
   exitingUntil: Tick | null;
 
