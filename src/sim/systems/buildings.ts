@@ -11,6 +11,7 @@ import { breachChance } from '../breach';
 import type { Context } from '../context';
 import { transfer, simLeaf } from '../counters';
 import { functionalProfile } from '../mapgen/generate';
+import { remember } from '../memory';
 import { chance, nextInt } from '../rng';
 import { spawnSim, spawnZombie } from '../spawn';
 import type { Building, Sim, World } from '../state';
@@ -20,18 +21,9 @@ import { entranceNearest } from './sims';
 
 const OUTSIDE = 1.5; // m beyond the outline where people and zombies reappear
 
-/** A point just outside a building's entrance. */
+/** A point just outside one of a building's entrances. */
 function outsideOf(ctx: Context, b: Building, e: { x: number; y: number }): { x: number; y: number } {
-  const map = ctx.map;
-  const minX = map.bMinX[b.id]!, maxX = map.bMaxX[b.id]!, minY = map.bMinY[b.id]!, maxY = map.bMaxY[b.id]!;
-  const d = [e.x - minX, maxX - e.x, e.y - minY, maxY - e.y];
-  const side = d.indexOf(Math.min(...d));
-  return [
-    { x: minX - OUTSIDE, y: e.y },
-    { x: maxX + OUTSIDE, y: e.y },
-    { x: e.x, y: minY - OUTSIDE },
-    { x: e.x, y: maxY + OUTSIDE },
-  ][side]!;
+  return ctx.map.outside(b.id, Math.max(0, b.entrances.indexOf(e)), OUTSIDE);
 }
 
 function queued(b: Building): number {
@@ -97,7 +89,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     // Entry commits: the occupiers are discovered at the door.
     b.pendingSpill = Math.max(b.pendingSpill, b.zombiesInside);
     if (chance(world.rng, config.combat.zombieAttack.baseInfection)) bite(world, ctx, sim);
-    sim.streetMemory.set(b.street, { danger: 1, observedAt: tick, visited: sim.streetMemory.get(b.street)?.visited ?? false });
+    remember(sim.streetMemory, b.street, { danger: 1, observedAt: tick, visited: sim.streetMemory.get(b.street)?.visited ?? false }, config.memory.streetCap);
     sim.destinationBuilding = null;
     sim.destination = null;
     sim.route = [];
@@ -124,13 +116,12 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   sim.panic = Math.min(sim.panic, config.panic.expelThreshold - 0.01);
   const belief = sim.buildingMemory.get(b.id);
   if (!belief?.visited) sim.history.buildingsEntered++;
-  sim.buildingMemory.set(b.id, {
-    believedOccupants: b.residents + b.sheltered.length + b.zombiesInside,
-    materials: b.materials,
-    fortification: b.fortification,
-    observedAt: tick,
-    visited: true,
-  });
+  remember(
+    sim.buildingMemory,
+    b.id,
+    { believedOccupants: b.residents + b.sheltered.length + b.zombiesInside, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: true },
+    config.memory.buildingCap,
+  );
   if (sim.destinationKind === 'routine') {
     sim.idleUntil = tick + nextInt(world.rng, config.routine.idleTicks[0]!, config.routine.idleTicks[1]!);
   } else {
@@ -146,10 +137,10 @@ function arrivals(world: World, ctx: Context): void {
   for (let i = 0; i < count; i++) {
     const sim = world.sims[i]!;
     if ((sim.condition !== 'healthy' && sim.condition !== 'infected') || sim.insideBuilding !== null) continue;
-    if (sim.destinationBuilding === null) continue;
-    const b = world.buildings[sim.destinationBuilding]!;
-    const e = entranceNearest(b, sim.x, sim.y);
-    if (Math.hypot(e.x - sim.x, e.y - sim.y) <= radius) tryEnter(world, ctx, sim, b);
+    if (sim.destinationBuilding === null || sim.destination === null) continue;
+    // The destination is the entrance chosen when the building was.
+    if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) > radius) continue;
+    tryEnter(world, ctx, sim, world.buildings[sim.destinationBuilding]!);
   }
 }
 
@@ -166,19 +157,33 @@ function exits(world: World, ctx: Context): void {
 }
 
 /** Gunfire this tick near a building drives a share of its residents out. */
-function noiseExpulsion(world: World): void {
+function noiseExpulsion(world: World, ctx: Context): void {
   const { config, tick } = world;
-  const fresh = world.stimuli.filter((s) => s.createdAt === tick);
-  if (fresh.length === 0) return;
   const r = config.buildings.spill.alertRadius;
-  for (const b of world.buildings) {
+  const hit = new Set<number>();
+  for (const s of world.stimuli) {
+    if (s.createdAt !== tick) continue;
+    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) hit.add(bid);
+  }
+  for (const bid of [...hit].sort((a, b) => a - b)) {
+    const b = world.buildings[bid]!;
     const available = b.residents - queued(b);
-    if (available <= 0) continue;
-    const e = b.entrances[0]!;
-    if (fresh.some((s) => Math.hypot(s.x - e.x, s.y - e.y) <= r)) {
-      b.pendingExpel += Math.floor(available * config.buildings.residentExpelShare);
+    if (available > 0) b.pendingExpel += Math.floor(available * config.buildings.residentExpelShare);
+  }
+}
+
+/** Buildings with an awake zombie near their footprint: the only ones a breach roll can concern. */
+function breachCandidates(world: World, ctx: Context): number[] {
+  const { config, tick } = world;
+  const br = config.buildings.breach;
+  const found = new Set<number>();
+  for (const z of world.zombies) {
+    if (z.state !== 'active' && z.state !== 'wandering') continue;
+    for (const bid of ctx.map.buildingsNear(z.x, z.y, br.entranceRadius, ctx.buildingIds)) {
+      if (bid % br.interval === tick % br.interval) found.add(bid);
     }
   }
+  return [...found].sort((a, b) => a - b);
 }
 
 function breachRolls(world: World, ctx: Context, b: Building): void {
@@ -295,10 +300,10 @@ export function buildingProcesses(world: World, ctx: Context): void {
   updateRelease(world);
   arrivals(world, ctx);
   exits(world, ctx);
-  noiseExpulsion(world);
+  noiseExpulsion(world, ctx);
+  for (const bid of breachCandidates(world, ctx)) breachRolls(world, ctx, world.buildings[bid]!);
   for (const b of world.buildings) {
-    breachRolls(world, ctx, b);
-    drainQueues(world, ctx, b);
-    spill(world, ctx, b);
+    if (b.pendingTurn + b.pendingDie + b.pendingExpel + b.pendingRelease > 0) drainQueues(world, ctx, b);
+    if (b.zombiesInside > 0) spill(world, ctx, b);
   }
 }

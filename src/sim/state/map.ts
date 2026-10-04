@@ -4,7 +4,7 @@
 // Everything is edge-based. A park is a block with no building whose bounding and
 // crossing streets carry terrain `open`; there is no area primitive.
 
-import type { DistrictId, Metres, NodeId, Polygon, StreetId, Tick, Unit01 } from './units';
+import type { DistrictId, Metres, NodeId, StreetId, Tick, Unit01, Vec2 } from './units';
 
 export const TERRAINS = ['standard', 'alley', 'open', 'bridge'] as const;
 export type Terrain = (typeof TERRAINS)[number];
@@ -66,8 +66,10 @@ export interface District {
   releaseAt: Tick;
 }
 
-/** Water the river occupies. Bridges are the streets that cross it. */
+/** The river: a band of constant width around a centreline. Bridges are the streets that cross it. */
 export interface River {
-  /** @range 0–3200 each vertex @unit m @readBy steering obstacles, render */
-  outline: Polygon;
+  /** Runs edge to edge across the map, diagonally, with gentle bends. @range a few points, may extend past the map edge @unit m @readBy walkability, render */
+  centreline: readonly Vec2[];
+  /** @range 20–80 @unit m @readBy walkability, render */
+  width: Metres;
 }

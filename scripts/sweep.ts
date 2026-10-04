@@ -69,7 +69,7 @@ if (process.argv[2] === '--worker') {
   console.log(`mapSeed ${mapSeed}, ${seeds} runSeeds, overrides ${JSON.stringify(overrides)}`);
   console.log('seed  infect   dead  resolved  ms/tick  curve (turned share every 1800 ticks)');
   for (const r of results) {
-    const pop = 2000;
+    const pop = r.population;
     const curve = r.samples
       .filter((_, i) => i % 3 === 0)
       .map((c) => Math.round(((c.turned.symptomatic + c.turned.outdoors + c.turned.occupying + c.turned.destroyed) / pop) * 100))

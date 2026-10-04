@@ -6,6 +6,7 @@
 // One of three files allowed to read `panic`.
 
 import type { Context } from '../context';
+import { trim } from '../memory';
 import type { Sim, World } from '../state';
 import { rebuildSimHash } from './perception';
 
@@ -28,8 +29,13 @@ function merge(world: World, a: Sim, b: Sim): void {
   if (a.panic < b.panic) a.panic += (b.panic - a.panic) * damping;
   else if (b.panic < a.panic) b.panic += (a.panic - b.panic) * damping;
 
+  const { streetCap, buildingCap } = world.config.memory;
   mergeBoth(a.streetMemory, b.streetMemory);
   mergeBoth(a.buildingMemory, b.buildingMemory);
+  trim(a.streetMemory, streetCap);
+  trim(b.streetMemory, streetCap);
+  trim(a.buildingMemory, buildingCap);
+  trim(b.buildingMemory, buildingCap);
 
   for (const id of b.knownInfected) if (id !== a.id) a.knownInfected.add(id);
   for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);

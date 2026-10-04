@@ -3,7 +3,8 @@
 // per world from state, never stored in it, so a reloaded world rebuilds them.
 
 import { distSq, pointSegmentDistance, segmentHitsAabb } from './geometry';
-import type { BuildingId, NodeId, StreetId, World } from './state';
+import { pointInPolygon, segmentIntersection } from './mapgen/geom';
+import type { BuildingId, NodeId, StreetId, Vec2, World } from './state';
 
 const STREET_CELL = 20; // m
 const ON_STREET = 12; // m; covers half the widest street, so most lookups stop here
@@ -23,10 +24,14 @@ export class MapIndex {
   readonly bMinY: Float64Array;
   readonly bMaxX: Float64Array;
   readonly bMaxY: Float64Array;
-  readonly riverLo: number;
-  readonly riverHi: number;
-  /** x-extent of each bridge's deck: [minX, maxX] pairs. */
-  readonly bridges: [number, number][] = [];
+  /** Bridge decks: segment and half-width. */
+  readonly bridges: { ax: number; ay: number; bx: number; by: number; half: number }[] = [];
+  /** Outward unit normal of each building's entrances, parallel to `building.entrances`. */
+  readonly entranceNormals: Vec2[][];
+  private readonly riverLine: readonly Vec2[];
+  private readonly riverHalf: number;
+  private readonly riverMinY: number;
+  private readonly riverMaxY: number;
 
   private readonly streetCols: number;
   private readonly streetCells: StreetId[][];
@@ -59,7 +64,7 @@ export class MapIndex {
       this.forCells(STREET_CELL, this.streetCols, Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y), (c) =>
         this.streetCells[c]!.push(s.id),
       );
-      if (s.terrain === 'bridge') this.bridges.push([a.x - s.width / 2, a.x + s.width / 2]);
+      if (s.terrain === 'bridge') this.bridges.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, half: s.width / 2 });
     }
 
     const n = buildings.length;
@@ -85,9 +90,58 @@ export class MapIndex {
     }
     this.stamp = new Int32Array(n);
 
-    const river = world.river.outline;
-    this.riverLo = Math.min(...river.map((p) => p.y));
-    this.riverHi = Math.max(...river.map((p) => p.y));
+    this.entranceNormals = buildings.map((b) => {
+      const o = b.outline;
+      const cx = o.reduce((sum, p) => sum + p.x, 0) / o.length;
+      const cy = o.reduce((sum, p) => sum + p.y, 0) / o.length;
+      return b.entrances.map((e) => {
+        // The outline edge the entrance sits on; its normal, pointing away from the centre.
+        let best = 0;
+        let bestD = Infinity;
+        for (let i = 0; i < o.length; i++) {
+          const p = o[i]!, q = o[(i + 1) % o.length]!;
+          const d = pointSegmentDistance(e.x, e.y, p.x, p.y, q.x, q.y);
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        }
+        const p = o[best]!, q = o[(best + 1) % o.length]!;
+        const l = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+        let nx = -(q.y - p.y) / l;
+        let ny = (q.x - p.x) / l;
+        if (nx * (e.x - cx) + ny * (e.y - cy) < 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+        return { x: nx, y: ny };
+      });
+    });
+
+    this.riverLine = world.river.centreline;
+    this.riverHalf = world.river.width / 2;
+    this.riverMinY = Math.min(...this.riverLine.map((p) => p.y)) - this.riverHalf;
+    this.riverMaxY = Math.max(...this.riverLine.map((p) => p.y)) + this.riverHalf;
+  }
+
+  /** A point `offset` metres outside a building's entrance. */
+  outside(building: BuildingId, entrance: number, offset: number): Vec2 {
+    const e = this.world.buildings[building]!.entrances[entrance]!;
+    const n = this.entranceNormals[building]![entrance]!;
+    return { x: e.x + n.x * offset, y: e.y + n.y * offset };
+  }
+
+  /** Whether the point is in the river and not on a bridge. */
+  inWater(x: number, y: number): boolean {
+    if (y < this.riverMinY || y > this.riverMaxY) return false;
+    let d = Infinity;
+    const line = this.riverLine;
+    for (let i = 0; i + 1 < line.length; i++) {
+      const a = line[i]!, b = line[i + 1]!;
+      d = Math.min(d, pointSegmentDistance(x, y, a.x, a.y, b.x, b.y));
+    }
+    if (d >= this.riverHalf) return false;
+    return !this.bridges.some((br) => pointSegmentDistance(x, y, br.ax, br.ay, br.bx, br.by) <= br.half);
   }
 
   private forCells(cell: number, cols: number, minX: number, minY: number, maxX: number, maxY: number, fn: (c: number) => void) {
@@ -149,9 +203,22 @@ export class MapIndex {
     const cx = Math.min(this.buildingCols - 1, Math.max(0, Math.floor(x / BUILDING_CELL)));
     const cy = Math.min(this.buildingCols - 1, Math.max(0, Math.floor(y / BUILDING_CELL)));
     for (const id of this.buildingCells[cy * this.buildingCols + cx]!) {
-      if (x > this.bMinX[id]! && x < this.bMaxX[id]! && y > this.bMinY[id]! && y < this.bMaxY[id]!) return id;
+      if (x > this.bMinX[id]! && x < this.bMaxX[id]! && y > this.bMinY[id]! && y < this.bMaxY[id]!) {
+        if (pointInPolygon({ x, y }, this.world.buildings[id]!.outline)) return id;
+      }
     }
     return null;
+  }
+
+  /** Whether segment a→b passes through a building's footprint. */
+  private segmentHitsBuilding(id: BuildingId, ax: number, ay: number, bx: number, by: number): boolean {
+    if (!segmentHitsAabb(ax, ay, bx, by, this.bMinX[id]!, this.bMinY[id]!, this.bMaxX[id]!, this.bMaxY[id]!)) return false;
+    const o = this.world.buildings[id]!.outline;
+    const a = { x: ax, y: ay };
+    const b = { x: bx, y: by };
+    if (pointInPolygon(a, o) || pointInPolygon(b, o)) return true;
+    for (let i = 0; i < o.length; i++) if (segmentIntersection(a, b, o[i]!, o[(i + 1) % o.length]!)) return true;
+    return false;
   }
 
   /** Buildings whose footprint comes within r of the point, ascending id. */
@@ -180,7 +247,7 @@ export class MapIndex {
       for (const id of this.buildingCells[c]!) {
         if (this.stamp[id] === s) continue;
         this.stamp[id] = s;
-        if (segmentHitsAabb(ax, ay, bx, by, this.bMinX[id]!, this.bMinY[id]!, this.bMaxX[id]!, this.bMaxY[id]!)) {
+        if (this.segmentHitsBuilding(id, ax, ay, bx, by)) {
           clear = false;
           return;
         }
@@ -192,7 +259,7 @@ export class MapIndex {
   /** Whether a point is walkable: on the map, outside every building, and dry or on a bridge. */
   walkable(x: number, y: number): boolean {
     if (x < 0 || y < 0 || x > this.size || y > this.size) return false;
-    if (y > this.riverLo && y < this.riverHi && !this.bridges.some(([lo, hi]) => x >= lo && x <= hi)) return false;
+    if (this.inWater(x, y)) return false;
     return this.buildingAt(x, y) === null;
   }
 }

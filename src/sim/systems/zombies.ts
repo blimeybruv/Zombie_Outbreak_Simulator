@@ -54,26 +54,50 @@ interface Scent {
   y: number;
 }
 
-/** Strongest building scent at the zombie: concentrations of the living, never individuals. */
-function scentAt(world: World, ctx: Context, z: Zombie): Scent {
+/**
+ * Rebuilds the scent field: for each grid cell, the strongest building scent at its
+ * centre and the entrance it leads to. Scent comes from concentrations of the living,
+ * never individuals, and occupancy changes slowly, so the field is refreshed on an
+ * interval rather than queried per zombie per tick.
+ */
+function refreshScent(world: World, ctx: Context): void {
   const sc = world.config.scent;
-  const scent: Scent = { strength: 0, x: 0, y: 0 };
-  for (const bid of ctx.map.buildingsNear(z.x, z.y, sc.buildingRadiusCap, ctx.buildingIds)) {
-    const b = world.buildings[bid]!;
+  const f = ctx.scent;
+  if (f.builtAt >= 0 && world.tick - f.builtAt < sc.refreshInterval) return;
+  f.builtAt = world.tick;
+  f.strength.fill(0);
+  const cell = sc.fieldCell;
+  for (const b of world.buildings) {
     const living = b.residents + b.sheltered.length;
     if (living < sc.buildingMinLiving) continue;
     const radius = Math.min(sc.buildingRadiusCap, sc.buildingRadiusBase + sc.buildingRadiusPerOccupant * living);
     for (const e of b.entrances) {
-      const d = Math.hypot(e.x - z.x, e.y - z.y);
-      const strength = d < radius ? 1 - d / radius : 0;
-      if (strength > scent.strength) {
-        scent.strength = strength;
-        scent.x = e.x;
-        scent.y = e.y;
+      const c0x = Math.max(0, Math.floor((e.x - radius) / cell)), c1x = Math.min(f.cols - 1, Math.floor((e.x + radius) / cell));
+      const c0y = Math.max(0, Math.floor((e.y - radius) / cell)), c1y = Math.min(f.cols - 1, Math.floor((e.y + radius) / cell));
+      for (let cy = c0y; cy <= c1y; cy++) {
+        for (let cx = c0x; cx <= c1x; cx++) {
+          const d = Math.hypot((cx + 0.5) * cell - e.x, (cy + 0.5) * cell - e.y);
+          if (d >= radius) continue;
+          const i = cy * f.cols + cx;
+          const strength = 1 - d / radius;
+          if (strength > f.strength[i]!) {
+            f.strength[i] = strength;
+            f.x[i] = e.x;
+            f.y[i] = e.y;
+          }
+        }
       }
     }
   }
-  return scent;
+}
+
+function scentAt(world: World, ctx: Context, z: Zombie): Scent {
+  const f = ctx.scent;
+  const cell = world.config.scent.fieldCell;
+  const cx = Math.min(f.cols - 1, Math.max(0, Math.floor(z.x / cell)));
+  const cy = Math.min(f.cols - 1, Math.max(0, Math.floor(z.y / cell)));
+  const i = cy * f.cols + cx;
+  return { strength: f.strength[i]!, x: f.x[i]!, y: f.y[i]! };
 }
 
 function stalemateStep(world: World): void {
@@ -94,6 +118,8 @@ export function zombieDecisions(world: World, ctx: Context): void {
   const zc = config.zombie;
   const speed = zc.speed[world.scenario.zombieGait];
   stalemateStep(world);
+  refreshScent(world, ctx);
+  const checkEvery = zc.dormantCheckInterval;
 
   for (const z of world.zombies) {
     ctx.zombieSpeed[z.id] = 0;
@@ -108,6 +134,9 @@ export function zombieDecisions(world: World, ctx: Context): void {
       continue;
     }
 
+    // Dormant zombies tick cheaply: they check for waking on a staggered cycle.
+    if (z.state === 'dormant' && z.id % checkEvery !== tick % checkEvery) continue;
+
     const heard = loudestAt(world, ctx, z);
 
     if (z.state === 'dormant') {
@@ -116,7 +145,9 @@ export function zombieDecisions(world: World, ctx: Context): void {
         z.state = 'active';
         z.heardAt = tick;
         if (heard.intensity > 0) z.heardPoint = { x: heard.x, y: heard.y };
-      } else if (chance(world.rng, zc.wanderRate * (1 + (config.scent.maxWakeMultiplier - 1) * scentAt(world, ctx, z).strength))) {
+      } else if (
+        chance(world.rng, 1 - Math.pow(1 - zc.wanderRate * (1 + (config.scent.maxWakeMultiplier - 1) * scentAt(world, ctx, z).strength), checkEvery))
+      ) {
         z.state = 'wandering';
         z.stateUntil = tick + nextInt(world.rng, zc.wanderTicks[0]!, zc.wanderTicks[1]!);
         z.heading = nextFloat(world.rng) * Math.PI * 2;

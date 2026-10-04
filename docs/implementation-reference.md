@@ -36,6 +36,8 @@ The entity field tables below are the original design. The authoritative field l
 Choices the specification left open, made while implementing the headless loop. Each is small and reversible; all tuning values are in `config.ts`.
 
 - **Patient zero is one of the residents.** The origin building loses a resident and gains an occupier, so the population total never changes.
+- **The origin is weighted by its neighbourhood.** Among eligible buildings (hospital, office or school with 30+ inside), the choice is weighted by the people living within 300 m. Uniform choice sometimes put patient zero in a suburban school in an empty corner at 09:00, where the bloom had nowhere to go — in effect the `street` control case. Corner origins remain possible, just rare.
+- **Population is 6,000** (was 2,000). Residents are counts and nearly free; the cost is agents on the map, which peak around 1,700 at this population — inside the renderer's 2,000-agent budget. 12,000 put about 3,000 agents on the map.
 - **Dormant zombies do not use sight.** They wake on sound at or above `wakeThreshold`, or on a sim in contact range. Sneaking past a sleeping cluster works because of this.
 - **Footsteps are not stored stimuli.** Running and sprinting are heard only by zombies inside the gait's noise radius at that moment. Stored stimuli are weapon noise only.
 - **Residents have no panic of their own,** so expelling them reads gunfire instead: a stimulus within the occupier alert radius queues a share of the building's residents to leave (`buildings.residentExpelShare`). Tracked sims inside are expelled by their own panic, as specified.
@@ -44,10 +46,11 @@ Choices the specification left open, made while implementing the headless loop. 
 - **Archetype from profession is a bias, not an override:** the scenario mix with the profession's archetype multiplied by `professionBias`. As an override it made police about 10% of the population.
 - **Not built yet:** the cornered modifier (needs an escape-vector test), promotion, the shelter economy and roles (milestone 4).
 - **Reaching a door ends the flight.** Entering a building caps panic just below `panicExpelThreshold`. Otherwise a sim who ran in panicked is expelled by that same panic the next tick and bounces in and out of the door; expulsion is meant to come from panic that rises inside.
+- **Memory is capped.** With terraced streets a close pass touches dozens of buildings, so building memory holds the 30 newest beliefs and street memory the 150 newest; older observations are forgotten, which reads exactly like an unknown entry.
 - **Spatial hash cell is 32 m,** not 16: the per-rebuild cell scan dominated the profile, and the reference also asks for a cell above the largest query radius.
 - **State added:** `Sim.street` (the street the sim is on, kept while within half its width), `Building.pendingSpill`, and `World.residentDeaths` (anonymous residents killed in a breach — the only record the full recount can count them from).
 
-**Tuning that passed the milestone 2 gate** (swept from the guessed defaults): zombie `dormantAfter` 300 → 1,200 ticks, `wanderRate` 0.0002 → 0.001, scent `idleDrift` 0.02 → 0.2, breach `base` 0.05 → 0.15, breach split 45/20/35 → 60/10/30 (turn/die/expel). With these, mapSeed 1 has 18 of 20 runSeeds between 40% and 90% infection (most finish at 53–62%, with about 25% dead without turning) and mapSeed 2 has 20 of 20; the invariant held on every tick of every run, and no run resolved early. The slow seeds are outbreaks whose origin crowd went dormant before finding anyone; they recover later through wanderers.
+**Tuning that passed the milestone 2 gate** (swept from the guessed defaults): zombie `dormantAfter` 300 → 1,200 ticks, `wanderRate` 0.0002 → 0.001, scent `idleDrift` 0.02 → 0.2, breach split 45/20/35 → 60/10/30 (turn/die/expel), and breach `base` 0.05 → 0.35 (0.15 passed on the old one-building-per-block map; subdivided blocks put most people in small houses, where a breach yields one or two conversions, so breaches had to come more often). On the current map at a population of 6,000, mapSeed 1 has 20 of 20 runSeeds between 40% and 90% infection (43–52%, with about 21% dead without turning) and mapSeed 2 has 18 of 20; the invariant held on every tick of every run, and no run resolved early. Curves are still rising at 21,600 ticks: the run ends mid-outbreak rather than after it.
 
 ## The concept in brief
 
@@ -84,7 +87,15 @@ Nothing below this section may contradict anything in it.
 
 The street graph is an overlay on continuous space, not a replacement for it. Sims have real positions; streets are edges used for routing and as the key space for memory. A sim is *on* a street when within half its width of the centreline.
 
-**Layout.** Fixed. Districts are a 3×3 grid of ~1,067 m cells: downtown in the centre, industrial in one corner, suburbs on the rest of the ring. One river crosses the whole map with three bridges — streets with terrain `bridge` — so `blocked` has something meaningful to sever. Everything is edge-based: a park is a block with no building whose bounding and crossing streets carry terrain `open`; there is no area primitive. A sim off any street (rare; only while steering) reads perception from the nearest street within 40 m, falling back to `standard`.
+**Layout.** Fixed. Districts are a 3×3 grid of ~1,067 m cells: downtown in the centre, industrial in one corner, suburbs on the rest of the ring. District boundaries and the map edge are straight continuous streets; inside each district the street grid is rotated a few degrees against its neighbours, so the seams show where grids meet. Everything is edge-based: a park is a block with no building whose bounding streets carry terrain `open`; there is no area primitive. A sim off any street (rare; only while steering) reads perception from the nearest street within 40 m, falling back to `standard`.
+
+**The river** runs edge to edge on a diagonal with gentle bends. Streets stop short of its banks except at three bridges — streets with terrain `bridge` — so `blocked` has something meaningful to sever.
+
+**Diagonals** break the grid without creating a highway. A single map-spanning avenue would be the cheapest long edge in the graph; every sim shares the graph, so most cross-map routes would converge on it. Instead there are short ones, each about a third of the map, starting and ending on existing grid nodes so they terminate inside the city rather than becoming through-routes: two arms meeting at one hub on a main street (a landmark junction), and one diagonal that crosses the river, putting a bridge at a junction. No diagonal runs within 35° of the river's heading, which would strand thin slivers between them. Where diagonals meet the grid they cut triangular blocks and small plazas.
+
+**Blocks** are the faces of the planar street graph. Faces below 1,500 m² become plazas (no buildings, `open` streets) and a few become parks. The rest are subdivided along their street frontages: suburbs into terraced plots of 9–14 m frontage, often backing onto a mid-block alley; industrial into long shallow sheds; downtown into a few large footprints. A share of blocks (most downtown) is built as one whole-block footprint — offices, schools, hospitals. Alleys are lanes through the middle of blocks, not whole grid lines, so the choice between the lit main street and the dark alley is visible on the map.
+
+**Occupancy scales with footprint area.** Each tag has an occupancy density per 100 m² and a multiplier per time band; starting residents are the indoor population divided in proportion to density × area × band. Big offices and schools fill by day, homes by night.
 
 ### Time
 

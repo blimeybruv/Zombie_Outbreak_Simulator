@@ -5,7 +5,7 @@ import type { Config } from '../config';
 import { createContext, type Context } from './context';
 import { add, transfer } from './counters';
 import { bandForHour } from './derived';
-import { functionalProfile, generateMap } from './mapgen/generate';
+import { footprintArea, functionalProfile, generateMap } from './mapgen/generate';
 import { createRng, nextFloat, nextInt } from './rng';
 import { spawnSim, spawnZombie } from './spawn';
 import { emptyCounters, type Building, type Scenario, type World } from './state';
@@ -31,7 +31,7 @@ function placeResidents(world: World, indoors: number, band: number): void {
   const { config, buildings, rng } = world;
   const weights = buildings.map((b) => {
     const t = config.tags[functionalProfile(b.tag, config)];
-    return t.occupancyWeight * t.bandMultiplier[band]! * (0.75 + 0.5 * nextFloat(rng));
+    return ((t.occupancyWeight * footprintArea(b.outline)) / 100) * t.bandMultiplier[band]! * (0.75 + 0.5 * nextFloat(rng));
   });
   const counts = apportion(indoors, weights);
   let overflow = 0;
@@ -85,13 +85,36 @@ function placeStreetPopulation(world: World, count: number): void {
   }
 }
 
-function originBuildings(world: World, count: number): Building[] {
+/** People within the radius of a building's entrance: residents of nearby buildings plus anyone outdoors. */
+function neighbourhood(world: World, ctx: Context, b: Building): number {
+  const r = world.config.spawn.originNeighbourhoodRadius;
+  const e = b.entrances[0]!;
+  let people = 0;
+  for (const id of ctx.map.buildingsNear(e.x, e.y, r, ctx.buildingIds)) if (id !== b.id) people += world.buildings[id]!.residents;
+  for (const s of world.sims) if (Math.hypot(s.x - e.x, s.y - e.y) <= r) people++;
+  return people;
+}
+
+/**
+ * Eligible origins are high-occupancy hospitals, offices and schools. Among them the
+ * choice is weighted by how many people live around each, so the bloom has somewhere
+ * to go: a school in an empty corner at 09:00 is possible, but rare.
+ */
+function originBuildings(world: World, ctx: Context, count: number): Building[] {
   const { config, rng } = world;
   const eligible = world.buildings.filter((b) => ORIGIN_TAGS.has(b.tag));
   const full = eligible.filter((b) => b.residents >= config.spawn.originMinResidents);
   const chosen: Building[] = [];
-  const pool = [...full];
-  while (chosen.length < count && pool.length > 0) chosen.push(pool.splice(nextInt(rng, 0, pool.length - 1), 1)[0]!);
+  const pool = full.map((b) => ({ b, w: neighbourhood(world, ctx, b) + 1 }));
+  while (chosen.length < count && pool.length > 0) {
+    let r = nextFloat(rng) * pool.reduce((sum, p) => sum + p.w, 0);
+    let i = 0;
+    for (; i < pool.length - 1; i++) {
+      r -= pool[i]!.w;
+      if (r < 0) break;
+    }
+    chosen.push(pool.splice(i, 1)[0]!.b);
+  }
   // Fall back to the fullest eligible buildings.
   const byFill = eligible.filter((b) => !chosen.includes(b)).sort((a, b) => b.residents - a.residents || a.id - b.id);
   while (chosen.length < count && byFill.length > 0) chosen.push(byFill.shift()!);
@@ -113,7 +136,7 @@ function seedOutbreak(world: World, ctx: Context): void {
   }
   const [lo, hi] = config.spawn.multipleOriginCount;
   const count = scenario.origin === 'multiple' ? nextInt(rng, lo!, hi!) : 1;
-  for (const b of originBuildings(world, count)) {
+  for (const b of originBuildings(world, ctx, count)) {
     if (b.residents === 0) continue;
     // Patient zero is one of the residents, so the population total is unchanged.
     b.residents--;

@@ -9,6 +9,7 @@ import { step } from '../../src/sim/tick';
 export interface RunSummary {
   runSeed: number;
   mapSeed: number;
+  population: number;
   /** Counters every `sampleEvery` ticks, starting at tick 0. */
   samples: Counters[];
   /** Share of the population that ever turned (turned leaves at the end). */
@@ -59,6 +60,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   return {
     runSeed,
     mapSeed,
+    population: world.scenario.population,
     samples,
     infection: turnedTotal(world.counters) / world.scenario.population,
     resolvedAt,

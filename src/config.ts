@@ -18,35 +18,71 @@ export const config = {
     districtGrid: 3, // 3×3 districts of ~1067 m
     // Row-major from the top-left. Downtown centre, industrial in one corner, suburbs around.
     districtLayout: ['suburb', 'suburb', 'industrial', 'suburb', 'downtown', 'suburb', 'suburb', 'suburb', 'suburb'],
-    river: { width: 40, bridges: 3 }, // m; one river crossing the whole map — guess (width)
+    river: {
+      width: 40, // m — guess
+      bridges: 3, // crossings in total, one of them on the crossing diagonal when there is one
+      slope: [0.25, 0.45], // rise over run across the map: a diagonal river, not a horizontal one
+      meander: 60, // m of sideways wander at interior bends — guess
+      bankMargin: 8, // m of dry bank a non-bridge street stops short of
+    },
+    diagonals: {
+      // Two short arms from one hub node (a landmark junction), and one separate
+      // diagonal that crosses the river. Each runs about a third of the map and
+      // starts and ends on existing grid nodes, so none becomes a through-route.
+      armLength: [700, 1100], // m
+      armSpread: [70, 110], // degrees between the two arms: they meet at an angle, never in a line
+      crossingLength: [800, 1150], // m
+      gridAngle: [30, 60], // degrees off the map axes
+      minRiverAngle: 35, // degrees; no diagonal runs near-parallel to the river
+      endpointSearch: 150, // m from the aimed point to the grid node it snaps to
+      riverClearance: 200, // m from the river for the hub and arm ends
+    },
+    snap: 5, // m; crossings closer than this merge into one node
+    setback: 2, // m between a building and the edge of its street
+    minBlockArea: 250, // m²; smaller faces stay empty
+    plazaArea: 1500, // m²; faces below this are plazas: no buildings, `open` streets
+    sizeClasses: { medium: 250, large: 1200 }, // m² of footprint at which a building counts as medium, large
     parkShare: 0.04, // fraction of blocks left empty with `open` streets — guess
     offStreetLookup: 40, // m; perception reads the nearest street within this, else `standard`
   },
 
   districtKinds: {
-    // blockPitch overrides map.blockPitch; tagWeights are relative — guess
+    // blockPitch overrides map.blockPitch; rotation is the grid's angle against the map
+    // (degrees, random sign) so district seams show; plots are laid along each block's
+    // street frontages (width along the street, depth into the block, metres); a plot
+    // is built with probability buildingDensity, else left vacant; alleyShare is the
+    // chance of a mid-block alley between two streets; tagWeights are relative — guess
     downtown: {
-      blockPitch: 70,
+      blockPitch: 95,
+      rotation: [0, 3],
+      plot: { width: [25, 60], depth: [20, 45], gap: 3 },
+      wholeBlockShare: 0.35, // blocks built as one large footprint (offices, hospitals, schools)
       buildingDensity: 0.95,
       lightingCoverage: 0.9,
       mainStreetShare: 0.3,
-      alleyShare: 0.2,
+      alleyShare: 0.3,
       tagWeights: { residential: 3, office: 4, supermarket: 1, school: 0.5, hospital: 0.3, policeStation: 0.3, firearmsStore: 0.2, hardwareStore: 0.4, workshop: 0.2, warehouse: 0.2, flavour: 3 },
     },
     industrial: {
-      blockPitch: 110,
+      blockPitch: 130,
+      rotation: [3, 8],
+      plot: { width: [40, 90], depth: [14, 24], gap: 8 },
+      wholeBlockShare: 0.25,
       buildingDensity: 0.7,
       lightingCoverage: 0.4,
       mainStreetShare: 0.15,
-      alleyShare: 0.25,
+      alleyShare: 0.2,
       tagWeights: { residential: 0.5, office: 0.5, supermarket: 0.2, school: 0.1, hospital: 0.05, policeStation: 0.1, firearmsStore: 0.2, hardwareStore: 1, workshop: 3, warehouse: 4, flavour: 0.5 },
     },
     suburb: {
-      blockPitch: 90,
-      buildingDensity: 0.75,
+      blockPitch: 100,
+      rotation: [2, 8],
+      plot: { width: [12, 18], depth: [12, 18], gap: 2 },
+      wholeBlockShare: 0.03,
+      buildingDensity: 0.7,
       lightingCoverage: 0.5,
       mainStreetShare: 0.1,
-      alleyShare: 0.1,
+      alleyShare: 0.5,
       tagWeights: { residential: 10, office: 0.2, supermarket: 0.5, school: 0.4, hospital: 0.05, policeStation: 0.1, firearmsStore: 0.1, hardwareStore: 0.3, workshop: 0.3, warehouse: 0.1, flavour: 1.5 },
     },
   },
@@ -72,6 +108,7 @@ export const config = {
     streetSpawnWeight: { main: 3, standard: 1, alley: 0.2 }, // relative
     ageRange: [16, 85], // years
     originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
+    originNeighbourhoodRadius: 300, // m; origins are weighted by the people living this close — guess
     multipleOriginCount: [3, 6], // sources in `multiple`
   },
 
@@ -107,6 +144,8 @@ export const config = {
   memory: {
     halfLife: 1800, // ticks; confidence = exp(-ln2 * age / halfLife)
     unknownStreetDanger: 0, // 0 = ignorance reads as safety; >0 = baseline pessimism (sweep both)
+    streetCap: 150, // entries; beyond this the oldest observation is forgotten
+    buildingCap: 30, // entries; terraces put hundreds of buildings within a close pass
   },
 
   stimulus: {
@@ -164,6 +203,7 @@ export const config = {
     wanderSpeedFactor: 0.6, // of zombie speed — guess
     idleSpeedFactor: 0.3, // of zombie speed while awake with nothing to chase — guess
     arriveRadius: 2, // m; a heard point counts as reached within this
+    dormantCheckInterval: 4, // ticks between a dormant zombie's wake checks, staggered by id
     cohesion: 0.05, // steering weight — guess
     alignment: 0.05, // steering weight — guess
     flockRadius: 12, // m — guess
@@ -184,6 +224,8 @@ export const config = {
     clusterScentRadius: 20, // m
     maxWakeMultiplier: 3, // on wanderRate at the source, falling to 1 at the edge
     idleDrift: 0.2, // steering weight up the gradient for awake idle zombies — swept (was 0.02)
+    fieldCell: 20, // m; scent is sampled on a grid this fine
+    refreshInterval: 30, // ticks between scent field rebuilds; occupancy changes slowly
   },
 
   combat: {
@@ -251,7 +293,7 @@ export const config = {
       maxRolls: 4, // per building per check
       // p per roll = base * (1 - integrity) / (1 + 2 * fortification): never zero, and a
       // fully fortified weak building (0.35) outlasts a bare strong one (0.7).
-      base: 0.15, // swept (was 0.05)
+      base: 0.35, // swept (was 0.05, then 0.15 before subdivided blocks)
       split: { turn: 0.6, die: 0.1, expel: 0.3 }, // how residents resolve after a breach — swept (reference start 0.45/0.2/0.35)
       resolvePerTick: 2, // residents resolved per building per tick
     },
@@ -267,25 +309,26 @@ export const config = {
   },
 
   // One profile per functional tag. integrity is structural soundness (scalar).
-  // occupancyWeight is relative capacity at peak; bandMultiplier scales it per
-  // occupancy band (night, morning, afternoon, evening). Starting residents are
-  // the population share that is indoors, divided across buildings in proportion
-  // to occupancyWeight × bandMultiplier, so occupancy and time of day cannot
-  // disagree. Weights are roughly people per building relative to a house: with
-  // ~2,000 people over ~1,000 buildings, only steep ratios give the enclosed origin
-  // a building of 30+ (hospitals hold 31–66 at every start time). Materials are the starting stock range. Loot weights are relative.
+  // occupancyWeight is relative occupancy per 100 m² of footprint at peak, and
+  // bandMultiplier scales it per occupancy band (night, morning, afternoon, evening).
+  // Starting residents are the indoor share of the population divided across buildings
+  // in proportion to occupancyWeight × footprint area × bandMultiplier, so big buildings
+  // hold more people and occupancy cannot disagree with the time of day. sizes are the
+  // footprint classes (map.sizeClasses) the tag may occupy. Materials are the starting
+  // stock range. Loot weights are relative.
   tags: {
-    residential: { integrity: 0.7, entrances: 1, occupancyWeight: 4, bandMultiplier: [1, 0.3, 0.35, 0.9], materials: [2, 6], loot: { knife: 2, club: 1, materials: 2 } },
-    firearmsStore: { integrity: 0.8, entrances: 1, occupancyWeight: 2, bandMultiplier: [0.05, 0.8, 1, 0.5], materials: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
-    policeStation: { integrity: 0.9, entrances: 2, occupancyWeight: 3, bandMultiplier: [0.5, 1, 1, 0.7], materials: [2, 5], loot: { pistol: 3, smg: 1, ammo: 4 } },
-    hardwareStore: { integrity: 0.7, entrances: 1, occupancyWeight: 2, bandMultiplier: [0.02, 0.9, 1, 0.4], materials: [20, 40], loot: { club: 2, sledgehammer: 2, knife: 1, materials: 5 } },
-    workshop: { integrity: 0.7, entrances: 1, occupancyWeight: 1.5, bandMultiplier: [0.02, 1, 1, 0.2], materials: [10, 25], loot: { club: 2, sledgehammer: 1, materials: 4 } },
-    warehouse: { integrity: 0.75, entrances: 1, occupancyWeight: 1.5, bandMultiplier: [0.1, 0.8, 0.8, 0.2], materials: [30, 60], loot: { materials: 6 } },
-    supermarket: { integrity: 0.35, entrances: 3, occupancyWeight: 6, bandMultiplier: [0.02, 0.7, 1, 0.6], materials: [8, 16], loot: { knife: 1, materials: 3 } },
-    office: { integrity: 0.4, entrances: 2, occupancyWeight: 50, bandMultiplier: [0.02, 1, 0.9, 0.1], materials: [0, 2], loot: {} },
-    school: { integrity: 0.35, entrances: 4, occupancyWeight: 120, bandMultiplier: [0, 1, 0.8, 0.05], materials: [0, 2], loot: {} },
-    hospital: { integrity: 0.4, entrances: 4, occupancyWeight: 300, bandMultiplier: [0.6, 1, 1, 0.8], materials: [0, 2], loot: {} },
+    residential: { integrity: 0.7, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1.2, bandMultiplier: [1, 0.3, 0.35, 0.9], materials: [2, 6], loot: { knife: 2, club: 1, materials: 2 } },
+    firearmsStore: { integrity: 0.8, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1, bandMultiplier: [0.05, 0.8, 1, 0.5], materials: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
+    policeStation: { integrity: 0.9, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 3, bandMultiplier: [0.5, 1, 1, 0.7], materials: [2, 5], loot: { pistol: 3, smg: 1, ammo: 4 } },
+    hardwareStore: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 0.9, 1, 0.4], materials: [20, 40], loot: { club: 2, sledgehammer: 2, knife: 1, materials: 5 } },
+    workshop: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 1, 1, 0.2], materials: [10, 25], loot: { club: 2, sledgehammer: 1, materials: 4 } },
+    warehouse: { integrity: 0.75, entrances: 2, sizes: ['large'], occupancyWeight: 0.3, bandMultiplier: [0.1, 0.8, 0.8, 0.2], materials: [30, 60], loot: { materials: 6 } },
+    supermarket: { integrity: 0.35, entrances: 3, sizes: ['medium', 'large'], occupancyWeight: 2, bandMultiplier: [0.02, 0.7, 1, 0.6], materials: [8, 16], loot: { knife: 1, materials: 3 } },
+    office: { integrity: 0.4, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 5, bandMultiplier: [0.02, 1, 0.9, 0.1], materials: [0, 2], loot: {} },
+    school: { integrity: 0.35, entrances: 4, sizes: ['large'], occupancyWeight: 8, bandMultiplier: [0, 1, 0.8, 0.05], materials: [0, 2], loot: {} },
+    hospital: { integrity: 0.4, entrances: 4, sizes: ['large'], occupancyWeight: 10, bandMultiplier: [0.9, 1, 1, 0.9], materials: [0, 2], loot: {} },
   },
+  flavourSizes: ['small', 'medium'], // footprint classes a flavour tag may occupy
 
   // Each flavour tag behaves exactly like one functional profile but holds nothing useful.
   flavourProfiles: {

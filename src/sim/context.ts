@@ -37,6 +37,8 @@ export interface Context {
   /** Speed chosen in zombie decisions, applied in movement. */
   zombieSpeed: Float64Array;
 
+  /** Building scent on a coarse grid: strength (0–1) and the entrance it leads to. */
+  scent: { cols: number; strength: Float32Array; x: Float32Array; y: Float32Array; builtAt: number };
   /** Sims already waiting in the repath queue. */
   queued: Uint8Array;
   events: SimEvent[];
@@ -65,6 +67,10 @@ export function createContext(world: World): Context {
     daylight: 1,
     zombieSees: new Int32Array(0),
     zombieSpeed: new Float64Array(0),
+    scent: (() => {
+      const cols = Math.ceil(size / world.config.scent.fieldCell);
+      return { cols, strength: new Float32Array(cols * cols), x: new Float32Array(cols * cols), y: new Float32Array(cols * cols), builtAt: -1 };
+    })(),
     queued: new Uint8Array(0),
     events: [],
     ids: [],

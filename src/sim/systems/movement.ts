@@ -10,19 +10,21 @@ function ageFactor(age: number, world: World): number {
   return value[0]! + (value[1]! - value[0]!) * t;
 }
 
+/** Deflections tried, in order, when the way ahead is blocked: slide along walls and banks at any angle. */
+const DEFLECT = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.57, -1.57];
+
 /** Moves along heading, sliding along walls and riverbanks rather than passing through. */
 function step(ctx: Context, e: { x: number; y: number }, heading: number, distance: number): void {
   if (distance <= 0) return;
-  const nx = e.x + Math.cos(heading) * distance;
-  const ny = e.y + Math.sin(heading) * distance;
-  const map = ctx.map;
-  if (map.walkable(nx, ny)) {
-    e.x = nx;
-    e.y = ny;
-  } else if (map.walkable(nx, e.y)) {
-    e.x = nx;
-  } else if (map.walkable(e.x, ny)) {
-    e.y = ny;
+  for (const d of DEFLECT) {
+    const scaleBy = Math.cos(d); // progress shrinks as the deflection grows
+    const nx = e.x + Math.cos(heading + d) * distance * scaleBy;
+    const ny = e.y + Math.sin(heading + d) * distance * scaleBy;
+    if (ctx.map.walkable(nx, ny)) {
+      e.x = nx;
+      e.y = ny;
+      return;
+    }
   }
 }
 

@@ -13,6 +13,7 @@
 import { isOutdoorLiving, type Context } from '../context';
 import { confidence } from '../derived';
 import { functionalProfile } from '../mapgen/generate';
+import { remember } from '../memory';
 import { sharedNode } from '../pathfinding';
 import { nextFloat, nextInt } from '../rng';
 import type { Building, BuildingId, Sim, StreetId, World } from '../state';
@@ -63,7 +64,7 @@ function observe(world: World, ctx: Context, sim: Sim): void {
       prev.observedAt = tick;
       prev.visited = true;
     } else {
-      sim.streetMemory.set(street as StreetId, { danger: ctx.threat[sim.id]!, observedAt: tick, visited: true });
+      remember(sim.streetMemory, street as StreetId, { danger: ctx.threat[sim.id]!, observedAt: tick, visited: true }, config.memory.streetCap);
     }
   }
   sim.street = street >= 0 ? (street as StreetId) : null;
@@ -79,7 +80,7 @@ function observe(world: World, ctx: Context, sim: Sim): void {
       prev.fortification = b.fortification;
       prev.observedAt = tick;
     } else {
-      sim.buildingMemory.set(bid, { believedOccupants: occupants, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false });
+      remember(sim.buildingMemory, bid, { believedOccupants: occupants, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false }, config.memory.buildingCap);
     }
   }
 }
