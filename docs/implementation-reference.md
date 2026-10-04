@@ -279,11 +279,11 @@ No archetype, no memory, no history counters, no shelter logic, no names. Defaul
 | `lit` | `bool` | — | Interior light; visible from outside at night |
 | `entrances` | `{x, y}[]` | Metres | Where sims cross the outline |
 
-**Three populations, deliberately.** The anonymous living count dissolves into a number; sheltered sims keep their identity and history; occupying zombies are a count with no identity at all. Effective breach resistance is `integrity * (1 + fortification * 2)`, so a fortified weak building can outlast a bare strong one.
+**Three populations, deliberately.** The anonymous living count dissolves into a number; sheltered sims keep their identity and history; occupying zombies are a count with no identity at all. Breach probability scales with `(1 - integrity) / (1 + 2 * fortification)`: integrity sets how breachable the bare building is and fortification divides it, so a fortified weak building can outlast a bare strong one and no building ever becomes unbreachable.
 
-**Breach rolls.** Every 10 ticks on a cycle staggered by building id, each building with zombies within 5 m of an entrance takes one roll per adjacent zombie, up to four, at `p = breachBase * (1 - integrity * (1 + fortification * 2))`, clamped at 0.
+**Breach rolls.** Every 10 ticks on a cycle staggered by building id, each building with zombies within 5 m of an entrance takes one roll per adjacent zombie, up to four, at `p = breachBase * (1 - integrity) / (1 + 2 * fortification)`.
 
-**Open:** as written, `p` reaches zero once `integrity * (1 + 2 * fortification) ≥ 1` — at fortification 0.06 for a police station (integrity 0.9) and 0.21 for a house (0.7) — making most sound buildings unbreachable early. `p = breachBase * (1 - integrity) / (1 + 2 * fortification)` keeps resistance growing without a cliff and still lets a fortified weak building outlast a bare strong one.
+An earlier form, `breachBase * (1 - integrity * (1 + 2 * fortification))`, was rejected: it reaches zero once `integrity * (1 + 2 * fortification) ≥ 1` — at fortification 0.06 for a police station and 0.21 for a house — so most sound buildings became unbreachable almost immediately.
 
 **Occupation.** Zombies that breach a building are de-instantiated and become `zombiesInside`. They leave the map, cost nothing per tick, and are not rendered — which matters, because in a saturated city a breached building would otherwise hold hundreds of agents. An occupied building reads visually as full; nothing on screen says by what.
 
@@ -909,7 +909,7 @@ Distribution is weighted by street type — main streets dense, alleys sparse �
 
 ### Outbreak origin
 
-**Default: enclosed, high-occupancy, before release.** Patient zero spawns inside a building tagged hospital, office or school with 30+ occupants. Sight cannot pass walls, occupants cannot see 45 m or outrun anything, and the breach pipeline does the bootstrapping that a single zombie in the open cannot.
+**Default: enclosed, high-occupancy, before release.** Patient zero spawns inside a building tagged hospital, office or school with 30+ occupants, or the fullest such building if none reaches 30. Starting occupancy is weighted steeply by tag (a hospital holds roughly 75 times a house) so that at ~2,000 people across ~1,000 buildings the high-occupancy buildings exist at every start time. Sight cannot pass walls, occupants cannot see 45 m or outrun anything, and the breach pipeline does the bootstrapping that a single zombie in the open cannot.
 
 | Setting | Effect |
 | --- | --- |

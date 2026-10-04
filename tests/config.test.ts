@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
+import { breachChance } from '../src/sim/breach';
 import { confidence, timeOfDay } from '../src/sim/derived';
 import { defaultScenario } from '../src/sim/scenario';
 import {
@@ -7,6 +8,7 @@ import {
   DISTRICT_KINDS,
   FLAVOUR_TAGS,
   FUNCTIONAL_TAGS,
+  type FunctionalTag,
   GAITS,
   PROFESSIONS,
   TERRAINS,
@@ -126,5 +128,63 @@ describe('derived quantities', () => {
     expect(timeOfDay(config.time.dayLength, s, config)).toBeCloseTo(0.5, 10);
     expect(timeOfDay(config.time.dayLength / 2, s, config)).toBeCloseTo(0, 10);
     expect(config.time.runLength / config.time.dayLength).toBe(3);
+  });
+});
+
+describe('breach chance', () => {
+  const tags = Object.values(config.tags);
+
+  it('is never zero, even for the strongest building fully fortified', () => {
+    for (const t of tags) expect(breachChance(t.integrity, 1, config)).toBeGreaterThan(0);
+  });
+
+  it('falls as fortification rises', () => {
+    for (const t of tags) expect(breachChance(t.integrity, 0.5, config)).toBeLessThan(breachChance(t.integrity, 0, config));
+  });
+
+  it('lets a fortified weak building outlast a bare strong one', () => {
+    const weakest = Math.min(...tags.map((t) => t.integrity));
+    const strongestRoutine = config.tags.residential.integrity;
+    expect(breachChance(weakest, 1, config)).toBeLessThan(breachChance(strongestRoutine, 0, config));
+  });
+});
+
+// Expected starting residents per building, as the generator will distribute them:
+// the indoor share of population split by occupancyWeight × bandMultiplier over the
+// expected building count per tag. An estimate (one building per block), not a run.
+function expectedResidentsPerBuilding(band: number): Record<FunctionalTag, number> {
+  const cell = config.map.size / config.map.districtGrid;
+  const counts = Object.fromEntries(FUNCTIONAL_TAGS.map((t) => [t, 0])) as Record<FunctionalTag, number>;
+  for (const kind of config.map.districtLayout) {
+    const k = config.districtKinds[kind as keyof typeof config.districtKinds];
+    const buildings = (cell / k.blockPitch) ** 2 * k.buildingDensity;
+    const totalWeight = sum(Object.values(k.tagWeights));
+    for (const [tag, w] of Object.entries(k.tagWeights)) {
+      const n = (buildings * w) / totalWeight;
+      if (tag === 'flavour') {
+        for (const f of FLAVOUR_TAGS) counts[config.flavourProfiles[f] as FunctionalTag] += n / FLAVOUR_TAGS.length;
+      } else counts[tag as FunctionalTag] += n;
+    }
+  }
+  const weight = (t: FunctionalTag) => config.tags[t].occupancyWeight * config.tags[t].bandMultiplier[band]!;
+  const totalWeight = sum(FUNCTIONAL_TAGS.map((t) => counts[t] * weight(t)));
+  const indoors = defaultScenario.population * (1 - config.spawn.outdoorShareByBand[band]!);
+  return Object.fromEntries(FUNCTIONAL_TAGS.map((t) => [t, (weight(t) * indoors) / totalWeight])) as Record<FunctionalTag, number>;
+}
+
+describe('starting occupancy at default scale', () => {
+  it.each(config.time.bandStartHours.map((h, band) => [h, band]))(
+    'an enclosed-origin building reaches originMinResidents when starting at %i:00',
+    (_hour, band) => {
+      const r = expectedResidentsPerBuilding(band);
+      const fullest = Math.max(r.hospital, r.office, r.school);
+      expect(fullest).toBeGreaterThanOrEqual(config.spawn.originMinResidents);
+    },
+  );
+
+  it('stays within the 0–200 residents range', () => {
+    for (let band = 0; band < config.time.bandStartHours.length; band++) {
+      expect(Math.max(...Object.values(expectedResidentsPerBuilding(band)))).toBeLessThanOrEqual(200);
+    }
   });
 });

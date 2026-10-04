@@ -71,7 +71,7 @@ export const config = {
     outdoorShareByBand: [0.02, 0.12, 0.15, 0.1],
     streetSpawnWeight: { main: 3, standard: 1, alley: 0.2 }, // relative
     ageRange: [16, 85], // years
-    originMinResidents: 30, // people; patient zero's building in `enclosed`
+    originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
     multipleOriginCount: [3, 6], // sources in `multiple`
   },
 
@@ -230,7 +230,9 @@ export const config = {
       interval: 10, // ticks; staggered by building id
       entranceRadius: 5, // m; zombies this close to an entrance roll
       maxRolls: 4, // per building per check
-      base: 0.05, // per roll — guess; see breach probability note in the reference
+      // p per roll = base * (1 - integrity) / (1 + 2 * fortification): never zero, and a
+      // fully fortified weak building (0.35) outlasts a bare strong one (0.7).
+      base: 0.05, // guess
       split: { turn: 0.45, die: 0.2, expel: 0.35 }, // how residents resolve after a breach
       resolvePerTick: 2, // residents resolved per building per tick
     },
@@ -250,7 +252,9 @@ export const config = {
   // occupancy band (night, morning, afternoon, evening). Starting residents are
   // the population share that is indoors, divided across buildings in proportion
   // to occupancyWeight × bandMultiplier, so occupancy and time of day cannot
-  // disagree. Materials are the starting stock range. Loot weights are relative.
+  // disagree. Weights are roughly people per building relative to a house: with
+  // ~2,000 people over ~1,000 buildings, only steep ratios give the enclosed origin
+  // a building of 30+ (hospitals hold 31–66 at every start time). Materials are the starting stock range. Loot weights are relative.
   tags: {
     residential: { integrity: 0.7, entrances: 1, occupancyWeight: 4, bandMultiplier: [1, 0.3, 0.35, 0.9], materials: [2, 6], loot: { knife: 2, club: 1, materials: 2 } },
     firearmsStore: { integrity: 0.8, entrances: 1, occupancyWeight: 2, bandMultiplier: [0.05, 0.8, 1, 0.5], materials: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
@@ -259,9 +263,9 @@ export const config = {
     workshop: { integrity: 0.7, entrances: 1, occupancyWeight: 1.5, bandMultiplier: [0.02, 1, 1, 0.2], materials: [10, 25], loot: { club: 2, sledgehammer: 1, materials: 4 } },
     warehouse: { integrity: 0.75, entrances: 1, occupancyWeight: 1.5, bandMultiplier: [0.1, 0.8, 0.8, 0.2], materials: [30, 60], loot: { materials: 6 } },
     supermarket: { integrity: 0.35, entrances: 3, occupancyWeight: 6, bandMultiplier: [0.02, 0.7, 1, 0.6], materials: [8, 16], loot: { knife: 1, materials: 3 } },
-    office: { integrity: 0.4, entrances: 2, occupancyWeight: 10, bandMultiplier: [0.02, 1, 0.9, 0.1], materials: [0, 2], loot: {} },
-    school: { integrity: 0.35, entrances: 4, occupancyWeight: 12, bandMultiplier: [0, 1, 0.8, 0.05], materials: [0, 2], loot: {} },
-    hospital: { integrity: 0.4, entrances: 4, occupancyWeight: 15, bandMultiplier: [0.6, 1, 1, 0.8], materials: [0, 2], loot: {} },
+    office: { integrity: 0.4, entrances: 2, occupancyWeight: 50, bandMultiplier: [0.02, 1, 0.9, 0.1], materials: [0, 2], loot: {} },
+    school: { integrity: 0.35, entrances: 4, occupancyWeight: 120, bandMultiplier: [0, 1, 0.8, 0.05], materials: [0, 2], loot: {} },
+    hospital: { integrity: 0.4, entrances: 4, occupancyWeight: 300, bandMultiplier: [0.6, 1, 1, 0.8], materials: [0, 2], loot: {} },
   },
 
   // Each flavour tag behaves exactly like one functional profile but holds nothing useful.
