@@ -20,6 +20,11 @@ import { zombieDecisions } from './systems/zombies';
 export interface StepOptions {
   /** Recount every leaf from entity state and assert the invariant. Harness only. */
   checkInvariant: boolean;
+  /**
+   * Called after each stage with its name. The simulation never reads the clock;
+   * a profiler passes a probe that does.
+   */
+  probe?: (stage: string) => void;
 }
 
 export class InvariantError extends Error {}
@@ -42,20 +47,32 @@ export function assertInvariant(world: World): void {
 }
 
 export function step(world: World, ctx: Context, options: StepOptions): void {
+  const probe = options.probe ?? (() => {});
+  probe('start');
   world.tick++; //                                         1  advance tick (timeOfDay is derived)
   sizeContext(ctx, world);
   rebuildHashes(world, ctx); //                            2  spatial hash
+  probe('hashes');
   expireStimuli(world); //                                 3  stimuli
   computePerception(world, ctx); //                        4  read-only snapshot
+  probe('perception');
   zombieDecisions(world, ctx); //                          5
+  probe('zombies');
   updatePanic(world, ctx); //                              6  sim decisions: panic, then intent
+  probe('panic');
   simDecisions(world, ctx);
+  probe('sims');
   resolveCombat(world, ctx); //                            7
+  probe('combat');
   convertDue(world, ctx); //                               8
   integrateMovement(world, ctx); //                        9
+  probe('movement');
   buildingProcesses(world, ctx); //                        10
+  probe('buildings');
   resolveEncounters(world, ctx); //                        11
+  probe('encounters');
   if (options.checkInvariant) assertInvariant(world); //   12 (counters are reconciled incrementally)
   world.events = ctx.events; //                            13 emit events
   ctx.events = [];
+  probe('end');
 }

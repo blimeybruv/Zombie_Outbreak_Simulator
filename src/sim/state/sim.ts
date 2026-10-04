@@ -142,6 +142,13 @@ export interface Sim {
   y: Metres;
   /** Facing; decisions set it, movement integrates along it. @range 0–2π @unit rad @readBy movement, render (trails) */
   heading: Radians;
+  /**
+   * Which way the sim is sliding along an obstacle: -1 or 1, or 0 when its way is
+   * clear. Kept until the direct path opens, so it follows a wall instead of
+   * flipping sides every tick.
+   * @range -1, 0, 1 @unit side @readBy movement
+   */
+  slide: -1 | 0 | 1;
   /** @range 5 values @unit enum @readBy movement (speed), stamina, detectability, noise */
   gait: Gait;
   /** @range 0–1 @unit scalar @readBy movement (effectiveSpeed), gait selection */
@@ -190,6 +197,15 @@ export interface Sim {
   nextRepathAt: Tick;
   /** Routine idle at a stop ends here; null when not idling. @range tick | null @unit tick @readBy routine behaviour */
   idleUntil: Tick | null;
+  /**
+   * Keeps avoiding until this tick after a threat drops out of sight, so a zombie
+   * flickering at the edge of view does not flip the sim between fleeing and its
+   * route every tick. Null when not avoiding.
+   * @range tick | null @unit tick @readBy sim decisions
+   */
+  avoidUntil: Tick | null;
+  /** The last building that turned this sim away (occupied, or someone inside knew it was bitten); never chosen again as a door or shelter. @range building id | null @unit id @readBy door and shelter choice */
+  refusedBy: BuildingId | null;
 
   // Carried
 

@@ -206,6 +206,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     let door: Building | null = null;
     let doorD = Infinity;
     for (const bid of ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.doorSearchRadius, ctx.buildingIds)) {
+      if (bid === sim.refusedBy) continue;
       const b = buildings[bid]!;
       const e = entranceNearest(b, sim.x, sim.y);
       const d = Math.hypot(e.x - sim.x, e.y - sim.y);
@@ -241,7 +242,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const seeks = threat >= arch.shelterSeekThreshold || (engages && threat >= arch.engageThreshold);
   if (seeks || sim.destinationKind === 'shelter') {
     if (sim.destinationKind !== 'shelter' || sim.destinationBuilding === null) {
-      const b = chooseShelter(world, ctx, sim, null);
+      const b = chooseShelter(world, ctx, sim, sim.refusedBy);
       if (b === null) {
         sim.gait = 'run';
         steerAway(ctx, sim);
@@ -254,11 +255,15 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     return;
   }
 
-  if (threat > 0) {
+  if (threat > 0 || (sim.avoidUntil !== null && world.tick < sim.avoidUntil)) {
     sim.gait = sim.archetype === 'civilian' || sim.archetype === 'reckless' ? 'run' : 'sneak';
-    steerAway(ctx, sim);
+    if (threat > 0) {
+      sim.avoidUntil = world.tick + config.behaviour.avoidHold;
+      steerAway(ctx, sim);
+    } // else: out of sight for now, keep going the way it was going
     return;
   }
+  sim.avoidUntil = null;
 
   // Routine.
   if (sim.destinationBuilding === null || sim.destinationKind !== 'routine') {

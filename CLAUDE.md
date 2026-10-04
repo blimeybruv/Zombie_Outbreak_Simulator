@@ -192,7 +192,12 @@ If one seems necessary, raise it rather than adding it.
 - Do not optimise speculatively. Structure-of-arrays is a later option, not a starting
   point. Profile first.
 - Stagger expensive work on id offsets rather than running it every tick (armed sims
-  pick targets when `id % 5 === tick % 5`; occupier spill every 10; roles every 30).
+  pick targets when `id % 5 === tick % 5`; occupier spill every 10; roles every 30;
+  dormant zombies every 4; idle awake zombies every 3).
+- Measure before optimising: `npx tsx scripts/profile.ts [ticks] [population]` times each
+  tick stage alongside what each population is doing; `npx tsx scripts/movement-check.ts`
+  reports how often moving agents are stuck or reversing (zig-zag). Both should stay
+  near zero after any change to steering or movement.
 
 ---
 

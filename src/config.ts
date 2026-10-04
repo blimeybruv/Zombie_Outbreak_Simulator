@@ -162,11 +162,12 @@ export const config = {
     routineDistanceScale: 300, // m; stop weight falls as 1 / (1 + d / scale) — guess
     pathStreetSearch: 200, // m; widest search for the street a route starts or ends on
     observeInterval: 5, // ticks between close-pass building observations, staggered by id
+    avoidHold: 15, // ticks a sim keeps avoiding after the threat drops out of sight
   },
 
   encounters: {
     radius: 4, // m
-    cooldown: 10, // ticks between merges for one sim — guess
+    cooldown: 30, // ticks between merges for one sim — guess (10 made merging the largest cost with crowds outdoors)
   },
 
   pathfinding: {
@@ -187,6 +188,7 @@ export const config = {
     staminaSpeedFloor: 0.5, // effectiveSpeed = gaitSpeed * (floor + (1-floor) * stamina) * ageFactor
     ageFactor: { atAge: [20, 80], value: [1.05, 0.75] }, // linear between, clamped outside
     concealment: 0.5, // detectability multiplier indoors, or on an unlit street at night
+    slideSpeed: 0.7, // fraction of speed kept while sliding along a wall or bank
     gaitNoiseIntensity: 0.6, // at origin; heard by zombies within the gait's noise radius — guess
   },
 
@@ -204,6 +206,7 @@ export const config = {
     idleSpeedFactor: 0.3, // of zombie speed while awake with nothing to chase — guess
     arriveRadius: 2, // m; a heard point counts as reached within this
     dormantCheckInterval: 4, // ticks between a dormant zombie's wake checks, staggered by id
+    idleCheckInterval: 3, // ticks between decisions for an awake zombie with nothing to follow, staggered by id
     cohesion: 0.05, // steering weight — guess
     alignment: 0.05, // steering weight — guess
     flockRadius: 12, // m — guess

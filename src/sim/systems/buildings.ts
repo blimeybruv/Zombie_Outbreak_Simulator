@@ -90,12 +90,14 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     b.pendingSpill = Math.max(b.pendingSpill, b.zombiesInside);
     if (chance(world.rng, config.combat.zombieAttack.baseInfection)) bite(world, ctx, sim);
     remember(sim.streetMemory, b.street, { danger: 1, observedAt: tick, visited: sim.streetMemory.get(b.street)?.visited ?? false }, config.memory.streetCap);
+    sim.refusedBy = b.id;
     sim.destinationBuilding = null;
     sim.destination = null;
     sim.route = [];
     return;
   }
   if (b.sheltered.some((id) => world.sims[id]!.knownInfected.has(sim.id))) {
+    sim.refusedBy = b.id;
     sim.destinationBuilding = null;
     sim.destination = null;
     sim.route = [];

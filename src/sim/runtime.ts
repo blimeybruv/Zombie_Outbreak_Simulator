@@ -258,7 +258,9 @@ export class MapIndex {
 
   /** Whether a point is walkable: on the map, outside every building, and dry or on a bridge. */
   walkable(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x > this.size || y > this.size) return false;
+    // The perimeter street's surface runs half a main-street width past the map edge.
+    const edge = this.world.config.map.streetWidth.main / 2;
+    if (x < -edge || y < -edge || x > this.size + edge || y > this.size + edge) return false;
     if (this.inWater(x, y)) return false;
     return this.buildingAt(x, y) === null;
   }

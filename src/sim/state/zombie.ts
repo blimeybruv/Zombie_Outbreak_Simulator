@@ -27,6 +27,8 @@ export interface Zombie {
   y: Metres;
   /** @range 0–2π @unit rad @readBy movement, flocking alignment, render */
   heading: Radians;
+  /** Side it is sliding along an obstacle, held until the way is clear (see Sim.slide). @range -1, 0, 1 @unit side @readBy movement */
+  slide: -1 | 0 | 1;
   /** Set only while `occupying`. @range building id | null @unit id @readBy occupier spill, occupation recount */
   insideBuilding: BuildingId | null;
   /** Tracked survivor; null when drifting, flocking or responding to sound. @range sim id | null @unit id @readBy zombie decisions, steering */

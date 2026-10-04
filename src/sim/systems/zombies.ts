@@ -18,8 +18,11 @@ interface Heard {
   y: number;
 }
 
+const heard: Heard = { intensity: 0, x: 0, y: 0 };
+
+/** Loudest sound at the zombie. Returns a shared record, valid until the next call. */
 function loudestAt(world: World, ctx: Context, z: Zombie): Heard {
-  const heard: Heard = { intensity: 0, x: 0, y: 0 };
+  heard.intensity = 0;
   for (const s of world.stimuli) {
     const i = intensityAt(s, z.x, z.y);
     if (i > heard.intensity) {
@@ -91,6 +94,15 @@ function refreshScent(world: World, ctx: Context): void {
   }
 }
 
+/** Points a zombie at a place, reusing its existing point record. */
+function setHeard(z: Zombie, x: number, y: number): void {
+  if (z.heardPoint === null) z.heardPoint = { x, y };
+  else {
+    z.heardPoint.x = x;
+    z.heardPoint.y = y;
+  }
+}
+
 function scentAt(world: World, ctx: Context, z: Zombie): Scent {
   const f = ctx.scent;
   const cell = world.config.scent.fieldCell;
@@ -120,6 +132,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
   stalemateStep(world);
   refreshScent(world, ctx);
   const checkEvery = zc.dormantCheckInterval;
+  const idleEvery = zc.idleCheckInterval;
 
   for (const z of world.zombies) {
     ctx.zombieSpeed[z.id] = 0;
@@ -136,6 +149,17 @@ export function zombieDecisions(world: World, ctx: Context): void {
 
     // Dormant zombies tick cheaply: they check for waking on a staggered cycle.
     if (z.state === 'dormant' && z.id % checkEvery !== tick % checkEvery) continue;
+    // Awake but idle (nothing tracked, heard or seen): keep drifting, re-decide on a staggered cycle.
+    if (
+      (z.state === 'active' || z.state === 'wandering') &&
+      z.target === null &&
+      z.heardPoint === null &&
+      ctx.zombieSees[z.id] === -1 &&
+      z.id % idleEvery !== tick % idleEvery
+    ) {
+      ctx.zombieSpeed[z.id] = speed * (z.state === 'wandering' ? zc.wanderSpeedFactor : zc.idleSpeedFactor);
+      continue;
+    }
 
     const heard = loudestAt(world, ctx, z);
 
@@ -144,7 +168,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
       if (heard.intensity >= zc.wakeThreshold || ctx.ids2.length > 0) {
         z.state = 'active';
         z.heardAt = tick;
-        if (heard.intensity > 0) z.heardPoint = { x: heard.x, y: heard.y };
+        if (heard.intensity > 0) setHeard(z, heard.x, heard.y);
       } else if (
         chance(world.rng, 1 - Math.pow(1 - zc.wanderRate * (1 + (config.scent.maxWakeMultiplier - 1) * scentAt(world, ctx, z).strength), checkEvery))
       ) {
@@ -166,7 +190,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
       }
       z.target = s.id;
       z.targetSeenAt = tick;
-      z.heardPoint = { x: s.x, y: s.y };
+      setHeard(z, s.x, s.y);
       z.heardAt = tick;
     } else if (z.target !== null) {
       const s = sims[z.target]!;
@@ -185,7 +209,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
         z.stateUntil = null;
       }
       if (z.state === 'active') {
-        z.heardPoint = { x: heard.x, y: heard.y };
+        setHeard(z, heard.x, heard.y);
         z.heardAt = tick;
       }
     }
