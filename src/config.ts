@@ -14,7 +14,7 @@ export const config = {
     size: 3200, // m, square
     blockPitch: 80, // m, map default; a district kind's blockPitch overrides it
     streetWidth: { alley: 6, standard: 12, main: 20 }, // m
-    spatialHashCell: 16, // m; must exceed the largest per-tick neighbour query
+    spatialHashCell: 32, // m; the reference's 16 m is below every perception radius, and the per-rebuild cell scan dominated
     districtGrid: 3, // 3×3 districts of ~1067 m
     // Row-major from the top-left. Downtown centre, industrial in one corner, suburbs around.
     districtLayout: ['suburb', 'suburb', 'industrial', 'suburb', 'downtown', 'suburb', 'suburb', 'suburb', 'suburb'],
@@ -109,6 +109,22 @@ export const config = {
     unknownStreetDanger: 0, // 0 = ignorance reads as safety; >0 = baseline pessimism (sweep both)
   },
 
+  stimulus: {
+    decay: 30, // ticks a noise event persists
+  },
+
+  behaviour: {
+    waypointRadius: 3, // m; a route waypoint counts as reached within this
+    arrivalRadius: 2.5, // m from an entrance to go inside
+    doorSearchRadius: 30, // m; a sim in flight runs for the nearest door within this — guess
+    shelterFallbackRadius: 150, // m; nearest building when no shelter is known — guess
+    expelledPanic: 0.8, // panic of sims expelled into the street — guess
+    routineSample: 8, // buildings considered when picking the next routine stop
+    routineDistanceScale: 300, // m; stop weight falls as 1 / (1 + d / scale) — guess
+    pathStreetSearch: 200, // m; widest search for the street a route starts or ends on
+    observeInterval: 5, // ticks between close-pass building observations, staggered by id
+  },
+
   encounters: {
     radius: 4, // m
     cooldown: 10, // ticks between merges for one sim — guess
@@ -132,7 +148,7 @@ export const config = {
     staminaSpeedFloor: 0.5, // effectiveSpeed = gaitSpeed * (floor + (1-floor) * stamina) * ageFactor
     ageFactor: { atAge: [20, 80], value: [1.05, 0.75] }, // linear between, clamped outside
     concealment: 0.5, // detectability multiplier indoors, or on an unlit street at night
-    gaitNoiseIntensity: 0.3, // at origin — guess
+    gaitNoiseIntensity: 0.6, // at origin; heard by zombies within the gait's noise radius — guess
   },
 
   zombie: {
@@ -142,10 +158,12 @@ export const config = {
     trackingLossTicks: 40, // unseen this long → target lost
     trackingLossRangeFactor: 2, // beyond this × effective range → target lost
     wakeThreshold: 0.2, // stimulus intensity needed to wake a dormant zombie
-    dormantAfter: 300, // ticks without stimulus or target before an active zombie goes dormant — guess
-    wanderRate: 0.0002, // /tick spontaneous wake chance for a dormant zombie — guess
+    dormantAfter: 1200, // ticks without stimulus or target before an active zombie goes dormant — swept (was 300)
+    wanderRate: 0.001, // /tick spontaneous wake chance for a dormant zombie — swept (was 0.0002)
     wanderTicks: [300, 900], // ticks a wanderer drifts before re-dormanting — guess
     wanderSpeedFactor: 0.6, // of zombie speed — guess
+    idleSpeedFactor: 0.3, // of zombie speed while awake with nothing to chase — guess
+    arriveRadius: 2, // m; a heard point counts as reached within this
     cohesion: 0.05, // steering weight — guess
     alignment: 0.05, // steering weight — guess
     flockRadius: 12, // m — guess
@@ -165,7 +183,7 @@ export const config = {
     clusterRadius: 15, // m
     clusterScentRadius: 20, // m
     maxWakeMultiplier: 3, // on wanderRate at the source, falling to 1 at the edge
-    idleDrift: 0.02, // steering weight up the gradient for awake idle zombies — guess
+    idleDrift: 0.2, // steering weight up the gradient for awake idle zombies — swept (was 0.02)
   },
 
   combat: {
@@ -226,14 +244,15 @@ export const config = {
     fortificationDecay: 0.0005, // /tick when unattended
     exitTicksPerFortification: 40, // exit costs fortification * this
     expelPerTick: 2, // residents leaving per building per tick
+    residentExpelShare: 0.3, // of remaining residents expelled by nearby gunfire — guess
     breach: {
       interval: 10, // ticks; staggered by building id
       entranceRadius: 5, // m; zombies this close to an entrance roll
       maxRolls: 4, // per building per check
       // p per roll = base * (1 - integrity) / (1 + 2 * fortification): never zero, and a
       // fully fortified weak building (0.35) outlasts a bare strong one (0.7).
-      base: 0.05, // guess
-      split: { turn: 0.45, die: 0.2, expel: 0.35 }, // how residents resolve after a breach
+      base: 0.15, // swept (was 0.05)
+      split: { turn: 0.6, die: 0.1, expel: 0.3 }, // how residents resolve after a breach — swept (reference start 0.45/0.2/0.35)
       resolvePerTick: 2, // residents resolved per building per tick
     },
     spill: {
@@ -291,8 +310,9 @@ export const config = {
     hospital: ['nurse', 'paramedic', 'cleaner', 'receptionist', 'firefighter'],
   },
 
-  // The archetype each profession leans toward. With probability professionBias a
-  // sim takes it; otherwise the archetype is drawn from the scenario mix.
+  // The archetype each profession leans toward. A sim's archetype is drawn from the
+  // scenario mix with this one's weight multiplied by professionBias, so labels shift
+  // the odds without overriding the mix (police stay rare).
   professionArchetype: {
     officeWorker: 'civilian', retailAssistant: 'civilian', teacher: 'civilian', deliveryDriver: 'civilian',
     student: 'civilian', chef: 'civilian', cleaner: 'civilian', bartender: 'civilian', mechanic: 'civilian',
@@ -303,7 +323,7 @@ export const config = {
     nightCleaner: 'loner', longHaulDriver: 'loner', groundskeeper: 'loner', homeless: 'loner', tourist: 'loner',
     offDutySoldier: 'reckless', hunter: 'reckless', bouncer: 'reckless', amateurSurvivalist: 'reckless', drunk: 'reckless',
   },
-  professionBias: 0.6, // guess
+  professionBias: 3, // multiplier — guess
 
   archetypes: {
     // panicImmune: panic never gates mode. engageThreshold: approach zombies while
