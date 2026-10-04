@@ -231,6 +231,12 @@ export interface Sim {
   role: Role | null;
   /** @range tick @unit tick @readBy role re-evaluation (prevents thrashing) */
   roleSince: Tick;
+  /**
+   * A dispatcher's time on the street: it holds near the door engaging what it can
+   * see until this tick, then goes back in. Null when not on a sortie.
+   * @range tick | null @unit tick @readBy sim decisions
+   */
+  sortieUntil: Tick | null;
   /** Null if never migrated. @range tick | null @unit tick @readBy migration cooldown */
   lastMigratedAt: Tick | null;
 

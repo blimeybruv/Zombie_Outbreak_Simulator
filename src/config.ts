@@ -172,6 +172,9 @@ export const config = {
 
   pathfinding: {
     dangerWeight: 400, // m of detour one unit of believed danger is worth — guess
+    // Multiplier on dangerWeight at caution 0 and 1, linear between: cautious sims pay
+    // more to avoid streets they believe are bad. Averages 1 across the population — guess
+    cautionDanger: [0.5, 1.5],
     repathCooldown: 30, // ticks
     repathQueueCap: 20, // sims per tick
   },
@@ -287,6 +290,7 @@ export const config = {
     fortifyRate: 0.002, // /tick per builder
     fortifyMaterialTicks: 50, // ticks of building per material consumed
     fortificationDecay: 0.0005, // /tick when unattended
+    fortificationFloor: 0.001, // decayed below this, fortification is gone
     exitTicksPerFortification: 40, // exit costs fortification * this
     expelPerTick: 2, // residents leaving per building per tick
     residentExpelShare: 0.3, // of remaining residents expelled by nearby gunfire — guess
@@ -296,7 +300,7 @@ export const config = {
       maxRolls: 4, // per building per check
       // p per roll = base * (1 - integrity) / (1 + 2 * fortification): never zero, and a
       // fully fortified weak building (0.35) outlasts a bare strong one (0.7).
-      base: 0.35, // swept (was 0.05, then 0.15 before subdivided blocks)
+      base: 0.2, // swept (was 0.05, then 0.15 before subdivided blocks, 0.35 before the shelter economy)
       split: { turn: 0.6, die: 0.1, expel: 0.3 }, // how residents resolve after a breach — swept (reference start 0.45/0.2/0.35)
       resolvePerTick: 2, // residents resolved per building per tick
     },
@@ -308,6 +312,10 @@ export const config = {
       perTick: 2, // zombies re-instantiated per tick
     },
     lootChance: 0.3, // per entry into a tag that holds anything — guess
+    lootAmmo: [4, 12], // rounds in one find of ammo, or with a found firearm — guess
+    // Residents never get positions, but fortification is addition: up to this many
+    // of an alerted building's residents work as builders alongside tracked ones — guess
+    residentBuilders: 2,
     reevaluateFortificationFloor: 0.2, // shelter re-evaluated when fortification decays below — guess
   },
 
@@ -390,6 +398,9 @@ export const config = {
     groupPeak: 8, // believed occupants at which groupTerm peaks
     materialsScale: 20, // materials at which the materials term saturates — guess
     closePassRadius: 15, // m; passing this close writes building memory — guess
+    garrisonMin: 3, // living inside (residents + tracked) for an alerted, fortifying building to count as a shelter — guess
+    garrisonFortification: 0.05, // fortification at which it counts — guess
+    cascadeInterval: 10, // ticks between cascade checks on a garrison, staggered by id
   },
 
   migration: {
@@ -402,6 +413,15 @@ export const config = {
   roles: {
     interval: 30, // ticks; re-evaluation cadence, staggered by id
     minTenure: 60, // ticks before a role may change — guess
+    doorWatchRadius: 30, // m around each entrance the people inside can see from the door — guess
+    scavengeMaxDoorThreat: 0.2, // nobody goes out for materials while the door reads busier than this — guess
+    scavengeFortificationFloor: 1, // a scavenger goes out only while fortification is below this — guess
+    scavengerNerve: 0.3, // added to the shelter-seek threshold while on a trip: they push on past a little danger — guess
+    scavengeDistanceScale: 300, // m; a target's appeal falls as 1 / (1 + d / scale) — guess
+    usefulnessCaution: 1, // "least useful" = capacity + this × caution: the incautious go out first — guess
+    minStayBehind: 0, // people who must stay inside for anyone to go out — swept (1 left lone residents sitting out the run)
+    sortieTicks: 300, // a dispatcher's time on the street before going back in — guess
+    residentKnowledgeRadius: 250, // m; a resident who steps out knows the buildings this close — guess
   },
 
   promotion: {

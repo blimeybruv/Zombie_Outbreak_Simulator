@@ -24,7 +24,8 @@ function mergeBoth<K, V extends { observedAt: number; visited: boolean }>(a: Map
   mergeNewer(b, a);
 }
 
-function merge(world: World, a: Sim, b: Sim): void {
+/** Everything two sims trade when they meet. Also used when a sim walks into a building where others shelter. */
+export function merge(world: World, a: Sim, b: Sim): void {
   const damping = world.config.panic.encounterDamping;
   if (a.panic < b.panic) a.panic += (b.panic - a.panic) * damping;
   else if (b.panic < a.panic) b.panic += (a.panic - b.panic) * damping;

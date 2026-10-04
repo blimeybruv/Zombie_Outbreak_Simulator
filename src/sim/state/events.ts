@@ -47,7 +47,7 @@ export interface ZombieDestroyedEvent extends EventBase, Located {
 
 export interface BuildingEvent extends EventBase {
   /** @range literal @unit — @readBy event consumers */
-  type: 'buildingBreached' | 'shelterFell' | 'occupationContested' | 'cascadeCrossed';
+  type: 'buildingBreached' | 'shelterEstablished' | 'shelterFell' | 'occupationContested' | 'buildingRetaken' | 'cascadeCrossed';
   /** @range building id @unit id @readBy ticker, building inspector history */
   building: BuildingId;
   /** The sim contesting, for occupationContested; otherwise null. @range sim id | null @unit id @readBy ticker */

@@ -39,6 +39,12 @@ export interface Context {
 
   /** Building scent on a coarse grid: strength (0–1) and the entrance it leads to. */
   scent: { cols: number; strength: Float32Array; x: Float32Array; y: Float32Array; builtAt: number };
+  /**
+   * Per building, the other buildings within `roles.residentKnowledgeRadius` of its
+   * first entrance, nearest first: what a resident knows of the neighbourhood.
+   * Static map data, filled lazily.
+   */
+  neighbourhood: (BuildingId[] | undefined)[];
   /** Sims already waiting in the repath queue. */
   queued: Uint8Array;
   events: SimEvent[];
@@ -71,6 +77,7 @@ export function createContext(world: World): Context {
       const cols = Math.ceil(size / world.config.scent.fieldCell);
       return { cols, strength: new Float32Array(cols * cols), x: new Float32Array(cols * cols), y: new Float32Array(cols * cols), builtAt: -1 };
     })(),
+    neighbourhood: [],
     queued: new Uint8Array(0),
     events: [],
     ids: [],

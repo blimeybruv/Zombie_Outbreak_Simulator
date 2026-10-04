@@ -18,7 +18,16 @@ export interface RunSummary {
   resolvedAt: number | null;
   msPerTick: number;
   invariantError: string | null;
+  /** Garrisons established and fallen, and those established after the first fall. */
+  shelters: { established: number; fell: number; reformed: number };
+  /** Longest stretch with no conversion, death, kill, delivery or breach while anyone was alive. */
+  longestQuiet: number;
+  /** Tracked sims alive and healthy at the end, and in total, by caution band (low, mid, high). */
+  caution: { alive: number[]; total: number[] };
 }
+
+/** Events that count as something happening, for the stasis check. */
+const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'materialsDelivered', 'buildingBreached']);
 
 /** Deep-sets `a.b.c=value` overrides on a copy of the config. */
 export function withOverrides(overrides: Record<string, unknown>): Config {
@@ -43,11 +52,23 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const samples: Counters[] = [structuredClone(world.counters)];
   let resolvedAt: number | null = null;
   let invariantError: string | null = null;
+  const shelters = { established: 0, fell: 0, reformed: 0 };
+  let lastActivity = 0;
+  let longestQuiet = 0;
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
       step(world, ctx, { checkInvariant: true });
+      for (const e of world.events) {
+        if (ACTIVITY.has(e.type)) lastActivity = world.tick;
+        if (e.type === 'shelterFell') shelters.fell++;
+        if (e.type === 'shelterEstablished') {
+          shelters.established++;
+          if (shelters.fell > 0) shelters.reformed++;
+        }
+      }
       const c = world.counters;
+      if (c.unturned.outdoors + c.unturned.indoors > 0) longestQuiet = Math.max(longestQuiet, world.tick - lastActivity);
       const active = c.turned.symptomatic + c.turned.outdoors + c.turned.occupying;
       if (resolvedAt === null && (active === 0 || unturnedTotal(c) - c.unturned.dead - c.unturned.rescued === 0)) {
         resolvedAt = world.tick;
@@ -56,6 +77,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     }
   } catch (e) {
     invariantError = e instanceof Error ? e.message : String(e);
+  }
+  const bands = config.promotion.cautionBands;
+  const caution = { alive: [0, 0, 0], total: [0, 0, 0] };
+  for (const s of world.sims) {
+    const band = s.caution < bands[0]! ? 0 : s.caution < bands[1]! ? 1 : 2;
+    caution.total[band]!++;
+    if (s.condition === 'healthy') caution.alive[band]!++;
   }
   return {
     runSeed,
@@ -66,5 +94,8 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     resolvedAt,
     msPerTick: (performance.now() - t0) / Math.max(1, world.tick),
     invariantError,
+    shelters,
+    longestQuiet,
+    caution,
   };
 }

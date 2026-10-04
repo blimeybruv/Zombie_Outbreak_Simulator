@@ -111,6 +111,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     shelter: null,
     role: null,
     roleSince: tick,
+    sortieUntil: null,
     lastMigratedAt: null,
     history: {
       spawnedAt: tick,

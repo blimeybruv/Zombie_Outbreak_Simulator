@@ -5,49 +5,24 @@
 //   observe   write the current street's danger and nearby buildings to memory
 //   flight    panicked: no routing; run for the nearest door, else away from threat
 //   engage    police and reckless approach zombies while threat is under their threshold
-//   shelter   threat over the archetype's threshold (or already heading in): route to the best known building
+//   sortie    a dispatcher holds near its door until the sortie ends, then goes back in
+//   shelter   threat over the archetype's threshold (or already heading in): home if it
+//             has one (commit on choice), else the best known building
 //   avoid     some threat, under the threshold: step away from it
+//   scavenge  on a trip for materials: on to the target, pushing past a little danger
 //   routine   unaware: walk to a building, idle inside, pick another
-// Indoor sims tick cheaply: stamina, and leaving when a routine stop is over.
+// Indoor sims tick cheaply: stamina, leaving when a routine stop is over, and the
+// shelter economy's role and migration check on a staggered cycle (shelter.ts).
 
 import { isOutdoorLiving, type Context } from '../context';
-import { confidence } from '../derived';
 import { functionalProfile } from '../mapgen/generate';
 import { remember } from '../memory';
 import { sharedNode } from '../pathfinding';
 import { nextFloat, nextInt } from '../rng';
-import type { Building, BuildingId, Sim, StreetId, World } from '../state';
+import type { Building, Sim, StreetId, World } from '../state';
+import { capacity, clearDestination, entranceNearest, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
-
-export function entranceNearest(b: Building, x: number, y: number): { x: number; y: number } {
-  let best = b.entrances[0]!;
-  let bestD = Infinity;
-  for (const e of b.entrances) {
-    const d = Math.hypot(e.x - x, e.y - y);
-    if (d < bestD) {
-      bestD = d;
-      best = e;
-    }
-  }
-  return best;
-}
-
-export function capacity(world: World, sim: Sim): number {
-  const { combat } = world.config;
-  const w = sim.weapon;
-  if (w === null) return 0;
-  if (w === 'pistol' || w === 'smg' || w === 'shotgun') return Math.floor(sim.ammo * combat.ranged[w].baseKill);
-  return combat.melee[w].capacity;
-}
-
-function setDestination(sim: Sim, b: Building, kind: Sim['destinationKind']): void {
-  const e = entranceNearest(b, sim.x, sim.y);
-  sim.destination = { x: e.x, y: e.y };
-  sim.destinationBuilding = b.id;
-  sim.destinationKind = kind;
-  sim.route = [];
-  sim.routeIndex = 0;
-}
+import { chooseShelter, evaluateRole } from './shelter';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -83,48 +58,6 @@ function observe(world: World, ctx: Context, sim: Sim): void {
       remember(sim.buildingMemory, bid, { believedOccupants: occupants, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false }, config.memory.buildingCap);
     }
   }
-}
-
-function groupTerm(n: number, peak: number): number {
-  return n <= peak ? n / peak : peak / n;
-}
-
-function chooseShelter(world: World, ctx: Context, sim: Sim, exclude: BuildingId | null): Building | null {
-  const { config, tick, buildings } = world;
-  const w = config.shelter.weights;
-  const m = config.archetypes[sim.archetype].shelterWeights;
-  const loner = sim.archetype === 'loner';
-  const candidates = new Set<BuildingId>(sim.buildingMemory.keys());
-  for (const bid of ctx.map.buildingsNear(sim.x, sim.y, ctx.radius[sim.id]!, ctx.buildingIds)) candidates.add(bid);
-
-  let best: Building | null = null;
-  let bestScore = -Infinity;
-  for (const bid of [...candidates].sort((a, b) => a - b)) {
-    if (bid === exclude) continue;
-    const b = buildings[bid]!;
-    const belief = sim.buildingMemory.get(bid);
-    const occupants = belief ? belief.believedOccupants : b.residents + b.sheltered.length + b.zombiesInside;
-    if (loner && occupants > 0) continue;
-    const streetBelief = sim.streetMemory.get(b.street);
-    const danger = streetBelief ? streetBelief.danger * confidence(streetBelief.observedAt, tick, config) : 0;
-    const e = entranceNearest(b, sim.x, sim.y);
-    const dist = Math.hypot(e.x - sim.x, e.y - sim.y);
-    const score =
-      w.integrity * m.integrity * config.tags[functionalProfile(b.tag, config)].integrity +
-      w.fortification * m.fortification * (belief ? belief.fortification : b.fortification) +
-      w.streetQuiet * m.streetQuiet * (1 - danger) +
-      w.group * m.group * groupTerm(occupants, config.shelter.groupPeak) +
-      w.materials * m.materials * Math.min(1, (belief ? belief.materials : b.materials) / config.shelter.materialsScale) -
-      w.distance * m.distance * (dist / 1000);
-    if (score > bestScore) {
-      bestScore = score;
-      best = b;
-    }
-  }
-  if (best) return best;
-  const near = ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.shelterFallbackRadius, ctx.buildingIds);
-  const fallback = near.find((id) => id !== exclude);
-  return fallback === undefined ? null : buildings[fallback]!;
 }
 
 function pickRoutineStop(world: World, sim: Sim): Building | null {
@@ -219,9 +152,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       if (sim.destinationBuilding !== door.id) setDestination(sim, door, 'shelter');
       steerToward(sim, sim.destination!.x, sim.destination!.y);
     } else {
-      sim.destination = null;
-      sim.destinationBuilding = null;
-      sim.route = [];
+      clearDestination(sim);
       steerAway(ctx, sim);
     }
     return;
@@ -239,10 +170,24 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     return;
   }
 
-  const seeks = threat >= arch.shelterSeekThreshold || (engages && threat >= arch.engageThreshold);
+  if (sim.sortieUntil !== null) {
+    // Nothing in reach to engage: wait by the door until the sortie ends. More than it
+    // can handle, or nothing left to shoot with: back inside.
+    if (world.tick < sim.sortieUntil && capacity(world, sim) > 0 && threat < arch.engageThreshold) {
+      sim.gait = 'still';
+      return;
+    }
+    sim.sortieUntil = null;
+    if (sim.shelter !== null) setDestination(sim, buildings[sim.shelter]!, 'shelter');
+  }
+
+  const nerve = sim.destinationKind === 'scavenge' ? config.roles.scavengerNerve : 0;
+  const seeks = threat >= arch.shelterSeekThreshold + nerve || (engages && threat >= arch.engageThreshold);
   if (seeks || sim.destinationKind === 'shelter') {
     if (sim.destinationKind !== 'shelter' || sim.destinationBuilding === null) {
-      const b = chooseShelter(world, ctx, sim, sim.refusedBy);
+      // Commit on choice: home first, unless home turned it away.
+      const home = sim.shelter !== null && sim.shelter !== sim.refusedBy ? buildings[sim.shelter]! : null;
+      const b = home ?? chooseShelter(world, ctx, sim, sim.refusedBy);
       if (b === null) {
         sim.gait = 'run';
         steerAway(ctx, sim);
@@ -265,6 +210,12 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
   sim.avoidUntil = null;
 
+  if (sim.destinationKind === 'scavenge' && sim.destinationBuilding !== null) {
+    sim.gait = mode === 'direct' ? 'run' : 'walk';
+    followRoute(world, ctx, sim);
+    return;
+  }
+
   // Routine.
   if (sim.destinationBuilding === null || sim.destinationKind !== 'routine') {
     const b = pickRoutineStop(world, sim);
@@ -278,7 +229,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   followRoute(world, ctx, sim);
 }
 
-function decideIndoor(world: World, sim: Sim): void {
+function decideIndoor(world: World, ctx: Context, sim: Sim): void {
   const { config, tick, buildings } = world;
   sim.gait = 'still';
   sim.stamina = Math.min(1, sim.stamina + config.movement.gait.still.stamina);
@@ -287,7 +238,9 @@ function decideIndoor(world: World, sim: Sim): void {
     const b = buildings[sim.insideBuilding!]!;
     sim.idleUntil = null;
     sim.exitingUntil = tick + Math.round(b.fortification * config.buildings.exitTicksPerFortification);
+    return;
   }
+  if (sim.shelter === sim.insideBuilding && sim.id % config.roles.interval === tick % config.roles.interval) evaluateRole(world, ctx, sim);
 }
 
 function drainRepathQueue(world: World, ctx: Context): void {
@@ -311,7 +264,7 @@ export function simDecisions(world: World, ctx: Context): void {
   for (const sim of world.sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     if (sim.insideBuilding !== null) {
-      decideIndoor(world, sim);
+      decideIndoor(world, ctx, sim);
       continue;
     }
     observe(world, ctx, sim);

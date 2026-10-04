@@ -3,8 +3,9 @@
 // (a count, mirrored by zombies in state `occupying`).
 //
 // Derived rather than stored: integrity and starting occupancy (from tag, via
-// config), contested (tracked sims inside while zombiesInside > 0), and total
-// fill (residents + sheltered.length + zombiesInside).
+// config), contested (tracked sims inside while zombiesInside > 0), total
+// fill (residents + sheltered.length + zombiesInside), and the work crew
+// (tracked builders inside plus up to `residentBuilders` residents).
 
 import type { BuildingId, Count, DistrictId, Polygon, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
 
@@ -56,6 +57,33 @@ export interface Building {
   breached: boolean;
   /** Interior light, visible from outside at night. @range true/false @unit — @readBy render */
   lit: boolean;
+
+  // Shelter economy
+
+  /**
+   * When the people inside learned of the outbreak: a zombie seen from the door,
+   * gunfire close by, or a frightened arrival. Null while they are unaware. Only an
+   * alerted building fortifies or sends anyone out.
+   * @range tick | null @unit tick @readBy fortification work, resident scavengers
+   */
+  alertedAt: Tick | null;
+  /**
+   * The sim currently out fetching materials for this building. Checked lazily: it
+   * counts only while that sim is alive, outdoors-bound for it and still a scavenger.
+   * @range sim id | null @unit id @readBy role evaluation, resident scavengers
+   */
+  scavengerOut: SimId | null;
+  /**
+   * When the living inside began holding it: alerted, enough people, fortification
+   * under way. Null when not a garrison. Cleared when it falls or empties.
+   * @range tick | null @unit tick @readBy shelter events (established, fell), cascade watch, end stats, render
+   */
+  garrisonedAt: Tick | null;
+  /**
+   * When the crowd outside a garrison crossed cascade density; null below it.
+   * @range tick | null @unit tick @readBy cascade event, siege
+   */
+  cascadeAt: Tick | null;
 
   /** Residents queued to leave as calm sims on routines (phase release). @range 0–residents @unit people @readBy building processes */
   pendingRelease: Count;

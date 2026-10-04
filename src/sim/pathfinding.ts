@@ -1,5 +1,5 @@
 // A* over the shared street graph with a per-sim cost function:
-//   cost(street) = length + dangerWeight * danger * confidence
+//   cost(street) = length + dangerWeight * cautionFactor * danger * confidence
 // Unknown streets cost pure distance (plus `unknownStreetDanger`, 0 by default),
 // so ignorance reads as safety. In direct mode memory is ignored entirely.
 
@@ -94,7 +94,8 @@ export class Pathfinder {
     if (!useMemory) return length;
     const belief = sim.streetMemory.get(street);
     const danger = belief ? belief.danger * confidence(belief.observedAt, tick, config) : config.memory.unknownStreetDanger;
-    return length + config.pathfinding.dangerWeight * danger;
+    const [lo, hi] = config.pathfinding.cautionDanger;
+    return length + config.pathfinding.dangerWeight * (lo! + (hi! - lo!) * sim.caution) * danger;
   }
 
   /**

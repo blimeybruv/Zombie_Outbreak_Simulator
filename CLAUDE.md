@@ -192,8 +192,9 @@ If one seems necessary, raise it rather than adding it.
 - Do not optimise speculatively. Structure-of-arrays is a later option, not a starting
   point. Profile first.
 - Stagger expensive work on id offsets rather than running it every tick (armed sims
-  pick targets when `id % 5 === tick % 5`; occupier spill every 10; roles every 30;
-  dormant zombies every 4; idle awake zombies every 3).
+  pick targets when `id % 5 === tick % 5`; occupier spill every 10; roles, migration
+  and door watch every 30; cascade checks every 10; dormant zombies every 4; idle
+  awake zombies every 3).
 - Measure before optimising: `npx tsx scripts/profile.ts [ticks] [population]` times each
   tick stage alongside what each population is doing; `npx tsx scripts/movement-check.ts`
   reports how often moving agents are stuck or reversing (zig-zag). Both should stay
@@ -204,10 +205,19 @@ If one seems necessary, raise it rather than adding it.
 ## Current milestone
 
 **3 — Renderer.** Canvas, three zoom modes, trails, free camera, ticker with salience,
-roster, time controls. Reads sim state, never writes it.
+roster, time controls. Reads sim state, never writes it. Audio (left over from
+milestone 4) comes with it.
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.
+
+Milestone 4 (shelter economy) was built first, at the user's request, because without it
+a 36,000-tick run had empty streets from tick 11,000: `src/sim/systems/shelter.ts` plus
+the contest in `systems/buildings.ts`. Residents take part anonymously (builders by
+count; one steps out as a tracked scavenger when materials run out). `npm run sweep`
+checks its gate too: shelters form, fall and re-form; no stasis; survival differs by
+caution band. Decisions are listed in the reference under "Decisions made building
+milestone 4".
 
 Milestone 2 (headless loop) is done: `npm run sim -- <runSeed> <mapSeed>` prints the eight
 counters every 600 ticks; `npm run sweep` runs 20 runSeeds on one mapSeed in parallel,
