@@ -14,6 +14,23 @@ Numbers given as **defaults** are starting values, not findings. Every one of th
 
 Open decisions are marked inline rather than collected at the end, so they are visible at the point they matter.
 
+### Field lists live in code
+
+The entity field tables below are the original design. The authoritative field list is `src/sim/state/`, where every field declares its range, unit and readers, and `tests/state-gate.test.ts` fails if any field lacks one. Where a table here differs from the code, the code is newer. The rules and formulas in this document remain the specification.
+
+### Revisions from the milestone 1 consultation
+
+- **Knowing who is infected is local.** `infectionWitnessed` is gone. Each sim carries `knownInfected`, a set of sim ids it has seen bitten, merged by union on encounter. Admission checks the sets of the sims currently inside.
+- **Building beliefs.** Each sim carries `buildingMemory`: building id → believed occupants, materials, fortification and `observedAt`, written on entry or a close pass and merged by recency like street memory. Shelter selection and migration read it.
+- **Eight counter leaves.** `turned.symptomatic` joins the invariant now; the zombie leaf inside buildings is `turned.occupying`.
+- **Sim `condition`** (`healthy`, `infected`, `dead`, `turned`) replaces `status`; location is `insideBuilding` alone. Turned sims keep their record so ids and history survive.
+- **Zombie `state`** (`active`, `dormant`, `wandering`, `feeding`, `occupying`, `destroyed`) replaces separate flags, with `stateUntil` for the timed states. Destroyed zombies stay in `zombies[]`, so ids are stable. A converted sim gets a new zombie id, with `wasSim` set.
+- **Two seeds.** `mapSeed` and `runSeed` seed two independent PRNG instances. A sweep varies `runSeed` against one fixed `mapSeed`, and editing generator code never shifts the simulation's draws.
+- **Release trigger is a tick:** 600, with ±150 per-district jitter drawn at setup and stored as `releaseAt`. Never infection-based, which would tie the opening to the quantity the gate measures. Display phase is derived from release state and promotion, not stored.
+- **Routine.** `destinationKind` gains `routine`: pick a tagged building weighted by profession, walk there, idle 200–600 ticks, pick another. This is what unaware sims do.
+- **Derived, not stored:** sim speed (range 0–2.9 m/tick before the age factor) and perception radius, building integrity (from tag) and `contested`, `timeOfDay`, `ticksSurvived` and `ticksAlone` (from tick stamps), and `promoted` (a name is assigned).
+- **Occupancy follows time of day.** Starting residents are the indoor share of population divided across buildings by tag weight × time-band multiplier, so the two cannot disagree.
+
 ## The concept in brief
 
 A spectator-only outbreak simulation. A top-down city of dots and building outlines, roughly 2,000 people, rendered to a plain canvas. There is no player: the viewer controls the camera, a survivor roster, a news ticker and the speed of time, nothing else.
@@ -43,11 +60,13 @@ Nothing below this section may contradict anything in it.
 | Quantity | Default | Note |
 | --- | --- | --- |
 | Map size | 3200 × 3200 m | 40 × 40 blocks |
-| Block pitch | 80 m | Building footprint plus street |
+| Block pitch | 80 m | Map default; a district's `blockPitch` overrides it |
 | Street width | 12 m | Main streets 20 m, alleys 6 m |
 | Spatial hash cell | 16 m | Should exceed the largest query radius |
 
 The street graph is an overlay on continuous space, not a replacement for it. Sims have real positions; streets are edges used for routing and as the key space for memory. A sim is *on* a street when within half its width of the centreline.
+
+**Layout.** Fixed. Districts are a 3×3 grid of ~1,067 m cells: downtown in the centre, industrial in one corner, suburbs on the rest of the ring. One river crosses the whole map with three bridges — streets with terrain `bridge` — so `blocked` has something meaningful to sever. Everything is edge-based: a park is a block with no building whose bounding and crossing streets carry terrain `open`; there is no area primitive. A sim off any street (rare; only while steering) reads perception from the nearest street within 40 m, falling back to `standard`.
 
 ### Time
 
@@ -60,6 +79,7 @@ The street graph is an overlay on continuous space, not a replacement for it. Si
 | Speed multipliers | 0.25×, 1×, 2×, 4×, 8× | Plus pause and step-one-tick |
 | Speed ceiling | 8× | Above this, audio and ticker become unreadable |
 | Run length | 21,600 ticks | Six simulated hours, \~36 min at 1×, \~4.5 min at 8× |
+| Day length | 7,200 ticks | Compressed: three day/night cycles per run. `timeOfDay` is derived from tick, start hour and day length, never stored |
 
 **Correction to the design notes:** the "one in-game month" ending is not reachable at one tick per second and should be read as flavour. The timer ending is a tick count.
 
@@ -118,7 +138,7 @@ Approach is asymptotic, never linear. `rate` is per tick, expressed as the fract
 
 **`danger` ages rather than decays.** The stored value stays as observed; what changes is confidence, derived from `tick - observedAt`. This matters: a street remembered as lethal an hour ago should still read as dangerous, just less certainly. Decaying the value toward zero would make old bad news look like good news, which is the wrong failure.
 
-Confidence is `exp(-age / halfLife)` with a default half-life of 1,800 ticks (30 simulated minutes). Routing cost uses `danger * confidence`, so an unconfirmed belief fades toward neutral rather than toward safe.
+Confidence is `exp(-ln2 * age / halfLife)` with a default half-life of 1,800 ticks (30 simulated minutes), so a belief that old is held at 0.5. Routing cost uses `danger * confidence`, so an unconfirmed belief fades toward neutral rather than toward safe.
 
 ### Thresholds
 
@@ -157,7 +177,7 @@ A living person. Zombies are a separate entity, not a Sim with a flag — the fi
 | --- | --- | --- | --- |
 | `x`, `y` | `float` | 0–3200 m | Continuous position |
 | `heading` | `float` | 0–2π rad | Facing; also trail direction |
-| `speed` | `float` | 0–2.2 m/tick | Derived from gait and stamina; see Movement |
+| `speed` | `float` | 0–2.9 m/tick | Derived from gait and stamina; see Movement. Not stored |
 | `insideBuilding` | `int?` | Building id | Null when outdoors |
 
 ### Perception and belief
@@ -174,7 +194,7 @@ A living person. Zombies are a separate entity, not a Sim with a flag — the fi
 | Field | Type | Range / unit | Meaning |
 | --- | --- | --- | --- |
 | `destination` | `{x, y}?` | Metres | Null when fleeing or idle |
-| `destinationKind` | `enum?` | 4 values | `scavenge`, `shelter`, `regroup`, `broadcast` |
+| `destinationKind` | `enum?` | 4 values | `routine`, `scavenge`, `shelter`, `regroup` (`broadcast` returns with the v2 rescue) |
 | `route` | `int[]` | Street ids | Empty when steering rather than routing |
 | `routeIndex` | `int` | — | Position along `route` |
 | `repathCooldown` | `int` | Ticks | Blocks repathing until zero |
@@ -250,7 +270,7 @@ No archetype, no memory, no history counters, no shelter logic, no names. Defaul
 | `occupants` | `int` | 0–200 | Anonymous residents present at spawn only |
 | `sheltered` | `int[]` | Sim ids | Everyone who entered during the run; identity retained |
 | `zombiesInside` | `int` | 0–200 | Occupying zombies, de-instantiated |
-| `garrisonedAt` | `int?` | Tick | When the occupation began |
+| `occupiedAt` | `int?` | Tick | When the occupation began |
 | `contested` | `bool` | — | A tracked sim is fighting the occupiers; drives render state |
 | `materials` | `int` | 0–60 | Stock available to builders |
 | `fortification` | `float` | 0–1 | Raised by builders, decays unattended |
@@ -261,29 +281,33 @@ No archetype, no memory, no history counters, no shelter logic, no names. Defaul
 
 **Three populations, deliberately.** The anonymous living count dissolves into a number; sheltered sims keep their identity and history; occupying zombies are a count with no identity at all. Effective breach resistance is `integrity * (1 + fortification * 2)`, so a fortified weak building can outlast a bare strong one.
 
-**Garrisoning.** Zombies that breach a building are de-instantiated and become `zombiesInside`. They leave the map, cost nothing per tick, and are not rendered — which matters, because in a saturated city a breached building would otherwise hold hundreds of agents. A building with a garrison reads visually as occupied; nothing on screen says by what.
+**Breach rolls.** Every 10 ticks on a cycle staggered by building id, each building with zombies within 5 m of an entrance takes one roll per adjacent zombie, up to four, at `p = breachBase * (1 - integrity * (1 + fortification * 2))`, clamped at 0.
 
-The garrison re-instantiates onto the street when any of these fire:
+**Open:** as written, `p` reaches zero once `integrity * (1 + 2 * fortification) ≥ 1` — at fortification 0.06 for a police station (integrity 0.9) and 0.21 for a house (0.7) — making most sound buildings unbreachable early. `p = breachBase * (1 - integrity) / (1 + 2 * fortification)` keeps resistance growing without a cliff and still lets a fortified weak building outlast a bare strong one.
 
-1. A stimulus occurs within `garrisonAlertRadius` (default 40 m) of the building.
-2. Local zombie density in the surrounding cells falls below `garrisonSpillThreshold`. **Local, never a city-wide ratio** — at any global figure one street can be empty and another packed, which is the same reason nothing but the release reads `phase`.
+**Occupation.** Zombies that breach a building are de-instantiated and become `zombiesInside`. They leave the map, cost nothing per tick, and are not rendered — which matters, because in a saturated city a breached building would otherwise hold hundreds of agents. An occupied building reads visually as full; nothing on screen says by what.
+
+The occupiers re-instantiate onto the street when any of these fire:
+
+1. A stimulus occurs within `buildings.spill.alertRadius` (default 40 m) of the building.
+2. Local zombie density in the surrounding cells falls below `buildings.spill.densityThreshold`. **Local, never a city-wide ratio** — at any global figure one street can be empty and another packed, which is the same reason nothing but the release reads `phase`.
 3. A sim attempts entry.
 
-Spill is capped per tick like any other expulsion, so a garrison empties over several seconds rather than in one frame.
+Spill is capped per tick like any other expulsion, so an occupation empties over several seconds rather than in one frame.
 
-**Contesting a garrison.** A sim cannot see inside. Occupancy fill looks identical whether a building holds forty residents or forty zombies, so shelter-seeking is a gamble informed only by memory, which may be stale. This is deliberate: it is the design's clearest source of confident wrong decisions.
+**Contesting an occupation.** A sim cannot see inside. Occupancy fill looks identical whether a building holds forty residents or forty zombies, so shelter-seeking is a gamble informed only by memory, which may be stale. This is deliberate: it is the design's clearest source of confident wrong decisions.
 
-Entry commits. A sim that enters a garrisoned building discovers `zombiesInside` and is already in contact range — there is no peek-and-withdraw, or every building becomes free reconnaissance and shelter stops being a gamble at all.
+Entry commits. A sim that enters an occupied building discovers `zombiesInside` and is already in contact range — there is no peek-and-withdraw, or every building becomes free reconnaissance and shelter stops being a gamble at all.
 
 On discovery:
 
 1. **Armed and the odds are acceptable** — the sim contests. Combat resolves per tick against one zombie at a time under the ordinary weapon rules. Winning decrements `zombiesInside`; clearing it to zero takes the building, and `breached` resets once fortification begins.
-2. **Unarmed, or the garrison is too large** — the sim attempts to withdraw, taking one contact-range infection roll on the way out.
+2. **Unarmed, or the occupation is too large** — the sim attempts to withdraw, taking one contact-range infection roll on the way out.
 3. **Panicked above `panicRoutingCutoff`** — no evaluation happens. The sim entered blind and fights or dies on reflex.
 
 The threshold for acceptable odds is per archetype, reusing the `engageThreshold` police already apply to `perceivedThreat`.
 
-**Every sim that enters during the run is individually tracked.** The anonymous `occupants` count covers only the original residents present at spawn. Anyone who walks in keeps their identity, weapon, history counters and memory table, because all four are needed the moment they meet a garrison. A sim never dissolves into a number.
+**Every sim that enters during the run is individually tracked.** The anonymous `occupants` count covers only the original residents present at spawn. Anyone who walks in keeps their identity, weapon, history counters and memory table, because all four are needed the moment they meet an occupation. A sim never dissolves into a number.
 
 **Interior fighting is invisible,** which is a presentation problem rather than a simulation one. The viewer sees an outline, not a fight. Hence `contested` on the building: it needs a distinct render state and a ticker line, or the most dramatic event in the design happens silently.
 
@@ -322,7 +346,7 @@ A parameter set, not an authored place type. Suburb, downtown and industrial fal
 | `released` | `bool` | — | Whether the phase release has fired here |
 | `phase` | `enum` | 4 values | Display only; nothing but the release may read it |
 
-**`phase` and `released` are the only global-ish state any behaviour touches,** and `released` governs only whether occupants become agents — never what those agents decide. If `phase` appears in a behavioural comparison anywhere, that is a bug.
+**`released` and `releaseAt` are the only global-ish state any behaviour touches,** and they govern only whether occupants become agents — never what those agents decide. Only the occupant release may read them; a lint rule enforces it. `phase` is derived for display and never stored.
 
 ## World
 
@@ -374,7 +398,7 @@ A building holds members of two kinds, and the difference matters for everything
 
 **Open:** whether residents should be instantiated as tracked sims when a building is breached, rather than resolving statistically. It would make interior events legible person by person on the panel, at the cost of spawning forty agents at the worst possible moment for the frame budget. The count classes shown when inspecting depend on this: five if residents, symptomatic sims and bodies are tracked separately, two if everything indoors collapses to living and occupying.
 
-Two groups, each with its own terminal leaf, plus rescue. Group totals are sums, never stored — deriving them removes a whole class of desynchronisation bug.
+Two groups, each with its own terminal leaf, plus rescue. Leaves are updated incrementally at each transition; the headless harness recounts them from entity state every tick and asserts the recount matches (not in the browser). Group totals are sums, never stored — deriving them removes a whole class of desynchronisation bug.
 
 | Group | Leaf | Holds |
 | --- | --- | --- |
@@ -382,25 +406,26 @@ Two groups, each with its own terminal leaf, plus rescue. Group totals are sums,
 | `unturned` | `indoors` | Anonymous residents plus tracked sims inside buildings |
 | `unturned` | `dead` | Died without converting |
 | `unturned` | `rescued` | Removed from the map by the v2 rescue |
-| `turned` | `outdoors` | Active, dormant and wandering, on the map |
-| `turned` | `garrisoned` | Occupying breached buildings, de-instantiated |
+| `turned` | `symptomatic` | Bitten and not yet converted, wherever they are |
+| `turned` | `outdoors` | Active, dormant, wandering and feeding, on the map |
+| `turned` | `occupying` | Occupying breached buildings, de-instantiated |
 | `turned` | `destroyed` | Killed |
 
 **The top-level split is whether a person ever turned.** That is what makes the statistics readable: total human loss is `unturned.dead` plus the whole of `turned`, since every zombie but patient zero was someone.
 
 **Why `unturned` rather than `uninfected`.** A bitten sim is infected and still walking, so `uninfected` becomes false the moment infection mechanics land.
 
-**`symptomatic` belongs under `turned`,** as a transient leaf added when infection mechanics arrive. Under `unturned` it would produce a false ending: a run where every zombie has been destroyed but one bitten survivor is still walking would read as outbreak over, when it is thirty seconds from starting again. It resolves to `turned.outdoors` on turning, or transfers to `unturned.dead` if the sim is killed first — cross-group transfers are fine, the invariant only cares about the total.
+**`symptomatic` belongs under `turned`,** as a transient leaf, and is in the invariant from milestone 1 so it does not change mid-milestone. Under `unturned` it would produce a false ending: a run where every zombie has been destroyed but one bitten survivor is still walking would read as outbreak over, when it is thirty seconds from starting again. It resolves to `turned.outdoors` on turning, or transfers to `unturned.dead` if the sim is killed first — cross-group transfers are fine, the invariant only cares about the total.
 
 **Counters are ground truth; the ticker and roster are perception.** A symptomatic sim sits under `turned` in the accounting while still appearing on the roster as a living survivor, because nobody who did not witness the bite knows otherwise. The two are allowed to disagree, and the moment they do is the point.
 
-**Why the indoor splits exist.** Without them a falling street count is ambiguous between deaths and people going inside. The same argument applies to zombies once garrisoning exists: fewer visible zombies could mean police are winning or that a horde has moved indoors, and those are opposite situations.
+**Why the indoor splits exist.** Without them a falling street count is ambiguous between deaths and people going inside. The same argument applies to zombies once occupation exists: fewer visible zombies could mean police are winning or that a horde has moved indoors, and those are opposite situations.
 
 ### The invariant
 
 ```
 unturned.outdoors + unturned.indoors + unturned.dead + unturned.rescued
-  + turned.outdoors + turned.garrisoned + turned.destroyed
+  + turned.symptomatic + turned.outdoors + turned.occupying + turned.destroyed
   === startingPopulation
 ```
 
@@ -457,17 +482,17 @@ Fixed, and required for determinism: sims act in id order, then zombies in id or
 
 ### Indoors
 
-Same rules, with two changes. Noise radius is halved, since walls muffle — which makes taking a building by force quieter than holding a street, and is the main reason clearing a garrison is viable at all. And ranged distance falloff does not apply: interior engagements are assumed to be at contact-to-short range.
+Same rules, with two changes. Noise radius is halved, since walls muffle — which makes taking a building by force quieter than holding a street, and is the main reason clearing an occupation is viable at all. And ranged distance falloff does not apply: interior engagements are assumed to be at contact-to-short range.
 
 ### Engagement capacity
 
-The number a sim believes it can handle, used by police `engageThreshold` and by the garrison contest rule. Not a perception value — a rough self-assessment:
+The number a sim believes it can handle, used by police `engageThreshold` and by the occupation contest rule. Not a perception value — a rough self-assessment:
 
 ```
 capacity = floor(ammo * baseKill) + meleeCapacity
 ```
 
-where `meleeCapacity` is 3 for sledgehammer, 2 for club, 1 for knife, 0 unarmed. A police officer with 12 rounds reads as capacity 6 and will contest a garrison of five; the same officer at 2 rounds reads as 1 and will not.
+where `meleeCapacity` is 3 for sledgehammer, 2 for club, 1 for knife, 0 unarmed. A police officer with 12 rounds reads as capacity 6 and will contest an occupation of five; the same officer at 2 rounds reads as 1 and will not.
 
 **Open:** every number in this section is a starting guess. The ones most likely to be wrong are base infection chance, which sets how survivable contact is at all, and the melee miss penalties, which decide whether unarmed survivors have any agency.
 
@@ -475,7 +500,7 @@ where `meleeCapacity` is 3 for sledgehammer, 2 for club, 1 for knife, 0 unarmed.
 
 Zombies eat. Not every victim converts, and a zombie with a body in front of it stops pursuing anyone else.
 
-One field extends Zombie: `feedingUntil` (tick, nullable).
+Feeding is a value of the zombie `state` enum, with `stateUntil` holding when it ends.
 
 **Outcome depends on how many are in contact.** A successful attack resolves differently by crowd size, which is the whole point of the mechanic:
 
@@ -490,7 +515,7 @@ This produces the design's epidemiology rather than merely its body count. **Wan
 
 It also flattens the curve. Every consumed victim is a zombie that never existed, so total conversion stops being the default trajectory — which is the failure mode the second build gate exists to catch.
 
-**Feeding occupies.** A zombie that takes someone down sets `feedingUntil` to tick + 90–150 and stops pursuing, tracking, flocking and detecting for that span. Someone who falls buys time for everyone else. The body goes to `unturned.dead`; no counter change is needed.
+**Feeding occupies.** A zombie that takes someone down enters state `feeding` until tick + 90–150 and stops pursuing, tracking, flocking and detecting for that span. Someone who falls buys time for everyone else. The body goes to `unturned.dead`; no counter change is needed.
 
 **Corpses do not attract.** A dead sim is inert. Making bodies into stimuli would turn every killing into a magnet and produce runaway pileups on the streets where things first went wrong. Deliberately rejected.
 
@@ -507,7 +532,7 @@ One zombie in contact costs a survivor 38% of their speed; three costs 64%, drop
 
 This is what makes being surrounded legible on screen. The dot does not just start losing rolls, it visibly slows and stops, which is the difference between the viewer seeing a death and seeing a number change.
 
-**Open:** whether drag applies to a sim inside a garrisoned building. It probably should, and it would make withdrawing from a bad contest much harder than entering it — which is either good drama or an unfair trap, and only playing it will say which.
+**Open:** whether drag applies to a sim inside an occupied building. It probably should, and it would make withdrawing from a bad contest much harder than entering it — which is either good drama or an unfair trap, and only playing it will say which.
 
 ## Movement
 
@@ -662,7 +687,7 @@ What is private is a thin overlay — the memory table, keyed by street id, hold
 **Ageing.** The stored value never decays. Confidence does:
 
 ```
-confidence = exp( -(tick - observedAt) / 1800 )
+confidence = exp( -ln2 * (tick - observedAt) / 1800 )
 ```
 
 A street remembered as lethal half an hour ago still reads as dangerous, just less certainly. Decaying the value toward zero would turn old bad news into good news, which is the wrong failure.
@@ -726,8 +751,10 @@ Stimuli wake dormant zombies, set their heading, raise sim panic, and feed the a
 
 One handler, run when two sims come within 4 m, doing both transfers in one pass:
 
-1. **Memory** merges by recency, per street.
-2. **Panic** averages toward the higher value with a damping factor of 0.3, so calm spreads too, but more slowly than fear.
+1. **Street memory** merges by recency, per street.
+2. **Building memory** merges by recency, per building.
+3. **Known infected** merges by union.
+4. **Panic** averages toward the higher value with a damping factor of 0.3, so calm spreads too, but more slowly than fear.
 
 Kept as separate fields deliberately. Panic is internal state, memory is belief about the world, and conflating them would mean a calm survivor cannot deliver bad news.
 
@@ -750,7 +777,7 @@ The governing principle is **decide, then apply**. Perception is computed once f
 | 7 | Combat resolution | Sims in id order, then zombies in id order |
 | 8 | Infection countdowns and conversions | After combat, so a sim due to turn still gets a final action |
 | 9 | Movement integration | Apply velocities; sims then zombies |
-| 10 | Building processes | Fortification, material consumption, breach rolls, garrison spill, expulsion |
+| 10 | Building processes | Fortification, material consumption, breach rolls, occupier spill, expulsion |
 | 11 | Encounters | Proximity merges, from final positions |
 | 12 | Reconcile counters and assert the invariant | Every tick, in the headless harness |
 | 13 | Emit events | Feeds ticker and audio; no simulation state written |
@@ -781,7 +808,7 @@ Archetype sets the weights, never the logic: hunker-down leans on integrity and 
 
 **Panic collapses the evaluation.** Above `panicRoutingCutoff` a sim is not choosing a shelter, it is entering the nearest door it can see. Consistent with panic switching modes elsewhere, and it produces the classic bad decision: running into the building the horde came out of.
 
-**Believed occupancy is a belief.** The fill looks identical whether a building holds forty residents or forty zombies, so shelter choice inherits the garrison gamble rather than routing around it. A remembered-safe building may have fallen an hour ago.
+**Believed occupancy is a belief.** The fill looks identical whether a building holds forty residents or forty zombies, so shelter choice inherits the occupation gamble rather than routing around it. A remembered-safe building may have fallen an hour ago.
 
 **Commit on choice.** Re-evaluating every tick makes sims oscillate between two similar buildings. Re-evaluation fires only on breach, the shelter falling, fortification decaying past a floor, or a migration trigger.
 
@@ -825,7 +852,7 @@ This also gives the caution experiment a second axis. Survival by caution band n
 
 **Barricades cut both ways.** A heavily fortified building is slow to leave: exit takes `fortification * 40` ticks. If a horde settles outside, the occupants are trapped by their own work. Without this, hunkering down dominates.
 
-**The garrison contest** is specified under Building, since it is building state. It is the other way a shelter changes hands.
+**The occupation contest** is specified under Building, since it is building state. It is the other way a shelter changes hands.
 
 ### Infection lifecycle
 
@@ -833,15 +860,15 @@ This also gives the caution experiment a second axis. Survival by caution band n
 | --- | --- |
 | Bite | A zombie attack succeeds, or a melee miss rolls infection |
 | Flagging | `infected` set, `turnsAt` = tick + 20–40 (seeded) |
-| Witness | `infectionWitnessed` set if any other sim had the bite within perception radius and line of sight |
+| Witness | Every other sim with the bite within perception radius and line of sight adds the bitten sim's id to its own `knownInfected` |
 | Symptomatic | Sim behaves normally, counted under `turned.symptomatic`, still shown as living |
 | Conversion | At `turnsAt`, the sim is removed and a Zombie spawned with `wasSim` set |
 
 **The asymmetry is the whole mechanic.** The infected sim knows. Others know only if they saw it. An unwitnessed bite means a sim can be admitted to a shelter and turn inside a fortified building the occupants cannot quickly leave — the best scene the design can produce, and it costs one boolean.
 
-Shelter admission checks `infectionWitnessed`, not `infected`. Nothing anywhere may read `infected` on another sim.
+Knowledge is local, like memory: `knownInfected` spreads only by encounter merge, so suspicion travels by word of mouth and can arrive too late. Shelter admission refuses a sim if anyone currently inside has it in their `knownInfected`. Nothing anywhere may read another sim's infection state directly. A sim bitten in an empty street is a danger to everyone.
 
-**Open:** whether an infected sim seeks shelter anyway or moves away from its group, and whether archetype drives that choice.
+**Decided for milestone 2:** an infected sim has no special behaviour and continues its current intent. The drama lives in admission and in who knows. Archetype-specific responses can come later, once it has been watched.
 
 ### Promotion
 
@@ -924,7 +951,7 @@ Near-black background. Buildings as thin single-pixel outlines in dim grey, unfi
 
 The arc of a run is then legible at a glance as a field of white draining to red, with grey accumulating where it went badly.
 
-**Occupancy fill does not distinguish residents from a garrison.** Deliberate: a sim cannot tell either, and neither should the viewer.
+**Occupancy fill does not distinguish residents from occupiers.** Deliberate: a sim cannot tell either, and neither should the viewer.
 
 **Corpses are paint, not entities.** Nothing in the simulation reads them — they do not attract, block, or tick. Each death is drawn once into an offscreen buffer composited *under* the live layer and never touched again, so the cost is constant regardless of how many accumulate, and they cannot visually compete with the living because they are literally beneath them.
 
@@ -952,7 +979,7 @@ The roster lists promoted survivors; clicking one centres and tracks them. Click
 
 ### Inspecting
 
-**The viewer sees ground truth.** This is the whole dramatic engine: you know more than the people do. Watching a survivor choose a building while the panel shows twelve zombies garrisoned inside is the design's best moment, and hiding it would make that moment invisible. The sim's beliefs are shown on the sim's own panel; the world's state is shown on the world's.
+**The viewer sees ground truth.** This is the whole dramatic engine: you know more than the people do. Watching a survivor choose a building while the panel shows twelve zombies occupying it is the design's best moment, and hiding it would make that moment invisible. The sim's beliefs are shown on the sim's own panel; the world's state is shown on the world's.
 
 Clicking a building centres the camera, outlines the footprint so the selection stays visible while panning, and pins a compact corner panel.
 
@@ -993,7 +1020,7 @@ salience = baseWeight * rarity * involvement * proximity
 | --- | --- |
 | Promoted survivor dies or turns | 100 |
 | Cascade threshold crossed at a shelter | 80 |
-| Garrison contested | 60 |
+| Occupation contested | 60 |
 | Building breached | 40 |
 | Shelter falls | 40 |
 | Scavenger returns with materials | 25 |
@@ -1024,14 +1051,14 @@ Read from the same place as the sweep metrics, so the end screen and the headles
 Each gate is a question with a yes or no answer. A milestone is not done because its code exists; it is done when its gate passes.
 
 1. **State shape** — types for Sim, Zombie, Building, Street, District, World, plus `config.ts`. No behaviour, no rendering.
-2. **Headless loop** — tick order, movement, infection, perception, threat. Prints the seven counters. Text output only.
+2. **Headless loop** — tick order, movement, infection, perception, threat. Prints the eight counters. Text output only.
 3. **Renderer** — canvas, three zoom modes, trails, free camera, ticker with salience, roster, time controls.
 4. **Shelter economy** — roles, fortification, materials, scavenging, occupations, memory merging, promotion, audio.
 5. **Cars** — mobile occupancy containers on the street graph. Jams and abandonment, not traffic modelling.
 
 &#91;embedded content: build order · 5 milestones, 4 gates\]
 
-**Milestone 2 is the one that matters.** The deliverable is a script that runs 21,600 ticks from a fixed seed and prints the seven counters every 600. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape — is answerable without one.
+**Milestone 2 is the one that matters.** The deliverable is a script that runs 21,600 ticks from a fixed seed and prints the eight counters every 600. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape — is answerable without one.
 
 That output doubles as the first test. The invariant assertion runs every tick, which is what keeps a growing simulation from silently rotting.
 
@@ -1040,7 +1067,7 @@ That output doubles as the first test. The invariant assertion runs every tick, 
 | Gate | Passes when |
 | --- | --- |
 | After 1 | Every field has a type, a range and a unit. Coordinates and tick length are settled. No field exists that nothing reads |
-| After 2 | The invariant holds for 21,600 ticks across 20 seeds; infection reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks |
+| After 2 | The invariant holds for 21,600 ticks across 20 runSeeds on one mapSeed; infection reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks |
 | After 3 | The city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the ticker surfaces fewer than 6 lines per second at 1× |
 | After 4 | Shelters form, fall and re-form; no seed settles into stasis with the controller off; survival differs measurably by caution band |
 
@@ -1054,7 +1081,7 @@ A sweep needs something to optimise. "Interesting" is not measurable; these are:
 - Duration of the middle phase, from first cascade to promotion
 - Count of events above salience 40 per 1,000 ticks
 - Peak horde size, and whether splintering bounds it
-- Shelters established, and the ratio that fall to garrison contest rather than breach
+- Shelters established, and the ratio that fall to occupation contest rather than breach
 
 ### Scope note
 

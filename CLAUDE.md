@@ -24,16 +24,18 @@ Never break these. If a change would break one, stop and raise it.
 1. **The population invariant holds every tick:**
    ```
    unturned.outdoors + unturned.indoors + unturned.dead + unturned.rescued
-     + turned.outdoors + turned.occupying + turned.destroyed
-     === startingPopulation
+     + turned.symptomatic + turned.outdoors + turned.occupying + turned.destroyed
+     === scenario.population
    ```
-   Asserted every tick in the headless harness. Most simulation bugs either lose a
-   person or create one, so this single check catches them.
+   Leaves are updated incrementally; the headless harness recounts them from entity
+   state every tick and asserts the recount matches and the sum holds (harness only,
+   not the browser). Most simulation bugs either lose a person or create one, so this
+   single check catches them.
 
 2. **Group totals are derived, never stored.** `unturned` and `turned` are sums over
    their leaves. Storing them creates a second source of truth that will drift.
 
-3. **A run is fully reproducible from its seed.** See Determinism below.
+3. **A run is fully reproducible from its seeds.** See Determinism below.
 
 4. **Ticks and frames are different units.** Nothing in `sim/` reads wall-clock time,
    frame duration, or `performance.now()`.
@@ -71,7 +73,9 @@ docs/           design notes and implementation reference
 
 ## Determinism
 
-- One seeded PRNG instance, passed explicitly. `Math.random()` appears nowhere in `sim/`.
+- Two independent seeded PRNGs (`src/sim/rng.ts`): one from `mapSeed` for generation,
+  one from `runSeed` for the simulation, its state held in `world.rng`. Sweeps vary
+  `runSeed` against a fixed `mapSeed`. `Math.random()` appears nowhere in `sim/`.
 - Iterate agents in id order. Never iterate a `Set` or `Map` where order could vary.
 - Break ties by lower id. A symmetric rule produces deadlock and non-determinism at once.
 - Accumulate floats in id order, not in spatial-partition order.
@@ -112,18 +116,22 @@ Conversion sits after combat so a sim due to turn still gets a final action.
 
 Two fields are deliberately quarantined. Both restrictions exist because global state
 is a poor trigger for spatial events — at 20% infection city-wide, one district may be
-untouched and another already gone.
+untouched and another already gone. Both are enforced by lint (`eslint.config.ts`,
+`restrictedReads`): a read outside the allowed files fails `npm run check`.
 
-- **`phase` / `district.released`** — may be read *only* by the occupant release. Never
-  by behaviour, shelter criteria, or any threshold. If `phase` appears in a behavioural
-  comparison, that is a bug.
+- **`district.released` / `district.releaseAt`** — read *only* by the occupant release
+  (`src/sim/systems/release.ts`). Never by behaviour, shelter criteria, or any threshold.
+  `phase` is derived for display and never stored.
 - **`panic`** — gates exactly three things: whether a sim routes or steers, whether it
-  consults its memory table, and whether occupants are expelled from a building. Nothing
-  else reads it.
+  consults its memory table, and whether occupants are expelled from a building. Read
+  only in `systems/panic.ts` (which also derives the informed/direct/flight mode that
+  routing, memory use and gait read), `systems/encounters.ts` (transmission) and
+  `systems/buildings.ts` (expulsion).
 
-Also: **nothing may read `infected` on another sim.** Shelter admission and all other
-checks read `infectionWitnessed`. The asymmetry between who knows and who doesn't is a
-core mechanic, not an oversight.
+Also: **nothing may read another sim's infection state** (`condition`, `turnsAt`).
+Knowledge of infection is local: each sim's `knownInfected` set, written when it sees a
+bite and merged on encounter. Shelter admission checks the sets of the sims inside. The
+asymmetry between who knows and who doesn't is a core mechanic, not an oversight.
 
 ---
 
@@ -175,7 +183,7 @@ If one seems necessary, raise it rather than adding it.
 ## Working practice
 
 - **Headless before visual.** Milestone 2 is a script that runs 21,600 ticks from a
-  fixed seed and prints the seven counters every 600. No renderer until the counters
+  fixed seed and prints the eight counters every 600. No renderer until the counters
   reconcile and the infection curve has a shape across 20 seeds.
 - Write the parameter-sweep harness early. Tuning is the actual work on this project;
   the code is the easy part.
@@ -190,7 +198,14 @@ If one seems necessary, raise it rather than adding it.
 
 ## Current milestone
 
-**1 — State shape.** Types for Sim, Zombie, Building, Street, District, World, plus
-`config.ts`. No behaviour, no rendering.
+**2 — Headless loop.** Tick order, movement, infection, perception, threat. A script
+that runs 21,600 ticks from fixed seeds and prints the eight counters every 600. Text
+output only.
 
-Gate: every field has a type, a range and a unit; no field exists that nothing reads.
+Gate: the invariant holds for 21,600 ticks across 20 runSeeds on one mapSeed; infection
+reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks.
+
+Milestone 1 (state shape) is done: `src/sim/state/` and `src/config.ts`, with the gate
+checked by `tests/state-gate.test.ts` — every field declares `@range`, `@unit` and
+`@readBy`. Keep it that way: a new field needs all three, and a field with no reader
+does not belong.
