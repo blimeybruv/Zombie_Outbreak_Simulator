@@ -68,7 +68,7 @@ export function step(world: World, ctx: Context, options: StepOptions): void {
   convertDue(world, ctx); //                               8
   integrateMovement(world, ctx); //                        9
   probe('movement');
-  buildingProcesses(world, ctx); //                        10
+  buildingProcesses(world, ctx, probe); //                 10
   probe('buildings');
   resolveEncounters(world, ctx); //                        11
   probe('encounters');

@@ -1,4 +1,5 @@
-// Per-stage timing of the tick, alongside what each population is doing.
+// Per-stage timing of the tick, alongside what each population is doing. For finding
+// where to look; whether a change helped is decided by whole-run time (scripts/bench.ts).
 //
 //   npx tsx scripts/profile.ts [ticks] [population] [runSeed]
 

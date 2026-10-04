@@ -339,10 +339,12 @@ export function alert(world: World, b: Building): void {
   b.alertedAt ??= world.tick;
 }
 
-/** The buildings a resident of `b` knows, nearest first (cached: it is map data). */
+/**
+ * The buildings a resident of `b` knows, nearest first. Recomputed on each call: it
+ * runs only when a resident is about to step out, and caching it (lazily or at map
+ * build) measured no faster over a whole run (scripts/bench.ts).
+ */
 function neighbourhood(world: World, ctx: Context, b: Building): BuildingId[] {
-  const cached = ctx.neighbourhood[b.id];
-  if (cached) return cached;
   const e = b.entrances[0]!;
   const dist = (id: BuildingId) => {
     const o = world.buildings[id]!.entrances[0]!;
@@ -354,7 +356,6 @@ function neighbourhood(world: World, ctx: Context, b: Building): BuildingId[] {
     .map((id) => ({ id, d: dist(id) }))
     .sort((p, q) => p.d - q.d || p.id - q.id)
     .map((x) => x.id);
-  ctx.neighbourhood[b.id] = near;
   return near;
 }
 

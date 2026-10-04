@@ -195,10 +195,16 @@ If one seems necessary, raise it rather than adding it.
   pick targets when `id % 5 === tick % 5`; occupier spill every 10; roles, migration
   and door watch every 30; cascade checks every 10; dormant zombies every 4; idle
   awake zombies every 3).
-- Measure before optimising: `npx tsx scripts/profile.ts [ticks] [population]` times each
-  tick stage alongside what each population is doing; `npx tsx scripts/movement-check.ts`
-  reports how often moving agents are stuck or reversing (zig-zag). Both should stay
-  near zero after any change to steering or movement.
+- Measure before optimising, and measure the whole run to decide whether a change
+  worked: `npx tsx scripts/bench.ts [--ticks 15000] [--runs 5]` times a fixed-seed
+  headless run in fresh processes, one after another, and reports the minimum (host
+  noise only ever adds time) plus a final-state fingerprint, so a speed-up that changes
+  behaviour shows. Absolute milliseconds, never shares: the budget is absolute. To
+  compare versions, interleave their runs. `npx tsx scripts/profile.ts [ticks]
+  [population]` times each tick stage and is for finding where to look, not for
+  judging a change. The harness owns the clock; never add timing inside `src/sim/`.
+- `npx tsx scripts/movement-check.ts` reports how often moving agents are stuck or
+  reversing (zig-zag); it should stay near zero after any change to steering or movement.
 
 ---
 

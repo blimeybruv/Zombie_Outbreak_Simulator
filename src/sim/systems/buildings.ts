@@ -446,12 +446,17 @@ function spill(world: World, ctx: Context, b: Building): void {
   }
 }
 
-export function buildingProcesses(world: World, ctx: Context): void {
+/** `probe` marks sub-stage boundaries for a profiler; the simulation never reads a clock. */
+export function buildingProcesses(world: World, ctx: Context, probe: (stage: string) => void = () => {}): void {
   updateRelease(world);
   arrivals(world, ctx);
+  probe('buildings.arrivals');
   exits(world, ctx);
+  probe('buildings.exits');
   noiseExpulsion(world, ctx);
+  probe('buildings.noise');
   for (const bid of breachCandidates(world, ctx)) breachRolls(world, ctx, world.buildings[bid]!);
+  probe('buildings.breach');
   for (const b of world.buildings) {
     if (queued(b) > 0) drainQueues(world, ctx, b);
     if (b.zombiesInside > 0) {
