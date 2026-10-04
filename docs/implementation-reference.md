@@ -31,6 +31,24 @@ The entity field tables below are the original design. The authoritative field l
 - **Derived, not stored:** sim speed (range 0–2.9 m/tick before the age factor) and perception radius, building integrity (from tag) and `contested`, `timeOfDay`, `ticksSurvived` and `ticksAlone` (from tick stamps), and `promoted` (a name is assigned).
 - **Occupancy follows time of day.** Starting residents are the indoor share of population divided across buildings by tag weight × time-band multiplier, so the two cannot disagree.
 
+### Decisions made building milestone 2
+
+Choices the specification left open, made while implementing the headless loop. Each is small and reversible; all tuning values are in `config.ts`.
+
+- **Patient zero is one of the residents.** The origin building loses a resident and gains an occupier, so the population total never changes.
+- **Dormant zombies do not use sight.** They wake on sound at or above `wakeThreshold`, or on a sim in contact range. Sneaking past a sleeping cluster works because of this.
+- **Footsteps are not stored stimuli.** Running and sprinting are heard only by zombies inside the gait's noise radius at that moment. Stored stimuli are weapon noise only.
+- **Residents have no panic of their own,** so expelling them reads gunfire instead: a stimulus within the occupier alert radius queues a share of the building's residents to leave (`buildings.residentExpelShare`). Tracked sims inside are expelled by their own panic, as specified.
+- **No contest inside occupied buildings yet** (milestone 4). A sim who reaches an occupied building meets the occupiers at the door, takes one contact roll, is turned away, and triggers the spill. A zombie appearing inside a building (breach or conversion) gives each tracked sim inside one contact roll, then drives them out.
+- **Idle zombies drift up the scent gradient,** toward the entrance of the strongest nearby source, as well as waking faster near it. Outdoor-cluster scent is not built yet.
+- **Archetype from profession is a bias, not an override:** the scenario mix with the profession's archetype multiplied by `professionBias`. As an override it made police about 10% of the population.
+- **Not built yet:** the cornered modifier (needs an escape-vector test), promotion, the shelter economy and roles (milestone 4).
+- **Reaching a door ends the flight.** Entering a building caps panic just below `panicExpelThreshold`. Otherwise a sim who ran in panicked is expelled by that same panic the next tick and bounces in and out of the door; expulsion is meant to come from panic that rises inside.
+- **Spatial hash cell is 32 m,** not 16: the per-rebuild cell scan dominated the profile, and the reference also asks for a cell above the largest query radius.
+- **State added:** `Sim.street` (the street the sim is on, kept while within half its width), `Building.pendingSpill`, and `World.residentDeaths` (anonymous residents killed in a breach — the only record the full recount can count them from).
+
+**Tuning that passed the milestone 2 gate** (swept from the guessed defaults): zombie `dormantAfter` 300 → 1,200 ticks, `wanderRate` 0.0002 → 0.001, scent `idleDrift` 0.02 → 0.2, breach `base` 0.05 → 0.15, breach split 45/20/35 → 60/10/30 (turn/die/expel). With these, mapSeed 1 has 18 of 20 runSeeds between 40% and 90% infection (most finish at 53–62%, with about 25% dead without turning) and mapSeed 2 has 20 of 20; the invariant held on every tick of every run, and no run resolved early. The slow seeds are outbreaks whose origin crowd went dormant before finding anyone; they recover later through wanderers.
+
 ## The concept in brief
 
 A spectator-only outbreak simulation. A top-down city of dots and building outlines, roughly 2,000 people, rendered to a plain canvas. There is no player: the viewer controls the camera, a survivor roster, a news ticker and the speed of time, nothing else.

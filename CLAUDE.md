@@ -198,12 +198,17 @@ If one seems necessary, raise it rather than adding it.
 
 ## Current milestone
 
-**2 — Headless loop.** Tick order, movement, infection, perception, threat. A script
-that runs 21,600 ticks from fixed seeds and prints the eight counters every 600. Text
-output only.
+**3 — Renderer.** Canvas, three zoom modes, trails, free camera, ticker with salience,
+roster, time controls. Reads sim state, never writes it.
 
-Gate: the invariant holds for 21,600 ticks across 20 runSeeds on one mapSeed; infection
-reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks.
+Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
+ticker surfaces fewer than 6 lines per second at 1×.
+
+Milestone 2 (headless loop) is done: `npm run sim -- <runSeed> <mapSeed>` prints the eight
+counters every 600 ticks; `npm run sweep` runs 20 runSeeds on one mapSeed in parallel,
+asserts the invariant every tick and checks the gate (`--set path=value` overrides any
+config value). Re-run the sweep after any change to simulation code or tuning — a
+passing test suite does not mean the infection curve still has its shape.
 
 Milestone 1 (state shape) is done: `src/sim/state/` and `src/config.ts`, with the gate
 checked by `tests/state-gate.test.ts` — every field declares `@range`, `@unit` and

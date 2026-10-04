@@ -10,7 +10,9 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.sim.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "sim": "tsx scripts/run.ts",
+    "sweep": "tsx scripts/sweep.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
