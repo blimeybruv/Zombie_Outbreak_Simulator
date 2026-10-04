@@ -1,0 +1,185 @@
+# CLAUDE.md
+
+Spectator-only zombie outbreak simulation. ~2,000 agents, top-down canvas, dots and
+building outlines. No player — the viewer controls camera, roster, ticker and time only.
+
+Full specification lives in `docs/implementation-reference.md`, which defines the
+simulation from primitives upward: foundations, scalar conventions, every entity's
+field table, attack resolution, movement, systems, loops, scenario setup, presentation
+and build order.
+
+`docs/design-notes.md` carries the reasoning — why decisions went the way they did, and
+what was cut and why. Consult it before reversing anything. Where the two disagree, the
+implementation reference is newer.
+
+This file carries the constraints that must survive across sessions. When this file and
+the reference disagree, ask rather than guessing.
+
+---
+
+## Hard invariants
+
+Never break these. If a change would break one, stop and raise it.
+
+1. **The population invariant holds every tick:**
+   ```
+   unturned.outdoors + unturned.indoors + unturned.dead + unturned.rescued
+     + turned.outdoors + turned.occupying + turned.destroyed
+     === startingPopulation
+   ```
+   Asserted every tick in the headless harness. Most simulation bugs either lose a
+   person or create one, so this single check catches them.
+
+2. **Group totals are derived, never stored.** `unturned` and `turned` are sums over
+   their leaves. Storing them creates a second source of truth that will drift.
+
+3. **A run is fully reproducible from its seed.** See Determinism below.
+
+4. **Ticks and frames are different units.** Nothing in `sim/` reads wall-clock time,
+   frame duration, or `performance.now()`.
+
+---
+
+## Architecture
+
+```
+sim/        pure simulation. No DOM, no wall-clock, no imports from render/ or ui/
+render/     reads sim state. Never writes to it
+audio/      reads sim events. Never writes to sim state
+ui/         reads sim state; writes only through explicit commands
+config.ts   every tuning parameter. Imports nothing
+```
+
+- **Every tuning number lives in `config.ts`**, exported as one object. No magic
+  numbers in simulation code. This is what makes headless parameter sweeps possible
+  and is the rule most likely to be broken by accident.
+- The same `sim/` code must run headless in Node and in the browser. If something
+  only works in one, it is in the wrong module.
+
+---
+
+## Determinism
+
+- One seeded PRNG instance, passed explicitly. `Math.random()` appears nowhere in `sim/`.
+- Iterate agents in id order. Never iterate a `Set` or `Map` where order could vary.
+- Break ties by lower id. A symmetric rule produces deadlock and non-determinism at once.
+- Accumulate floats in id order, not in spatial-partition order.
+
+---
+
+## Tick order
+
+Fixed. Order decides behaviour, not just performance.
+
+The governing principle is **decide, then apply**. Perception is computed once from
+start-of-tick positions into a read-only snapshot; every agent then decides against the
+same world. Decisions write intent, never position. Movement integrates in one later
+pass. Without this, low-id agents react to a world high-id agents have already changed.
+
+```
+1  advance tick, update timeOfDay
+2  rebuild spatial hash
+3  age and expire stimuli
+4  compute perception and perceivedThreat   <- read-only snapshot
+5  zombie decisions
+6  sim decisions
+7  combat resolution                        <- sims by id, then zombies by id
+8  infection countdowns and conversions
+9  movement integration
+10 building processes
+11 encounters (proximity merges)
+12 reconcile counters, assert invariant
+13 emit events
+```
+
+Combat sits before movement so contact is judged on the positions perception used.
+Conversion sits after combat so a sim due to turn still gets a final action.
+
+---
+
+## Restricted reads
+
+Two fields are deliberately quarantined. Both restrictions exist because global state
+is a poor trigger for spatial events — at 20% infection city-wide, one district may be
+untouched and another already gone.
+
+- **`phase` / `district.released`** — may be read *only* by the occupant release. Never
+  by behaviour, shelter criteria, or any threshold. If `phase` appears in a behavioural
+  comparison, that is a bug.
+- **`panic`** — gates exactly three things: whether a sim routes or steers, whether it
+  consults its memory table, and whether occupants are expelled from a building. Nothing
+  else reads it.
+
+Also: **nothing may read `infected` on another sim.** Shelter admission and all other
+checks read `infectionWitnessed`. The asymmetry between who knows and who doesn't is a
+core mechanic, not an oversight.
+
+---
+
+## Conventions
+
+- **Coordinates are continuous floats.** One world unit = one metre. Grids are
+  acceleration structures only (spatial hash, render density field).
+- **One tick = one simulated second.** All rates and durations are in ticks.
+- **Every simulation scalar is 0–1 and clamped.** Materials are the exception: an
+  integer, consumed and carried in discrete units.
+- Continuous scalars approach asymptotically, never linearly:
+  ```
+  value += (target - value) * rate * dt
+  ```
+- `danger` ages rather than decays. The stored value stays as observed; confidence
+  falls with age. Decaying the value would turn old bad news into good news.
+
+---
+
+## Terminology
+
+- **Survivors garrison, zombies occupy.** Garrison implies intent to hold; occupiers
+  are merely present. Counter leaf is `turned.occupying`; building fields are
+  `zombiesInside` and `occupiedAt`.
+- **Sim** = a living person. **Zombie** = a separate entity, not a Sim with a flag.
+- **Tracked sim** = keeps identity inside a building. **Resident** = anonymous count
+  present at spawn, never individually simulated.
+
+---
+
+## Out of scope
+
+Do not build these. Each was considered and rejected with reasons in the design notes.
+If one seems necessary, raise it rather than adding it.
+
+- Fire, explosions, petrol stations — wants to be the star; produces spectacle, not decisions
+- Z-levels, rooftop movement — a second map, not a building attribute
+- Survivor-on-survivor combat, psychopath archetype — a second hostility relation
+- Health pools, wounds, bandages, healer archetype — replaced by one infection flag
+- Heavy weapons, grenades — changes capability rather than decisions
+- Multi-slot inventory — one weapon, one ammo count, one materials count
+- Traffic modelling — cars are deferred entirely; when built, no lanes or intersections
+- Corpses as attractors — would make every killing a magnet
+- Isometric projection, authored art, line-of-sight rendering
+- Any game engine. TypeScript and a plain canvas
+
+---
+
+## Working practice
+
+- **Headless before visual.** Milestone 2 is a script that runs 21,600 ticks from a
+  fixed seed and prints the seven counters every 600. No renderer until the counters
+  reconcile and the infection curve has a shape across 20 seeds.
+- Write the parameter-sweep harness early. Tuning is the actual work on this project;
+  the code is the easy part.
+- Prefer small modules and small commits. Architecture debt compounds badly here
+  because everything reads the same state.
+- Do not optimise speculatively. Structure-of-arrays is a later option, not a starting
+  point. Profile first.
+- Stagger expensive work on id offsets rather than running it every tick (armed sims
+  pick targets when `id % 5 === tick % 5`; occupier spill every 10; roles every 30).
+
+---
+
+## Current milestone
+
+**1 — State shape.** Types for Sim, Zombie, Building, Street, District, World, plus
+`config.ts`. No behaviour, no rendering.
+
+Gate: every field has a type, a range and a unit; no field exists that nothing reads.
