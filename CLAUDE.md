@@ -43,12 +43,23 @@ Never break these. If a change would break one, stop and raise it.
 ## Architecture
 
 ```
-sim/        pure simulation. No DOM, no wall-clock, no imports from render/ or ui/
-render/     reads sim state. Never writes to it
-audio/      reads sim events. Never writes to sim state
-ui/         reads sim state; writes only through explicit commands
-config.ts   every tuning parameter. Imports nothing
+src/sim/        pure simulation. No DOM, no wall-clock, no imports from render/ or ui/
+src/render/     reads sim state. Never writes to it
+src/audio/      reads sim events. Never writes to sim state
+src/ui/         reads sim state; writes only through explicit commands
+src/config.ts   every tuning parameter. Imports nothing
+scripts/        headless harness and parameter sweeps (run with tsx)
+tests/          vitest
+docs/           design notes and implementation reference
 ```
+
+- **Toolchain:** TypeScript (strict), Node 22, npm, Vitest, tsx, ESLint; Vite from
+  milestone 3. `npm run check` runs typecheck, lint and tests — run it before every commit.
+- **Boundaries are enforced, not just documented.** `src/sim/` and `src/config.ts`
+  compile under `tsconfig.sim.json` with no DOM or Node types, and ESLint rejects
+  `Math.random`, `Date`, `performance` and render/ui/audio imports in `src/sim/`, and any
+  import in `src/config.ts`. `tests/boundaries.test.ts` proves the rules fire. Do not
+  loosen either to make code compile — move the code instead.
 
 - **Every tuning number lives in `config.ts`**, exported as one object. No magic
   numbers in simulation code. This is what makes headless parameter sweeps possible

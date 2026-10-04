@@ -1,0 +1,10 @@
+{
+  // sim/ and config.ts must run identically in Node and the browser, so they
+  // compile with neither DOM nor Node types: any use of either is a type error.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/sim", "src/config.ts"]
+}
