@@ -128,7 +128,7 @@ describe('derived quantities', () => {
     expect(timeOfDay(0, s, config)).toBeCloseTo(0.5, 10);
     expect(timeOfDay(config.time.dayLength, s, config)).toBeCloseTo(0.5, 10);
     expect(timeOfDay(config.time.dayLength / 2, s, config)).toBeCloseTo(0, 10);
-    expect(config.time.runLength / config.time.dayLength).toBe(3);
+    expect(Number.isInteger(config.time.runLength / config.time.dayLength)).toBe(true); // whole day/night cycles
   });
 });
 

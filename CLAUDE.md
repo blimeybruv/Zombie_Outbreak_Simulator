@@ -103,7 +103,7 @@ pass. Without this, low-id agents react to a world high-id agents have already c
 9  movement integration
 10 building processes
 11 encounters (proximity merges)
-12 reconcile counters, assert invariant
+12 reconcile counters, assert invariant   <- promotion checks its trigger here
 13 emit events
 ```
 
@@ -182,8 +182,8 @@ If one seems necessary, raise it rather than adding it.
 
 ## Working practice
 
-- **Headless before visual.** Milestone 2 is a script that runs 21,600 ticks from a
-  fixed seed and prints the eight counters every 600. No renderer until the counters
+- **Headless before visual.** Milestone 2 is a script that runs a full run (36,000 ticks)
+  from a fixed seed and prints the eight counters every 600. No renderer until the counters
   reconcile and the infection curve has a shape across 20 seeds.
 - Write the parameter-sweep harness early. Tuning is the actual work on this project;
   the code is the easy part.
@@ -212,8 +212,8 @@ ticker surfaces fewer than 6 lines per second at 1×.
 Milestone 2 (headless loop) is done: `npm run sim -- <runSeed> <mapSeed>` prints the eight
 counters every 600 ticks; `npm run sweep` runs 20 runSeeds on one mapSeed in parallel,
 asserts the invariant every tick and checks the gate (`--set path=value` overrides any
-config value; `--seeds 8` for quicker exploration). A full sweep takes about 15 minutes
-at the default population of 6,000. Re-run it after any change to simulation code,
+config value; `--seeds 8` for quicker exploration). A full sweep takes about 25 minutes
+at the default population of 6,000 and run length of 36,000 ticks. Re-run it after any change to simulation code,
 map generation or tuning — a passing test suite does not mean the infection curve
 still has its shape.
 

@@ -89,7 +89,7 @@ export const config = {
 
   time: {
     dayLength: 7200, // ticks per day/night cycle; compressed, 3 cycles per run
-    runLength: 21600, // ticks; the demo's one terminal condition
+    runLength: 36000, // ticks; the demo's one terminal condition: ten simulated hours, five day/night cycles
     sunrise: 0.25, // fraction of day (06:00)
     sunset: 0.75, // fraction of day (18:00)
     twilight: 0.04, // fraction of day over which perception interpolates (~1 h)
@@ -405,9 +405,15 @@ export const config = {
   },
 
   promotion: {
-    livingFraction: 0.08, // fires when unturned outdoors + indoors < this × population
-    fallbackTick: 12000,
-    count: 12,
+    // Two stages. A provisional roster when half the population is gone, so the viewer
+    // has names for most of the run; a re-score once histories have had time to diverge,
+    // which adds anyone who has since become remarkable. Nobody is ever un-named.
+    // Each stage fires when unturned outdoors + indoors drops below its fraction of the
+    // population, or at its fallback tick, whichever comes first.
+    provisional: { livingFraction: 0.5, fallbackTick: 10000 },
+    final: { livingFraction: 0.3, fallbackTick: 18000 },
+    count: 12, // survivors named at each stage
+    // History counters scored for unusualness (see promotion.ts), plus caution.
     cautionBands: [0.33, 0.66], // band edges for end-of-run survival by caution
   },
 

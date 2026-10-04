@@ -13,6 +13,7 @@ import { convertDue } from './systems/infection';
 import { integrateMovement } from './systems/movement';
 import { updatePanic } from './systems/panic';
 import { computePerception, rebuildHashes } from './systems/perception';
+import { updatePromotion } from './systems/promotion';
 import { simDecisions } from './systems/sims';
 import { expireStimuli } from './systems/stimuli';
 import { zombieDecisions } from './systems/zombies';
@@ -72,6 +73,8 @@ export function step(world: World, ctx: Context, options: StepOptions): void {
   resolveEncounters(world, ctx); //                        11
   probe('encounters');
   if (options.checkInvariant) assertInvariant(world); //   12 (counters are reconciled incrementally)
+  updatePromotion(world); //                                  promotion reads the reconciled counters
+  probe('promotion');
   world.events = ctx.events; //                            13 emit events
   ctx.events = [];
   probe('end');

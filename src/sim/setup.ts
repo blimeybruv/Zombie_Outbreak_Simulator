@@ -171,6 +171,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     residentDeaths: 0,
     lastConversionAt: null,
     promotedAt: null,
+    rescoredAt: null,
   };
   const ctx = createContext(world);
   scheduleRelease(world);

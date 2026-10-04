@@ -61,7 +61,7 @@ export interface StreetBelief {
    * @range 0–1 @unit scalar @readBy pathfinding cost, shelter desirability
    */
   danger: Unit01;
-  /** @range 0–21,600 @unit tick @readBy confidence, encounter merge (newer wins) */
+  /** @range 0–36,000 @unit tick @readBy confidence, encounter merge (newer wins) */
   observedAt: Tick;
   /**
    * Set only by this sim's own observation, never copied by a merge, so the
@@ -82,7 +82,7 @@ export interface BuildingBelief {
   materials: Count;
   /** @range 0–1 @unit scalar @readBy shelter desirability */
   fortification: Unit01;
-  /** @range 0–21,600 @unit tick @readBy confidence, encounter merge (newer wins) */
+  /** @range 0–36,000 @unit tick @readBy confidence, encounter merge (newer wins) */
   observedAt: Tick;
   /**
    * Set only when this sim itself entered the building; never copied by a merge.
@@ -93,11 +93,11 @@ export interface BuildingBelief {
 
 /** Accrues from spawn on every sim. Read by promotion scoring and end-of-run statistics. */
 export interface SimHistory {
-  /** @range 0–21,600 @unit tick @readBy ticksSurvived, promotion, end stats */
+  /** @range 0–36,000 @unit tick @readBy ticksSurvived, promotion, end stats */
   spawnedAt: Tick;
-  /** Tick the sim died or turned; null while alive. @range 0–21,600 | null @unit tick @readBy ticksSurvived, end stats */
+  /** Tick the sim died or turned; null while alive. @range 0–36,000 | null @unit tick @readBy ticksSurvived, end stats */
   endedAt: Tick | null;
-  /** Last tick another sim was within encounter range. @range 0–21,600 @unit tick @readBy ticksAlone, promotion */
+  /** Last tick another sim was within encounter range. @range 0–36,000 @unit tick @readBy ticksAlone, promotion */
   lastCompanyAt: Tick;
   /** @range 0–2,000 @unit conversions @readBy promotion, panic, backstory */
   conversionsWitnessed: Count;
@@ -105,7 +105,7 @@ export interface SimHistory {
   buildingsEntered: Count;
   /** Distinct streets visited. @range 0–streets @unit streets @readBy promotion, backstory */
   streetsVisited: Count;
-  /** In zombie contact range and survived it. @range 0–21,600 @unit events @readBy promotion, backstory */
+  /** In zombie contact range and survived it. @range 0–36,000 @unit events @readBy promotion, backstory */
   nearMisses: Count;
   /** @range 0–2,000 @unit zombies @readBy promotion, end stats (highest kills) */
   kills: Count;

@@ -3,7 +3,7 @@
 //
 //   npx tsx scripts/sweep.ts [--seeds 20] [--map 1] [--jobs 4] [--set zombie.wanderRate=0.001 ...] [--json out.json]
 //
-// Gate (CLAUDE.md): the invariant holds for 21,600 ticks on every seed; infection
+// Gate (CLAUDE.md): the invariant holds for a full run on every seed; infection
 // reaches 40–90% of population in at least 15 of 20; no seed resolves under 3,000 ticks.
 
 import { writeFileSync } from 'node:fs';

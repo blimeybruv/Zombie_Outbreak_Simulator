@@ -46,7 +46,7 @@ export interface Scenario {
 }
 
 export interface World {
-  /** Simulated seconds elapsed. @range 0–21,600 @unit tick @readBy everything */
+  /** Simulated seconds elapsed. @range 0–36,000 @unit tick @readBy everything */
   tick: Tick;
   /** The run RNG (from runSeed); its state is part of the snapshot. @range 4 × uint32 @unit — @readBy every random draw in sim/ */
   rng: RngState;
@@ -76,7 +76,7 @@ export interface World {
   events: SimEvent[];
   /** Sims awaiting a repath, drained in id order under a per-tick cap. @range sim ids @unit — @readBy sim decisions */
   repathQueue: SimId[];
-  /** Promoted survivors in promotion order. @range 0–12 sim ids @unit — @readBy roster UI, ticker, salience */
+  /** Promoted survivors in promotion order; append-only, never shrinks. @range 0–24 sim ids @unit — @readBy roster UI, ticker, salience */
   roster: SimId[];
   /** @range see Counters @unit people @readBy invariant, promotion trigger, stalemate, end stats */
   counters: Counters;
@@ -89,6 +89,8 @@ export interface World {
 
   /** Last tick any sim converted; the stalemate controller's clock. @range tick | null @unit tick @readBy stalemate controller */
   lastConversionAt: Tick | null;
-  /** When promotion fired (it fires once); null before. @range tick | null @unit tick @readBy promotion, display phase */
+  /** When the provisional roster was named; null before. @range tick | null @unit tick @readBy promotion, display phase */
   promotedAt: Tick | null;
+  /** When the roster was re-scored and topped up; null before. @range tick | null @unit tick @readBy promotion */
+  rescoredAt: Tick | null;
 }

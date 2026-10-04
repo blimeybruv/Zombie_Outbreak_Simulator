@@ -44,7 +44,7 @@ Choices the specification left open, made while implementing the headless loop. 
 - **No contest inside occupied buildings yet** (milestone 4). A sim who reaches an occupied building meets the occupiers at the door, takes one contact roll, is turned away, and triggers the spill. A zombie appearing inside a building (breach or conversion) gives each tracked sim inside one contact roll, then drives them out.
 - **Idle zombies drift up the scent gradient,** toward the entrance of the strongest nearby source, as well as waking faster near it. Outdoor-cluster scent is not built yet.
 - **Archetype from profession is a bias, not an override:** the scenario mix with the profession's archetype multiplied by `professionBias`. As an override it made police about 10% of the population.
-- **Not built yet:** the cornered modifier (needs an escape-vector test), promotion, the shelter economy and roles (milestone 4).
+- **Not built yet:** the cornered modifier (needs an escape-vector test), the shelter economy and roles (milestone 4).
 - **Reaching a door ends the flight.** Entering a building caps panic just below `panicExpelThreshold`. Otherwise a sim who ran in panicked is expelled by that same panic the next tick and bounces in and out of the door; expulsion is meant to come from panic that rises inside.
 - **Memory is capped.** With terraced streets a close pass touches dozens of buildings, so building memory holds the 30 newest beliefs and street memory the 150 newest; older observations are forgotten, which reads exactly like an unknown entry.
 - **Movement follows walls with hysteresis.** A blocked agent slides along the obstacle at 70% speed, keeping to the side it chose until its direct way opens (`Sim.slide`, `Zombie.slide`). Scaling progress by the cosine of the deflection left agents heading into a wall nearly stationary (9% of moving sims, 27% of zombies), and choosing a side afresh each tick made them zig-zag.
@@ -53,6 +53,11 @@ Choices the specification left open, made while implementing the headless loop. 
 - **Idle agents tick cheaply.** Dormant zombies check for waking every 4 ticks; awake zombies with nothing tracked, heard or seen re-decide every 3 ticks (sight still interrupts immediately); scent is a grid rebuilt every 30 ticks. Memory merges are limited to one per sim per 30 ticks.
 - **Spatial hash cell is 32 m,** not 16: the per-rebuild cell scan dominated the profile, and the reference also asks for a cell above the largest query radius.
 - **State added:** `Sim.street` (the street the sim is on, kept while within half its width), `Building.pendingSpill`, and `World.residentDeaths` (anonymous residents killed in a breach — the only record the full recount can count them from).
+
+### Revisions after milestone 2
+
+- **Run length is 36,000 ticks** (was 21,600): five whole day/night cycles at `dayLength` 7,200, so the run ends at the same time of day it began.
+- **Promotion is two-stage** (provisional at 50% living, re-score at 30%) with an append-only roster; see Promotion. It was 8% living, which at 6,000 population would have named survivors only once the city was nearly gone.
 
 **Tuning that passed the milestone 2 gate** (swept from the guessed defaults): zombie `dormantAfter` 300 → 1,200 ticks, `wanderRate` 0.0002 → 0.001, scent `idleDrift` 0.02 → 0.2, breach split 45/20/35 → 60/10/30 (turn/die/expel), and breach `base` 0.05 → 0.35 (0.15 passed on the old one-building-per-block map; subdivided blocks put most people in small houses, where a breach yields one or two conversions, so breaches had to come more often). On the current map at a population of 6,000, after the movement fixes (agents no longer stall against walls), mapSeed 1 has 20 of 20 runSeeds between 40% and 90% infection (65–68%, with about 24% dead without turning); the invariant held on every tick of every run, and no run resolved early. Curves are still rising at 21,600 ticks. **Open:** the spread across seeds is now only about 3 points; the sweep targets treat low variance as the outcome being determined, so this is the first thing milestone 4 tuning should look at.
 
@@ -111,7 +116,7 @@ The street graph is an overlay on continuous space, not a replacement for it. Si
 | Display rate at 1× | 10 ticks/s | A 1× minute of watching is 10 simulated minutes |
 | Speed multipliers | 0.25×, 1×, 2×, 4×, 8× | Plus pause and step-one-tick |
 | Speed ceiling | 8× | Above this, audio and ticker become unreadable |
-| Run length | 21,600 ticks | Six simulated hours, \~36 min at 1×, \~4.5 min at 8× |
+| Run length | 36,000 ticks | Ten simulated hours: five day/night cycles, 60 min at 1×, 7.5 min at 8× (was 21,600) |
 | Day length | 7,200 ticks | Compressed: three day/night cycles per run. `timeOfDay` is derived from tick, start hour and day length, never stored |
 
 **Correction to the design notes:** the "one in-game month" ending is not reachable at one tick per second and should be read as flavour. The timer ending is a tick count.
@@ -387,7 +392,7 @@ Everything needed to resume a run exactly. If this serialises and reloads identi
 
 | Field | Type | Range / unit | Meaning |
 | --- | --- | --- | --- |
-| `tick` | `int` | 0–21,600 | Simulated seconds elapsed |
+| `tick` | `int` | 0–36,000 | Simulated seconds elapsed |
 | `seed` | `int` | — | Reproduces the whole run |
 | `rng` | `PRNG` | — | Seeded instance; its internal state is part of the snapshot |
 | `timeOfDay` | `float` | 0–1 | 0 midnight, 0.5 noon; drives perception radii |
@@ -812,7 +817,7 @@ The governing principle is **decide, then apply**. Perception is computed once f
 | 9 | Movement integration | Apply velocities; sims then zombies |
 | 10 | Building processes | Fortification, material consumption, breach rolls, occupier spill, expulsion |
 | 11 | Encounters | Proximity merges, from final positions |
-| 12 | Reconcile counters and assert the invariant | Every tick, in the headless harness |
+| 12 | Reconcile counters and assert the invariant | Every tick, in the headless harness. Promotion checks its trigger straight after, against the reconciled counters |
 | 13 | Emit events | Feeds ticker and audio; no simulation state written |
 
 Combat sits before movement so contact is judged on the same positions perception used — a sim cannot be bitten by a zombie that has not yet moved into range this tick.
@@ -905,7 +910,14 @@ Knowledge is local, like memory: `knownInfected` spreads only by encounter merge
 
 ### Promotion
 
-Fires when `unturned.outdoors + unturned.indoors` falls below a fraction of starting population — default 0.08 — with a tick-based fallback at 12,000 so it cannot stall.
+Two stages, so the roster is not judged on thin histories:
+
+1. **Provisional** — when `unturned.outdoors + unturned.indoors` falls below 0.5 of starting population (fallback tick 10,000), the 12 most unusual living sims are named and added to the roster. The viewer has someone to follow through the middle of the run.
+2. **Re-score** — when the living fall below 0.3 (fallback tick 18,000), scoring runs again over the survivors. Anyone in the new top 12 who is not already named is named and appended.
+
+**Merge rule: the roster is append-only.** A name is never taken away — un-naming someone the viewer has been following would break the one promise the roster makes. Provisional names whose histories have since been overtaken stay on the roster; they simply stop being the most remarkable, and the new entries sit beside them. The roster therefore holds 12–24 names, in promotion order. Promoted survivors who die or turn stay on it as a record.
+
+At 6,000 population the stages fire around tick 7,000 and 12,000–13,000.
 
 Scoring rewards unusual histories rather than high ones, so the interesting survivors self-select:
 
@@ -913,7 +925,7 @@ Scoring rewards unusual histories rather than high ones, so the interesting surv
 score = Σ |counter - populationMean| / populationStdDev
 ```
 
-Over `ticksSurvived`, `conversionsWitnessed`, `ticksAlone`, `nearMisses`, `kills`, `streetsVisited`, `materialsDelivered` and caution. The top 12 are promoted: given a name from a wordlist, added to the roster, and made ticker-eligible.
+Over `ticksSurvived`, `conversionsWitnessed`, `ticksAlone`, `nearMisses`, `kills`, `streetsVisited`, `materialsDelivered` and caution. Ties go to the lower id. The newly promoted are given a name from a wordlist (first name and surname, unique, drawn from the run's PRNG), added to the roster, and made ticker-eligible.
 
 The backstory is composed at promotion from fields already held — profession, age, caution band, and whichever counters scored highest. "Nurse, 54, cautious; sheltered in the same building since tick 900, witnessed 14 conversions" falls straight out of state and is true rather than decorative. The history is recorded from tick zero; only the name arrives late.
 
@@ -960,7 +972,7 @@ Everything in the tuning tables stays in `config.ts`. Those interact chaotically
 
 ### Ending
 
-One terminal condition for the demo: the timer, at 21,600 ticks. Stalemate is handled by the controller rather than by ending the run. The rescue is a v2 ending and is not built.
+One terminal condition for the demo: the timer, at 36,000 ticks. Stalemate is handled by the controller rather than by ending the run. The rescue is a v2 ending and is not built.
 
 ## Presentation
 
@@ -1091,7 +1103,7 @@ Each gate is a question with a yes or no answer. A milestone is not done because
 
 &#91;embedded content: build order · 5 milestones, 4 gates\]
 
-**Milestone 2 is the one that matters.** The deliverable is a script that runs 21,600 ticks from a fixed seed and prints the eight counters every 600. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape — is answerable without one.
+**Milestone 2 is the one that matters.** The deliverable is a script that runs a full run (36,000 ticks) from a fixed seed and prints the eight counters every 600. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape — is answerable without one.
 
 That output doubles as the first test. The invariant assertion runs every tick, which is what keeps a growing simulation from silently rotting.
 
@@ -1100,7 +1112,7 @@ That output doubles as the first test. The invariant assertion runs every tick, 
 | Gate | Passes when |
 | --- | --- |
 | After 1 | Every field has a type, a range and a unit. Coordinates and tick length are settled. No field exists that nothing reads |
-| After 2 | The invariant holds for 21,600 ticks across 20 runSeeds on one mapSeed; infection reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks |
+| After 2 | The invariant holds for a full run (36,000 ticks) across 20 runSeeds on one mapSeed; infection reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks |
 | After 3 | The city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the ticker surfaces fewer than 6 lines per second at 1× |
 | After 4 | Shelters form, fall and re-form; no seed settles into stasis with the controller off; survival differs measurably by caution band |
 
