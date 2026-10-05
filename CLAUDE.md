@@ -46,7 +46,8 @@ Never break these. If a change would break one, stop and raise it.
 
 ```
 src/sim/        pure simulation. No DOM, no wall-clock, no imports from render/ or ui/
-src/render/     reads sim state. Never writes to it
+src/worker/     hosts sim/ in a Web Worker: owns the World and the clock, sends snapshots
+src/render/     draws snapshots. Never writes sim state (it holds none)
 src/audio/      reads sim events. Never writes to sim state
 src/ui/         reads sim state; writes only through explicit commands
 src/config.ts   every tuning parameter. Imports nothing
@@ -205,6 +206,10 @@ If one seems necessary, raise it rather than adding it.
   judging a change. The harness owns the clock; never add timing inside `src/sim/`.
 - `npx tsx scripts/movement-check.ts` reports how often moving agents are stuck or
   reversing (zig-zag); it should stay near zero after any change to steering or movement.
+- The viewer: `npm run dev`. `npx tsx scripts/view.ts [--advance N]` screenshots far,
+  mid and near zoom in headless Chromium; `npx tsx scripts/fps.ts` measures the renderer
+  gate (run it on a real machine); `npx tsx scripts/ticker-rate.ts` replays a run through
+  the ticker's salience filter and checks the lines-per-second gate.
 
 ---
 
@@ -213,6 +218,12 @@ If one seems necessary, raise it rather than adding it.
 **3 — Renderer.** Canvas, three zoom modes, trails, free camera, ticker with salience,
 roster, time controls. Reads sim state, never writes it. Audio (left over from
 milestone 4) comes with it.
+
+Built so far: the worker and snapshot protocol (`src/worker/`), the renderer
+(`src/render/`: static city cache, occupancy, corpse paint, trails, pulses, far-zoom
+density field), and the ticker, roster and time controls (`src/ui/`). Ticker gate
+measured headlessly and passing; the 30 fps at 8× gate needs measuring on a real
+machine (`scripts/fps.ts`). Not yet built: audio, the inspector panels.
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.
