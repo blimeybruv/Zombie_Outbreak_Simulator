@@ -250,18 +250,20 @@ function noiseExpulsion(world: World, ctx: Context): void {
   }
 }
 
-/** Buildings with an awake zombie near their footprint: the only ones a breach roll can concern. */
-function breachCandidates(world: World, ctx: Context): number[] {
-  const { config, tick } = world;
-  const br = config.buildings.breach;
-  const found = new Set<number>();
-  for (const z of world.zombies) {
-    if (z.state !== 'active' && z.state !== 'wandering') continue;
-    for (const bid of ctx.map.buildingsNear(z.x, z.y, br.entranceRadius, ctx.buildingIds)) {
-      if (bid % br.interval === tick % br.interval) found.add(bid);
-    }
+/**
+ * Buildings on this tick's breach cycle with living inside and no occupiers: the only
+ * ones a breach roll can concern. Each checks its own entrances (breachRolls), which
+ * is a tenth of the buildings rather than a lookup per awake zombie.
+ */
+function breachCandidates(world: World): number[] {
+  const { buildings, tick } = world;
+  const interval = world.config.buildings.breach.interval;
+  const found: number[] = [];
+  for (let id = tick % interval; id < buildings.length; id += interval) {
+    const b = buildings[id]!;
+    if (b.zombiesInside === 0 && b.residents + b.sheltered.length > 0) found.push(id);
   }
-  return [...found].sort((a, b) => a - b);
+  return found;
 }
 
 function breachRolls(world: World, ctx: Context, b: Building): void {
@@ -455,7 +457,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   probe('buildings.exits');
   noiseExpulsion(world, ctx);
   probe('buildings.noise');
-  for (const bid of breachCandidates(world, ctx)) breachRolls(world, ctx, world.buildings[bid]!);
+  for (const bid of breachCandidates(world)) breachRolls(world, ctx, world.buildings[bid]!);
   probe('buildings.breach');
   for (const b of world.buildings) {
     if (queued(b) > 0) drainQueues(world, ctx, b);

@@ -204,6 +204,51 @@ describe('garrisons', () => {
   });
 });
 
+describe('alert state belongs to the people inside', () => {
+  it('is forgotten when the building empties, while the barricades left behind keep decaying', () => {
+    const { world, ctx } = fresh();
+    const b = quietHouse(world, ctx, 1);
+    b.alertedAt = 0;
+    b.fortification = 0.5;
+    b.materials = 0;
+    b.residents = 0;
+    b.sheltered = [];
+    work(world, ctx, b, 1);
+    expect(b.alertedAt).toBeNull();
+    const f = b.fortification;
+    expect(f).toBeLessThan(0.5);
+    // A visitor who does not know (here, on a routine stop) brings no knowledge in, and does no work.
+    const e = b.entrances[0]!;
+    const v = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, initialPanic: 0, destinationKind: 'routine' });
+    b.sheltered.push(v.id);
+    work(world, ctx, b, 10);
+    expect(b.fortification).toBeLessThan(f);
+  });
+
+  it('passers-through do not make a garrison: only residents and those who made it home hold one', () => {
+    const { world, ctx } = fresh();
+    const b = quietHouse(world, ctx, 1);
+    const elsewhere = world.buildings.find((x) => x.id !== b.id)!;
+    b.residents = 0;
+    b.sheltered = [];
+    b.alertedAt = 0;
+    b.fortification = 0.4;
+    b.materials = 0;
+    const e = b.entrances[0]!;
+    const visitors = [0, 1, 2].map(() => {
+      const s = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, initialPanic: 0, destinationKind: 'scavenge' });
+      s.shelter = elsewhere.id;
+      b.sheltered.push(s.id);
+      return s;
+    });
+    work(world, ctx, b, 5);
+    expect(b.garrisonedAt).toBeNull();
+    for (const s of visitors) s.shelter = b.id; // they make it home
+    work(world, ctx, b, 5);
+    expect(b.garrisonedAt).not.toBeNull();
+  });
+});
+
 describe('the economy over a run', () => {
   it('holds the invariant and is reproducible with scavenging under way', () => {
     const run = () => {

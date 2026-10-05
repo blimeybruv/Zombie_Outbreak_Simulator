@@ -398,7 +398,7 @@ export const config = {
     groupPeak: 8, // believed occupants at which groupTerm peaks
     materialsScale: 20, // materials at which the materials term saturates — guess
     closePassRadius: 15, // m; passing this close writes building memory — guess
-    garrisonMin: 3, // living inside (residents + tracked) for an alerted, fortifying building to count as a shelter — guess
+    garrisonMin: 3, // holders (residents, plus tracked sims who have made it home) for an alerted, fortifying building to count as a shelter — guess
     garrisonFortification: 0.05, // fortification at which it counts — guess
     cascadeInterval: 10, // ticks between cascade checks on a garrison, staggered by id
   },

@@ -382,21 +382,40 @@ function sendResident(world: World, ctx: Context, b: Building, queued: number): 
 }
 
 /** Fortification work and decay, alerting, resident scavengers, garrisons and the cascade. */
+/** Unattended fortification decays toward nothing; below the floor it is gone. */
+function decay(b: Building, bc: World['config']['buildings']): void {
+  if (b.fortification === 0) return;
+  b.fortification -= b.fortification * bc.fortificationDecay;
+  if (b.fortification < bc.fortificationFloor) b.fortification = 0;
+}
+
 export function shelterWork(world: World, ctx: Context, b: Building, queued: number): void {
   const { config, tick } = world;
   const rc = config.roles;
   const living = b.residents + b.sheltered.length;
   const onCycle = b.id % rc.interval === tick % rc.interval;
+  const bc = config.buildings;
 
-  // Unaware buildings only watch the door; nothing else here can concern them, since
-  // only alerted buildings fortify, send anyone out or become garrisons. Nor can an
-  // empty, bare building that is not a garrison.
-  if (b.alertedAt === null) {
-    if (living > 0 && onCycle && doorThreat(world, ctx, b) > 0) alert(world, b);
+  // Empty: whoever knew has gone, so the building forgets; a garrison ends (falls, if
+  // occupiers are why); barricades left behind decay unattended.
+  if (living === 0) {
+    b.alertedAt = null;
+    if (b.garrisonedAt !== null) {
+      if (b.zombiesInside > 0) ctx.events.push({ type: 'shelterFell', tick, building: b.id, sim: null });
+      b.garrisonedAt = null;
+      b.cascadeAt = null;
+    }
+    decay(b, bc);
     return;
   }
-  if (living === 0 && b.fortification === 0 && b.garrisonedAt === null) return;
-  const bc = config.buildings;
+  // Unaware buildings only watch the door: only alerted ones fortify, send anyone out
+  // or become garrisons. Barricades an earlier household left still decay, since
+  // nobody here is working on them.
+  if (b.alertedAt === null) {
+    decay(b, bc);
+    if (onCycle && doorThreat(world, ctx, b) > 0) alert(world, b);
+    return;
+  }
 
   // Work: tracked builders plus a few residents, while there are materials.
   let crew = 0;
@@ -408,9 +427,8 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
     b.fortification += (1 - b.fortification) * Math.min(1, bc.fortifyRate * crew);
     if ((tick + b.id) % bc.fortifyMaterialTicks === 0) b.materials = Math.max(0, b.materials - crew);
     if (b.breached) b.breached = false;
-  } else if (b.fortification > 0) {
-    b.fortification -= b.fortification * bc.fortificationDecay;
-    if (b.fortification < bc.fortificationFloor) b.fortification = 0; // nothing left worth the name
+  } else {
+    decay(b, bc);
   }
 
   // A resident goes out when the building needs materials and nobody tracked is going.
@@ -420,16 +438,23 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
     if (!trackedCanGo && doorThreat(world, ctx, b) < rc.scavengeMaxDoorThreat) sendResident(world, ctx, b, queued);
   }
 
-  // Garrisons form and fall.
+  // Garrisons form and fall. A garrison is held by the people who live here — residents
+  // and tracked sims who have made it home — not by whoever is passing through: three
+  // scavengers from three households raiding the same house hold nothing.
   const sc = config.shelter;
+  let holders = b.residents;
+  for (const id of b.sheltered) if (world.sims[id]!.shelter === b.id) holders++;
   if (b.garrisonedAt === null) {
-    if (b.zombiesInside === 0 && living >= sc.garrisonMin && b.fortification >= sc.garrisonFortification) {
+    if (b.zombiesInside === 0 && holders >= sc.garrisonMin && b.fortification >= sc.garrisonFortification) {
       b.garrisonedAt = tick;
       ctx.events.push({ type: 'shelterEstablished', tick, building: b.id, sim: null });
     }
-  } else if (b.zombiesInside > 0 || living === 0) {
-    if (b.zombiesInside > 0) ctx.events.push({ type: 'shelterFell', tick, building: b.id, sim: null });
+  } else if (b.zombiesInside > 0) {
+    ctx.events.push({ type: 'shelterFell', tick, building: b.id, sim: null });
     b.garrisonedAt = null;
+    b.cascadeAt = null;
+  } else if (holders === 0) {
+    b.garrisonedAt = null; // everyone who held it has gone; visitors do not keep it
     b.cascadeAt = null;
   } else if (b.id % sc.cascadeInterval === tick % sc.cascadeInterval) {
     cascadeWatch(world, ctx, b);

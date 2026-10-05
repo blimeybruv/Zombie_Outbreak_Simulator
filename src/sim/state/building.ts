@@ -62,8 +62,9 @@ export interface Building {
 
   /**
    * When the people inside learned of the outbreak: a zombie seen from the door,
-   * gunfire close by, or a frightened arrival. Null while they are unaware. Only an
-   * alerted building fortifies or sends anyone out.
+   * gunfire close by, or a frightened arrival. Null while they are unaware, and reset
+   * when the building empties: the knowledge belonged to the people. Only an alerted
+   * building fortifies or sends anyone out.
    * @range tick | null @unit tick @readBy fortification work, resident scavengers
    */
   alertedAt: Tick | null;
@@ -74,8 +75,9 @@ export interface Building {
    */
   scavengerOut: SimId | null;
   /**
-   * When the living inside began holding it: alerted, enough people, fortification
-   * under way. Null when not a garrison. Cleared when it falls or empties.
+   * When the people who live here began holding it: alerted, enough holders
+   * (residents, and tracked sims who have made it home), fortification under way.
+   * Null when not a garrison. Cleared when it falls, or when its holders have gone.
    * @range tick | null @unit tick @readBy shelter events (established, fell), cascade watch, end stats, render
    */
   garrisonedAt: Tick | null;

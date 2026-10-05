@@ -18,6 +18,19 @@ import { nextInt } from '../rng';
 import { FIRST_NAMES, SURNAMES } from '../names';
 import type { Sim, SimId, World } from '../state';
 
+/** The counters a sim is scored on, in the order `historyOf` returns them. */
+export const SCORED = [
+  'ticksSurvived',
+  'conversionsWitnessed',
+  'ticksAlone',
+  'nearMisses',
+  'kills',
+  'streetsVisited',
+  'materialsDelivered',
+  'caution',
+] as const;
+export type ScoredCounter = (typeof SCORED)[number];
+
 /** The history a sim is scored on: each value, for one sim, at this tick. */
 function historyOf(sim: Sim, tick: number): number[] {
   const h = sim.history;
@@ -33,8 +46,18 @@ function historyOf(sim: Sim, tick: number): number[] {
   ];
 }
 
-/** Living sims ranked by unusualness, most unusual first; ties go to the lower id. */
-export function rankByUnusualness(world: World): Sim[] {
+export interface Scored {
+  sim: Sim;
+  /** Sum of |z| over the scored counters. */
+  score: number;
+  /** Each counter's value, in SCORED order. */
+  values: number[];
+  /** Each counter's signed distance from the living mean in standard deviations (0 where every sim is equal). */
+  z: number[];
+}
+
+/** Living sims scored by unusualness, most unusual first; ties go to the lower id. */
+export function scoreLiving(world: World): Scored[] {
   const pool = world.sims.filter((s) => s.condition === 'healthy' || s.condition === 'infected');
   if (pool.length === 0) return [];
   const rows = pool.map((s) => historyOf(s, world.tick));
@@ -44,8 +67,19 @@ export function rankByUnusualness(world: World): Sim[] {
   for (const r of rows) for (let i = 0; i < k; i++) mean[i]! += r[i]! / rows.length;
   for (const r of rows) for (let i = 0; i < k; i++) sd[i]! += (r[i]! - mean[i]!) ** 2 / rows.length;
   for (let i = 0; i < k; i++) sd[i] = Math.sqrt(sd[i]!);
-  const score = rows.map((r) => r.reduce((sum, v, i) => (sd[i]! > 0 ? sum + Math.abs(v - mean[i]!) / sd[i]! : sum), 0));
-  return pool.map((s, i) => ({ s, score: score[i]! })).sort((a, b) => b.score - a.score || a.s.id - b.s.id).map((e) => e.s);
+  return pool
+    .map((sim, j) => {
+      const values = rows[j]!;
+      const z = values.map((v, i) => (sd[i]! > 0 ? (v - mean[i]!) / sd[i]! : 0));
+      const score = values.reduce((sum, v, i) => (sd[i]! > 0 ? sum + Math.abs(v - mean[i]!) / sd[i]! : sum), 0);
+      return { sim, score, values, z };
+    })
+    .sort((a, b) => b.score - a.score || a.sim.id - b.sim.id);
+}
+
+/** Living sims ranked by unusualness, most unusual first; ties go to the lower id. */
+export function rankByUnusualness(world: World): Sim[] {
+  return scoreLiving(world).map((e) => e.sim);
 }
 
 function nameFor(world: World): string {
