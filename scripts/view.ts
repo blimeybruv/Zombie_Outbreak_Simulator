@@ -20,6 +20,17 @@ const seconds = Number(opt('seconds', '5'));
 const out = opt('out', 'view-shots');
 const runSeed = opt('run', '1');
 const mapSeed = opt('map', '1');
+/** What the page exposes for scripting (src/main.ts). */
+interface ViewHook {
+  stats: { frames: number; drawMs: number; since: number; tick: number };
+  camera: { scale: number; version: number; centreOn(x: number, y: number): void };
+  controls: { setSpeed(s: number): void; toggle(): void };
+  centreOnBusiest(): void;
+  ready(): boolean;
+}
+// Callbacks passed to page.evaluate run inside the page, so each reaches the hook itself.
+type Win = { __view?: ViewHook };
+
 const chrome = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 mkdirSync(out, { recursive: true });
@@ -30,10 +41,10 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   page.on('pageerror', (e) => console.error('page error:', e.message));
   await page.goto(`http://localhost:5199/?run=${runSeed}&map=${mapSeed}&advance=${advance}`);
-  await page.waitForFunction(() => (window as any).__view?.ready(), null, { timeout: 600_000 });
+  await page.waitForFunction(() => (window as unknown as Win).__view?.ready() ?? false, null, { timeout: 600_000 });
   if (speed > 0) {
     await page.evaluate((s) => {
-      const v = (window as any).__view;
+      const v = (window as unknown as Win).__view!;
       v.controls.setSpeed(s);
       v.controls.toggle();
     }, speed);
@@ -47,17 +58,17 @@ try {
   ];
   for (const shot of shots) {
     await page.evaluate(({ scale, busiest }) => {
-      const v = (window as any).__view;
+      const v = (window as unknown as Win).__view!;
       v.camera.scale = scale;
       v.camera.version++;
       if (!busiest) v.camera.centreOn(1600, 1600);
     }, shot);
     if (shot.busiest) {
       // Centre on the densest cluster of agents in the current frame.
-      await page.evaluate(() => (window as any).__view.centreOnBusiest?.());
+      await page.evaluate(() => (window as unknown as Win).__view!.centreOnBusiest());
     }
     await page.waitForTimeout(400);
-    const tick = await page.evaluate(() => (window as any).__view.stats.tick);
+    const tick = await page.evaluate(() => (window as unknown as Win).__view!.stats.tick);
     await page.screenshot({ path: `${out}/${shot.name}.png` });
     console.log(`${out}/${shot.name}.png  (tick ${tick}, ${shot.scale} px/m)`);
   }
