@@ -40,6 +40,8 @@ const browser = await chromium.launch({ executablePath: chrome, args: ['--use-gl
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   page.on('pageerror', (e) => console.error('page error:', e.message));
+  // tsx keeps function names with a helper that serialised callbacks carry into the page.
+  await page.addInitScript('window.__name = (f) => f');
   await page.goto(`http://localhost:5199/?run=${runSeed}&map=${mapSeed}&advance=${advance}`);
   await page.waitForFunction(() => (window as unknown as Win).__view?.ready() ?? false, null, { timeout: 600_000 });
   if (speed > 0) {
