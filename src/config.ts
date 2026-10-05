@@ -433,6 +433,11 @@ export const config = {
     provisional: { livingFraction: 0.5, fallbackTick: 10000 },
     final: { livingFraction: 0.3, fallbackTick: 18000 },
     count: 12, // survivors named at each stage
+    // 'totals' scores accumulated counters as they stand; 'rates' divides the ones that
+    // accumulate with exposure (conversions witnessed, near misses, kills, streets,
+    // materials) by time on record, so a short eventful life can outscore a long quiet one.
+    scoring: 'totals' as 'totals' | 'rates',
+    rateFloor: 1800, // ticks; exposure below this counts as this much, so a newcomer's one event is not a record
     // History counters scored for unusualness (see promotion.ts), plus caution.
     cautionBands: [0.33, 0.66], // band edges for end-of-run survival by caution
   },

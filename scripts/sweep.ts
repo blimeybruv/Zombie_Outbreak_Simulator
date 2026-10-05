@@ -33,6 +33,11 @@ function rosterSummary(results: RunSummary[], file: string): void {
   const pct = (n: number) => `${((n / entries.length) * 100).toFixed(0)}%`;
   const fmt = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${pct(n)}`).join(', ');
   console.log(`\nroster: ${entries.length} named over ${results.length} seeds; alive at the end ${pct(entries.filter((e) => e.fate === 'alive').length)}`);
+  // How long the named live after naming (to the end of the run if they survive it).
+  const runLength = results[0]!.samples.length > 0 ? (results[0]!.samples.length - 1) * 600 : 0;
+  const lived = entries.map((e) => (e.endedAt ?? runLength) - e.tick).sort((a, b) => a - b);
+  const within = (t: number) => pct(entries.filter((e) => e.endedAt !== null && e.endedAt - e.tick < t).length);
+  console.log(`  after naming: median ${lived[lived.length >> 1]} ticks lived; gone within 1,800 ticks ${within(1800)}, within 3,600 ${within(3600)}`);
   console.log(`  leading counter: ${fmt(lead)}`);
   console.log(`  in the top two:  ${fmt(inTop2)}`);
   for (const stage of ['provisional', 'final'] as const) {

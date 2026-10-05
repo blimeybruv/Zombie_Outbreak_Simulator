@@ -31,17 +31,23 @@ export const SCORED = [
 ] as const;
 export type ScoredCounter = (typeof SCORED)[number];
 
-/** The history a sim is scored on: each value, for one sim, at this tick. */
-function historyOf(sim: Sim, tick: number): number[] {
+/**
+ * The history a sim is scored on: each value, for one sim, at this tick. Under
+ * 'rates' scoring the counters that grow with exposure are per hour on record
+ * (with a floor), so they measure what kind of life it was rather than its length.
+ */
+function historyOf(sim: Sim, tick: number, config: World['config']): number[] {
   const h = sim.history;
+  const age = tick - h.spawnedAt;
+  const per = config.promotion.scoring === 'rates' ? 3600 / Math.max(age, config.promotion.rateFloor) : 1;
   return [
-    tick - h.spawnedAt, // ticksSurvived
-    h.conversionsWitnessed,
-    tick - h.lastCompanyAt, // ticksAlone
-    h.nearMisses,
-    h.kills,
-    h.streetsVisited,
-    h.materialsDelivered,
+    age, // ticksSurvived
+    h.conversionsWitnessed * per,
+    tick - h.lastCompanyAt, // ticksAlone: already a duration
+    h.nearMisses * per,
+    h.kills * per,
+    h.streetsVisited * per,
+    h.materialsDelivered * per,
     sim.caution,
   ];
 }
@@ -60,7 +66,7 @@ export interface Scored {
 export function scoreLiving(world: World): Scored[] {
   const pool = world.sims.filter((s) => s.condition === 'healthy' || s.condition === 'infected');
   if (pool.length === 0) return [];
-  const rows = pool.map((s) => historyOf(s, world.tick));
+  const rows = pool.map((s) => historyOf(s, world.tick, world.config));
   const k = rows[0]!.length;
   const mean = new Array<number>(k).fill(0);
   const sd = new Array<number>(k).fill(0);
