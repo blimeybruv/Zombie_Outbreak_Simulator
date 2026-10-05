@@ -12,11 +12,23 @@
       #controls button { background: none; color: #7c858f; border: 1px solid #2a2f36; border-radius: 3px; padding: 2px 7px; font: inherit; cursor: pointer; }
       #controls button.on, #controls button:hover { color: #e6ecf2; border-color: #5a636d; }
       #controls .status { margin-left: 10px; white-space: nowrap; }
+      #ticker { position: fixed; top: 12px; right: 12px; width: min(460px, 45vw); display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+      #ticker .line { pointer-events: auto; text-align: left; background: rgba(6, 7, 10, 0.72); color: #d6dde4; border: 0; border-radius: 3px; padding: 3px 7px; font: inherit; cursor: pointer; transition: opacity 0.6s; }
+      #ticker .line:hover { color: #fff; }
+      #ticker .where { color: #6c757f; }
+      #roster { position: fixed; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 1px; background: rgba(6, 7, 10, 0.72); padding: 6px 4px; border-radius: 4px; max-height: 70vh; overflow-y: auto; }
+      #roster:empty { display: none; }
+      #roster .title { color: #6c757f; padding: 0 6px 4px; }
+      #roster button { background: none; border: 0; color: #c9d1d9; text-align: left; font: inherit; padding: 1px 6px; cursor: pointer; border-radius: 3px; }
+      #roster button:hover, #roster button.on { background: #1a1f26; color: #fff; }
+      #roster button.gone { color: #5b636c; text-decoration: line-through; }
     </style>
   </head>
   <body>
     <canvas id="view"></canvas>
     <div id="controls"></div>
+    <div id="ticker"></div>
+    <div id="roster"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

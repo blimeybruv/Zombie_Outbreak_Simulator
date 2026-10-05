@@ -6,7 +6,9 @@ import { config } from './config';
 import { Camera } from './render/camera';
 import { Renderer } from './render/renderer';
 import { Controls } from './ui/controls';
-import type { FrameSnapshot, FromWorker, ToWorker } from './worker/protocol';
+import { Roster } from './ui/roster';
+import { Ticker } from './ui/ticker';
+import type { EventNote, FrameSnapshot, FromWorker, ToWorker } from './worker/protocol';
 
 const params = new URLSearchParams(location.search);
 const runSeed = Number(params.get('run') ?? 1);
@@ -21,12 +23,36 @@ const camera = new Camera(config.map.size / 2, config.map.size / 2, 0.5);
 let renderer: Renderer | null = null;
 let latest: FrameSnapshot | null = null;
 let awaiting = false;
+/** The sim the camera follows, if any: set from the roster or a ticker line, cleared by dragging. */
+let tracked: number | null = null;
 
 const controls = new Controls(document.querySelector<HTMLElement>('#controls')!, {
   speeds: config.playback.speeds,
   ticksPerSecondAt1x: config.playback.ticksPerSecondAt1x,
   onRate: (ticksPerSecond) => send({ type: 'rate', ticksPerSecond }),
 });
+
+function track(simId: number): void {
+  tracked = simId;
+  if (camera.scale < 0.8) {
+    camera.scale = 1.2;
+    camera.version++;
+  }
+}
+
+const ticker = new Ticker(document.querySelector<HTMLElement>('#ticker')!, {
+  inView: (x, y) => {
+    const a = camera.toWorld(0, 0), b = camera.toWorld(camera.width, camera.height);
+    return x >= a.x && x <= b.x && y >= a.y && y <= b.y;
+  },
+  onSelect: (note: EventNote) => {
+    if (note.sim !== null) track(note.sim);
+    else tracked = null;
+    camera.centreOn(note.x, note.y);
+  },
+  onMajor: () => controls.dropToNormal(),
+});
+const roster = new Roster(document.querySelector<HTMLElement>('#roster')!, track);
 
 worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
@@ -35,7 +61,10 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   } else {
     latest = msg.frame;
     stats.tick = latest.tick;
-    renderer?.ingest(latest, performance.now());
+    const now = performance.now();
+    renderer?.ingest(latest, now);
+    ticker.take(latest.events, latest.notes, controls.currentSpeed, now);
+    roster.show(latest, tracked);
     awaiting = false;
     controls.show(latest);
   }
@@ -55,6 +84,7 @@ resize();
 let drag: { x: number; y: number } | null = null;
 canvas.addEventListener('pointerdown', (e) => {
   drag = { x: e.clientX, y: e.clientY };
+  tracked = null;
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -95,7 +125,7 @@ function centreOnBusiest(): void {
   for (let i = 1; i < counts.length; i++) if (counts[i]! > counts[best]!) best = i;
   camera.centreOn(((best % cols) + 0.5) * cell, (Math.floor(best / cols) + 0.5) * cell);
 }
-(window as unknown as { __view: unknown }).__view = { stats, camera, controls, centreOnBusiest, ready: () => latest !== null };
+(window as unknown as { __view: unknown }).__view = { stats, camera, controls, ticker, centreOnBusiest, ready: () => latest !== null };
 
 function frame(now: number): void {
   if (!awaiting) {
@@ -103,6 +133,8 @@ function frame(now: number): void {
     send({ type: 'frame' });
   }
   if (renderer && latest) {
+    // Follow the tracked sim while it is on the map; indoors, the camera waits at the door.
+    if (tracked !== null && latest.simKind[tracked]) camera.centreOn(latest.simXY[tracked * 2]!, latest.simXY[tracked * 2 + 1]!);
     const t0 = performance.now();
     renderer.draw(latest, camera, window.devicePixelRatio || 1, now);
     stats.drawMs += performance.now() - t0;

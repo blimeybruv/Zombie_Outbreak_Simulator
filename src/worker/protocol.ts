@@ -35,6 +35,26 @@ export const BUILDING_CONTESTED = 1;
 export const BUILDING_GARRISON = 2;
 export const BUILDING_LIT = 4;
 
+/**
+ * What the ticker needs to know about an event, captured by the worker at the tick
+ * it happened: who (a name only if promoted — anonymous people are "a survivor"),
+ * whether they were armed, and where, in words.
+ */
+export interface EventNote {
+  /** The sim at the centre of the event, if any. */
+  sim: number | null;
+  /** The promoted survivor's name, or null for anyone anonymous. */
+  name: string | null;
+  armed: boolean;
+  /** The building concerned, if any. */
+  building: number | null;
+  /** e.g. "the hardware store on Elm Street", or "Elm Street". */
+  place: string;
+  district: string;
+  x: number;
+  y: number;
+}
+
 /** One moment of the run, for drawing. */
 export interface FrameSnapshot {
   tick: number;
@@ -55,6 +75,8 @@ export interface FrameSnapshot {
   roster: { id: number; name: string; living: boolean }[];
   /** Everything that happened since the last frame (capped; see `eventsDropped`). */
   events: SimEvent[];
+  /** Aligned with `events`; null for events no ticker line could be about (kills, anonymous deaths in breaches). */
+  notes: (EventNote | null)[];
   eventsDropped: number;
   /** Simulated ticks per wall-clock second over the last second, as achieved. */
   achievedRate: number;

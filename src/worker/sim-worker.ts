@@ -21,11 +21,13 @@ import {
   SIM_PROMOTED,
   ZOMBIE_AWAKE,
   ZOMBIE_DORMANT,
+  type EventNote,
   type FrameSnapshot,
   type FromWorker,
   type MapSnapshot,
   type ToWorker,
 } from './protocol';
+import { noteFor } from './notes';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept
@@ -41,8 +43,18 @@ let rate = 0; // ticks per second
 let anchor = 0; // wall time the current rate took effect
 let steppedSinceAnchor = 0;
 let pending: SimEvent[] = [];
+let notes: (EventNote | null)[] = [];
 let dropped = 0;
 const recent: number[] = []; // wall times of recent ticks, for the achieved rate
+
+function collect(w: World, c: Context): void {
+  for (const e of w.events) {
+    if (pending.length < EVENT_CAP) {
+      pending.push(e);
+      notes.push(noteFor(w, c, e));
+    } else dropped++;
+  }
+}
 
 function mapSnapshot(w: World): MapSnapshot {
   const streets = new Float32Array(w.streets.length * 5);
@@ -108,10 +120,12 @@ function frameSnapshot(w: World): FrameSnapshot {
       return { id, name: s.name!, living: s.condition === 'healthy' || s.condition === 'infected' };
     }),
     events: pending,
+    notes,
     eventsDropped: dropped,
     achievedRate: recent.length,
   };
   pending = [];
+  notes = [];
   dropped = 0;
   return frame;
 }
@@ -130,10 +144,7 @@ function run(): void {
       step(world, ctx, { checkInvariant: false });
       steppedSinceAnchor++;
       recent.push(performance.now());
-      for (const e of world.events) {
-        if (pending.length < EVENT_CAP) pending.push(e);
-        else dropped++;
-      }
+      collect(world, ctx);
     }
   }
   setTimeout(run, rate > 0 ? 0 : 16);
@@ -148,7 +159,11 @@ scope.onmessage = (e) => {
     while (world.tick < msg.advance) {
       step(world, ctx, { checkInvariant: false });
       // Deaths while fast-forwarding still belong on the corpse layer.
-      for (const e of world.events) if (e.type === 'simDied' || e.type === 'zombieDestroyed') pending.push(e);
+      for (const e of world.events) {
+        if (e.type !== 'simDied' && e.type !== 'zombieDestroyed') continue;
+        pending.push(e);
+        notes.push(null); // history, not news
+      }
     }
     const map = mapSnapshot(world);
     scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.outlines.buffer]);

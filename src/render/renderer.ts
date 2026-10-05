@@ -219,6 +219,15 @@ export class Renderer {
       if (k[i] !== SIM_PROMOTED) continue;
       g.fillRect(sx(xy[i * 2]!) - 1, sy(xy[i * 2 + 1]!) - 1, size + 2, size + 2);
     }
+    // Names on promoted survivors, at near zoom only.
+    if (cam.mode !== 'near') return;
+    g.font = `${11 * dpr}px ui-monospace, Menlo, Consolas, monospace`;
+    g.fillStyle = P.LABEL;
+    g.textBaseline = 'middle';
+    for (const r of frame.roster) {
+      if (k[r.id] !== SIM_PROMOTED) continue;
+      g.fillText(r.name, sx(xy[r.id * 2]!) + size + 4 * dpr, sy(xy[r.id * 2 + 1]!) + half);
+    }
   }
 
   private viewBounds(cam: Camera): { x0: number; y0: number; x1: number; y1: number } {
