@@ -2,6 +2,7 @@
 // camera and time controls. The page never holds simulation state, only the most
 // recent snapshot of it.
 
+import { Audio } from './audio/audio';
 import { config } from './config';
 import { Camera } from './render/camera';
 import { Renderer } from './render/renderer';
@@ -23,6 +24,12 @@ const send = (m: ToWorker) => worker.postMessage(m);
 
 const camera = new Camera(config.map.size / 2, config.map.size / 2, 0.5);
 let renderer: Renderer | null = null;
+const audio = new Audio();
+// Browsers allow sound only after the viewer interacts.
+for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, () => audio.start(), { once: true });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+});
 let latest: FrameSnapshot | null = null;
 let awaiting = false;
 /** The sim the camera follows, if any: set from the roster or a ticker line, cleared by dragging. */
@@ -91,6 +98,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     roster.show(latest, tracked);
     awaiting = false;
     controls.show(latest);
+    audio.update(latest, camera, controls.currentSpeed);
   }
 };
 send({ type: 'start', runSeed, mapSeed, advance });

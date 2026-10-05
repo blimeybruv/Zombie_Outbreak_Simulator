@@ -131,6 +131,11 @@ export interface FrameSnapshot {
   achievedRate: number;
   /** Whatever the viewer has asked to inspect, as of this frame. */
   inspected: Inspected | null;
+  /**
+   * Weapon noise made since the last frame — the stimuli that draw the dead, which
+   * audio plays: the gunshot you hear is the one the horde heard.
+   */
+  noises: { x: number; y: number; kind: string; radius: number }[];
 }
 
 export type ToWorker =

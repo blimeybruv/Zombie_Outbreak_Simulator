@@ -45,11 +45,16 @@ let inspecting: { kind: 'sim' | 'building'; id: number } | null = null;
 let anchor = 0; // wall time the current rate took effect
 let steppedSinceAnchor = 0;
 let pending: SimEvent[] = [];
+let noises: FrameSnapshot['noises'] = [];
+const NOISE_CAP = 400;
 let notes: (EventNote | null)[] = [];
 let dropped = 0;
 const recent: number[] = []; // wall times of recent ticks, for the achieved rate
 
 function collect(w: World, c: Context): void {
+  for (const s of w.stimuli) {
+    if (s.createdAt === w.tick && noises.length < NOISE_CAP) noises.push({ x: s.x, y: s.y, kind: s.kind, radius: s.radius });
+  }
   for (const e of w.events) {
     if (pending.length < EVENT_CAP) {
       pending.push(e);
@@ -126,7 +131,9 @@ function frameSnapshot(w: World): FrameSnapshot {
     eventsDropped: dropped,
     achievedRate: recent.length,
     inspected: inspecting ? inspect(w, inspecting) : null,
+    noises,
   };
+  noises = [];
   pending = [];
   notes = [];
   dropped = 0;

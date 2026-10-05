@@ -223,7 +223,9 @@ Built so far: the worker and snapshot protocol (`src/worker/`), the renderer
 (`src/render/`: static city cache, occupancy, corpse paint, trails, pulses, far-zoom
 density field), and the ticker, roster and time controls (`src/ui/`). Ticker gate
 measured headlessly and passing; the 30 fps at 8× gate needs measuring on a real
-machine (`scripts/fps.ts`). Not yet built: audio, the inspector panels.
+machine (`scripts/fps.ts`). Also built: the inspector (click a building or a person)
+and audio (`src/audio/`, synthesised; M mutes). Still to judge by eye: whether the city
+is legible at a glance at mid zoom.
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.
