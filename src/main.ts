@@ -35,6 +35,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   } else {
     latest = msg.frame;
     stats.tick = latest.tick;
+    renderer?.ingest(latest, performance.now());
     awaiting = false;
     controls.show(latest);
   }

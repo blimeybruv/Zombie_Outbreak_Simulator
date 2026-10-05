@@ -1,14 +1,23 @@
 // Draws snapshots. Reads them, never writes simulation state (it holds none).
 //
 // Layers, bottom to top: the static city (cached, redrawn only when the camera or
-// the light changes), occupancy fill, then the agents. At far zoom the agents give
-// way to a density field — at that scale individuals are mush.
+// the light changes), the corpse paint, occupancy fill, trails (near zoom), the
+// agents, and conversion pulses. At far zoom the agents give way to a density
+// field — at that scale individuals are mush.
+//
+// `ingest` takes each snapshot's events exactly once; `draw` may run many times
+// on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { BUILDING_CONTESTED, SIM_HIDDEN, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
 import type { Camera } from './camera';
+import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import * as P from './palette';
+import { Trails } from './trails';
+
+const PULSE_MS = 1400; // a conversion registers as an event, not a silent colour swap
+const PULSE_RADIUS = 7; // m
 
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
 const FULL_AT = 24; // people inside at which a building reads as full
@@ -28,6 +37,10 @@ export class Renderer {
   private readonly riverPath: Path2D;
   private readonly litPath: Path2D;
   private readonly density: DensityField;
+  private readonly corpses: CorpseLayer;
+  private readonly simTrails = new Trails();
+  private readonly zombieTrails = new Trails();
+  private pulses: { x: number; y: number; start: number }[] = [];
   /** Each building's bounding box, for culling: minX, minY, maxX, maxY. */
   private readonly bounds: Float32Array;
 
@@ -58,6 +71,14 @@ export class Renderer {
       this.litPath.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
     }
     this.density = new DensityField(map.size);
+    this.corpses = new CorpseLayer(map.size);
+  }
+
+  /** Takes a new snapshot's events: deaths into the corpse paint, conversions as pulses. */
+  ingest(frame: FrameSnapshot, wallMs: number): void {
+    this.corpses.add(frame.events, frame.tick);
+    for (const e of frame.events) if (e.type === 'simTurned' && e.sim !== null) this.pulses.push({ x: e.x, y: e.y, start: wallMs });
+    if (this.pulses.length > 400) this.pulses = this.pulses.slice(-400);
   }
 
   /** Redraws the static city when the view or the light has changed since last time. */
@@ -100,12 +121,36 @@ export class Renderer {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.drawImage(this.staticFor(cam, dpr, night), 0, 0);
 
+    this.corpses.draw(g, cam, dpr);
     if (cam.mode === 'far') {
       this.density.draw(g, frame, cam, dpr);
       return;
     }
     this.drawOccupancy(g, frame, cam, dpr, wallMs);
+    this.simTrails.sample(frame.simXY, frame.simKind, frame.tick, wallMs);
+    this.zombieTrails.sample(frame.zombieXY, frame.zombieKind, frame.tick, wallMs);
+    if (cam.mode === 'near') {
+      this.zombieTrails.draw(g, cam, dpr, P.ZOMBIE_RGB, 1.2);
+      this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, 1.2);
+    }
     this.drawAgents(g, frame, cam, dpr);
+    this.drawPulses(g, cam, dpr, wallMs);
+  }
+
+  /** Expanding, fading rings where someone has just turned. */
+  private drawPulses(g: CanvasRenderingContext2D, cam: Camera, dpr: number, wallMs: number): void {
+    this.pulses = this.pulses.filter((p) => wallMs - p.start < PULSE_MS);
+    if (this.pulses.length === 0) return;
+    cam.apply(g, dpr);
+    g.lineWidth = 1.5 / (cam.scale * dpr);
+    const [r, gr, b] = P.ZOMBIE_RGB;
+    for (const p of this.pulses) {
+      const t = (wallMs - p.start) / PULSE_MS;
+      g.strokeStyle = `rgba(${r}, ${gr}, ${b}, ${(0.8 * (1 - t)).toFixed(3)})`;
+      g.beginPath();
+      g.arc(p.x, p.y, Math.max(PULSE_RADIUS * t, 4 / cam.scale) + 1, 0, Math.PI * 2);
+      g.stroke();
+    }
   }
 
   /** Faint fill tracking how many are inside; residents and occupiers look the same. Contested buildings pulse. */

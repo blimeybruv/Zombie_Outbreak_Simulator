@@ -145,7 +145,11 @@ scope.onmessage = (e) => {
     const made = createWorld({ ...defaultScenario, runSeed: msg.runSeed, mapSeed: msg.mapSeed }, config);
     world = made.world;
     ctx = made.ctx;
-    while (world.tick < msg.advance) step(world, ctx, { checkInvariant: false });
+    while (world.tick < msg.advance) {
+      step(world, ctx, { checkInvariant: false });
+      // Deaths while fast-forwarding still belong on the corpse layer.
+      for (const e of world.events) if (e.type === 'simDied' || e.type === 'zombieDestroyed') pending.push(e);
+    }
     const map = mapSnapshot(world);
     scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.outlines.buffer]);
   } else if (msg.type === 'rate') {
