@@ -68,6 +68,7 @@ const totals = (c: Cand) => c.raw;
 const rates = (c: Cand) => c.raw.map((v, i) => (ACCUMULATING.has(i) ? (v * 3600) / Math.max(c.raw[0]!, RATE_FLOOR) : v));
 
 const RULES: [string, Rule, ((c: Cand) => boolean)?][] = [
+  ['longest on record (for comparison)', (pool) => pool.map((c) => [c.raw[0]!, 0, 0, 0, 0, 0, 0, 0])],
   ['totals |z| (current)', zRule(totals)],
   ['rates |z|', zRule(rates)],
   ['totals |z| capped at 3', zRule(totals, 3)],
@@ -118,6 +119,28 @@ const top = (xs: string[], n: number) => {
 };
 
 console.log(`${results.length} runs. Per rule: provisional / final — median ticks lived after naming, gone within 1,800, alive at the end; then what led, and who.`);
+
+// Baseline: everyone who was a candidate at each stage, named or not. If they fare
+// no better than the named, the scoring is not what is killing the roster.
+{
+  const part = (stage: string) => {
+    const lived: number[] = [];
+    let gone = 0, alive = 0;
+    for (const r of results) {
+      for (const st of r.stages.filter((x) => x.stage === stage)) {
+        for (const c of st.candidates) {
+          const f = r.fates[c.id]!;
+          const l = (f.endedAt ?? r.runLength) - st.tick;
+          lived.push(l);
+          if (f.condition === 'healthy') alive++;
+          else if (l < 1800) gone++;
+        }
+      }
+    }
+    return `${String(median(lived)).padStart(5)} ${pct(gone, lived.length)} ${pct(alive, lived.length)}  (pool ${lived.length})`;
+  };
+  console.log(`\neveryone who was a candidate (baseline)\n  provisional ${part('provisional')}   final ${part('final')}`);
+}
 for (const [name, rule, eligible] of RULES) {
   const picks = evaluate(rule, eligible ?? (() => true));
   const part = (stage: string) => {

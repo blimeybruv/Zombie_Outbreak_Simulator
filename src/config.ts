@@ -436,8 +436,14 @@ export const config = {
     // 'totals' scores accumulated counters as they stand; 'rates' divides the ones that
     // accumulate with exposure (conversions witnessed, near misses, kills, streets,
     // materials) by time on record, so a short eventful life can outscore a long quiet one.
-    scoring: 'totals' as 'totals' | 'rates',
+    // Judged offline against 20 runs (scripts/roster-eval.ts): rates, capped, without
+    // streetsVisited, nobody already bitten — the named then live as long as anyone in
+    // the pool rather than shorter, and stand out for a wider spread of reasons.
+    scoring: 'rates' as 'totals' | 'rates',
     rateFloor: 1800, // ticks; exposure below this counts as this much, so a newcomer's one event is not a record
+    zCap: 3, // no single counter contributes more than this many standard deviations: one outlier cannot swamp the rest
+    unscored: ['streetsVisited'] as string[], // tracks time on record (r = 0.9), so it counted age twice
+    nameBitten: false, // false: someone already bitten is not newly named (they turned within seconds; read as a glitch)
     // History counters scored for unusualness (see promotion.ts), plus caution.
     cautionBands: [0.33, 0.66], // band edges for end-of-run survival by caution
   },

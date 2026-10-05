@@ -62,9 +62,17 @@ export interface Scored {
   z: number[];
 }
 
-/** Living sims scored by unusualness, most unusual first; ties go to the lower id. */
+/**
+ * Living sims scored by unusualness, most unusual first; ties go to the lower id.
+ * Each counter contributes |z| capped at `zCap`; `unscored` counters contribute
+ * nothing (their z is still reported). Unless `nameBitten`, the pool is the healthy:
+ * promotion, unlike the people in the run, may see a bite, and does not name
+ * someone seconds from turning. Anyone already named stays named whatever happens.
+ */
 export function scoreLiving(world: World): Scored[] {
-  const pool = world.sims.filter((s) => s.condition === 'healthy' || s.condition === 'infected');
+  const pc = world.config.promotion;
+  const skip = SCORED.map((name) => pc.unscored.includes(name));
+  const pool = world.sims.filter((s) => s.condition === 'healthy' || (pc.nameBitten && s.condition === 'infected'));
   if (pool.length === 0) return [];
   const rows = pool.map((s) => historyOf(s, world.tick, world.config));
   const k = rows[0]!.length;
@@ -77,7 +85,7 @@ export function scoreLiving(world: World): Scored[] {
     .map((sim, j) => {
       const values = rows[j]!;
       const z = values.map((v, i) => (sd[i]! > 0 ? (v - mean[i]!) / sd[i]! : 0));
-      const score = values.reduce((sum, v, i) => (sd[i]! > 0 ? sum + Math.abs(v - mean[i]!) / sd[i]! : sum), 0);
+      const score = z.reduce((sum, zi, i) => (skip[i] ? sum : sum + Math.min(pc.zCap, Math.abs(zi))), 0);
       return { sim, score, values, z };
     })
     .sort((a, b) => b.score - a.score || a.sim.id - b.sim.id);

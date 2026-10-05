@@ -965,7 +965,14 @@ Scoring rewards unusual histories rather than high ones, so the interesting surv
 score = Σ |counter - populationMean| / populationStdDev
 ```
 
-Over `ticksSurvived`, `conversionsWitnessed`, `ticksAlone`, `nearMisses`, `kills`, `streetsVisited`, `materialsDelivered` and caution. Ties go to the lower id. The newly promoted are given a name from a wordlist (first name and surname, unique, drawn from the run's PRNG), added to the roster, and made ticker-eligible.
+Over `ticksSurvived`, `conversionsWitnessed`, `ticksAlone`, `nearMisses`, `kills`, `materialsDelivered` and caution. Ties go to the lower id.
+
+**Revised after measuring it.** Every sweep now logs each promoted survivor with what made them stand out, their backstory and their fate, and records every stage's whole candidate pool, so scoring rules can be replayed offline against the same runs (`scripts/roster-eval.ts`; names never change behaviour). Over 20 runs:
+
+- Scoring did not converge on survival time — `ticksSurvived` led no one's score. `streetsVisited` did duplicate it (r = 0.92 with time on record), so it is no longer scored.
+- The counters that led were kills, near misses and conversions witnessed: heavy-tailed, so one outlier swamped the sum, and markers of being in danger right now. The provisionally named then died sooner than the pool they came from (median 1,432 ticks left against 1,886; 60% gone within 1,800 ticks against 49%).
+- No rule makes the provisional roster durable: at around tick 7,600 the scored pool is the tracked sims — those released, expelled or out scavenging — and half of any of them are gone within half an hour. The final stage fares better (median 5,180 ticks left in the pool, 28% alive at the end). **Open:** whether to change when the provisional stage fires, or accept a roster that is mostly a record.
+- Now: the counters that grow with exposure are scored per hour on record (floored at half an hour), each counter's contribution is capped at 3 standard deviations, and someone already bitten is not newly named (promotion may see a bite; the people in the run may not). Named survivors who are bitten later stay on the roster as living until they turn, as designed. Replayed, the provisionally named live as long as the pool (median 2,022 ticks), 8% see the end (pool 5%), and they stand out for a wider spread of reasons (near misses 30%, conversions witnessed 22%, kills 17%, time alone 16%, time on record 13%). The newly promoted are given a name from a wordlist (first name and surname, unique, drawn from the run's PRNG), added to the roster, and made ticker-eligible.
 
 The backstory is composed at promotion from fields already held — profession, age, caution band, and whichever counters scored highest. "Nurse, 54, cautious; sheltered in the same building since tick 900, witnessed 14 conversions" falls straight out of state and is true rather than decorative. The history is recorded from tick zero; only the name arrives late.
 

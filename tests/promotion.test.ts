@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { config as baseConfig, type Config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { rankByUnusualness } from '../src/sim/systems/promotion';
+import { SCORED, rankByUnusualness, scoreLiving } from '../src/sim/systems/promotion';
 import { step } from '../src/sim/tick';
 
 // Early fallbacks so both stages fire within a short run.
@@ -57,10 +57,19 @@ describe('promotion', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it('ranks the living only, most unusual first', () => {
+  it('ranks the living only, and not the already bitten unless configured to', () => {
     const ranked = rankByUnusualness(world);
-    expect(ranked.every((s) => s.condition === 'healthy' || s.condition === 'infected')).toBe(true);
-    expect(ranked.length).toBe(world.sims.filter((s) => s.condition === 'healthy' || s.condition === 'infected').length);
+    expect(ranked.every((s) => s.condition === 'healthy')).toBe(true);
+    expect(ranked.length).toBe(world.sims.filter((s) => s.condition === 'healthy').length);
+  });
+
+  it('caps each counter and leaves unscored ones out', () => {
+    const scored = scoreLiving(world);
+    const streets = SCORED.indexOf('streetsVisited');
+    for (const e of scored.slice(0, 50)) {
+      const expected = e.z.reduce((sum, z, i) => (i === streets ? sum : sum + Math.min(config.promotion.zCap, Math.abs(z))), 0);
+      expect(e.score).toBeCloseTo(expected, 9);
+    }
   });
 
   it('is deterministic', () => {
