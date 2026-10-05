@@ -157,8 +157,22 @@ function run(): void {
       collect(world, ctx);
     }
   }
-  setTimeout(run, rate > 0 ? 0 : 16);
+  // Yield between slices so messages are handled. With ticks still due, yield by a
+  // message to ourselves: a zero timeout is clamped to 4 ms once nested, which would
+  // idle the worker a third of the time at full speed. Ahead of schedule, sleep until
+  // the next tick is due rather than spin.
+  if (rate > 0 && world && world.tick < world.config.time.runLength) {
+    const nextDue = anchor + ((steppedSinceAnchor + 1) / rate) * 1000;
+    const wait = nextDue - performance.now();
+    if (wait <= 0) yieldChannel.port2.postMessage(null);
+    else setTimeout(run, Math.min(wait, 50));
+  } else {
+    setTimeout(run, 16);
+  }
 }
+
+const yieldChannel = new MessageChannel();
+yieldChannel.port1.onmessage = () => run();
 
 scope.onmessage = (e) => {
   const msg = e.data;
