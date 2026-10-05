@@ -27,6 +27,7 @@ import {
   type MapSnapshot,
   type ToWorker,
 } from './protocol';
+import { inspect } from './inspect';
 import { noteFor } from './notes';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
@@ -40,6 +41,7 @@ const scope = self as unknown as {
 let world: World | null = null;
 let ctx: Context | null = null;
 let rate = 0; // ticks per second
+let inspecting: { kind: 'sim' | 'building'; id: number } | null = null;
 let anchor = 0; // wall time the current rate took effect
 let steppedSinceAnchor = 0;
 let pending: SimEvent[] = [];
@@ -123,6 +125,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     notes,
     eventsDropped: dropped,
     achievedRate: recent.length,
+    inspected: inspecting ? inspect(w, inspecting) : null,
   };
   pending = [];
   notes = [];
@@ -171,6 +174,8 @@ scope.onmessage = (e) => {
     rate = msg.ticksPerSecond;
     anchor = performance.now();
     steppedSinceAnchor = 0;
+  } else if (msg.type === 'inspect') {
+    inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
     scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);

@@ -2,7 +2,8 @@
 // already holds: profession, age, caution band, and whichever counters made the
 // history unusual. True rather than decorative — every clause is a number in state.
 //
-// Pure and DOM-free, so the roster and the headless sweep log share it.
+// Pure and DOM-free: composed where the simulation is held (the worker, for the
+// inspector; the headless sweep, for its roster log).
 
 import type { Config } from '../config';
 import type { Sim } from '../sim/state';

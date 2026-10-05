@@ -6,7 +6,7 @@ import { createWorld } from '../../src/sim/setup';
 import { turnedTotal, unturnedTotal, type Counters } from '../../src/sim/state';
 import { SCORED, scoreLiving, type Scored } from '../../src/sim/systems/promotion';
 import { step } from '../../src/sim/tick';
-import { backstory } from '../../src/ui/backstory';
+import { backstory } from '../../src/worker/backstory';
 import type { World } from '../../src/sim/state';
 
 export interface RosterEntry {
@@ -32,6 +32,18 @@ export interface StageStats {
   tick: number;
   pool: number;
   corrWithSurvived: Record<string, number>;
+  /**
+   * Everyone scored, with raw totals in SCORED order (whatever the scoring setting) —
+   * names never change behaviour, so any scoring rule can be judged offline against
+   * the same run (scripts/roster-eval.ts).
+   */
+  candidates: { id: number; raw: number[]; infected: boolean; archetype: string }[];
+}
+
+/** Raw totals in SCORED order, independent of promotion.scoring. */
+function rawHistory(s: World['sims'][number], tick: number): number[] {
+  const h = s.history;
+  return [tick - h.spawnedAt, h.conversionsWitnessed, tick - h.lastCompanyAt, h.nearMisses, h.kills, h.streetsVisited, h.materialsDelivered, s.caution];
 }
 
 function pearson(xs: number[], ys: number[]): number {
@@ -60,7 +72,8 @@ function recordStage(world: World, stage: 'provisional' | 'final', named: number
   }
   const corrWithSurvived: Record<string, number> = {};
   for (let i = 1; i < SCORED.length; i++) corrWithSurvived[SCORED[i]!] = pearson(scored.map((e) => e.values[0]!), scored.map((e) => e.values[i]!));
-  stats.push({ stage, tick: world.tick, pool: scored.length, corrWithSurvived });
+  const candidates = scored.map((e) => ({ id: e.sim.id, raw: rawHistory(e.sim, world.tick), infected: e.sim.condition === 'infected', archetype: e.sim.archetype }));
+  stats.push({ stage, tick: world.tick, pool: scored.length, corrWithSurvived, candidates });
 }
 
 export interface RunSummary {
@@ -84,6 +97,9 @@ export interface RunSummary {
   /** Everyone promoted, in promotion order, as scored when named. */
   roster: RosterEntry[];
   stages: StageStats[];
+  /** How everyone scored at a promotion stage ended: condition at the end, and when. */
+  fates: Record<number, { condition: string; endedAt: number | null }>;
+  runLength: number;
 }
 
 /** Events that count as something happening, for the stasis check. */
@@ -143,6 +159,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   } catch (e) {
     invariantError = e instanceof Error ? e.message : String(e);
   }
+  const fates: RunSummary['fates'] = {};
+  for (const st of stages) {
+    for (const c of st.candidates) {
+      const s = world.sims[c.id]!;
+      fates[c.id] = { condition: s.condition, endedAt: s.history.endedAt };
+    }
+  }
   for (const r of roster) {
     const s = world.sims[r.id]!;
     r.fate = s.condition === 'healthy' ? 'alive' : s.condition;
@@ -169,5 +192,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     caution,
     roster,
     stages,
+    fates,
+    runLength: config.time.runLength,
   };
 }

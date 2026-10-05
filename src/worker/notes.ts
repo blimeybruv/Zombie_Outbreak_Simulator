@@ -7,8 +7,8 @@ import type { Building, SimEvent, World } from '../sim/state';
 import type { EventNote } from './protocol';
 
 /** Tags that read badly as nouns get one; the rest are split: "hardwareStore" → "hardware store". */
-const NOUNS: Record<string, string> = { residential: 'house', firearmsStore: 'gun shop', office: 'office block' };
-function words(tag: string): string {
+export const NOUNS: Record<string, string> = { residential: 'house', firearmsStore: 'gun shop', office: 'office block' };
+export function words(tag: string): string {
   return NOUNS[tag] ?? tag.replace(/([A-Z])/g, ' $1').toLowerCase();
 }
 
@@ -17,7 +17,7 @@ function districtAt(w: World, x: number, y: number): string {
   return d?.name ?? '';
 }
 
-function centreOf(b: Building): { x: number; y: number } {
+export function centreOf(b: Building): { x: number; y: number } {
   let x = 0, y = 0;
   for (const p of b.outline) {
     x += p.x / b.outline.length;

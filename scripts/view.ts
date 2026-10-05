@@ -1,9 +1,11 @@
 // Serves the viewer, opens it in headless Chromium and screenshots it: a way to see
 // the renderer from a container with no display.
 //
-//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1]
+//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click]
 //
 // Shots are taken at far, mid and near zoom (near centred on the busiest spot).
+// --click then clicks the middle of the near view and takes a fourth shot, with the
+// inspector open on whatever was there.
 
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -73,6 +75,17 @@ try {
     const tick = await page.evaluate(() => (window as unknown as Win).__view!.stats.tick);
     await page.screenshot({ path: `${out}/${shot.name}.png` });
     console.log(`${out}/${shot.name}.png  (tick ${tick}, ${shot.scale} px/m)`);
+  }
+  if (args.includes('--click')) {
+    // Try a few points around the middle until something is picked.
+    for (const [dx, dy] of [[0, 0], [12, 0], [0, 12], [-12, 0], [0, -12], [30, 30], [-30, 30]] as const) {
+      await page.mouse.click(720 + dx, 450 + dy);
+      await page.waitForTimeout(300);
+      if (await page.evaluate(() => (document.querySelector('#inspector')?.childElementCount ?? 0) > 0)) break;
+    }
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${out}/inspect.png` });
+    console.log(`${out}/inspect.png`);
   }
 } finally {
   await browser.close();

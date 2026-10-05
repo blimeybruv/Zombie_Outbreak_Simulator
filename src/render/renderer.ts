@@ -115,6 +115,46 @@ export class Renderer {
     return c;
   }
 
+  /** The building whose footprint contains a world point, if any. */
+  buildingAt(x: number, y: number): number | null {
+    const o = this.map.outlines;
+    for (let i = 0; i < this.bounds.length / 4; i++) {
+      const b = i * 4;
+      if (x < this.bounds[b]! || x > this.bounds[b + 2]! || y < this.bounds[b + 1]! || y > this.bounds[b + 3]!) continue;
+      let inside = false;
+      for (let j = 0, k = 3; j < 4; k = j++) {
+        const xj = o[i * 8 + j * 2]!, yj = o[i * 8 + j * 2 + 1]!, xk = o[i * 8 + k * 2]!, yk = o[i * 8 + k * 2 + 1]!;
+        if (yj > y !== yk > y && x < ((xk - xj) * (y - yj)) / (yk - yj) + xj) inside = !inside;
+      }
+      if (inside) return i;
+    }
+    return null;
+  }
+
+  /** Where a building is, for centring on it. */
+  buildingCentre(id: number): { x: number; y: number } {
+    const b = id * 4;
+    return { x: (this.bounds[b]! + this.bounds[b + 2]!) / 2, y: (this.bounds[b + 1]! + this.bounds[b + 3]!) / 2 };
+  }
+
+  /** The selection: a building's footprint stays outlined while the camera pans; a sim gets a ring. */
+  drawSelection(sel: { kind: 'sim' | 'building'; id: number } | null, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+    if (!sel || cam.mode === 'far') return;
+    const g = this.g;
+    cam.apply(g, dpr);
+    g.strokeStyle = P.SELECTION;
+    g.lineWidth = 1.5 / (cam.scale * dpr);
+    if (sel.kind === 'building') {
+      const p = new Path2D();
+      addOutline(p, this.map.outlines, sel.id);
+      g.stroke(p);
+    } else if (frame.simKind[sel.id]) {
+      g.beginPath();
+      g.arc(frame.simXY[sel.id * 2]!, frame.simXY[sel.id * 2 + 1]!, 7 / cam.scale, 0, Math.PI * 2);
+      g.stroke();
+    }
+  }
+
   draw(frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     const g = this.g;
     const night = frame.daylight < 0.5;

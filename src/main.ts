@@ -5,7 +5,9 @@
 import { config } from './config';
 import { Camera } from './render/camera';
 import { Renderer } from './render/renderer';
+import { line } from './ui/copy';
 import { Controls } from './ui/controls';
+import { Inspector } from './ui/inspector';
 import { Roster } from './ui/roster';
 import { Ticker } from './ui/ticker';
 import type { EventNote, FrameSnapshot, FromWorker, ToWorker } from './worker/protocol';
@@ -25,6 +27,15 @@ let latest: FrameSnapshot | null = null;
 let awaiting = false;
 /** The sim the camera follows, if any: set from the roster or a ticker line, cleared by dragging. */
 let tracked: number | null = null;
+/** What the inspector shows, if anything. */
+let selected: { kind: 'sim' | 'building'; id: number } | null = null;
+/** Each building's own history, as ticker copy, so the inspector can show its past. */
+const buildingHistory = new Map<number, string[]>();
+
+function select(target: typeof selected): void {
+  selected = target;
+  send({ type: 'inspect', target });
+}
 
 const controls = new Controls(document.querySelector<HTMLElement>('#controls')!, {
   speeds: config.playback.speeds,
@@ -34,6 +45,7 @@ const controls = new Controls(document.querySelector<HTMLElement>('#controls')!,
 
 function track(simId: number): void {
   tracked = simId;
+  select({ kind: 'sim', id: simId });
   if (camera.scale < 0.8) {
     camera.scale = 1.2;
     camera.version++;
@@ -53,6 +65,7 @@ const ticker = new Ticker(document.querySelector<HTMLElement>('#ticker')!, {
   onMajor: () => controls.dropToNormal(),
 });
 const roster = new Roster(document.querySelector<HTMLElement>('#roster')!, track);
+const inspector = new Inspector(document.querySelector<HTMLElement>('#inspector')!, track);
 
 worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
@@ -64,6 +77,17 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     const now = performance.now();
     renderer?.ingest(latest, now);
     ticker.take(latest.events, latest.notes, controls.currentSpeed, now);
+    latest.events.forEach((ev, i) => {
+      const n = latest!.notes[i];
+      if (!n || n.building === null) return;
+      const text = line(ev, n);
+      if (text === null) return;
+      const h = buildingHistory.get(n.building) ?? [];
+      h.push(text);
+      if (h.length > 20) h.shift();
+      buildingHistory.set(n.building, h);
+    });
+    inspector.show(latest.inspected, latest.inspected?.kind === 'building' ? (buildingHistory.get(latest.inspected.id) ?? []) : []);
     roster.show(latest, tracked);
     awaiting = false;
     controls.show(latest);
@@ -82,17 +106,48 @@ resize();
 
 // Free camera: drag to pan, wheel to zoom about the cursor.
 let drag: { x: number; y: number } | null = null;
+let pressedAt: { x: number; y: number } | null = null;
 canvas.addEventListener('pointerdown', (e) => {
   drag = { x: e.clientX, y: e.clientY };
-  tracked = null;
+  pressedAt = { x: e.clientX, y: e.clientY };
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag) return;
+  if (pressedAt && Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) > 4) tracked = null; // a drag lets go
   camera.panBy(e.clientX - drag.x, e.clientY - drag.y);
   drag = { x: e.clientX, y: e.clientY };
 });
-canvas.addEventListener('pointerup', () => (drag = null));
+canvas.addEventListener('pointerup', (e) => {
+  drag = null;
+  const click = pressedAt && Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) <= 4;
+  pressedAt = null;
+  if (click) pick(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top);
+});
+
+/** A click inspects: the nearest person within a few pixels, else the building underneath, else nothing. Not at far zoom. */
+function pick(sx: number, sy: number): void {
+  if (!latest || !renderer || camera.mode === 'far') return;
+  const w = camera.toWorld(sx, sy);
+  const reach = 8 / camera.scale;
+  let best = -1;
+  let bestD = reach;
+  for (let i = 0; i < latest.simKind.length; i++) {
+    if (!latest.simKind[i]) continue;
+    const d = Math.hypot(latest.simXY[i * 2]! - w.x, latest.simXY[i * 2 + 1]! - w.y);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  if (best >= 0) return track(best);
+  const b = renderer.buildingAt(w.x, w.y);
+  tracked = null;
+  if (b === null) return select(null);
+  select({ kind: 'building', id: b });
+  const c = renderer.buildingCentre(b);
+  camera.centreOn(c.x, c.y);
+}
 canvas.addEventListener(
   'wheel',
   (e) => {
@@ -137,6 +192,7 @@ function frame(now: number): void {
     if (tracked !== null && latest.simKind[tracked]) camera.centreOn(latest.simXY[tracked * 2]!, latest.simXY[tracked * 2 + 1]!);
     const t0 = performance.now();
     renderer.draw(latest, camera, window.devicePixelRatio || 1, now);
+    renderer.drawSelection(selected, latest, camera, window.devicePixelRatio || 1);
     stats.drawMs += performance.now() - t0;
     stats.frames++;
   }

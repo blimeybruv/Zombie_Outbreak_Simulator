@@ -22,6 +22,24 @@
       #roster button { background: none; border: 0; color: #c9d1d9; text-align: left; font: inherit; padding: 1px 6px; cursor: pointer; border-radius: 3px; }
       #roster button:hover, #roster button.on { background: #1a1f26; color: #fff; }
       #roster button.gone { color: #5b636c; text-decoration: line-through; }
+      #inspector { position: fixed; right: 12px; bottom: 12px; width: 300px; background: rgba(6, 7, 10, 0.82); padding: 8px 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 3px; }
+      #inspector:empty { display: none; }
+      #inspector .head { color: #eef3f7; }
+      #inspector .sub { color: #9aa3ad; }
+      #inspector .dim { color: #6c757f; }
+      #inspector .warn { color: #e0727a; }
+      #inspector .story { color: #c9d1d9; font-style: italic; margin-top: 3px; }
+      #inspector .bar { display: flex; align-items: center; gap: 6px; color: #6c757f; }
+      #inspector .bar .label { width: 64px; }
+      #inspector .bar .track { flex: 1; height: 4px; background: #1a1f26; border-radius: 2px; overflow: hidden; }
+      #inspector .bar .fill { display: block; height: 100%; background: #8b949e; }
+      #inspector .squares { display: flex; flex-wrap: wrap; gap: 2px; margin: 4px 0; }
+      #inspector .sq { width: 7px; height: 7px; font-size: 7px; line-height: 7px; text-align: center; color: #06070a; }
+      #inspector .sq.resident { background: #5d646c; }
+      #inspector .sq.tracked { background: #eef3f7; }
+      #inspector .sq.occupier { background: #c03a43; }
+      #inspector .sq.click { cursor: pointer; }
+      #inspector .history { color: #7c858f; border-top: 1px solid #1a1f26; margin-top: 4px; padding-top: 4px; font-size: 11px; }
     </style>
   </head>
   <body>
@@ -29,6 +47,7 @@
     <div id="controls"></div>
     <div id="ticker"></div>
     <div id="roster"></div>
+    <div id="inspector"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -55,6 +55,55 @@ export interface EventNote {
   y: number;
 }
 
+/** The world's state for one building: what the viewer sees and the people do not. */
+export interface BuildingDetail {
+  kind: 'building';
+  id: number;
+  /** e.g. "hardware store". */
+  what: string;
+  street: string;
+  district: string;
+  integrity: number;
+  fortification: number;
+  materials: number;
+  breached: boolean;
+  garrisoned: boolean;
+  /** Anonymous residents present since the start. */
+  residents: number;
+  /** Tracked sims inside, by id, with a name if promoted. */
+  tracked: { id: number; name: string | null }[];
+  /** Occupying zombies. */
+  occupiers: number;
+}
+
+/** One person: ground truth on the left of the panel, their beliefs on the right. */
+export interface SimDetail {
+  kind: 'sim';
+  id: number;
+  name: string | null;
+  profession: string;
+  age: number;
+  archetype: string;
+  caution: number;
+  /** Ground truth, including the infection nobody else may know about. */
+  condition: string;
+  insideBuilding: number | null;
+  weapon: string | null;
+  ammo: number;
+  materials: number;
+  role: string | null;
+  doing: string | null;
+  /** The building they have made home, as a place. */
+  shelter: string | null;
+  // Beliefs.
+  streetsKnown: number;
+  buildingsKnown: number;
+  knownInfected: number;
+  backstory: string;
+}
+
+export type Inspected = BuildingDetail | SimDetail;
+
 /** One moment of the run, for drawing. */
 export interface FrameSnapshot {
   tick: number;
@@ -80,6 +129,8 @@ export interface FrameSnapshot {
   eventsDropped: number;
   /** Simulated ticks per wall-clock second over the last second, as achieved. */
   achievedRate: number;
+  /** Whatever the viewer has asked to inspect, as of this frame. */
+  inspected: Inspected | null;
 }
 
 export type ToWorker =
@@ -88,6 +139,8 @@ export type ToWorker =
   /** Ticks per wall-clock second; 0 pauses. */
   | { type: 'rate'; ticksPerSecond: number }
   /** The main thread is ready for another frame. */
-  | { type: 'frame' };
+  | { type: 'frame' }
+  /** Keep sending detail for this sim or building with each frame; null stops. */
+  | { type: 'inspect'; target: { kind: 'sim' | 'building'; id: number } | null };
 
 export type FromWorker = { type: 'map'; map: MapSnapshot } | { type: 'frame'; frame: FrameSnapshot };
