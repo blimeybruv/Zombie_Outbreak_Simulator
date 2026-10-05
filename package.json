@@ -7,6 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.sim.json",
     "lint": "eslint .",
     "test": "vitest run",
@@ -18,6 +21,7 @@
     "@types/node": "^26.6.4",
     "eslint": "^10.12.0",
     "jiti": "^2.7.0",
+    "playwright-core": "^1.63.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",

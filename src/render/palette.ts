@@ -1,0 +1,14 @@
+// Colour carries state and nothing else. Agents are the brightest things on
+// screen; the city sits near the noise floor beneath them.
+
+export const BACKGROUND = '#06070a';
+export const RIVER = 'rgba(70, 95, 130, 0.10)';
+export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
+export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
+export const CONTESTED = [255, 255, 255] as const; // pulsing outline
+export const STREET_LIGHT = 'rgba(255, 190, 120, 0.045)'; // night only
+export const LIVING = '#dfe7ef';
+export const PROMOTED = '#ffffff';
+export const ZOMBIE = '#b3343c';
+export const ZOMBIE_DORMANT = '#6a2328';
+export const CORPSE = [70, 72, 76] as const;
