@@ -22,6 +22,7 @@ import { nextFloat, nextInt } from '../rng';
 import type { Building, Sim, StreetId, World } from '../state';
 import { capacity, clearDestination, entranceNearest, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
+import { emitStimulus } from './stimuli';
 import { chooseShelter, evaluateRole } from './shelter';
 
 /**
@@ -104,8 +105,10 @@ function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const street = ctx.map.nearestStreet(z.x, z.y, config.map.offStreetLookup);
   if (street !== null) {
     const danger = ctx.threat[sim.id]!;
-    // ...and shouts it to whoever is near (heard in the encounters step).
+    // ...and shouts it to whoever is near (heard in the encounters step). The shout is
+    // a noise like any other: the dead hear it too.
     ctx.warnings.push({ from: sim.id, x: sim.x, y: sim.y, street, danger });
+    emitStimulus(world, sim.x, sim.y, 'shout', config.encounters.warnRadius, false, config.behaviour.shoutIntensity);
     const belief = sim.streetMemory.get(street);
     if (belief) {
       belief.danger = danger;

@@ -2,7 +2,15 @@
 
 import type { StimulusKind, World } from '../state';
 
-export function emitStimulus(world: World, x: number, y: number, kind: StimulusKind, radius: number, indoors: boolean): void {
+export function emitStimulus(
+  world: World,
+  x: number,
+  y: number,
+  kind: StimulusKind,
+  radius: number,
+  indoors: boolean,
+  intensity = world.config.combat.weaponNoiseIntensity,
+): void {
   if (radius <= 0) return;
   const { config, tick } = world;
   world.stimuli.push({
@@ -10,7 +18,7 @@ export function emitStimulus(world: World, x: number, y: number, kind: StimulusK
     y,
     kind,
     radius: indoors ? radius * config.combat.indoorNoiseFactor : radius,
-    intensity: config.combat.weaponNoiseIntensity,
+    intensity,
     createdAt: tick,
     expiresAt: tick + config.stimulus.decay,
   });

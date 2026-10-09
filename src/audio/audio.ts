@@ -16,12 +16,34 @@ import type { Camera } from '../render/camera';
 import type { FrameSnapshot } from '../worker/protocol';
 import { ZOMBIE_AWAKE } from '../worker/protocol';
 
-type Category = 'gun' | 'melee';
-const VOICES: Record<Category, number> = { gun: 8, melee: 4 };
+type Category = 'gun' | 'melee' | 'voice';
+const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
 
-const CATEGORY: Record<string, Category | undefined> = { pistol: 'gun', smg: 'gun', shotgun: 'gun', club: 'melee', sledgehammer: 'melee' };
+const CATEGORY: Record<string, Category | undefined> = { pistol: 'gun', smg: 'gun', shotgun: 'gun', club: 'melee', sledgehammer: 'melee', shout: 'voice' };
+
+/** A short call: noise band-passed into the range of a raised voice, rising then falling. */
+function shout(ctx: AudioContext): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.45;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  // Two-pole resonator around a pitch that glides 520 → 760 → 600 Hz.
+  let y1 = 0, y2 = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const f = t < 0.15 ? 520 + (240 * t) / 0.15 : 760 - (160 * (t - 0.15)) / 0.3;
+    const r = 0.985;
+    const c = 2 * r * Math.cos((2 * Math.PI * f) / rate);
+    const y = (Math.random() * 2 - 1) * 0.05 + c * y1 - r * r * y2;
+    y2 = y1;
+    y1 = y;
+    const env = Math.min(1, t / 0.04) * Math.exp(-Math.max(0, t - 0.2) / 0.08);
+    d[i] = y * env * 0.6;
+  }
+  return buf;
+}
 
 /** Noise shaped by an envelope and a one-pole low-pass; enough for a gunshot or a thud. */
 function burst(ctx: AudioContext, seconds: number, decay: number, cutoff: number, bursts = 1, gap = 0): AudioBuffer {
@@ -62,7 +84,7 @@ export class Audio {
   private master: GainNode | null = null;
   private readonly gains = new Map<Category | 'bed', GainNode>();
   private readonly buffers = new Map<string, AudioBuffer>();
-  private readonly active: Record<Category, number> = { gun: 0, melee: 0 };
+  private readonly active: Record<Category, number> = { gun: 0, melee: 0, voice: 0 };
   private muted = false;
 
   /** Call from a user gesture. */
@@ -76,7 +98,7 @@ export class Audio {
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.8;
     this.master.connect(ctx.destination);
-    for (const [cat, level] of [['gun', 0.5], ['melee', 0.35], ['bed', 0]] as const) {
+    for (const [cat, level] of [['gun', 0.5], ['melee', 0.35], ['voice', 0.3], ['bed', 0]] as const) {
       const g = ctx.createGain();
       g.gain.value = level;
       g.connect(this.master);
@@ -87,6 +109,7 @@ export class Audio {
     this.buffers.set('shotgun', burst(ctx, 0.6, 0.11, 1100));
     this.buffers.set('club', burst(ctx, 0.18, 0.04, 260));
     this.buffers.set('sledgehammer', burst(ctx, 0.3, 0.07, 180));
+    this.buffers.set('shout', shout(ctx));
     const bed = ctx.createBufferSource();
     bed.buffer = moan(ctx);
     bed.loop = true;

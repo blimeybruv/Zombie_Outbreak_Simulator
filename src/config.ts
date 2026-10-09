@@ -170,6 +170,10 @@ export const config = {
     // After a scare a walker on a routine picks a new stop rather than walking back the
     // way it fled; stops behind it (more than 90° off its heading) weigh this much — guess
     scaredBehindWeight: 0.1,
+    // A warning is shouted out loud: it is a stimulus with the warning's radius
+    // (encounters.warnRadius), heard by the dead as well as the living — telling the
+    // neighbours costs drawing the horde. Loudness at the source — guess
+    shoutIntensity: 0.6,
   },
 
   encounters: {

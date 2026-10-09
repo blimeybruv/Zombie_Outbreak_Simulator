@@ -233,18 +233,23 @@ function exits(world: World, ctx: Context): void {
   }
 }
 
-/** Gunfire this tick near a building drives a share of its residents out, and tells the rest. */
+/**
+ * Noise this tick near a building tells the people inside; gunfire also drives a
+ * share of its residents out. A shouted warning alerts them, but nobody runs out
+ * into the street toward it.
+ */
 function noiseExpulsion(world: World, ctx: Context): void {
   const { config, tick } = world;
   const r = config.buildings.spill.alertRadius;
-  const hit = new Set<number>();
+  const heard = new Map<number, boolean>(); // building → heard gunfire
   for (const s of world.stimuli) {
     if (s.createdAt !== tick) continue;
-    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) hit.add(bid);
+    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) heard.set(bid, (heard.get(bid) ?? false) || s.kind !== 'shout');
   }
-  for (const bid of [...hit].sort((a, b) => a - b)) {
+  for (const bid of [...heard.keys()].sort((a, b) => a - b)) {
     const b = world.buildings[bid]!;
     if (b.residents + b.sheltered.length > 0) alert(world, b);
+    if (!heard.get(bid)) continue;
     const available = b.residents - queued(b);
     if (available > 0) b.pendingExpel += Math.floor(available * config.buildings.residentExpelShare);
   }
