@@ -174,6 +174,14 @@ export const config = {
     // (encounters.warnRadius), heard by the dead as well as the living — telling the
     // neighbours costs drawing the horde. Loudness at the source — guess
     shoutIntensity: 0.6,
+    // Going somewhere with a zombie in the way: the heading blends in "away from the
+    // danger", by this much at full threat dead ahead, so the sim goes round rather
+    // than through. Danger behind or beside does not slow it — guess
+    avoidWeight: 1.5,
+    // Panicked, running for the nearest door: a door lying toward the danger (within
+    // the cosine below of the threat's direction) counts as this many times as far — guess
+    doorTowardThreatPenalty: 3,
+    doorTowardThreatCos: 0.7,
   },
 
   encounters: {

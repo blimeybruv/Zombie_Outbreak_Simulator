@@ -130,6 +130,43 @@ function steerToward(sim: Sim, x: number, y: number): void {
   if (dx !== 0 || dy !== 0) sim.heading = Math.atan2(dy, dx);
 }
 
+/**
+ * Going somewhere with danger ahead: bend the heading away from it, more the closer
+ * and more directly ahead it is, so the sim goes round rather than through. Head-on,
+ * where the two would cancel, it turns to the side away from the danger. Danger
+ * behind or beside it changes nothing: it is already getting away.
+ *
+ * Without this, survivors heading for shelter or running for a door followed their
+ * line straight into zombies they could see: three in four contacts were the
+ * survivor walking in.
+ */
+function goRound(world: World, ctx: Context, sim: Sim): void {
+  const threat = ctx.threat[sim.id]!;
+  if (threat <= 0) return;
+  const tx = ctx.threatX[sim.id]!, ty = ctx.threatY[sim.id]!;
+  const tl = Math.hypot(tx, ty);
+  if (tl === 0) return;
+  const ux = tx / tl, uy = ty / tl;
+  const dx = Math.cos(sim.heading), dy = Math.sin(sim.heading);
+  const ahead = dx * ux + dy * uy;
+  if (ahead <= 0) return;
+  const w = world.config.behaviour.avoidWeight * threat * ahead;
+  let vx = dx - w * ux, vy = dy - w * uy;
+  if (Math.hypot(vx, vy) < 0.2) {
+    // Head-on: step to whichever side the danger is not.
+    const side = dx * uy - dy * ux >= 0 ? -1 : 1;
+    vx = -dy * side;
+    vy = dx * side;
+  }
+  sim.heading = Math.atan2(vy, vx);
+}
+
+/** Toward a point, going round any danger in the way. */
+function headFor(world: World, ctx: Context, sim: Sim, x: number, y: number): void {
+  steerToward(sim, x, y);
+  goRound(world, ctx, sim);
+}
+
 function steerAway(ctx: Context, sim: Sim): void {
   const tx = ctx.threatX[sim.id]!;
   const ty = ctx.threatY[sim.id]!;
@@ -145,13 +182,13 @@ function followRoute(world: World, ctx: Context, sim: Sim): void {
       ctx.queued[sim.id] = 1;
       repathQueue.push(sim.id);
     }
-    steerToward(sim, sim.destination.x, sim.destination.y);
+    headFor(world, ctx, sim, sim.destination.x, sim.destination.y);
     return;
   }
   for (;;) {
     const i = sim.routeIndex;
     if (i >= sim.route.length - 1) {
-      steerToward(sim, sim.destination.x, sim.destination.y);
+      headFor(world, ctx, sim, sim.destination.x, sim.destination.y);
       return;
     }
     const node = sharedNode(world, sim.route[i]!, sim.route[i + 1]!);
@@ -164,7 +201,7 @@ function followRoute(world: World, ctx: Context, sim: Sim): void {
       sim.routeIndex++;
       continue;
     }
-    steerToward(sim, n.x, n.y);
+    headFor(world, ctx, sim, n.x, n.y);
     return;
   }
 }
@@ -176,14 +213,20 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 
   if (mode === 'flight') {
     sim.gait = 'sprint';
-    // Not choosing a shelter: running for the nearest door in sight.
+    // Not choosing a shelter: running for the nearest door in sight — though not one
+    // that lies toward what it is running from.
+    const tl = Math.hypot(ctx.threatX[sim.id]!, ctx.threatY[sim.id]!);
     let door: Building | null = null;
     let doorD = Infinity;
     for (const bid of ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.doorSearchRadius, ctx.buildingIds)) {
       if (bid === sim.refusedBy) continue;
       const b = buildings[bid]!;
       const e = entranceNearest(b, sim.x, sim.y);
-      const d = Math.hypot(e.x - sim.x, e.y - sim.y);
+      let d = Math.hypot(e.x - sim.x, e.y - sim.y);
+      if (tl > 0 && d > 0) {
+        const toward = ((e.x - sim.x) * ctx.threatX[sim.id]! + (e.y - sim.y) * ctx.threatY[sim.id]!) / (d * tl);
+        if (toward > config.behaviour.doorTowardThreatCos) d *= config.behaviour.doorTowardThreatPenalty;
+      }
       if (d < doorD) {
         doorD = d;
         door = b;
@@ -191,7 +234,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     }
     if (door !== null) {
       if (sim.destinationBuilding !== door.id) setDestination(sim, door, 'shelter');
-      steerToward(sim, sim.destination!.x, sim.destination!.y);
+      headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
     } else {
       clearDestination(sim);
       steerAway(ctx, sim);
