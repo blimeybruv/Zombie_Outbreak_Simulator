@@ -243,7 +243,8 @@ the faithful shelter in churches, and 911 calls bring first responders from poli
 stations (`systems/dispatch.ts`). Police are light blue; anyone with a working firearm
 is a triangle; positions are interpolated between ticks. A third round: police decide
 as a unit, are cops by profession and age, churches are larger and fewer and drawn in
-plan, and every door has a step.
+plan, and every door has a step. Police run toward gunfire; fight, flight and freeze show
+as an outline, a streak and a slow pulse.
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.

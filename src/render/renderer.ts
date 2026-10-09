@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, SIM_ARMED, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -29,6 +29,7 @@ const SHOUT_MS = 700;
 const DOOR_W = 1.8; // m
 const DOOR_D = 0.9; // m
 const PING_MS = 1100; // one 911 ping, wide to nothing
+const FREEZE_PULSE_MS = 1600; // one slow breath of a frozen survivor
 const FLASH_MS = 160;
 const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 
@@ -321,7 +322,11 @@ export class Renderer {
     // Trail width is in screen pixels: thin enough at mid zoom not to smear the dots.
     this.zombieTrails.draw(g, cam, dpr, P.ZOMBIE_RGB, near ? 1.2 : 1, near ? undefined : MID_TRAIL);
     this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.2 : 1, near ? undefined : MID_TRAIL);
-    this.drawAgents(g, frame, cam, dpr);
+    // Flight: whoever is running for their life leaves a long bright streak, at mid zoom too.
+    const fleeing: number[] = [];
+    for (let i = 0; i < frame.simFlags.length; i++) if (frame.simFlags[i]! & SIM_FLEEING) fleeing.push(i);
+    if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
+    this.drawAgents(g, frame, cam, dpr, wallMs);
     this.drawPulses(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
     this.drawCalls(g, frame, cam, dpr, wallMs);
@@ -424,7 +429,7 @@ export class Renderer {
     }
   }
 
-  private drawAgents(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+  private drawAgents(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     g.setTransform(1, 0, 0, 1, 0, 0);
     const size = Math.max(2.5, Math.min(6, cam.scale * 1.2)) * dpr;
     const half = size / 2;
@@ -459,9 +464,11 @@ export class Renderer {
       path.lineTo(cx + Math.cos(a - 2.4) * rr, cy + Math.sin(a - 2.4) * rr);
       path.closePath();
     };
-    // A frozen survivor, cornered and keeping still, is drawn dim: hiding in plain sight.
+    // Freeze: a survivor cornered and keeping still is drawn dim, pulsing slowly — hiding
+    // in plain sight, barely there.
+    const frozenAlpha = 0.2 + 0.35 * (0.5 + 0.5 * Math.sin((wallMs / FREEZE_PULSE_MS) * Math.PI * 2));
     for (const frozen of [false, true]) {
-      g.globalAlpha = frozen ? 0.4 : 1;
+      g.globalAlpha = frozen ? frozenAlpha : 1;
       for (const colour of [P.LIVING, P.POLICE, P.INFECTED_PALE]) {
         g.fillStyle = colour;
         const armed = new Path2D();
@@ -485,6 +492,23 @@ export class Renderer {
         triangle(p, i, x, y, 1.35);
         g.fill(p);
       } else g.fillRect(x - 1, y - 1, size + 2, size + 2);
+    }
+    // Fight: standing its ground, or has just struck or fired — a bright outline.
+    const fighting = new Path2D();
+    let anyFight = false;
+    for (let i = 0; i < k.length; i++) {
+      if (k[i] === SIM_HIDDEN || !(f[i]! & SIM_FIGHTING)) continue;
+      const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
+      if (x < -size * 2 || y < -size * 2 || x > w + size || y > h + size) continue;
+      const pad = 1.5 * dpr;
+      if (f[i]! & SIM_ARMED) triangle(fighting, i, x, y, k[i] === SIM_PROMOTED ? 1.7 : 1.35);
+      else fighting.rect(x - pad, y - pad, size + pad * 2, size + pad * 2);
+      anyFight = true;
+    }
+    if (anyFight) {
+      g.strokeStyle = P.FIGHT;
+      g.lineWidth = 1.2 * dpr;
+      g.stroke(fighting);
     }
     if (showInfected === 'ring') {
       g.strokeStyle = P.INFECTED;

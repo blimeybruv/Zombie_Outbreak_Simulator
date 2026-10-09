@@ -241,8 +241,12 @@ export const config = {
   // back on the danger the most exposed of them sees, and each officer beyond the first
   // raises the unit's engage threshold by `unitStrength` (up to `unitMaxThreshold`).
   // Officers sent to the same call keep together: the one ahead waits while it is more
-  // than `pairGap` metres nearer the call than its partner — guess
-  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10 },
+  // than `pairGap` metres nearer the call than its partner. Police responding — to a call,
+  // to shots, to trouble — stand like an officer on a call (dispatch.engageThreshold).
+  // Shots fired: police outdoors with something to shoot, hearing gunfire more than
+  // `shotIgnoreRadius` away (not their own, nor their neighbour's), drop their path and
+  // run for the sound, standing like an officer on a call — guess
+  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

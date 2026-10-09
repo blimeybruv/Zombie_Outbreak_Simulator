@@ -32,7 +32,7 @@ import { chooseObjective, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
 import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
-import { emitStimulus } from './stimuli';
+import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 
 /**
@@ -99,22 +99,47 @@ function pickRoutineStop(world: World, sim: Sim): Building | null {
  * The officers within unitRadius of this one, itself included: how many there are
  * with something to shoot, the most danger any of them can see (perception snapshot,
  * so every officer in the unit decides on the same numbers this tick), and whether
- * any of them is on a call.
+ * any of them is responding (to a call, to shots, to trouble).
  */
 function unitOf(world: World, ctx: Context, sim: Sim): { threat: number; size: number; onCall: boolean } {
   ctx.simHash.query(sim.x, sim.y, world.config.police.unitRadius, ctx.ids2);
   let threat = ctx.threat[sim.id]!;
   let size = 1;
-  let onCall = sim.answering !== null;
+  let onCall = responding(sim);
   for (const id of ctx.ids2) {
     if (id === sim.id) continue;
     const o = world.sims[id]!;
     if (o.archetype !== 'police' || capacity(world, o) <= 0) continue;
     size++;
     if (ctx.threat[id]! > threat) threat = ctx.threat[id]!;
-    if (o.answering !== null) onCall = true;
+    if (responding(o)) onCall = true;
   }
   return { threat, size, onCall };
+}
+
+/** Police responding: to a 911 call, to shots, or to trouble they believe in. */
+function responding(s: Sim): boolean {
+  return s.answering !== null || s.destinationKind === 'respond';
+}
+
+/**
+ * The loudest gunshot this sim heard since it last decided, further away than
+ * shotIgnoreRadius (its own, or its neighbour's, is not news); ties to the earlier.
+ */
+function shotHeard(world: World, sim: Sim): { x: number; y: number } | null {
+  const { tick, config } = world;
+  let best: { x: number; y: number } | null = null;
+  let loudest = 0;
+  for (const st of world.stimuli) {
+    if (st.createdAt < tick - 1 || (st.kind !== 'pistol' && st.kind !== 'smg' && st.kind !== 'shotgun')) continue;
+    if (Math.hypot(st.x - sim.x, st.y - sim.y) <= config.police.shotIgnoreRadius) continue;
+    const i = intensityAt(st, sim.x, sim.y);
+    if (i > loudest) {
+      loudest = i;
+      best = { x: st.x, y: st.y };
+    }
+  }
+  return best;
 }
 
 /** Whether a partner on the same call is still leaving the station, or more than pairGap further from the call. */
@@ -419,9 +444,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // Police decide as a unit: the danger the most exposed officer nearby sees, and a
   // threshold that rises with numbers. Deciding alone, the officer in front fell back
   // while those behind, not yet seeing it, walked on past.
-  const unit = engages && sim.archetype === 'police' ? unitOf(world, ctx, sim) : { threat, size: 1, onCall: sim.answering !== null };
-  // A first responder on a call holds its ground longer than a patrol officer would,
-  // and a patrol officer alongside one holds with it.
+  const unit = engages && sim.archetype === 'police' ? unitOf(world, ctx, sim) : { threat, size: 1, onCall: responding(sim) };
+  // Police responding — to a call, to shots, to trouble — hold their ground longer than a
+  // patrol officer would, and a patrol officer alongside them holds with them.
   const base = unit.onCall ? Math.max(arch.engageThreshold, config.dispatch.engageThreshold) : arch.engageThreshold;
   const pc = config.police;
   const engageBelow = unit.size > 1 ? Math.max(base, Math.min(pc.unitMaxThreshold, base * (1 + pc.unitStrength * (unit.size - 1)))) : base;
@@ -468,6 +493,28 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
 
   const nerve = sim.destinationKind === 'scavenge' ? config.roles.scavengerNerve : 0;
+  // Shots fired: police drop what they are doing and run for the sound — even on the way
+  // back to shelter, unless their unit already sees more than it will stand. Officers who
+  // fell back one by one used to scatter to their own shelters; now they converge on the
+  // gunfire, where the others are, and stand as a unit.
+  if (engages && sim.archetype === 'police' && sim.answering === null && sim.sortieUntil === null) {
+    const shot = shotHeard(world, sim);
+    const standsTo = Math.max(engageBelow, config.dispatch.engageThreshold);
+    if (shot !== null && seen < standsTo) {
+      // Already on the way to trouble: keep going (re-aiming at every louder shot re-planned
+      // every tick, and halved the simulation's speed).
+      if (sim.destinationKind !== 'respond' || sim.destination === null) {
+        sim.destination = { x: shot.x, y: shot.y };
+        sim.destinationBuilding = null;
+        sim.destinationKind = 'respond';
+        replan(world, ctx, sim, mode);
+      }
+      sim.gait = 'run';
+      travel(world, ctx, sim, mode);
+      return;
+    }
+  }
+
   // Those who engage fall back when the danger their unit sees passes what they will
   // stand, or their own shelter threshold, whichever comes first.
   const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve) : threat >= arch.shelterSeekThreshold + nerve;
@@ -509,8 +556,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     const arrival = sim.answering !== null ? config.dispatch.sceneRadius : config.awareness.respondArrival;
     if (dest !== null && Math.hypot(dest.x - sim.x, dest.y - sim.y) > arrival) {
       // Officers sent together arrive together: the one ahead waits for its partner.
-      sim.gait = sim.answering !== null && aheadOfPartner(world, sim, dest) ? 'still' : 'walk';
-      if (sim.gait === 'walk') travel(world, ctx, sim, mode);
+      sim.gait = sim.answering === null ? 'run' : aheadOfPartner(world, sim, dest) ? 'still' : 'walk';
+      if (sim.gait !== 'still') travel(world, ctx, sim, mode);
       return;
     }
     const street = dest === null ? null : ctx.map.nearestStreet(dest.x, dest.y, config.map.offStreetLookup);

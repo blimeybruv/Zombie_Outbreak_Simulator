@@ -46,8 +46,20 @@ export class Trails {
     this.seen = seen;
   }
 
-  /** Draws up to `maxAge` samples of history (the full ring by default). */
-  draw(g: CanvasRenderingContext2D, cam: Camera, dpr: number, rgb: readonly [number, number, number], width: number, maxAge = SAMPLES): void {
+  /**
+   * Draws up to `maxAge` samples of history (the full ring by default), at `alpha` for
+   * the newest segment, for every agent or only the ids in `only`.
+   */
+  draw(
+    g: CanvasRenderingContext2D,
+    cam: Camera,
+    dpr: number,
+    rgb: readonly [number, number, number],
+    width: number,
+    maxAge = SAMPLES,
+    alpha = 0.35,
+    only?: readonly number[],
+  ): void {
     if (this.filled < 2) return;
     const n = this.seen.length / SAMPLES;
     const view = { a: cam.toWorld(0, 0), b: cam.toWorld(cam.width, cam.height) };
@@ -59,7 +71,10 @@ export class Trails {
       const older = (this.head - age + SAMPLES) % SAMPLES;
       const path = new Path2D();
       let any = false;
-      for (let i = 0; i < n; i++) {
+      const count = only ? only.length : n;
+      for (let j = 0; j < count; j++) {
+        const i = only ? only[j]! : j;
+        if (i >= n) continue;
         const kn = i * SAMPLES + newer, ko = i * SAMPLES + older;
         if (!this.seen[kn] || !this.seen[ko]) continue;
         const x1 = this.xy[kn * 2]!, y1 = this.xy[kn * 2 + 1]!, x0 = this.xy[ko * 2]!, y0 = this.xy[ko * 2 + 1]!;
@@ -70,7 +85,7 @@ export class Trails {
         any = true;
       }
       if (!any) continue;
-      g.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${(0.35 * (1 - age / SAMPLES)).toFixed(3)})`;
+      g.strokeStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${(alpha * (1 - age / SAMPLES)).toFixed(3)})`;
       g.stroke(path);
     }
   }

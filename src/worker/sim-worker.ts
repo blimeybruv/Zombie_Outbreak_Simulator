@@ -11,6 +11,7 @@ import { daylight, timeOfDay } from '../sim/derived';
 import { defaultScenario } from '../sim/scenario';
 import { createWorld } from '../sim/setup';
 import type { SimEvent, World } from '../sim/state';
+import { modeOf } from '../sim/systems/panic';
 import { step } from '../sim/tick';
 import type { Context } from '../sim/context';
 import {
@@ -20,6 +21,7 @@ import {
   BUILDING_LIT,
   SIM_ARMED,
   SIM_FIGHTING,
+  SIM_FLEEING,
   SIM_FROZEN,
   SIM_INFECTED,
   SIM_LIVING,
@@ -135,7 +137,8 @@ function frameSnapshot(w: World): FrameSnapshot {
     simFlags[s.id] =
       (s.condition === 'infected' ? SIM_INFECTED : 0) |
       (s.stand === 'freeze' ? SIM_FROZEN : 0) |
-      (s.stand === 'fight' ? SIM_FIGHTING : 0) |
+      (s.stand === 'fight' || s.nextAttackAt > w.tick ? SIM_FIGHTING : 0) |
+      (s.avoidUntil !== null || (s.stand === null && modeOf(s, w.config) === 'flight') ? SIM_FLEEING : 0) |
       (shoots ? SIM_ARMED : 0) |
       (s.archetype === 'police' ? SIM_POLICE : 0);
     simHeading[s.id] = s.heading;

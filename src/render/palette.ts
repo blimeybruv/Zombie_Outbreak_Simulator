@@ -14,6 +14,7 @@ export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a t
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only
 export const INFECTED_PALE = '#e9cf9c';
+export const FIGHT = '#fff1b8'; // a bright warm outline: standing and fighting
 export const SHOUT = [235, 240, 245] as const; // a warning shouted: a ring the size of earshot
 export const FLASH = [255, 228, 170] as const; // a shot
 export const SELECTION = 'rgba(255, 255, 255, 0.75)';

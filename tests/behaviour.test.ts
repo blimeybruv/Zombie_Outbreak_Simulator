@@ -266,3 +266,22 @@ describe('police', () => {
     expect(world.sims.filter((s) => (world.config.spawn.policeProfessions as readonly string[]).includes(s.profession)).every((s) => s.archetype === 'police')).toBe(true);
   });
 });
+
+describe('shots fired', () => {
+  it('police drop what they are doing and run for gunfire they hear', () => {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const cop = walker(world, p.x, p.y);
+    cop.archetype = 'police';
+    cop.weapon = 'pistol';
+    cop.ammo = 12;
+    cop.awareAt = 0;
+    const sx = p.x + p.ux * 50, sy = p.y + p.uy * 50;
+    world.tick += 1;
+    world.stimuli.push({ x: sx, y: sy, kind: 'pistol', radius: 120, intensity: 1, createdAt: world.tick - 1, expiresAt: world.tick + 30 });
+    decide(world, ctx);
+    expect(cop.destinationKind).toBe('respond');
+    expect(cop.destination).toEqual({ x: sx, y: sy });
+    expect(cop.gait).toBe('run');
+  });
+});

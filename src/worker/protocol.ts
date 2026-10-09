@@ -37,9 +37,10 @@ export const SIM_PROMOTED = 2;
  */
 export const SIM_INFECTED = 1;
 export const SIM_FROZEN = 2; // cornered and keeping still
-export const SIM_FIGHTING = 4; // standing its ground
+export const SIM_FIGHTING = 4; // standing its ground, or has struck or fired within its weapon's cooldown: a bright outline
 export const SIM_ARMED = 8; // carries a firearm with ammunition: shoots back (drawn as a triangle)
 export const SIM_POLICE = 16; // drawn light blue
+export const SIM_FLEEING = 32; // panicked flight, or backing off: a long bright trail
 
 /** Zombie kinds on the map. */
 export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
