@@ -67,6 +67,7 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
     place = street === null ? 'open ground' : w.streets[street]!.name;
     district = districtAt(w, x, y);
   }
-  return { sim, name: s?.name ?? null, armed: s?.weapon != null, building, place, district, x, y };
+  const namedFor = s?.namedAt != null ? w.tick - s.namedAt : null;
+  return { sim, name: s?.name ?? null, namedFor, armed: s?.weapon != null, building, place, district, x, y };
 }
 

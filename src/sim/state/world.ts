@@ -76,7 +76,7 @@ export interface World {
   events: SimEvent[];
   /** Sims awaiting a repath, drained in id order under a per-tick cap. @range sim ids @unit — @readBy sim decisions */
   repathQueue: SimId[];
-  /** Promoted survivors in promotion order; append-only, never shrinks. @range 0–24 sim ids @unit — @readBy roster UI, ticker, salience */
+  /** Promoted survivors in promotion order; append-only, never shrinks. @range 0–promotion.rosterCap sim ids @unit — @readBy roster UI, ticker, salience */
   roster: SimId[];
   /** @range see Counters @unit people @readBy invariant, promotion trigger, stalemate, end stats */
   counters: Counters;
@@ -91,6 +91,6 @@ export interface World {
   lastConversionAt: Tick | null;
   /** When the provisional roster was named; null before. @range tick | null @unit tick @readBy promotion, display phase */
   promotedAt: Tick | null;
-  /** When the roster was re-scored and topped up; null before. @range tick | null @unit tick @readBy promotion */
+  /** When the roster was first re-scored and topped up; null before. Later top-ups follow on a fixed cadence from it. @range tick | null @unit tick @readBy promotion */
   rescoredAt: Tick | null;
 }

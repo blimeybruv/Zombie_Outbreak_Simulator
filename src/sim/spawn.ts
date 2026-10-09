@@ -80,6 +80,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     caution: nextFloat(rng),
     condition: 'healthy',
     name: null,
+    namedAt: null,
     x: spec.x,
     y: spec.y,
     heading: nextFloat(rng) * Math.PI * 2,

@@ -3,11 +3,13 @@
 //
 //   provisional  living below half (or a fallback tick): the twelve most unusual
 //                histories are named and join the roster.
-//   final        living below 30%: re-score; anyone now in the top twelve who has no
-//                name is named and joins the roster.
+//   final        living below 30%: re-score, and name the most unusual of the unnamed
+//                until twelve of the named are alive again; then the same top-up every
+//                `topUpEvery` ticks as the pool thins.
 //
 // Nobody is ever un-named or removed: the roster is append-only, so someone the
-// viewer has been following stays followable. Scoring rewards unusual histories,
+// viewer has been following stays followable, and the dead stay as a record of who
+// was lost while the top-ups keep a current cast. Scoring rewards unusual histories,
 // not high ones — the sum of each counter's distance from the population mean in
 // standard deviations — so the interesting survivors select themselves.
 //
@@ -105,14 +107,37 @@ function nameFor(world: World): string {
   return `Survivor ${world.roster.length + 1}`;
 }
 
+function name(world: World, sim: Sim): void {
+  sim.name = nameFor(world);
+  sim.namedAt = world.tick;
+  world.roster.push(sim.id);
+}
+
 /** Names whoever in the current top `count` is not yet named. */
 function promoteTop(world: World): SimId[] {
   const added: SimId[] = [];
   for (const sim of rankByUnusualness(world).slice(0, world.config.promotion.count)) {
-    if (sim.name !== null) continue;
-    sim.name = nameFor(world);
-    world.roster.push(sim.id);
+    if (sim.name !== null || world.roster.length >= world.config.promotion.rosterCap) continue;
+    name(world, sim);
     added.push(sim.id);
+  }
+  return added;
+}
+
+/** Names the most unusual of the unnamed until `count` of the named are alive (as far as anyone can see). */
+function topUp(world: World): SimId[] {
+  const { count, rosterCap } = world.config.promotion;
+  let living = world.roster.filter((id) => {
+    const c = world.sims[id]!.condition;
+    return c === 'healthy' || c === 'infected';
+  }).length;
+  const added: SimId[] = [];
+  for (const sim of rankByUnusualness(world)) {
+    if (living >= count || world.roster.length >= rosterCap) break;
+    if (sim.name !== null) continue;
+    name(world, sim);
+    added.push(sim.id);
+    living++;
   }
   return added;
 }
@@ -128,8 +153,10 @@ export function updatePromotion(world: World): void {
     }
   } else if (world.rescoredAt === null) {
     if (living < final.livingFraction || tick >= final.fallbackTick) {
-      promoteTop(world);
+      topUp(world);
       world.rescoredAt = tick;
     }
+  } else if ((tick - world.rescoredAt) % final.topUpEvery === 0) {
+    topUp(world);
   }
 }

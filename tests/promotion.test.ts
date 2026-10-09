@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { config as baseConfig, type Config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { SCORED, rankByUnusualness, scoreLiving } from '../src/sim/systems/promotion';
+import { SCORED, rankByUnusualness, scoreLiving, updatePromotion } from '../src/sim/systems/promotion';
 import { step } from '../src/sim/tick';
 
 // Early fallbacks so both stages fire within a short run.
@@ -37,19 +37,39 @@ describe('promotion', () => {
     expect(world.promotedAt).toBe(400);
   });
 
-  it('only adds at the re-score: nobody is un-named and earlier names never change', () => {
+  const livingNamed = (w: typeof world, ids: number[]) =>
+    ids.filter((id) => w.sims[id]!.condition === 'healthy' || w.sims[id]!.condition === 'infected').length;
+
+  it('the re-score only adds, and tops the living cast back up to count', () => {
     const before = at(899);
     const after = at(900);
     expect(after.roster.slice(0, before.roster.length)).toEqual(before.roster);
     expect(after.names.slice(0, before.names.length)).toEqual(before.names);
-    expect(after.roster.length).toBeGreaterThanOrEqual(before.roster.length);
-    expect(after.roster.length).toBeLessThanOrEqual(2 * config.promotion.count);
     expect(world.rescoredAt).toBe(900);
+    expect(livingNamed(world, after.roster)).toBeGreaterThanOrEqual(config.promotion.count);
   });
 
-  it('does nothing after both stages', () => {
-    expect(at(1000).roster).toEqual(at(900).roster);
+  it('records when each was named', () => {
+    for (const id of at(400).roster) expect(world.sims[id]!.namedAt).toBe(400);
+    for (const id of world.roster) expect(world.sims[id]!.namedAt).not.toBeNull();
   });
+
+  it('keeps topping up as the named die, on its cadence, never un-naming anyone', () => {
+    const { world: w } = runTo(1000);
+    const roster = [...w.roster];
+    // Two of the living named die (ground truth only; this test does not step the run).
+    const lost = roster.filter((id) => w.sims[id]!.condition === 'healthy').slice(0, 2);
+    for (const id of lost) w.sims[id]!.condition = 'dead';
+    const living = livingNamed(w, roster);
+    w.tick = w.rescoredAt! + config.promotion.final.topUpEvery - 1;
+    updatePromotion(w);
+    expect(w.roster).toEqual(roster); // off-cadence: nothing
+    w.tick++;
+    updatePromotion(w);
+    expect(w.roster.slice(0, roster.length)).toEqual(roster);
+    expect(livingNamed(w, w.roster)).toBe(Math.max(living, config.promotion.count));
+    for (const id of lost) expect(w.sims[id]!.name).not.toBeNull();
+  }, 60_000);
 
   it('gives every promoted survivor a unique name', () => {
     const names = world.roster.map((id) => world.sims[id]!.name);

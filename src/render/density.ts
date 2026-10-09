@@ -36,7 +36,8 @@ export class DensityField {
     }
   }
 
-  draw(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+  /** `strength` scales the whole field: 1 at far zoom, fainter as an underlay at mid zoom. */
+  draw(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, strength = 1): void {
     this.bin(this.living, frame.simXY, frame.simKind, SIM_HIDDEN);
     this.bin(this.dead, frame.zombieXY, frame.zombieKind, ZOMBIE_HIDDEN);
     const px = this.pixels.data;
@@ -56,7 +57,9 @@ export class DensityField {
     cam.apply(g, dpr);
     g.imageSmoothingEnabled = true;
     g.filter = `blur(${Math.max(2, CELL * cam.scale * dpr * 0.45)}px)`;
+    g.globalAlpha = strength;
     g.drawImage(this.image, 0, 0, this.cols * CELL, this.cols * CELL);
+    g.globalAlpha = 1;
     g.filter = 'none';
   }
 }

@@ -6,7 +6,7 @@
 import type { SimEvent } from '../sim/state';
 import type { EventNote } from '../worker/protocol';
 import { line } from './copy';
-import { BASE, MAJOR, Salience } from './salience';
+import { dropsTo1x, Salience } from './salience';
 
 const SHOWN = 8;
 const LINE_LIFE_MS = 30_000;
@@ -40,7 +40,7 @@ export class Ticker {
       const text = line(e, n);
       if (text === null) continue;
       this.show(text, n, wallMs);
-      if (BASE[kind] >= MAJOR) this.options.onMajor();
+      if (dropsTo1x(kind, n)) this.options.onMajor();
     }
     this.expire(wallMs);
   }

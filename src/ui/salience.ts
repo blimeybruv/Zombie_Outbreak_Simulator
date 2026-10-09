@@ -10,6 +10,7 @@
 // The bar scales with speed, so 8× surfaces only the large events. A repeat of
 // the same kind at the same building within the rarity window is not news.
 
+import { config } from '../config';
 import type { SimEvent } from '../sim/state';
 import type { EventNote } from '../worker/protocol';
 
@@ -32,8 +33,19 @@ export type Kind = keyof typeof BASE;
 
 const RARITY_WINDOW = 600; // ticks
 const THRESHOLD_AT_1X = 10;
-/** Events at or above this base weight pull playback back to 1×. */
+/** Events at or above this base weight may pull playback back to 1× (see `dropsTo1x`). */
 export const MAJOR = 80;
+
+/**
+ * Whether an event that cleared the bar should drop playback to 1×: a cascade
+ * always; a named survivor's death or conversion only if the viewer has had time to
+ * follow them (`playback.dropTo1xNamedFor`).
+ */
+export function dropsTo1x(kind: Kind, n: EventNote): boolean {
+  if (BASE[kind] < MAJOR) return false;
+  if (kind === 'promotedLoss') return n.namedFor !== null && n.namedFor >= config.playback.dropTo1xNamedFor;
+  return true;
+}
 
 function kindOf(e: SimEvent, n: EventNote): Kind | null {
   if ((e.type === 'simDied' || e.type === 'simTurned') && n.name !== null) return 'promotedLoss';

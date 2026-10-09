@@ -13,7 +13,7 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { step } from '../src/sim/tick';
 import { line } from '../src/ui/copy';
-import { BASE, MAJOR, Salience } from '../src/ui/salience';
+import { BASE, dropsTo1x, MAJOR, Salience } from '../src/ui/salience';
 import { noteFor } from '../src/worker/notes';
 
 const args = process.argv.slice(2);
@@ -28,7 +28,8 @@ const { world, ctx } = createWorld({ ...defaultScenario, runSeed: opt('seed', 1)
 const speeds = config.playback.speeds.filter((s) => s >= 1);
 const filters = speeds.map(() => new Salience());
 const linesPerTick = speeds.map(() => new Uint16Array(ticks + 1));
-let majors = 0;
+const majors = new Map<string, number[]>(); // at 8×: kind → how long the subject had been named
+let drops = 0;
 
 while (world.tick < ticks) {
   step(world, ctx, { checkInvariant: false });
@@ -39,7 +40,8 @@ while (world.tick < ticks) {
       const kind = filters[i]!.pass(e, n, s, true);
       if (kind === null) return;
       linesPerTick[i]![world.tick]!++;
-      if (s === 8 && BASE[kind] >= MAJOR) majors++;
+      if (s === 8 && BASE[kind] >= MAJOR) majors.set(kind, [...(majors.get(kind) ?? []), n.namedFor ?? -1]);
+      if (s === 8 && dropsTo1x(kind, n)) drops++;
     });
   }
 }
@@ -57,4 +59,8 @@ speeds.forEach((s, i) => {
   const over = seconds.filter((n) => n >= GATE).length;
   console.log(`  ${String(s).padStart(2)}×: ${(total / seconds.length).toFixed(2)} lines/s mean, busiest second ${Math.max(...seconds)}, seconds at ${GATE}+: ${over} of ${seconds.length}${s === 1 ? (Math.max(...seconds) < GATE ? '  PASS' : '  FAIL') : ''}`);
 });
-console.log(`  events that would drop 8× to 1×: ${majors}`);
+for (const [kind, named] of majors) {
+  const sorted = [...named].sort((a, b) => a - b);
+  console.log(`  ${kind} at 8× (major): ${named.length}; named for (ticks): ${sorted.join(' ')}`);
+}
+console.log(`  drops to 1× in a run at 8×: ${drops} (one per ${(ticks / 80 / Math.max(1, drops)).toFixed(0)} s of an 8× run)`);

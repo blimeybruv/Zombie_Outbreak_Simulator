@@ -45,6 +45,8 @@ export interface EventNote {
   sim: number | null;
   /** The promoted survivor's name, or null for anyone anonymous. */
   name: string | null;
+  /** How long the subject had been named when it happened, in ticks; null if anonymous. */
+  namedFor: number | null;
   armed: boolean;
   /** The building concerned, if any. */
   building: number | null;

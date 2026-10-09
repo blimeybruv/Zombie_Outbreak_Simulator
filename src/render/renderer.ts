@@ -16,6 +16,11 @@ import { DensityField } from './density';
 import * as P from './palette';
 import { Trails } from './trails';
 
+// Mid zoom sits between reading the city as density and following people: a faint
+// density underlay so mass and flow read, short trails and names so individuals
+// can be picked out and followed.
+const MID_DENSITY = 0.5; // strength of the far-zoom density field under the dots
+const MID_TRAIL = 5; // samples of trail (~0.8 s) at mid zoom; near zoom draws all
 const PULSE_MS = 1400; // a conversion registers as an event, not a silent colour swap
 const PULSE_RADIUS = 7; // m
 
@@ -166,13 +171,14 @@ export class Renderer {
       this.density.draw(g, frame, cam, dpr);
       return;
     }
+    if (cam.mode === 'mid') this.density.draw(g, frame, cam, dpr, MID_DENSITY);
     this.drawOccupancy(g, frame, cam, dpr, wallMs);
     this.simTrails.sample(frame.simXY, frame.simKind, frame.tick, wallMs);
     this.zombieTrails.sample(frame.zombieXY, frame.zombieKind, frame.tick, wallMs);
-    if (cam.mode === 'near') {
-      this.zombieTrails.draw(g, cam, dpr, P.ZOMBIE_RGB, 1.2);
-      this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, 1.2);
-    }
+    const near = cam.mode === 'near';
+    // Trail width is in screen pixels: thin enough at mid zoom not to smear the dots.
+    this.zombieTrails.draw(g, cam, dpr, P.ZOMBIE_RGB, near ? 1.2 : 1, near ? undefined : MID_TRAIL);
+    this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.2 : 1, near ? undefined : MID_TRAIL);
     this.drawAgents(g, frame, cam, dpr);
     this.drawPulses(g, cam, dpr, wallMs);
   }
@@ -229,7 +235,7 @@ export class Renderer {
 
   private drawAgents(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
     g.setTransform(1, 0, 0, 1, 0, 0);
-    const size = Math.max(2, Math.min(6, cam.scale * 1.2)) * dpr;
+    const size = Math.max(2.5, Math.min(6, cam.scale * 1.2)) * dpr;
     const half = size / 2;
     const w = this.canvas.width, h = this.canvas.height;
     const sx = (x: number) => cam.toScreenX(x) * dpr - half;
@@ -259,9 +265,8 @@ export class Renderer {
       if (k[i] !== SIM_PROMOTED) continue;
       g.fillRect(sx(xy[i * 2]!) - 1, sy(xy[i * 2 + 1]!) - 1, size + 2, size + 2);
     }
-    // Names on promoted survivors, at near zoom only.
-    if (cam.mode !== 'near') return;
-    g.font = `${11 * dpr}px ui-monospace, Menlo, Consolas, monospace`;
+    // Names on promoted survivors, so they can be picked out and followed (not at far zoom).
+    g.font = `${(cam.mode === 'near' ? 11 : 10) * dpr}px ui-monospace, Menlo, Consolas, monospace`;
     g.fillStyle = P.LABEL;
     g.textBaseline = 'middle';
     for (const r of frame.roster) {

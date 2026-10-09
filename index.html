@@ -22,7 +22,10 @@
       #roster .title { color: #6c757f; padding: 0 6px 4px; }
       #roster button { background: none; border: 0; color: #c9d1d9; text-align: left; font: inherit; padding: 1px 6px; cursor: pointer; border-radius: 3px; }
       #roster button:hover, #roster button.on { background: #1a1f26; color: #fff; }
-      #roster button.gone { color: #5b636c; text-decoration: line-through; }
+      #roster { overflow: visible; }
+      #roster .lost { position: relative; color: #5b636c; padding: 4px 6px 0; cursor: default; }
+      #roster .lost-names { display: none; position: absolute; left: 100%; top: 0; margin-left: 6px; background: rgba(6, 7, 10, 0.92); padding: 6px 8px; border-radius: 4px; color: #6c757f; text-decoration: line-through; white-space: nowrap; max-height: 60vh; overflow-y: auto; }
+      #roster .lost:hover .lost-names { display: block; }
       #inspector { position: fixed; right: 12px; bottom: 12px; width: 300px; background: rgba(6, 7, 10, 0.82); padding: 8px 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 3px; }
       #inspector:empty { display: none; }
       #inspector .head { color: #eef3f7; }

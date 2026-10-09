@@ -46,14 +46,15 @@ export class Trails {
     this.seen = seen;
   }
 
-  draw(g: CanvasRenderingContext2D, cam: Camera, dpr: number, rgb: readonly [number, number, number], width: number): void {
+  /** Draws up to `maxAge` samples of history (the full ring by default). */
+  draw(g: CanvasRenderingContext2D, cam: Camera, dpr: number, rgb: readonly [number, number, number], width: number, maxAge = SAMPLES): void {
     if (this.filled < 2) return;
     const n = this.seen.length / SAMPLES;
     const view = { a: cam.toWorld(0, 0), b: cam.toWorld(cam.width, cam.height) };
     cam.apply(g, dpr);
     g.lineWidth = width / (cam.scale * dpr);
     g.lineCap = 'round';
-    for (let age = 1; age < this.filled; age++) {
+    for (let age = 1; age < Math.min(this.filled, maxAge); age++) {
       const newer = (this.head - age + 1 + SAMPLES) % SAMPLES;
       const older = (this.head - age + SAMPLES) % SAMPLES;
       const path = new Path2D();

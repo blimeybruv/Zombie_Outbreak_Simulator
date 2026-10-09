@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SimEvent } from '../src/sim/state';
 import { line } from '../src/ui/copy';
-import { Salience } from '../src/ui/salience';
+import { dropsTo1x, Salience } from '../src/ui/salience';
 import type { EventNote } from '../src/worker/protocol';
 
 const note = (over: Partial<EventNote> = {}): EventNote => ({
   sim: 1,
   name: null,
+  namedFor: null,
   armed: false,
   building: null,
   place: 'Elm Street',
@@ -48,6 +49,15 @@ describe('salience', () => {
     expect(s.pass(breach(1, 5), note({ building: 5 }), 1, true)).toBe('buildingBreached');
     expect(s.pass(breach(2000, 6), note({ building: 6 }), 1, true)).toBe('buildingBreached');
     expect(s.pass(breach(2010, 6), note({ building: 6 }), 1, true)).toBeNull();
+  });
+});
+
+describe('dropping to 1×', () => {
+  it('only for a named survivor the viewer has had time to follow, or a cascade', () => {
+    expect(dropsTo1x('promotedLoss', note({ name: 'Ada Kemp', namedFor: 60 }))).toBe(false);
+    expect(dropsTo1x('promotedLoss', note({ name: 'Ada Kemp', namedFor: 5000 }))).toBe(true);
+    expect(dropsTo1x('cascadeCrossed', note())).toBe(true);
+    expect(dropsTo1x('buildingBreached', note())).toBe(false);
   });
 });
 

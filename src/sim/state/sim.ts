@@ -133,6 +133,8 @@ export interface Sim {
   condition: Condition;
   /** Assigned at promotion; null until then. @range wordlist | null @unit — @readBy roster, ticker, labels */
   name: string | null;
+  /** When the name was given; null until then. @range tick | null @unit tick @readBy ticker (whether a death drops playback to 1×), roster */
+  namedAt: Tick | null;
 
   // Physical
 

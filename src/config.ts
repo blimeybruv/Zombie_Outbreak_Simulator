@@ -100,6 +100,10 @@ export const config = {
   playback: {
     ticksPerSecondAt1x: 10,
     speeds: [0.25, 1, 2, 4, 8],
+    // A named survivor's death or conversion drops playback to 1× only if they had been
+    // named this long: someone the viewer has had time to follow, not a name from a
+    // minute ago. (With every death dropping it, 8× was interrupted every ~15 seconds.)
+    dropTo1xNamedFor: 3600, // ticks
   },
 
   spawn: {
@@ -426,13 +430,16 @@ export const config = {
 
   promotion: {
     // Two stages. A provisional roster when half the population is gone, so the viewer
-    // has names for most of the run; a re-score once histories have had time to diverge,
-    // which adds anyone who has since become remarkable. Nobody is ever un-named.
-    // Each stage fires when unturned outdoors + indoors drops below its fraction of the
-    // population, or at its fallback tick, whichever comes first.
+    // has names for most of the run. Then a re-score once histories have had time to
+    // diverge, which tops the living cast back up to `count` with whoever is now most
+    // remarkable — and keeps doing so every `topUpEvery` ticks as the pool thins, so the
+    // roster always holds a current cast as well as a record of the lost. Nobody is ever
+    // un-named. Each stage fires when unturned outdoors + indoors drops below its
+    // fraction of the population, or at its fallback tick, whichever comes first.
     provisional: { livingFraction: 0.5, fallbackTick: 10000 },
-    final: { livingFraction: 0.3, fallbackTick: 18000 },
-    count: 12, // survivors named at each stage
+    final: { livingFraction: 0.3, fallbackTick: 18000, topUpEvery: 1800 },
+    count: 12, // living named survivors the roster aims to hold
+    rosterCap: 96, // names in all; past this nobody new is named (nobody is ever un-named)
     // 'totals' scores accumulated counters as they stand; 'rates' divides the ones that
     // accumulate with exposure (conversions witnessed, near misses, kills, streets,
     // materials) by time on record, so a short eventful life can outscore a long quiet one.
