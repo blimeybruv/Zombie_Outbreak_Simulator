@@ -1,9 +1,10 @@
 // Serves the viewer, opens it in headless Chromium and screenshots it: a way to see
 // the renderer from a container with no display.
 //
-//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click]
+//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click] [--at x,y]
 //
-// Shots are taken at far, mid and near zoom (near centred on the busiest spot).
+// Shots are taken at far, mid and near zoom (near centred on the busiest spot, or
+// on --at, a world point in metres).
 // --click then clicks the middle of the near view and takes a fourth shot, with the
 // inspector open on whatever was there.
 
@@ -22,6 +23,7 @@ const seconds = Number(opt('seconds', '5'));
 const out = opt('out', 'view-shots');
 const runSeed = opt('run', '1');
 const mapSeed = opt('map', '1');
+const at = args.includes('--at') ? opt('at', '0,0').split(',').map(Number) : null;
 /** What the page exposes for scripting (src/main.ts). */
 interface ViewHook {
   stats: { frames: number; drawMs: number; since: number; tick: number };
@@ -54,18 +56,19 @@ try {
     }, speed);
     await page.waitForTimeout(seconds * 1000);
   }
-  type Shot = { name: string; scale: number; busiest?: boolean };
+  type Shot = { name: string; scale: number; busiest?: boolean; at?: number[] | null };
   const shots: Shot[] = [
     { name: 'far', scale: 0.26 },
     { name: 'mid', scale: 0.55 },
-    { name: 'near', scale: 2.4, busiest: true },
+    { name: 'near', scale: 2.4, busiest: at === null, at },
   ];
   for (const shot of shots) {
-    await page.evaluate(({ scale, busiest }) => {
+    await page.evaluate(({ scale, busiest, at }) => {
       const v = (window as unknown as Win).__view!;
       v.camera.scale = scale;
       v.camera.version++;
-      if (!busiest) v.camera.centreOn(1600, 1600);
+      if (at) v.camera.centreOn(at[0]!, at[1]!);
+      else if (!busiest) v.camera.centreOn(1600, 1600);
     }, shot);
     if (shot.busiest) {
       // Centre on the densest cluster of agents in the current frame.

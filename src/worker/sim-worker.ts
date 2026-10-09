@@ -66,10 +66,12 @@ function collect(w: World, c: Context): void {
 function mapSnapshot(w: World): MapSnapshot {
   const streets = new Float32Array(w.streets.length * 5);
   const streetLit = new Uint8Array(w.streets.length);
+  const streetBridge = new Uint8Array(w.streets.length);
   w.streets.forEach((s, i) => {
     const a = w.nodes[s.a]!, b = w.nodes[s.b]!;
     streets.set([a.x, a.y, b.x, b.y, s.width], i * 5);
     streetLit[i] = s.lit ? 1 : 0;
+    streetBridge[i] = s.terrain === 'bridge' ? 1 : 0;
   });
   const outlines = new Float32Array(w.buildings.length * 8);
   w.buildings.forEach((b, i) => b.outline.forEach((p, j) => outlines.set([p.x, p.y], i * 8 + j * 2)));
@@ -77,6 +79,7 @@ function mapSnapshot(w: World): MapSnapshot {
     size: w.config.map.size,
     streets,
     streetLit,
+    streetBridge,
     outlines,
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),
@@ -190,7 +193,7 @@ scope.onmessage = (e) => {
       }
     }
     const map = mapSnapshot(world);
-    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.outlines.buffer]);
+    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer]);
   } else if (msg.type === 'rate') {
     rate = msg.ticksPerSecond;
     anchor = performance.now();

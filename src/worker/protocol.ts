@@ -13,6 +13,8 @@ export interface MapSnapshot {
   streets: Float32Array;
   /** Per street: 1 if lit. */
   streetLit: Uint8Array;
+  /** Per street: 1 if it is a bridge deck over the river. */
+  streetBridge: Uint8Array;
   /** Per building: the four outline corners, x0 y0 x1 y1 x2 y2 x3 y3. */
   outlines: Float32Array;
   river: { centreline: { x: number; y: number }[]; width: number };

@@ -40,6 +40,8 @@ export class Renderer {
   private staticKey = '';
   private readonly outlinePath: Path2D;
   private readonly riverPath: Path2D;
+  private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, stroked in background colour
+  private readonly bridgeRails: Path2D;
   private readonly litPath: Path2D;
   private readonly density: DensityField;
   private readonly corpses: CorpseLayer;
@@ -75,6 +77,42 @@ export class Renderer {
       this.litPath.moveTo(map.streets[s]!, map.streets[s + 1]!);
       this.litPath.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
     }
+    // Streets are read from the gaps between buildings, but a river has no buildings to
+    // frame a crossing, so bridges are drawn: a deck that cuts the water, and a rail
+    // either side over the stretch that is actually water.
+    this.bridgeRails = new Path2D();
+    const line = map.river.centreline;
+    const wetBy = map.river.width / 2 + 2;
+    const wet = (x: number, y: number) => {
+      for (let j = 0; j + 1 < line.length; j++) if (pointSegment(x, y, line[j]!, line[j + 1]!) <= wetBy) return true;
+      return false;
+    };
+    for (let i = 0; i < map.streetBridge.length; i++) {
+      if (!map.streetBridge[i]) continue;
+      const s = i * 5;
+      const ax = map.streets[s]!, ay = map.streets[s + 1]!, bx = map.streets[s + 2]!, by = map.streets[s + 3]!;
+      const width = map.streets[s + 4]!;
+      const len = Math.hypot(bx - ax, by - ay) || 1;
+      const steps = Math.ceil(len / 2);
+      let from = -1, to = -1;
+      for (let k = 0; k <= steps; k++) {
+        if (!wet(ax + ((bx - ax) * k) / steps, ay + ((by - ay) * k) / steps)) continue;
+        if (from < 0) from = k;
+        to = k;
+      }
+      if (from < 0) continue;
+      const t0 = from / steps, t1 = to / steps;
+      const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0, x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
+      let deck = this.bridgeDecks.get(width);
+      if (!deck) this.bridgeDecks.set(width, (deck = new Path2D()));
+      deck.moveTo(x0, y0);
+      deck.lineTo(x1, y1);
+      const nx = (-(by - ay) / len) * (width / 2), ny = ((bx - ax) / len) * (width / 2);
+      for (const side of [1, -1]) {
+        this.bridgeRails.moveTo(x0 + nx * side, y0 + ny * side);
+        this.bridgeRails.lineTo(x1 + nx * side, y1 + ny * side);
+      }
+    }
     this.density = new DensityField(map.size);
     this.corpses = new CorpseLayer(map.size);
   }
@@ -105,6 +143,13 @@ export class Renderer {
     g.strokeStyle = P.RIVER;
     g.lineWidth = this.map.river.width;
     g.stroke(this.riverPath);
+    g.strokeStyle = P.BACKGROUND;
+    g.lineCap = 'butt';
+    for (const [width, deck] of this.bridgeDecks) {
+      g.lineWidth = width;
+      g.stroke(deck);
+    }
+    g.lineCap = 'round';
     if (night) {
       // Lit streets are a night-time thing; by day they would only be clutter.
       g.strokeStyle = P.STREET_LIGHT;
@@ -116,6 +161,7 @@ export class Renderer {
     g.strokeStyle = P.BUILDING_OUTLINE;
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
+    g.stroke(this.bridgeRails);
     g.globalAlpha = 1;
     return c;
   }
@@ -279,4 +325,11 @@ export class Renderer {
     const a = cam.toWorld(0, 0), b = cam.toWorld(cam.width, cam.height);
     return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
   }
+}
+
+/** Distance from a point to a segment. */
+function pointSegment(px: number, py: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - a.x - t * dx, py - a.y - t * dy);
 }
