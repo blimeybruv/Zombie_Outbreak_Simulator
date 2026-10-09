@@ -389,7 +389,10 @@ export const config = {
   },
 
   infection: {
-    turnDelay: [20, 40], // ticks from bite to conversion
+    // Ticks from bite to conversion: long enough for a bitten survivor to get home, be let
+    // in, and turn behind the barricade — the admission nobody saw. (Was 20–40: most
+    // turned before they reached a door.)
+    turnDelay: [300, 1200],
   },
 
   startingKit: {
@@ -425,7 +428,7 @@ export const config = {
       barricadeTicks: 60,
       reinforcedAt: 0.3,
       fortifiedAt: 0.8,
-      minCrowd: { open: 1, barricaded: 2, reinforced: 5, fortified: 15 },
+      minCrowd: { open: 1, barricaded: 2, reinforced: 4, fortified: 15 },
       barricadeExitTicks: 10,
       // Integrity is what a building can be made into, not a multiplier on the odds: at
       // or above these it can be reinforced, fortified. A glass-fronted office stops at

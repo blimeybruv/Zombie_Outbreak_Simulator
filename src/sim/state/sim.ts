@@ -257,7 +257,7 @@ export interface Sim {
 
   // Infection
 
-  /** Conversion tick, set on a bite to tick + 20–40; null when not infected. @range tick | null @unit tick @readBy conversion */
+  /** Conversion tick, set on a bite to tick + infection.turnDelay (300–1,200); null when not infected. @range tick | null @unit tick @readBy conversion */
   turnsAt: Tick | null;
   /**
    * Made once, by the sim itself, at its first decision after the bite. Its own

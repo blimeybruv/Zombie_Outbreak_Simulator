@@ -362,7 +362,7 @@ A living person. Zombies are a separate entity, not a Sim with a flag — the fi
 | Field | Type | Range / unit | Meaning |
 | --- | --- | --- | --- |
 | `infected` | `bool` | — | Set on a successful bite |
-| `turnsAt` | `int?` | Tick | Conversion tick; default delay 20–40 ticks |
+| `turnsAt` | `int?` | Tick | Conversion tick; default delay 300–1,200 ticks (was 20–40) |
 | `infectionWitnessed` | `bool` | — | Whether anyone saw the bite. Drives whether shelters admit them |
 
 ### Shelter
@@ -1009,7 +1009,7 @@ This also gives the caution experiment a second axis. Survival by caution band n
 | Stage | Rule |
 | --- | --- |
 | Bite | A zombie attack succeeds, or a melee miss rolls infection |
-| Flagging | `infected` set, `turnsAt` = tick + 20–40 (seeded) |
+| Flagging | `infected` set, `turnsAt` = tick + 300–1,200 (seeded; was 20–40) |
 | Witness | Every other sim with the bite within perception radius and line of sight adds the bitten sim's id to its own `knownInfected` |
 | Symptomatic | Sim behaves normally, counted under `turned.symptomatic`, still shown as living |
 | Conversion | At `turnsAt`, the sim is removed and a Zombie spawned with `wasSim` set |
