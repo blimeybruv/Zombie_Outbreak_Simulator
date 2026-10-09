@@ -5,7 +5,16 @@
 import { Pathfinder } from './pathfinding';
 import { MapIndex } from './runtime';
 import { SpatialHash } from './spatial';
-import type { BuildingId, SimEvent, World } from './state';
+import type { BuildingId, SimEvent, SimId, StreetId, World } from './state';
+
+/** A shouted warning: a survivor who has just sighted a zombie tells those nearby which street it is on. */
+export interface Warning {
+  from: SimId;
+  x: number;
+  y: number;
+  street: StreetId;
+  danger: number;
+}
 
 export interface Context {
   map: MapIndex;
@@ -45,6 +54,8 @@ export interface Context {
   ids: number[];
   ids2: number[];
   buildingIds: BuildingId[];
+  /** Warnings raised during this tick's decisions, heard in the encounters step. */
+  warnings: Warning[];
 }
 
 export function createContext(world: World): Context {
@@ -76,6 +87,7 @@ export function createContext(world: World): Context {
     ids: [],
     ids2: [],
     buildingIds: [],
+    warnings: [],
   };
 }
 

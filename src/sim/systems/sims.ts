@@ -60,7 +60,11 @@ function observe(world: World, ctx: Context, sim: Sim): void {
   }
 }
 
-function pickRoutineStop(world: World, sim: Sim): Building | null {
+/**
+ * The next routine stop. `ahead`, if given, is the heading the sim is fleeing along:
+ * stops behind it — back toward what it fled — weigh `scaredBehindWeight`.
+ */
+function pickRoutineStop(world: World, sim: Sim, ahead: number | null = null): Building | null {
   const { config, buildings, rng } = world;
   const bc = config.behaviour;
   let total = 0;
@@ -71,7 +75,8 @@ function pickRoutineStop(world: World, sim: Sim): Building | null {
     const professions = config.tagProfessions[functionalProfile(b.tag, config)] as readonly string[];
     const match = professions.includes(sim.profession) ? config.routine.professionStopWeight : 1;
     const e = b.entrances[0]!;
-    const w = match / (1 + Math.hypot(e.x - sim.x, e.y - sim.y) / bc.routineDistanceScale);
+    const behind = ahead !== null && Math.cos(ahead) * (e.x - sim.x) + Math.sin(ahead) * (e.y - sim.y) < 0;
+    const w = (match * (behind ? bc.scaredBehindWeight : 1)) / (1 + Math.hypot(e.x - sim.x, e.y - sim.y) / bc.routineDistanceScale);
     picks.push({ b, w });
     total += w;
   }
@@ -81,6 +86,39 @@ function pickRoutineStop(world: World, sim: Sim): Building | null {
     if (r < 0) return p.b;
   }
   return picks[picks.length - 1]?.b ?? null;
+}
+
+/**
+ * A fresh sighting: the sim writes the street the zombie is on into memory as
+ * dangerous — an observation, like any other — shouts a warning about it, and, if it is going somewhere
+ * other than a routine stop, plans its way there again at once with that in mind.
+ * Danger seen directly ahead does not wait its turn in the repath queue. Without
+ * this the route still ran through the zombie, and the sim walked back into it as
+ * soon as it stopped avoiding: flee, resume, approach, flee.
+ */
+function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
+  const { config, tick, zombies } = world;
+  const zid = ctx.nearestZombie[sim.id]!;
+  if (zid < 0) return;
+  const z = zombies[zid]!;
+  const street = ctx.map.nearestStreet(z.x, z.y, config.map.offStreetLookup);
+  if (street !== null) {
+    const danger = ctx.threat[sim.id]!;
+    // ...and shouts it to whoever is near (heard in the encounters step).
+    ctx.warnings.push({ from: sim.id, x: sim.x, y: sim.y, street, danger });
+    const belief = sim.streetMemory.get(street);
+    if (belief) {
+      belief.danger = danger;
+      belief.observedAt = tick;
+    } else {
+      remember(sim.streetMemory, street, { danger, observedAt: tick, visited: false }, config.memory.streetCap);
+    }
+  }
+  if (sim.destination !== null && sim.destinationKind !== 'routine' && mode === 'informed') {
+    sim.route = ctx.paths.route(sim, sim.destination.x, sim.destination.y, true) ?? [];
+    sim.routeIndex = 0;
+    sim.nextRepathAt = tick + config.pathfinding.repathCooldown;
+  }
 }
 
 function steerToward(sim: Sim, x: number, y: number): void {
@@ -203,12 +241,16 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   if (threat > 0 || (sim.avoidUntil !== null && world.tick < sim.avoidUntil)) {
     sim.gait = sim.archetype === 'civilian' || sim.archetype === 'reckless' ? 'run' : 'sneak';
     if (threat > 0) {
+      if (sim.avoidUntil === null) noteThreat(world, ctx, sim, mode); // a new sighting, not one already being avoided
       sim.avoidUntil = world.tick + config.behaviour.avoidHold;
       steerAway(ctx, sim);
     } // else: out of sight for now, keep going the way it was going
     return;
   }
+  // Just stopped avoiding: a walker on a routine does not go back the way it fled.
+  const scared = sim.avoidUntil !== null;
   sim.avoidUntil = null;
+  if (scared && sim.destinationKind === 'routine') clearDestination(sim);
 
   if (sim.destinationKind === 'scavenge' && sim.destinationBuilding !== null) {
     sim.gait = mode === 'direct' ? 'run' : 'walk';
@@ -218,7 +260,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 
   // Routine.
   if (sim.destinationBuilding === null || sim.destinationKind !== 'routine') {
-    const b = pickRoutineStop(world, sim);
+    const b = pickRoutineStop(world, sim, scared ? sim.heading : null);
     if (b === null) {
       sim.gait = 'still';
       return;
