@@ -9,6 +9,9 @@ import { merge, resolveEncounters } from '../src/sim/systems/encounters';
 import { computePerception, rebuildHashes } from '../src/sim/systems/perception';
 import { simDecisions } from '../src/sim/systems/sims';
 import { setDestination } from '../src/sim/systems/common';
+import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
+import { chooseShelter } from '../src/sim/systems/shelter';
+import { zombieDecisions } from '../src/sim/systems/zombies';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -161,5 +164,89 @@ describe('sociality', () => {
     sizeContext(ctx, world);
     resolveEncounters(world, ctx);
     expect(a.destinationBuilding).toBe(far.id);
+  });
+});
+
+describe('the dead', () => {
+  it('a zombie that sights someone wakes the dormant dead near it', () => {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    const z = spawnZombie(world, p.x + p.ux * 5, p.y + p.uy * 5, 'active', null, null);
+    const sleeper = spawnZombie(world, p.x + p.ux * 20, p.y + p.uy * 20, 'dormant', null, null);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    world.tick = sleeper.id; // a tick on which the sleeper would not check for waking itself
+    zombieDecisions(world, ctx);
+    expect(z.target).toBe(s.id);
+    expect(sleeper.state).toBe('active');
+    expect(sleeper.heardPoint).not.toBeNull();
+  });
+
+  it('one whose quarry goes indoors besieges that door', () => {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    const b = world.buildings.find((x) => Math.hypot(x.entrances[0]!.x - p.x, x.entrances[0]!.y - p.y) < 60)!;
+    const z = spawnZombie(world, p.x + p.ux * 5, p.y + p.uy * 5, 'active', null, null);
+    s.insideBuilding = b.id;
+    b.sheltered.push(s.id);
+    z.target = s.id;
+    z.targetSeenAt = world.tick;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    zombieDecisions(world, ctx);
+    expect(z.target).toBeNull();
+    expect(z.besieging).toBe(b.id);
+  });
+});
+
+describe('911', () => {
+  it('garrisons first responders at stations, and sends them to a call', () => {
+    const { world, ctx } = fresh();
+    const responders = world.sims.filter((s) => s.station !== null);
+    expect(responders.length).toBeGreaterThan(0);
+    expect(responders.every((s) => s.archetype === 'police' && s.insideBuilding === s.station)).toBe(true);
+
+    const station = world.buildings[responders[0]!.station!]!;
+    const b = world.buildings.find((x) => x.tag !== 'policeStation' && Math.hypot(x.entrances[0]!.x - station.entrances[0]!.x, x.entrances[0]!.y - station.entrances[0]!.y) < 300)!;
+    const caller = walker(world, b.entrances[0]!.x, b.entrances[0]!.y);
+    caller.sightedAt = world.tick - 5;
+    placeCall(world, caller, b);
+    expect(b.callAt).toBe(world.tick);
+    world.tick = Math.ceil((world.tick + 1) / world.config.dispatch.interval) * world.config.dispatch.interval;
+    dispatchCalls(world, ctx);
+    expect(b.dispatchedAt).toBe(world.tick);
+    expect(world.sims.filter((s) => s.answering === b.id).length).toBeGreaterThan(0);
+    expect(ctx.events.some((e) => e.type === 'policeDispatched' && e.building === b.id)).toBe(true);
+  });
+
+  it('nobody calls without having just seen a zombie', () => {
+    const { world } = fresh();
+    const b = world.buildings[0]!;
+    placeCall(world, walker(world, b.entrances[0]!.x, b.entrances[0]!.y), b);
+    expect(b.callAt).toBeNull();
+  });
+});
+
+describe('the faithful', () => {
+  it('know a church from the start and shelter only in churches', () => {
+    const cfg = structuredClone(baseConfig);
+    cfg.faithful.share = 1;
+    const { world, ctx } = fresh(cfg);
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    expect(s.church).not.toBeNull();
+    expect(world.buildings[s.church!]!.tag).toBe('church');
+    expect(s.buildingMemory.has(s.church!)).toBe(true);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    expect(chooseShelter(world, ctx, s, null)!.tag).toBe('church');
+    // Turned away by its church, and knowing no other, it shelters anywhere.
+    s.refusedBy = s.church;
+    expect(chooseShelter(world, ctx, s, s.church)!.tag).not.toBe('church');
   });
 });

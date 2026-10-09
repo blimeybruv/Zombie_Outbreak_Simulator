@@ -275,6 +275,21 @@ export interface Sim {
    * @range building id | null @unit id @readBy objective choice, inspector
    */
   home: BuildingId | null;
+  /**
+   * The faithful: the church this sim belongs to, known from the start (the nearest to
+   * home). While it knows a church that has not turned it away it shelters only in
+   * churches; failing that, anywhere. Null for everyone else.
+   * @range building id | null @unit id @readBy shelter choice, objective choice, inspector
+   */
+  church: BuildingId | null;
+  /**
+   * A first responder's police station: officers garrisoned there at the start, sent
+   * out to 911 calls (dispatch.ts). Null for everyone else, patrol officers included.
+   * @range building id | null @unit id @readBy police dispatch, inspector
+   */
+  station: BuildingId | null;
+  /** The call a first responder is on its way to; null otherwise. @range building id | null @unit id @readBy sim decisions (respond arrival), police dispatch */
+  answering: BuildingId | null;
   /** Building this sim has committed to; re-evaluated only on breach, fall, decay or migration. @range building id | null @unit id @readBy shelter return, roles, migration */
   shelter: BuildingId | null;
   /** @range 3 values | null @unit enum @readBy building processes, role re-evaluation */

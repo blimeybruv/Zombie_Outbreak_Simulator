@@ -383,11 +383,13 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
 
   const engages = arch.engageThreshold > 0 && capacity(world, sim) > 0;
+  // A first responder on a call holds its ground longer than a patrol officer would.
+  const engageBelow = sim.answering !== null ? Math.max(arch.engageThreshold, config.dispatch.engageThreshold) : arch.engageThreshold;
   const nearest = ctx.nearestZombie[sim.id]!;
   // Falling back is a decision: on the way to shelter it does not turn to engage again
   // when the danger dips (that dithered at the threshold); it still fights if blocked
   // or cornered, and engages again from the door as a dispatcher.
-  if (engages && nearest >= 0 && threat < arch.engageThreshold && sim.destinationKind !== 'shelter') {
+  if (engages && nearest >= 0 && threat < engageBelow && sim.destinationKind !== 'shelter') {
     const z = zombies[nearest]!;
     const w = sim.weapon!;
     const range = w === 'pistol' || w === 'smg' || w === 'shotgun' ? config.combat.ranged[w].range * 0.8 : config.combat.contactRange;
@@ -425,7 +427,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
 
   const nerve = sim.destinationKind === 'scavenge' ? config.roles.scavengerNerve : 0;
-  const seeks = threat >= arch.shelterSeekThreshold + nerve || (engages && threat >= arch.engageThreshold);
+  const seeks = threat >= Math.max(arch.shelterSeekThreshold + nerve, engageBelow === arch.engageThreshold ? 0 : engageBelow) || (engages && threat >= engageBelow);
   if (seeks || sim.destinationKind === 'shelter') {
     // On the way home with trouble now in sight: a home still far off is given up for
     // the best shelter nearer to hand.
@@ -461,7 +463,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // like now (an observation, like any other), and it looks again.
   if (sim.destinationKind === 'respond') {
     const dest = sim.destination;
-    if (dest !== null && Math.hypot(dest.x - sim.x, dest.y - sim.y) > config.awareness.respondArrival) {
+    const arrival = sim.answering !== null ? config.dispatch.sceneRadius : config.awareness.respondArrival;
+    if (dest !== null && Math.hypot(dest.x - sim.x, dest.y - sim.y) > arrival) {
       sim.gait = 'walk';
       travel(world, ctx, sim, mode);
       return;
@@ -470,6 +473,17 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     if (street !== null) remember(sim.streetMemory, street, { danger: threat, observedAt: tick, visited: sim.streetMemory.get(street)?.visited ?? false }, config.memory.streetCap);
     clearDestination(sim);
     sim.destinationKind = null;
+    // A first responder on the scene: the call is answered; back to the station.
+    if (sim.answering !== null) {
+      const called = buildings[sim.answering]!;
+      called.callAt = null;
+      called.dispatchedAt = null;
+      sim.answering = null;
+      setDestination(sim, buildings[sim.station!]!, 'shelter');
+      sim.gait = 'walk';
+      travel(world, ctx, sim, mode);
+      return;
+    }
   }
 
   // Aware of the outbreak: an objective, not an errand. (Someone who engages and knows
@@ -495,6 +509,21 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
   sim.gait = mode === 'direct' ? 'run' : 'walk';
   travel(world, ctx, sim, mode);
+}
+
+/**
+ * Panicked, or backing off: the heading leans toward the way the people running
+ * around it are going, so a fleeing crowd flows as a current rather than scattering,
+ * and someone carried along by it stops recomputing its own way out each tick. Only
+ * while running: someone standing to fight or frozen is not carried.
+ */
+function followCrowd(world: World, ctx: Context, sim: Sim): void {
+  if (sim.gait !== 'run' && sim.gait !== 'sprint') return;
+  const cx = ctx.crowdX[sim.id]!, cy = ctx.crowdY[sim.id]!;
+  const cl = Math.hypot(cx, cy);
+  if (cl === 0) return;
+  const w = world.config.crowd.crowdAlignment * Math.min(1, cl);
+  sim.heading = Math.atan2(Math.sin(sim.heading) + (w * cy) / cl, Math.cos(sim.heading) + (w * cx) / cl);
 }
 
 function decideIndoor(world: World, ctx: Context, sim: Sim): void {
@@ -555,7 +584,9 @@ export function simDecisions(world: World, ctx: Context): void {
       continue;
     }
     observe(world, ctx, sim);
-    decideOutdoor(world, ctx, sim, modeOf(sim, world.config));
+    const mode = modeOf(sim, world.config);
+    decideOutdoor(world, ctx, sim, mode);
+    if (mode !== 'informed' || sim.avoidUntil !== null) followCrowd(world, ctx, sim);
   }
   drainRepathQueue(world, ctx);
 }

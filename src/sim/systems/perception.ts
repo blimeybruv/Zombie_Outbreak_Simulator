@@ -41,6 +41,9 @@ export function computePerception(world: World, ctx: Context): void {
     ctx.threatX[id] = 0;
     ctx.threatY[id] = 0;
     ctx.threatFocus[id] = 1;
+    ctx.fleeingSeen[id] = 0;
+    ctx.crowdX[id] = 0;
+    ctx.crowdY[id] = 0;
     ctx.nearestZombie[id] = -1;
     ctx.contacts[id] = 0;
     ctx.street[id] = -1;
@@ -82,6 +85,35 @@ export function computePerception(world: World, ctx: Context): void {
         nearest = zid;
       }
     }
+    // Second-hand danger: people running this way, from whatever is behind them.
+    const pc = config.crowd;
+    ctx.simHash.query(sim.x, sim.y, pc.fleeingRadius, ctx.ids2);
+    let fleeing = 0;
+    let cx = 0, cy = 0;
+    for (const oid of ctx.ids2) {
+      if (oid === id) continue;
+      const o = sims[oid]!;
+      if (o.gait !== 'run' && o.gait !== 'sprint') continue;
+      const dx = sim.x - o.x, dy = sim.y - o.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d === 0) continue;
+      const hx = Math.cos(o.heading), hy = Math.sin(o.heading);
+      // The crowd's current: everyone running close by, whichever way.
+      if (d < pc.crowdRadius) {
+        cx += hx * (1 - d / pc.crowdRadius);
+        cy += hy * (1 - d / pc.crowdRadius);
+      }
+      if ((hx * dx + hy * dy) / d < pc.fleeingTowardCos) continue;
+      if (!ctx.map.lineOfSight(sim.x, sim.y, o.x, o.y)) continue;
+      const w = pc.fleeingWeight * (1 - d / pc.fleeingRadius);
+      fleeing += w;
+      tx -= w * hx;
+      ty -= w * hy;
+    }
+    ctx.fleeingSeen[id] = fleeing;
+    ctx.crowdX[id] = cx;
+    ctx.crowdY[id] = cy;
+    threat += fleeing;
     ctx.threat[id] = threat > 1 ? 1 : threat;
     ctx.threatX[id] = tx;
     ctx.threatY[id] = ty;

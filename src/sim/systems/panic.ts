@@ -22,7 +22,7 @@ export function modeOf(sim: Sim, config: Config): Mode {
   return 'informed';
 }
 
-/** Panic rises from conversions witnessed last tick and from new noise; it decays every tick. */
+/** Panic rises from conversions witnessed last tick, from new noise and from people running this way; it decays every tick. */
 export function updatePanic(world: World, ctx: Context): void {
   const { config, tick, sims } = world;
   const pc = config.panic;
@@ -43,6 +43,9 @@ export function updatePanic(world: World, ctx: Context): void {
       sim.history.conversionsWitnessed++;
       sim.awareAt ??= tick;
     }
+    // Contagion: a crowd running this way frightens, toward how many and how close.
+    const target = Math.min(1, ctx.fleeingSeen[sim.id]! * config.crowd.fleeingGain);
+    if (target > sim.panic) sim.panic += (target - sim.panic) * config.crowd.fleeingRate;
     for (const s of noises) {
       if (intensityAt(s, sim.x, sim.y) < pc.noiseIntensityFloor) continue;
       sim.panic = clamp01(sim.panic + pc.risePerEvent);

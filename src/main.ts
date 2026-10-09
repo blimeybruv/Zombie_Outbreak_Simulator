@@ -32,6 +32,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') audio.toggleMute();
 });
 let latest: FrameSnapshot | null = null;
+/** Ticks per second now requested (0 paused): how long the ticks between two snapshots take. */
+let rate = 0;
 let awaiting = false;
 /** The sim the camera follows, if any: set from the roster or a ticker line, cleared by dragging. */
 let tracked: number | null = null;
@@ -48,7 +50,10 @@ function select(target: typeof selected): void {
 const controls = new Controls(document.querySelector<HTMLElement>('#controls')!, {
   speeds: config.playback.speeds,
   ticksPerSecondAt1x: config.playback.ticksPerSecondAt1x,
-  onRate: (ticksPerSecond) => send({ type: 'rate', ticksPerSecond }),
+  onRate: (ticksPerSecond) => {
+    rate = ticksPerSecond;
+    send({ type: 'rate', ticksPerSecond });
+  },
 });
 
 function track(simId: number): void {
@@ -212,8 +217,12 @@ function frame(now: number): void {
   }
   let drawMs = 0;
   if (renderer && latest) {
+    renderer.advance(latest, now, rate);
     // Follow the tracked sim while it is on the map; indoors, the camera waits at the door.
-    if (tracked !== null && latest.simKind[tracked]) camera.centreOn(latest.simXY[tracked * 2]!, latest.simXY[tracked * 2 + 1]!);
+    if (tracked !== null && latest.simKind[tracked]) {
+      const p = renderer.simAt(tracked);
+      camera.centreOn(p.x, p.y);
+    }
     const t0 = performance.now();
     renderer.draw(latest, camera, window.devicePixelRatio || 1, now);
     renderer.drawSelection(selected, latest, camera, window.devicePixelRatio || 1);

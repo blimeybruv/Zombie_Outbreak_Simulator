@@ -236,7 +236,12 @@ awareness of the outbreak and an objective in place of the errand (`systems/awar
 homes, limited sociality (shared destinations; squads stay deferred), fight, flight or
 freeze when cornered or blocked, and the bitten choosing to conceal or isolate
 (`systems/bitten.ts`). The renderer shows shouts, shots, the frozen, and — at near zoom
-only — the bitten (an amber ring).
+only — the bitten (an amber ring). A second round (reference, "Second round of revisions
+after watching"): zombies wake their neighbours and besiege doors, age tells when
+running, panic spreads from people running toward you and crowds align into a current,
+the faithful shelter in churches, and 911 calls bring first responders from police
+stations (`systems/dispatch.ts`). Police are light blue; anyone with a working firearm
+is a triangle; positions are interpolated between ticks.
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.

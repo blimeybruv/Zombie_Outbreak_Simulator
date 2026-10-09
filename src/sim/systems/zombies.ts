@@ -2,13 +2,16 @@
 //
 // Channels in precedence: sight (a target lock, from the perception snapshot),
 // then sound (a place, never a person), then scent (only biases spontaneous waking).
-// A zombie tracking a target ignores sound. Tracking ends after 40 ticks unseen,
-// beyond twice effective range, or when the target goes indoors; the last seen
-// point then becomes a sound-style destination.
+// A zombie tracking a target ignores sound. Tracking ends after 40 ticks unseen or
+// beyond twice effective range, and the last seen point then becomes a sound-style
+// destination; if the target went indoors, the zombie besieges that building's door
+// instead. A zombie that newly sights someone wakes the dormant and idle dead nearby
+// (applied after every zombie has decided, so the order they decide in does not matter).
 
 import { isOutdoorLiving, type Context } from '../context';
 import { chance, nextFloat, nextInt } from '../rng';
 import type { World, Zombie } from '../state';
+import { entranceNearest } from './common';
 import { detectability } from './perception';
 import { intensityAt } from './stimuli';
 
@@ -134,6 +137,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
   const checkEvery = zc.dormantCheckInterval;
   const idleEvery = zc.idleCheckInterval;
 
+  const alerts: { x: number; y: number; tx: number; ty: number }[] = [];
   for (const z of world.zombies) {
     ctx.zombieSpeed[z.id] = 0;
     if (z.state === 'destroyed' || z.state === 'occupying') continue;
@@ -188,8 +192,11 @@ export function zombieDecisions(world: World, ctx: Context): void {
         z.state = 'active';
         z.stateUntil = null;
       }
+      if (z.target !== s.id) alerts.push({ x: z.x, y: z.y, tx: s.x, ty: s.y });
       z.target = s.id;
       z.targetSeenAt = tick;
+      z.besieging = null;
+      z.besiegeUntil = null;
       setHeard(z, s.x, s.y);
       z.heardAt = tick;
     } else if (z.target !== null) {
@@ -199,11 +206,32 @@ export function zombieDecisions(world: World, ctx: Context): void {
         !isOutdoorLiving(s) ||
         tick - (z.targetSeenAt ?? tick) > zc.trackingLossTicks ||
         Math.hypot(s.x - z.x, s.y - z.y) > zc.trackingLossRangeFactor * eff;
-      if (lost) z.target = null; // heardPoint keeps the last seen position
+      if (lost) {
+        z.target = null; // heardPoint keeps the last seen position...
+        if (s.insideBuilding !== null && (s.condition === 'healthy' || s.condition === 'infected')) {
+          // ...unless it went indoors: then to the door it went in by, to stay.
+          const b = world.buildings[s.insideBuilding]!;
+          const e = entranceNearest(b, z.x, z.y);
+          z.besieging = b.id;
+          z.besiegeUntil = tick + zc.besiegeTicks;
+          setHeard(z, e.x, e.y);
+          z.heardAt = tick;
+        }
+      }
     }
 
-    // Sound: a place to go, ignored while tracking.
-    if (z.target === null && heard.intensity > 0) {
+    // A siege ends when it runs out, or when there is nobody left inside to get at.
+    if (z.besieging !== null) {
+      const b = world.buildings[z.besieging]!;
+      if (tick >= z.besiegeUntil! || b.zombiesInside > 0 || b.residents + b.sheltered.length === 0) {
+        z.besieging = null;
+        z.besiegeUntil = null;
+        z.heardPoint = null;
+      }
+    }
+
+    // Sound: a place to go, ignored while tracking or besieging.
+    if (z.target === null && z.besieging === null && heard.intensity > 0) {
       if (z.state === 'wandering' && heard.intensity >= zc.wakeThreshold) {
         z.state = 'active';
         z.stateUntil = null;
@@ -222,7 +250,10 @@ export function zombieDecisions(world: World, ctx: Context): void {
       const dx = z.heardPoint.x - z.x;
       const dy = z.heardPoint.y - z.y;
       const d = Math.hypot(dx, dy);
-      if (d <= zc.arriveRadius && z.target === null) {
+      if (d <= zc.arriveRadius && z.besieging !== null) {
+        pace = 0; // at the door: it stays
+        z.heardAt = tick;
+      } else if (d <= zc.arriveRadius && z.target === null) {
         z.heardPoint = null;
       } else if (d > 0) {
         gx = dx / d;
@@ -297,5 +328,28 @@ export function zombieDecisions(world: World, ctx: Context): void {
 
     if (gx !== 0 || gy !== 0) z.heading = Math.atan2(gy, gx);
     ctx.zombieSpeed[z.id] = speed * pace;
+  }
+  wakeNeighbours(world, ctx, alerts);
+}
+
+/**
+ * Each fresh sighting wakes the dormant and idle dead within alertRadius of the
+ * zombie that saw, sending them toward the survivor it saw. In sighting order (which
+ * is zombie id order) and, per sighting, zombie id order.
+ */
+function wakeNeighbours(world: World, ctx: Context, alerts: { x: number; y: number; tx: number; ty: number }[]): void {
+  const { config, tick, zombies } = world;
+  for (const a of alerts) {
+    ctx.zombieHash.query(a.x, a.y, config.zombie.alertRadius, ctx.ids2);
+    ctx.ids2.sort((p, q) => p - q);
+    for (const zid of ctx.ids2) {
+      const o = zombies[zid]!;
+      const idle = (o.state === 'active' || o.state === 'wandering') && o.target === null && o.heardPoint === null && o.besieging === null;
+      if (o.state !== 'dormant' && !idle) continue;
+      o.state = 'active';
+      o.stateUntil = null;
+      o.heardAt = tick;
+      setHeard(o, a.tx, a.ty);
+    }
   }
 }

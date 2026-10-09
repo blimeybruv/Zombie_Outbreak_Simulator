@@ -71,6 +71,7 @@ export interface SpawnSim {
 }
 
 const residentialCache = new WeakMap<readonly unknown[], BuildingId[]>();
+const churchCache = new WeakMap<readonly unknown[], BuildingId[]>();
 
 /** Residential buildings, in id order; computed once per map. */
 function residential(world: World): BuildingId[] {
@@ -80,6 +81,26 @@ function residential(world: World): BuildingId[] {
     residentialCache.set(world.buildings, ids);
   }
   return ids;
+}
+
+/** The church nearest a point (lower id on a tie), or null on a map without one. */
+function nearestChurch(world: World, x: number, y: number): BuildingId | null {
+  let ids = churchCache.get(world.buildings);
+  if (!ids) {
+    ids = world.buildings.filter((b) => b.tag === 'church').map((b) => b.id);
+    churchCache.set(world.buildings, ids);
+  }
+  let best: BuildingId | null = null;
+  let bestD = Infinity;
+  for (const id of ids) {
+    const e = world.buildings[id]!.entrances[0]!;
+    const d = Math.hypot(e.x - x, e.y - y);
+    if (d < bestD) {
+      bestD = d;
+      best = id;
+    }
+  }
+  return best;
 }
 
 /**
@@ -117,6 +138,8 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
   const { weapon, ammo } = kitFor(rng, archetype, config);
   const id = world.sims.length as SimId;
   const home = profession === 'homeless' ? null : pickHome(world, spec.x, spec.y, spec.from ?? null);
+  const anchor = home === null ? spec : world.buildings[home]!.entrances[0]!;
+  const church = chance(rng, config.faithful.share) ? nearestChurch(world, anchor.x, anchor.y) : null;
   const sim: Sim = {
     id,
     archetype,
@@ -160,6 +183,9 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     turnsAt: null,
     infectedChoice: null,
     home,
+    church,
+    station: null,
+    answering: null,
     shelter: null,
     role: null,
     roleSince: tick,
@@ -177,6 +203,10 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
       materialsDelivered: 0,
     },
   };
+  if (church !== null) {
+    const b = world.buildings[church]!;
+    sim.buildingMemory.set(church, { believedOccupants: b.residents, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false });
+  }
   world.sims.push(sim);
   return sim;
 }
@@ -203,6 +233,8 @@ export function spawnZombie(
     targetSeenAt: null,
     heardPoint: null,
     heardAt: tick,
+    besieging: null,
+    besiegeUntil: null,
     nextAttackAt: tick + config.combat.zombieAttack.cooldown,
     wasSim,
   };

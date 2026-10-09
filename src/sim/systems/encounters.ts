@@ -68,6 +68,7 @@ function join(world: World, ctx: Context, a: Sim, b: Sim): boolean {
   if (a.destinationKind !== 'shelter' || a.destination === null || b.destinationKind !== 'shelter') return false;
   const x = b.destinationBuilding;
   if (x === null || x === a.destinationBuilding || x === a.refusedBy) return false;
+  if (a.church !== null && buildings[x]!.tag !== 'church') return false; // the faithful go only to church
   if (ctx.threat[a.id]! >= arch.shelterSeekThreshold) return false;
   const e = entranceNearest(buildings[x]!, a.x, a.y);
   if (Math.hypot(e.x - a.x, e.y - a.y) >= Math.hypot(a.destination.x - a.x, a.destination.y - a.y)) return false;

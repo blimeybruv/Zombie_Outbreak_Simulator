@@ -96,7 +96,21 @@ export interface SimIsolatingEvent extends EventBase {
   building: BuildingId;
 }
 
+export interface PoliceDispatchedEvent extends EventBase {
+  /** First responders sent from a station to a 911 call. @range literal @unit — @readBy event consumers */
+  type: 'policeDispatched';
+  /** Where the call came from. @range building id @unit id @readBy ticker */
+  building: BuildingId;
+  /** @range building id @unit id @readBy ticker copy */
+  station: BuildingId;
+  /** @range 1–4 @unit officers @readBy ticker copy */
+  officers: Count;
+  /** Always null: the line is about the call. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export type SimEvent =
+  | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent
   | SimTurnedEvent

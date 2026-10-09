@@ -7,7 +7,8 @@
 //
 //   respond   those who engage go toward the trouble they believe in nearby
 //   home      within the archetype's reach, unless home is believed dangerous
-//   shelter   the best building it knows (shelter.ts desirability)
+//   shelter   the best building it knows (shelter.ts desirability); for the
+//             faithful, the best church it knows
 //
 // Without this, survivors ran errands in a falling city until a zombie came into
 // view, and the only purpose on the streets was a reaction.
@@ -65,7 +66,8 @@ export function chooseObjective(world: World, ctx: Context, sim: Sim): Objective
     const p = trouble(world, sim);
     return p === null ? null : { kind: 'respond', ...p };
   }
-  if (sim.home !== null && sim.home !== sim.refusedBy) {
+  // (The faithful go to church, not home: chooseShelter keeps them to churches.)
+  if (sim.church === null && sim.home !== null && sim.home !== sim.refusedBy) {
     const home = buildings[sim.home]!;
     const e = entranceNearest(home, sim.x, sim.y);
     if (Math.hypot(e.x - sim.x, e.y - sim.y) <= arch.homeReach && !homeDangerous(world, sim, home)) return { kind: 'home', building: home };

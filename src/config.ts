@@ -138,6 +138,28 @@ export const config = {
     noiseIntensityFloor: 0.2, // stimulus intensity at the sim needed to count as nearby noise — guess
   },
 
+  // People running. Those running toward a sim are second-hand danger (and frighten
+  // it: panic.ts); those running near it set the current it leans into when panicked.
+  crowd: {
+    // Contagion: people running toward a sim, within `fleeingRadius` and in sight, are
+    // second-hand danger lying the way they came from — each counts `fleeingWeight` ×
+    // (1 - d / radius) in perceived threat — and panic rises toward that sum ×
+    // `fleeingGain` at `fleeingRate` a tick. A street of people running back turns
+    // anyone arriving. Runners going the same way do not count for each other — guess
+    fleeingRadius: 20, // m
+    fleeingTowardCos: 0.5, // heading within 60° of straight at the observer
+    fleeingWeight: 0.2,
+    fleeingGain: 2,
+    fleeingRate: 0.1,
+    // Crowd alignment: a panicked sim (direct or flight) or one backing off blends its
+    // heading toward the mean heading of people running within `crowdRadius`, weighted
+    // by nearness, by `crowdAlignment` — so fleeing people converge into a current
+    // instead of scattering radially, and a sim carried by the crowd stops recomputing
+    // its own way out each tick — guess
+    crowdRadius: 12, // m
+    crowdAlignment: 0.35,
+  },
+
   perception: {
     dayRadius: { standard: 45, alley: 30, open: 60, bridge: 60 }, // m
     nightRadiusLit: 25, // m
@@ -198,6 +220,20 @@ export const config = {
     freezeTicks: 20, // — guess
   },
 
+  // 911. Someone who gets indoors within `callWindow` ticks of seeing a zombie calls it
+  // in. Every `interval` ticks, the nearest station within `radius` with first
+  // responders inside, armed and free, sends up to `perCall` of them to the caller's
+  // door; within `sceneRadius` of it they are on the scene, the call is answered, and
+  // they go back. On a call they engage up to `engageThreshold`, not their usual. A call lapses after `timeout`. Stations
+  // with at least `minResidents` start with `perStation` residents as first responders
+  // (tracked police, garrisoned) — guess
+  dispatch: { callWindow: 60, interval: 10, radius: 1000, perCall: 2, timeout: 600, minResidents: 4, perStation: 3, sceneRadius: 50, engageThreshold: 0.6 },
+
+  // The faithful: this share of people belong to a church (the nearest to home), know
+  // it from the start, and shelter only in churches while they know one that has not
+  // turned them away — guess
+  faithful: { share: 0.08 },
+
   // Knowing there is an outbreak. Unaware, a sim keeps its routine; aware, it drops it
   // for an objective: respond to trouble (those who engage), go home (within the
   // archetype's homeReach, unless home is believed dangerous), or the best shelter it
@@ -241,8 +277,11 @@ export const config = {
       run: { speed: 2.2, stamina: -0.006, detectability: 1.3, noise: 8 },
       sprint: { speed: 2.9, stamina: -0.015, detectability: 1.6, noise: 15 },
     },
-    staminaSpeedFloor: 0.5, // effectiveSpeed = gaitSpeed * (floor + (1-floor) * stamina) * ageFactor
+    staminaSpeedFloor: 0.5, // effectiveSpeed = gaitSpeed * (floor + (1-floor) * stamina) * ageFactor (fleeAgeFactor when running or sprinting)
     ageFactor: { atAge: [20, 80], value: [1.05, 0.75] }, // linear between, clamped outside
+    // Running and sprinting age far worse than walking: at 80 a sprint is barely faster
+    // than a shambler, a run slower. Replaces ageFactor for those gaits — guess
+    fleeAgeFactor: { atAge: [30, 80], value: [1, 0.45] },
     concealment: 0.5, // detectability multiplier indoors, or on an unlit street at night
     slideSpeed: 0.7, // fraction of speed kept while sliding along a wall or bank
     gaitNoiseIntensity: 0.6, // at origin; heard by zombies within the gait's noise radius — guess
@@ -269,6 +308,12 @@ export const config = {
     splinterCount: 12, // zombies within splinterRadius that switch on repulsion
     splinterRadius: 8, // m
     repulsion: 0.3, // steering weight above splinter density — guess
+    // A zombie that newly sights a survivor wakes the dormant and idle dead this close,
+    // sending them toward the survivor — a sleeping cluster rises as one — guess
+    alertRadius: 25, // m
+    // A tracked survivor who goes indoors leaves the zombie holding that door this long
+    // (it is the zombies at a door that make a building's breach rolls) — guess
+    besiegeTicks: 600,
     cascadeCount: 15, // zombies within cascadeRadius of a shelter: self-sustaining crowd
     cascadeRadius: 30, // m
   },

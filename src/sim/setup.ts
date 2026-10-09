@@ -10,6 +10,7 @@ import { createRng, nextFloat, nextInt } from './rng';
 import { spawnSim, spawnZombie } from './spawn';
 import { emptyCounters, type Building, type Scenario, type World } from './state';
 import { occupierAppeared } from './systems/buildings';
+import { placeFirstResponders } from './systems/dispatch';
 import { scheduleRelease } from './systems/release';
 
 const MAX_RESIDENTS = 200;
@@ -179,6 +180,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   const band = bandForHour(scenario.startHour, config);
   const outdoors = Math.round(scenario.population * config.spawn.outdoorShareByBand[band]!);
   placeResidents(world, scenario.population - outdoors, band);
+  placeFirstResponders(world);
   placeStreetPopulation(world, outdoors);
   seedOutbreak(world, ctx);
   world.events = ctx.events;

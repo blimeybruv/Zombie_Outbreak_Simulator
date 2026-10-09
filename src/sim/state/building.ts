@@ -82,6 +82,14 @@ export interface Building {
    */
   garrisonedAt: Tick | null;
   /**
+   * A 911 call from here: someone got inside having just fled a zombie. Null when
+   * there is none, when it has been answered, or when it lapses unanswered.
+   * @range tick | null @unit tick @readBy police dispatch
+   */
+  callAt: Tick | null;
+  /** When officers were sent to the call; null until then. @range tick | null @unit tick @readBy police dispatch, render (alert ring) */
+  dispatchedAt: Tick | null;
+  /**
    * When the crowd outside a garrison crossed cascade density; null below it.
    * @range tick | null @unit tick @readBy cascade event, siege
    */

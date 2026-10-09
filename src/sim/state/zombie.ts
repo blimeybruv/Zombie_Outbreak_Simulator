@@ -39,6 +39,15 @@ export interface Zombie {
   heardPoint: Vec2 | null;
   /** @range tick | null @unit tick @readBy sound response (staleness) */
   heardAt: Tick | null;
+  /**
+   * The building a tracked survivor went into: the zombie holds its door, ignoring
+   * sound, until `besiegeUntil`, the building empties or falls, or it sees someone.
+   * Its presence at the door is what makes the building's breach rolls.
+   * @range building id | null @unit id @readBy zombie decisions
+   */
+  besieging: BuildingId | null;
+  /** @range tick | null @unit tick @readBy zombie decisions */
+  besiegeUntil: Tick | null;
   /** Earliest tick of the next attack roll (cooldown, staggered by id). @range tick @unit tick @readBy combat */
   nextAttackAt: Tick;
   /** Who this used to be; null for patient zero spawned without a sim. @range sim id | null @unit id @readBy ticker, inspector */

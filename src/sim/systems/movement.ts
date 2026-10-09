@@ -2,10 +2,12 @@
 // change (besides entering and leaving buildings).
 
 import { isOutdoorLiving, type Context } from '../context';
-import type { World } from '../state';
+import type { Gait, World } from '../state';
 
-function ageFactor(age: number, world: World): number {
-  const { atAge, value } = world.config.movement.ageFactor;
+/** Age's toll on speed: mild for walking, steep for running and sprinting. */
+function ageFactor(age: number, gait: Gait, world: World): number {
+  const mv = world.config.movement;
+  const { atAge, value } = gait === 'run' || gait === 'sprint' ? mv.fleeAgeFactor : mv.ageFactor;
   const t = Math.min(1, Math.max(0, (age - atAge[0]!) / (atAge[1]! - atAge[0]!)));
   return value[0]! + (value[1]! - value[0]!) * t;
 }
@@ -77,7 +79,7 @@ export function integrateMovement(world: World, ctx: Context): void {
     const drain = g.stamina < 0 ? g.stamina * (1 + drag.stamina * contacts) : g.stamina;
     sim.stamina = Math.min(1, Math.max(0, sim.stamina + drain));
     const speed =
-      g.speed * (mv.staminaSpeedFloor + (1 - mv.staminaSpeedFloor) * sim.stamina) * ageFactor(sim.age, world) / (1 + drag.speed * contacts);
+      g.speed * (mv.staminaSpeedFloor + (1 - mv.staminaSpeedFloor) * sim.stamina) * ageFactor(sim.age, sim.gait, world) / (1 + drag.speed * contacts);
     step(ctx, sim, sim.heading, speed, mv.slideSpeed);
   }
 

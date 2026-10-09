@@ -88,8 +88,13 @@ export function desirability(world: World, sim: Sim, b: Building, belief: Buildi
 export function chooseShelter(world: World, ctx: Context, sim: Sim, exclude: BuildingId | null): Building | null {
   const { config, buildings } = world;
   const loner = sim.archetype === 'loner';
-  const candidates = new Set<BuildingId>(sim.buildingMemory.keys());
+  let candidates = new Set<BuildingId>(sim.buildingMemory.keys());
   for (const bid of ctx.map.buildingsNear(sim.x, sim.y, ctx.radius[sim.id]!, ctx.buildingIds)) candidates.add(bid);
+  // The faithful consider only churches, while they know one that has not turned them away.
+  if (sim.church !== null) {
+    const churches = [...candidates].filter((id) => buildings[id]!.tag === 'church' && id !== exclude && id !== sim.refusedBy);
+    if (churches.length > 0) candidates = new Set(churches);
+  }
 
   let best: Building | null = null;
   let bestScore = -Infinity;

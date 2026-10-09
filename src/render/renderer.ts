@@ -10,10 +10,11 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CONTESTED, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, SIM_ARMED, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
+import { Interpolator } from './interpolate';
 import * as P from './palette';
 import { Trails } from './trails';
 
@@ -25,11 +26,33 @@ const MID_TRAIL = 5; // samples of trail (~0.8 s) at mid zoom; near zoom draws a
 const PULSE_MS = 1400; // a conversion registers as an event, not a silent colour swap
 const PULSE_RADIUS = 7; // m
 const SHOUT_MS = 700;
+const PING_MS = 1100; // one 911 ping, wide to nothing
 const FLASH_MS = 160;
 const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
 const FULL_AT = 24; // people inside at which a building reads as full
+
+/**
+ * A church: an oval inscribed in its footprint with a spire off one end of the long
+ * axis (the eastern one, for want of a liturgical east), so one reads at a glance.
+ */
+function addChurch(path: Path2D, o: Float32Array, i: number): void {
+  const k = i * 8;
+  const cx = (o[k]! + o[k + 2]! + o[k + 4]! + o[k + 6]!) / 4, cy = (o[k + 1]! + o[k + 3]! + o[k + 5]! + o[k + 7]!) / 4;
+  const ux = o[k + 2]! - o[k]!, uy = o[k + 3]! - o[k + 1]!, vx = o[k + 6]! - o[k]!, vy = o[k + 7]! - o[k + 1]!;
+  const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+  const [lx, ly, long, short] = lu >= lv ? [ux / lu, uy / lu, lu / 2, lv / 2] : [vx / lv, vy / lv, lv / 2, lu / 2];
+  const rot = Math.atan2(ly, lx);
+  path.moveTo(cx + lx * long, cy + ly * long);
+  path.ellipse(cx, cy, long, short, rot, 0, Math.PI * 2);
+  const dir = lx >= 0 ? 1 : -1; // spire at the eastern end
+  const ex = cx + dir * lx * long, ey = cy + dir * ly * long;
+  const px = -ly * Math.min(1.8, short * 0.6), py = lx * Math.min(1.8, short * 0.6);
+  path.moveTo(ex + px, ey + py);
+  path.lineTo(ex + dir * lx * 5, ey + dir * ly * 5);
+  path.lineTo(ex - px, ey - py);
+}
 
 function addOutline(path: Path2D, o: Float32Array, i: number): void {
   const k = i * 8;
@@ -53,6 +76,7 @@ export class Renderer {
   private readonly zombieTrails = new Trails();
   private pulses: { x: number; y: number; start: number }[] = [];
   private sounds: { x: number; y: number; radius: number; shout: boolean; start: number }[] = [];
+  private readonly interp = new Interpolator();
   /** How a bitten survivor shows at near zoom: an amber ring, a pale amber dot, or not at all (?infected=). */
   infectedStyle: 'ring' | 'fill' | 'off' = 'ring';
   /** Each building's bounding box, for culling: minX, minY, maxX, maxY. */
@@ -70,7 +94,7 @@ export class Renderer {
     this.bounds = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) {
       const k = i * 8;
-      addOutline(this.outlinePath, o, i);
+      (map.buildingChurch[i] ? addChurch : addOutline)(this.outlinePath, o, i);
       const xs = [o[k]!, o[k + 2]!, o[k + 4]!, o[k + 6]!];
       const ys = [o[k + 1]!, o[k + 3]!, o[k + 5]!, o[k + 7]!];
       this.bounds.set([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], i * 4);
@@ -122,6 +146,19 @@ export class Renderer {
     }
     this.density = new DensityField(map.size);
     this.corpses = new CorpseLayer(map.size);
+  }
+
+  /**
+   * Positions for this animation frame, blended between ticks. Call once per frame,
+   * before `draw` and before reading `simAt`.
+   */
+  advance(frame: FrameSnapshot, wallMs: number, ticksPerSecond: number): void {
+    this.interp.update(frame, wallMs, ticksPerSecond);
+  }
+
+  /** Where a sim is drawn this frame. */
+  simAt(id: number): { x: number; y: number } {
+    return { x: this.interp.sim[id * 2]!, y: this.interp.sim[id * 2 + 1]! };
   }
 
   /** Takes a new snapshot's events: deaths into the corpse paint, conversions as pulses. */
@@ -209,11 +246,11 @@ export class Renderer {
     g.lineWidth = 1.5 / (cam.scale * dpr);
     if (sel.kind === 'building') {
       const p = new Path2D();
-      addOutline(p, this.map.outlines, sel.id);
+      (this.map.buildingChurch[sel.id] ? addChurch : addOutline)(p, this.map.outlines, sel.id);
       g.stroke(p);
     } else if (frame.simKind[sel.id]) {
       g.beginPath();
-      g.arc(frame.simXY[sel.id * 2]!, frame.simXY[sel.id * 2 + 1]!, 7 / cam.scale, 0, Math.PI * 2);
+      g.arc(this.interp.sim[sel.id * 2]!, this.interp.sim[sel.id * 2 + 1]!, 7 / cam.scale, 0, Math.PI * 2);
       g.stroke();
     }
   }
@@ -227,6 +264,7 @@ export class Renderer {
     this.corpses.draw(g, cam, dpr);
     if (cam.mode === 'far') {
       this.density.draw(g, frame, cam, dpr);
+      this.drawCalls(g, frame, cam, dpr, wallMs);
       return;
     }
     if (cam.mode === 'mid') this.density.draw(g, frame, cam, dpr, MID_DENSITY);
@@ -240,7 +278,39 @@ export class Renderer {
     this.drawAgents(g, frame, cam, dpr);
     this.drawPulses(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
+    this.drawCalls(g, frame, cam, dpr, wallMs);
   }
+
+  /**
+   * Police on the way to a 911 call: a light blue ring that shrinks onto the building
+   * and vanishes, like a ping, over and over until they get there or give up.
+   */
+  private drawCalls(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
+    const t = (wallMs % PING_MS) / PING_MS; // 0 wide, 1 gone
+    const path = new Path2D();
+    let any = false;
+    const view = this.viewBounds(cam);
+    const minR = 24 / cam.scale; // at least 24 px across at the start, so a ping reads at far zoom
+    for (let i = 0; i < frame.buildingFlags.length; i++) {
+      if (!(frame.buildingFlags[i]! & BUILDING_CALL)) continue;
+      const b = i * 4;
+      const x0 = this.bounds[b]!, y0 = this.bounds[b + 1]!, x1 = this.bounds[b + 2]!, y1 = this.bounds[b + 3]!;
+      if (x1 < view.x0 - 60 || x0 > view.x1 + 60 || y1 < view.y0 - 60 || y0 > view.y1 + 60) continue;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const r = Math.max(Math.hypot(x1 - x0, y1 - y0) / 2 + 30, minR) * (1 - t);
+      if (r <= 0) continue;
+      path.moveTo(cx + r, cy);
+      path.arc(cx, cy, r, 0, Math.PI * 2);
+      any = true;
+    }
+    if (!any) return;
+    cam.apply(g, dpr);
+    const [r, gr, b] = P.POLICE_RGB;
+    g.strokeStyle = `rgba(${r}, ${gr}, ${b}, ${(0.35 + 0.55 * t).toFixed(3)})`; // brightening as it closes in
+    g.lineWidth = 2 / (cam.scale * dpr);
+    g.stroke(path);
+  }
+
 
   /** Shouted warnings as faint rings growing to earshot; shots as brief flashes. */
   private drawSounds(g: CanvasRenderingContext2D, cam: Camera, dpr: number, wallMs: number): void {
@@ -287,9 +357,9 @@ export class Renderer {
       const b = i * 4;
       if (this.bounds[b + 2]! < view.x0 || this.bounds[b]! > view.x1 || this.bounds[b + 3]! < view.y0 || this.bounds[b + 1]! > view.y1) continue;
       const level = Math.min(FILL_LEVELS - 1, Math.floor((Math.min(n, FULL_AT) / FULL_AT) * FILL_LEVELS));
-      addOutline(levels[level]!, o, i);
+      (this.map.buildingChurch[i] ? addChurch : addOutline)(levels[level]!, o, i);
       if (frame.buildingFlags[i]! & BUILDING_CONTESTED) {
-        addOutline(contested, o, i);
+        (this.map.buildingChurch[i] ? addChurch : addOutline)(contested, o, i);
         anyContested = true;
       }
     }
@@ -317,7 +387,7 @@ export class Renderer {
     const sy = (y: number) => cam.toScreenY(y) * dpr - half;
 
     // Zombies first, so the living are always on top.
-    const zk = frame.zombieKind, zxy = frame.zombieXY;
+    const zk = frame.zombieKind, zxy = this.interp.zombie;
     for (const [kind, colour] of [[ZOMBIE_DORMANT, P.ZOMBIE_DORMANT], [ZOMBIE_AWAKE, P.ZOMBIE]] as const) {
       g.fillStyle = colour;
       for (let i = 0; i < zk.length; i++) {
@@ -327,34 +397,48 @@ export class Renderer {
         g.fillRect(x, y, size, size);
       }
     }
-    const k = frame.simKind, f = frame.simFlags, xy = frame.simXY;
+    const k = frame.simKind, f = frame.simFlags, xy = this.interp.sim;
     // Near zoom only, the viewer is told who is bitten; the city is not.
     const showInfected = cam.mode === 'near' ? this.infectedStyle : 'off';
     const pale = showInfected === 'fill';
+    // Colour says who (police light blue); shape says what they can do: anyone who can
+    // shoot back is a triangle pointing the way they face.
+    const colourOf = (i: number) => (pale && f[i]! & SIM_INFECTED ? P.INFECTED_PALE : f[i]! & SIM_POLICE ? P.POLICE : P.LIVING);
+    const hd = frame.simHeading;
+    const r = Math.max(size * 1.3, 4 * dpr); // a triangle needs more room than a square to read
+    const triangle = (path: Path2D, i: number, x: number, y: number, scale: number) => {
+      const a = hd[i]!, cx = x + half, cy = y + half, rr = r * scale;
+      path.moveTo(cx + Math.cos(a) * rr * 1.3, cy + Math.sin(a) * rr * 1.3);
+      path.lineTo(cx + Math.cos(a + 2.4) * rr, cy + Math.sin(a + 2.4) * rr);
+      path.lineTo(cx + Math.cos(a - 2.4) * rr, cy + Math.sin(a - 2.4) * rr);
+      path.closePath();
+    };
     // A frozen survivor, cornered and keeping still, is drawn dim: hiding in plain sight.
     for (const frozen of [false, true]) {
       g.globalAlpha = frozen ? 0.4 : 1;
-      g.fillStyle = P.LIVING;
-      for (let i = 0; i < k.length; i++) {
-        if (k[i] === SIM_HIDDEN || k[i] === SIM_PROMOTED || ((f[i]! & SIM_FROZEN) !== 0) !== frozen) continue;
-        if (pale && f[i]! & SIM_INFECTED) continue;
-        const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
-        if (x < -size || y < -size || x > w || y > h) continue;
-        g.fillRect(x, y, size, size);
-      }
-      if (pale) {
-        g.fillStyle = P.INFECTED_PALE;
+      for (const colour of [P.LIVING, P.POLICE, P.INFECTED_PALE]) {
+        g.fillStyle = colour;
+        const armed = new Path2D();
         for (let i = 0; i < k.length; i++) {
-          if (k[i] === SIM_HIDDEN || k[i] === SIM_PROMOTED || !(f[i]! & SIM_INFECTED) || ((f[i]! & SIM_FROZEN) !== 0) !== frozen) continue;
-          g.fillRect(sx(xy[i * 2]!), sy(xy[i * 2 + 1]!), size, size);
+          if (k[i] === SIM_HIDDEN || k[i] === SIM_PROMOTED || ((f[i]! & SIM_FROZEN) !== 0) !== frozen || colourOf(i) !== colour) continue;
+          const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
+          if (x < -size * 2 || y < -size * 2 || x > w + size || y > h + size) continue;
+          if (f[i]! & SIM_ARMED) triangle(armed, i, x, y, 1);
+          else g.fillRect(x, y, size, size);
         }
+        g.fill(armed);
       }
     }
     g.globalAlpha = 1;
-    g.fillStyle = P.PROMOTED;
     for (let i = 0; i < k.length; i++) {
       if (k[i] !== SIM_PROMOTED) continue;
-      g.fillRect(sx(xy[i * 2]!) - 1, sy(xy[i * 2 + 1]!) - 1, size + 2, size + 2);
+      g.fillStyle = f[i]! & SIM_POLICE ? P.POLICE : P.PROMOTED;
+      const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
+      if (f[i]! & SIM_ARMED) {
+        const p = new Path2D();
+        triangle(p, i, x, y, 1.35);
+        g.fill(p);
+      } else g.fillRect(x - 1, y - 1, size + 2, size + 2);
     }
     if (showInfected === 'ring') {
       g.strokeStyle = P.INFECTED;

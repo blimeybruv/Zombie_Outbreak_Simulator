@@ -425,6 +425,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       alertedAt: null,
       scavengerOut: null,
       garrisonedAt: null,
+      callAt: null,
+      dispatchedAt: null,
       cascadeAt: null,
       pendingRelease: 0,
       pendingExpel: 0,

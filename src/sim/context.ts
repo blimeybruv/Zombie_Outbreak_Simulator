@@ -34,6 +34,11 @@ export interface Context {
    * everything feared lies one way, toward 0 as it surrounds the sim. 1 with no threat.
    */
   threatFocus: Float64Array;
+  /** The part of perceived threat that is people running this way (panic contagion). */
+  fleeingSeen: Float64Array;
+  /** Mean heading of people running nearby, weighted by nearness (crowd alignment); 0,0 with none. */
+  crowdX: Float64Array;
+  crowdY: Float64Array;
   radius: Float64Array;
   /** Nearest street within the off-street lookup, or -1. */
   street: Int32Array;
@@ -76,6 +81,9 @@ export function createContext(world: World): Context {
     threatX: new Float64Array(0),
     threatY: new Float64Array(0),
     threatFocus: new Float64Array(0),
+    fleeingSeen: new Float64Array(0),
+    crowdX: new Float64Array(0),
+    crowdY: new Float64Array(0),
     radius: new Float64Array(0),
     street: new Int32Array(0),
     nearestZombie: new Int32Array(0),
@@ -106,6 +114,9 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.threatX = new Float64Array(cap);
     ctx.threatY = new Float64Array(cap);
     ctx.threatFocus = new Float64Array(cap);
+    ctx.fleeingSeen = new Float64Array(cap);
+    ctx.crowdX = new Float64Array(cap);
+    ctx.crowdY = new Float64Array(cap);
     ctx.radius = new Float64Array(cap);
     ctx.street = new Int32Array(cap);
     ctx.nearestZombie = new Int32Array(cap);

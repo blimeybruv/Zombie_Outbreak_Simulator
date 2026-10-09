@@ -14,13 +14,16 @@ import type { SimEvent, World } from '../sim/state';
 import { step } from '../sim/tick';
 import type { Context } from '../sim/context';
 import {
+  BUILDING_CALL,
   BUILDING_CONTESTED,
   BUILDING_GARRISON,
   BUILDING_LIT,
+  SIM_ARMED,
   SIM_FIGHTING,
   SIM_FROZEN,
   SIM_INFECTED,
   SIM_LIVING,
+  SIM_POLICE,
   SIM_PROMOTED,
   ZOMBIE_AWAKE,
   ZOMBIE_DORMANT,
@@ -78,12 +81,14 @@ function mapSnapshot(w: World): MapSnapshot {
   });
   const outlines = new Float32Array(w.buildings.length * 8);
   w.buildings.forEach((b, i) => b.outline.forEach((p, j) => outlines.set([p.x, p.y], i * 8 + j * 2)));
+  const buildingChurch = new Uint8Array(w.buildings.map((b) => (b.tag === 'church' ? 1 : 0)));
   return {
     size: w.config.map.size,
     streets,
     streetLit,
     streetBridge,
     outlines,
+    buildingChurch,
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),
     streetNames: w.streets.map((s) => s.name),
@@ -94,12 +99,21 @@ function frameSnapshot(w: World): FrameSnapshot {
   const simXY = new Float32Array(w.sims.length * 2);
   const simKind = new Uint8Array(w.sims.length);
   const simFlags = new Uint8Array(w.sims.length);
+  const simHeading = new Float32Array(w.sims.length);
   for (const s of w.sims) {
     if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null) continue;
     simXY[s.id * 2] = s.x;
     simXY[s.id * 2 + 1] = s.y;
     simKind[s.id] = s.name !== null ? SIM_PROMOTED : SIM_LIVING;
-    simFlags[s.id] = (s.condition === 'infected' ? SIM_INFECTED : 0) | (s.stand === 'freeze' ? SIM_FROZEN : 0) | (s.stand === 'fight' ? SIM_FIGHTING : 0);
+    const gun = s.weapon;
+    const shoots = (gun === 'pistol' || gun === 'smg' || gun === 'shotgun') && s.ammo >= w.config.combat.ranged[gun].ammoPerAttack;
+    simFlags[s.id] =
+      (s.condition === 'infected' ? SIM_INFECTED : 0) |
+      (s.stand === 'freeze' ? SIM_FROZEN : 0) |
+      (s.stand === 'fight' ? SIM_FIGHTING : 0) |
+      (shoots ? SIM_ARMED : 0) |
+      (s.archetype === 'police' ? SIM_POLICE : 0);
+    simHeading[s.id] = s.heading;
   }
   const zombieXY = new Float32Array(w.zombies.length * 2);
   const zombieKind = new Uint8Array(w.zombies.length);
@@ -114,7 +128,7 @@ function frameSnapshot(w: World): FrameSnapshot {
   for (const b of w.buildings) {
     fill[b.id] = Math.min(65535, b.residents + b.sheltered.length + b.zombiesInside);
     buildingFlags[b.id] =
-      (b.zombiesInside > 0 && b.sheltered.length > 0 ? BUILDING_CONTESTED : 0) | (b.garrisonedAt !== null ? BUILDING_GARRISON : 0) | (b.lit ? BUILDING_LIT : 0);
+      (b.zombiesInside > 0 && b.sheltered.length > 0 ? BUILDING_CONTESTED : 0) | (b.garrisonedAt !== null ? BUILDING_GARRISON : 0) | (b.lit ? BUILDING_LIT : 0) | (b.dispatchedAt !== null ? BUILDING_CALL : 0);
   }
   const tod = timeOfDay(w.tick, w.scenario, w.config);
   const now = performance.now();
@@ -126,6 +140,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     simXY,
     simKind,
     simFlags,
+    simHeading,
     zombieXY,
     zombieKind,
     fill,
@@ -199,7 +214,7 @@ scope.onmessage = (e) => {
       }
     }
     const map = mapSnapshot(world);
-    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer]);
+    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer, map.buildingChurch.buffer]);
   } else if (msg.type === 'rate') {
     rate = msg.ticksPerSecond;
     anchor = performance.now();
@@ -208,7 +223,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
   }
 };
 

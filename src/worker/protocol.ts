@@ -17,6 +17,8 @@ export interface MapSnapshot {
   streetBridge: Uint8Array;
   /** Per building: the four outline corners, x0 y0 x1 y1 x2 y2 x3 y3. */
   outlines: Float32Array;
+  /** Per building: 1 for a church, drawn as an oval with a spire. */
+  buildingChurch: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
   districts: { name: string; x: number; y: number; w: number; h: number }[];
   streetNames: string[];
@@ -34,6 +36,8 @@ export const SIM_PROMOTED = 2;
 export const SIM_INFECTED = 1;
 export const SIM_FROZEN = 2; // cornered and keeping still
 export const SIM_FIGHTING = 4; // standing its ground
+export const SIM_ARMED = 8; // carries a firearm with ammunition: shoots back (drawn as a triangle)
+export const SIM_POLICE = 16; // drawn light blue
 
 /** Zombie kinds on the map. */
 export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
@@ -44,6 +48,7 @@ export const ZOMBIE_DORMANT = 2;
 export const BUILDING_CONTESTED = 1;
 export const BUILDING_GARRISON = 2;
 export const BUILDING_LIT = 4;
+export const BUILDING_CALL = 8; // police on the way to a 911 call: a flashing light blue ring
 
 /**
  * What the ticker needs to know about an event, captured by the worker at the tick
@@ -130,6 +135,8 @@ export interface FrameSnapshot {
   simXY: Float32Array;
   simKind: Uint8Array;
   simFlags: Uint8Array;
+  /** Per sim: heading in radians (which way a triangle points). */
+  simHeading: Float32Array;
   /** Per zombie (indexed by id): x, y. */
   zombieXY: Float32Array;
   zombieKind: Uint8Array;

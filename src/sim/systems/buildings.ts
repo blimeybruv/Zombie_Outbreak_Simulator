@@ -16,6 +16,7 @@ import { capacity, entranceNearest, exitTicks, isLiving } from './common';
 import { merge } from './encounters';
 import { modeOf } from './panic';
 import { updateRelease } from './release';
+import { dispatchCalls, placeCall } from './dispatch';
 import { alert, deliver, scavenge, shelterWork, visibleFill } from './shelter';
 import { emitStimulus } from './stimuli';
 
@@ -182,6 +183,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   );
   const to = simLeaf(sim);
   if (from !== null && to !== null && from !== to) transfer(world, from, to);
+  if (!contesting) placeCall(world, sim, b);
 
   if (sim.destinationKind === 'routine') {
     sim.idleUntil = tick + nextInt(world.rng, config.routine.idleTicks[0]!, config.routine.idleTicks[1]!);
@@ -465,6 +467,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   probe('buildings.exits');
   noiseExpulsion(world, ctx);
   probe('buildings.noise');
+  dispatchCalls(world, ctx);
   for (const bid of breachCandidates(world)) breachRolls(world, ctx, world.buildings[bid]!);
   probe('buildings.breach');
   for (const b of world.buildings) {

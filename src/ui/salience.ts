@@ -24,6 +24,7 @@ export const BASE = {
   shelterFell: 40,
   materialsDelivered: 25,
   districtChanged: 20,
+  policeDispatched: 20, // not in the reference: a 911 call answered
   simIsolating: 30, // not in the reference: a decision only the viewer sees
   weaponFound: 15,
   shelterEstablished: 10, // not in the reference: common, worth a line only when rare
