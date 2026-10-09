@@ -4,7 +4,7 @@
 // the living. Footsteps are not stored as stimuli: running and sprinting are heard
 // only by zombies within the gait's noise radius at that moment.
 
-import type { Metres, Tick, Unit01 } from './units';
+import type { BuildingId, Metres, Tick, Unit01 } from './units';
 import type { Weapon } from './sim';
 
 export type StimulusKind = Weapon | 'shout';
@@ -24,4 +24,10 @@ export interface Stimulus {
   createdAt: Tick;
   /** Removed at this tick (createdAt + decay). @range tick @unit tick @readBy stimulus expiry */
   expiresAt: Tick;
+  /**
+   * The building it was fired from, when someone defends a building from inside; its
+   * own people are not driven out by their own defence. Null otherwise.
+   * @range building id | null @unit id @readBy resident expulsion
+   */
+  from: BuildingId | null;
 }

@@ -12,6 +12,7 @@ import { setDestination } from '../src/sim/systems/common';
 import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
 import { chooseShelter } from '../src/sim/systems/shelter';
 import { zombieDecisions } from '../src/sim/systems/zombies';
+import { resolveCombat } from '../src/sim/systems/combat';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -278,10 +279,32 @@ describe('shots fired', () => {
     cop.awareAt = 0;
     const sx = p.x + p.ux * 50, sy = p.y + p.uy * 50;
     world.tick += 1;
-    world.stimuli.push({ x: sx, y: sy, kind: 'pistol', radius: 120, intensity: 1, createdAt: world.tick - 1, expiresAt: world.tick + 30 });
+    world.stimuli.push({ x: sx, y: sy, kind: 'pistol', radius: 120, intensity: 1, createdAt: world.tick - 1, expiresAt: world.tick + 30, from: null });
     decide(world, ctx);
     expect(cop.destinationKind).toBe('respond');
     expect(cop.destination).toEqual({ x: sx, y: sy });
     expect(cop.gait).toBe('run');
+  });
+});
+
+describe('firing from inside', () => {
+  it('an armed sim sheltering in an alerted building fires on the dead at its door', () => {
+    const { world, ctx } = fresh();
+    const b = world.buildings.find((x) => x.residents > 0 && x.zombiesInside === 0)!;
+    const e = b.entrances[0]!;
+    const s = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, initialPanic: 0, destinationKind: 'shelter' });
+    b.sheltered.push(s.id);
+    s.shelter = b.id;
+    s.weapon = 'shotgun';
+    s.ammo = 6;
+    b.alertedAt = 0;
+    spawnZombie(world, e.x + 4, e.y + 4, 'active', null, null);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    world.tick = Math.ceil(world.tick / 5) * 5 + (s.id % 5) + 5; // its turn on the armed stagger
+    resolveCombat(world, ctx);
+    expect(s.ammo).toBe(5);
+    expect(world.stimuli.some((x) => x.from === b.id && x.kind === 'shotgun')).toBe(true);
   });
 });

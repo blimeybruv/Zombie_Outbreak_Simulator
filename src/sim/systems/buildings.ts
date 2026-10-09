@@ -249,7 +249,8 @@ function noiseExpulsion(world: World, ctx: Context): void {
   const heard = new Map<number, boolean>(); // building → heard gunfire
   for (const s of world.stimuli) {
     if (s.createdAt !== tick) continue;
-    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) heard.set(bid, (heard.get(bid) ?? false) || s.kind !== 'shout');
+    // (A building's own defence alerts it, but does not drive its own people out.)
+    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) heard.set(bid, (heard.get(bid) ?? false) || (s.kind !== 'shout' && s.from !== bid));
   }
   for (const bid of [...heard.keys()].sort((a, b) => a - b)) {
     const b = world.buildings[bid]!;

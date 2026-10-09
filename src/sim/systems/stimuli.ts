@@ -1,6 +1,6 @@
 // Tick step 3, plus the one way noise enters the world.
 
-import type { StimulusKind, World } from '../state';
+import type { BuildingId, StimulusKind, World } from '../state';
 
 export function emitStimulus(
   world: World,
@@ -10,6 +10,7 @@ export function emitStimulus(
   radius: number,
   indoors: boolean,
   intensity = world.config.combat.weaponNoiseIntensity,
+  from: BuildingId | null = null,
 ): void {
   if (radius <= 0) return;
   const { config, tick } = world;
@@ -21,6 +22,7 @@ export function emitStimulus(
     intensity,
     createdAt: tick,
     expiresAt: tick + config.stimulus.decay,
+    from,
   });
 }
 

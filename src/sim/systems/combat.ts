@@ -3,6 +3,7 @@
 // kills, misses, or infects. No health on either side.
 
 import { isOutdoorLiving, type Context } from '../context';
+import { isLiving } from './common';
 import { transfer, simLeaf } from '../counters';
 import { chance, nextInt } from '../rng';
 import type { Sim, World, Zombie } from '../state';
@@ -64,6 +65,10 @@ function sims(world: World, ctx: Context): void {
   const cc = config.combat;
   const ids = ctx.ids;
   for (const sim of world.sims) {
+    if (sim.insideBuilding !== null) {
+      if (tick >= sim.nextAttackAt) fromInside(world, ctx, sim);
+      continue;
+    }
     if (!isOutdoorLiving(sim) || tick < sim.nextAttackAt) continue;
     // A frozen sim does nothing that might be noticed; a panicked one fights only when cornered.
     if (sim.stand === 'freeze') continue;
@@ -129,6 +134,50 @@ function sims(world: World, ctx: Context): void {
     } else if (chance(world.rng, melee.infectionOnMiss)) {
       bite(world, ctx, sim);
     }
+  }
+}
+
+/**
+ * Defending from inside: an armed sim sheltering in a building that knows about the
+ * outbreak fires on the dead near its doors — the ordinary ranged roll, measured from
+ * the door, the noise muffled by the walls. Only at what is within doorDefenceRadius
+ * of a door, on the armed sims' staggered cycle, and not while the dead are inside.
+ * A defended building is then different from an empty barricaded one.
+ */
+function fromInside(world: World, ctx: Context, sim: Sim): void {
+  const { config, tick, zombies, buildings } = world;
+  const cc = config.combat;
+  if (!isLiving(sim) || sim.id % cc.armedTargetStagger !== tick % cc.armedTargetStagger) return;
+  const w = sim.weapon;
+  if (w !== 'pistol' && w !== 'smg' && w !== 'shotgun') return;
+  const ranged = cc.ranged[w];
+  if (sim.ammo < ranged.ammoPerAttack) return;
+  const b = buildings[sim.insideBuilding!]!;
+  if (b.zombiesInside > 0 || b.alertedAt === null) return;
+  const reach = Math.min(ranged.range, cc.doorDefenceRadius);
+  let target: Zombie | null = null;
+  let targetD = Infinity;
+  let door = b.entrances[0]!;
+  for (const e of b.entrances) {
+    ctx.zombieHash.query(e.x, e.y, reach, ctx.ids2);
+    for (const zid of ctx.ids2) {
+      const z = zombies[zid]!;
+      if (z.state !== 'active' && z.state !== 'wandering') continue;
+      const d = Math.hypot(z.x - e.x, z.y - e.y);
+      if (d < targetD || (d === targetD && target !== null && zid < target.id)) {
+        target = z;
+        targetD = d;
+        door = e;
+      }
+    }
+  }
+  if (target === null) return;
+  sim.ammo -= ranged.ammoPerAttack;
+  sim.nextAttackAt = tick + ranged.cooldown;
+  emitStimulus(world, door.x, door.y, w, ranged.noise, true, undefined, b.id);
+  if (chance(world.rng, ranged.baseKill * (1 - (cc.rangedFalloff * targetD) / ranged.range))) {
+    destroyZombie(world, target, sim);
+    ctx.events.push({ type: 'zombieDestroyed', tick, zombie: target.id, by: sim.id, x: target.x, y: target.y });
   }
 }
 
