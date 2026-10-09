@@ -8,12 +8,18 @@ import type { Camera } from './camera';
 
 const CELL = 80; // m (the user's look note: an 80 m blurred weather map)
 const SATURATE = 12; // agents in a cell at full strength
+// The blur is done on a small canvas, BLUR_PX pixels per cell, then scaled up with
+// smoothing: blurring at screen resolution every frame cost more than everything
+// else drawn at mid zoom (11 fps against 30 in the build container).
+const BLUR_PX = 4;
+const BLUR_RADIUS = 0.45; // cells
 
 export class DensityField {
   private readonly cols: number;
   private readonly living: Float32Array;
   private readonly dead: Float32Array;
   private readonly image: HTMLCanvasElement;
+  private readonly blurred: HTMLCanvasElement;
   private readonly pixels: ImageData;
 
   constructor(size: number) {
@@ -24,6 +30,9 @@ export class DensityField {
     this.image.width = this.cols;
     this.image.height = this.cols;
     this.pixels = this.image.getContext('2d')!.createImageData(this.cols, this.cols);
+    this.blurred = document.createElement('canvas');
+    this.blurred.width = this.cols * BLUR_PX;
+    this.blurred.height = this.cols * BLUR_PX;
   }
 
   private bin(target: Float32Array, xy: Float32Array, kinds: Uint8Array, hidden: number): void {
@@ -54,12 +63,16 @@ export class DensityField {
       px[i * 4 + 3] = Math.round(255 * Math.sqrt(a) * (0.28 + 0.42 * share));
     }
     this.image.getContext('2d')!.putImageData(this.pixels, 0, 0);
+    const b = this.blurred.getContext('2d')!;
+    b.clearRect(0, 0, this.blurred.width, this.blurred.height);
+    b.imageSmoothingEnabled = true;
+    b.filter = `blur(${BLUR_RADIUS * BLUR_PX}px)`;
+    b.drawImage(this.image, 0, 0, this.blurred.width, this.blurred.height);
+    b.filter = 'none';
     cam.apply(g, dpr);
     g.imageSmoothingEnabled = true;
-    g.filter = `blur(${Math.max(2, CELL * cam.scale * dpr * 0.45)}px)`;
     g.globalAlpha = strength;
-    g.drawImage(this.image, 0, 0, this.cols * CELL, this.cols * CELL);
+    g.drawImage(this.blurred, 0, 0, this.cols * CELL, this.cols * CELL);
     g.globalAlpha = 1;
-    g.filter = 'none';
   }
 }

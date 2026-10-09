@@ -8,6 +8,7 @@ import { Camera } from './render/camera';
 import { Renderer } from './render/renderer';
 import { line } from './ui/copy';
 import { Controls } from './ui/controls';
+import { FrameCounter } from './ui/frame-counter';
 import { Inspector } from './ui/inspector';
 import { Roster } from './ui/roster';
 import { Ticker } from './ui/ticker';
@@ -190,20 +191,25 @@ function centreOnBusiest(): void {
 }
 (window as unknown as { __view: unknown }).__view = { stats, camera, controls, ticker, centreOnBusiest, ready: () => latest !== null };
 
+const frameCounter = new FrameCounter(document.querySelector<HTMLElement>('#fps')!, import.meta.env.DEV || params.has('fps'));
+
 function frame(now: number): void {
   if (!awaiting) {
     awaiting = true;
     send({ type: 'frame' });
   }
+  let drawMs = 0;
   if (renderer && latest) {
     // Follow the tracked sim while it is on the map; indoors, the camera waits at the door.
     if (tracked !== null && latest.simKind[tracked]) camera.centreOn(latest.simXY[tracked * 2]!, latest.simXY[tracked * 2 + 1]!);
     const t0 = performance.now();
     renderer.draw(latest, camera, window.devicePixelRatio || 1, now);
     renderer.drawSelection(selected, latest, camera, window.devicePixelRatio || 1);
-    stats.drawMs += performance.now() - t0;
+    drawMs = performance.now() - t0;
+    stats.drawMs += drawMs;
     stats.frames++;
   }
+  frameCounter.tick(now, drawMs, latest, controls.currentSpeed * config.playback.ticksPerSecondAt1x);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

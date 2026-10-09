@@ -206,7 +206,9 @@ If one seems necessary, raise it rather than adding it.
   judging a change. The harness owns the clock; never add timing inside `src/sim/`.
 - `npx tsx scripts/movement-check.ts` reports how often moving agents are stuck or
   reversing (zig-zag); it should stay near zero after any change to steering or movement.
-- The viewer: `npm run dev`. `npx tsx scripts/view.ts [--advance N]` screenshots far,
+- The viewer: `npm run dev`. A frame counter (top centre; F toggles, `?fps` in a build)
+  shows fps, the worst frame, draw time and the simulation's achieved tick rate; amber
+  when under 30 fps or behind. `npx tsx scripts/view.ts [--advance N]` screenshots far,
   mid and near zoom in headless Chromium; `npx tsx scripts/fps.ts` measures the renderer
   gate (run it on a real machine); `npx tsx scripts/ticker-rate.ts` replays a run through
   the ticker's salience filter and checks the lines-per-second gate.

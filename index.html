@@ -28,6 +28,8 @@
       #roster .lost:hover .lost-names { display: block; }
       #inspector { position: fixed; right: 12px; bottom: 12px; width: 300px; background: rgba(6, 7, 10, 0.82); padding: 8px 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 3px; }
       #inspector:empty { display: none; }
+      #fps { position: fixed; left: 50%; transform: translateX(-50%); top: 8px; background: rgba(6, 7, 10, 0.75); color: #8fbf8f; padding: 3px 8px; border-radius: 3px; font-size: 11px; pointer-events: none; white-space: nowrap; }
+      #fps.slow { color: #e0a060; }
       #inspector .head { color: #eef3f7; }
       #inspector .sub { color: #9aa3ad; }
       #inspector .dim { color: #6c757f; }
@@ -52,6 +54,7 @@
     <div id="ticker"></div>
     <div id="roster"></div>
     <div id="inspector"></div>
+    <div id="fps" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
