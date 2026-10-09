@@ -84,6 +84,14 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
   if (msg.type === 'map') {
     renderer = new Renderer(canvas, msg.map);
+    // Open on where it began: patient zero's building, close enough to see the street.
+    const origin = msg.map.origins[0];
+    if (origin !== undefined) {
+      const c = renderer.buildingCentre(origin);
+      camera.scale = 1;
+      camera.centreOn(c.x, c.y);
+      camera.version++;
+    }
     const infected = params.get('infected');
     if (infected === 'ring' || infected === 'fill' || infected === 'off') renderer.infectedStyle = infected;
   } else {

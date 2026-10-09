@@ -413,15 +413,35 @@ export const config = {
     fortificationDecay: 0.0005, // /tick when unattended
     fortificationFloor: 0.001, // decayed below this, fortification is gone
     exitTicksPerFortification: 40, // exit costs fortification * this
+    // Fortification stages. Barricaded: the people inside, knowing of the outbreak, have
+    // shoved furniture against the door — `barricadeTicks` after anyone last came in or
+    // went out; time only, no materials; undone whenever the door opens. Reinforced and
+    // fortified: fortification at or above these, which is where materials and decay
+    // belong. A break-in is attempted only by a crowd at the door at least the stage's
+    // `minCrowd` (open — unaware, empty, or the door just opened — admits one); within a
+    // stage the odds per roll are as before. Taking the barricade down to leave adds
+    // `barricadeExitTicks` — guess
+    stages: {
+      barricadeTicks: 60,
+      reinforcedAt: 0.3,
+      fortifiedAt: 0.8,
+      minCrowd: { open: 1, barricaded: 2, reinforced: 5, fortified: 15 },
+      barricadeExitTicks: 10,
+      // Integrity is what a building can be made into, not a multiplier on the odds: at
+      // or above these it can be reinforced, fortified. A glass-fronted office stops at
+      // reinforced, a supermarket at barricaded, however much work goes in.
+      reinforcibleFrom: 0.4,
+      fortifiableFrom: 0.7,
+    },
     expelPerTick: 2, // residents leaving per building per tick
     residentExpelShare: 0.3, // of remaining residents expelled by nearby gunfire — guess
     breach: {
       interval: 10, // ticks; staggered by building id
       entranceRadius: 5, // m; zombies this close to an entrance roll
       maxRolls: 4, // per building per check
-      // p per roll = base * (1 - integrity) / (1 + 2 * fortification): never zero, and a
-      // fully fortified weak building (0.35) outlasts a bare strong one (0.7).
-      base: 0.2, // swept (was 0.05, then 0.15 before subdivided blocks, 0.35 before the shelter economy)
+      // p per roll = base / (1 + 2 * fortification): never zero. Integrity no longer scales
+      // it; it caps the stage a building can reach (stages, above).
+      base: 0.06, // a bare house's odds as before (0.2 × (1 - 0.7)); swept as 0.2 × (1 - integrity) earlier
       split: { turn: 0.6, die: 0.1, expel: 0.3 }, // how residents resolve after a breach — swept (reference start 0.45/0.2/0.35)
       resolvePerTick: 2, // residents resolved per building per tick
     },
@@ -531,8 +551,7 @@ export const config = {
     groupPeak: 8, // believed occupants at which groupTerm peaks
     materialsScale: 20, // materials at which the materials term saturates — guess
     closePassRadius: 15, // m; passing this close writes building memory — guess
-    garrisonMin: 3, // holders (residents, plus tracked sims who have made it home) for an alerted, fortifying building to count as a shelter — guess
-    garrisonFortification: 0.05, // fortification at which it counts — guess
+    garrisonMin: 3, // holders (residents, plus tracked sims who have made it home) for a barricaded building to count as a shelter — guess
     cascadeInterval: 10, // ticks between cascade checks on a garrison, staggered by id
   },
 

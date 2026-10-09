@@ -433,6 +433,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       alertedAt: null,
       scavengerOut: null,
       garrisonedAt: null,
+      doorOpenedAt: null,
       callAt: null,
       dispatchedAt: null,
       cascadeAt: null,

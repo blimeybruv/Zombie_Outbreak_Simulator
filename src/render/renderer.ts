@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -28,8 +28,14 @@ const PULSE_RADIUS = 7; // m
 const SHOUT_MS = 700;
 const DOOR_W = 1.8; // m
 const DOOR_D = 0.9; // m
+const BAR_OVERHANG = 0.5; // m either side of a door step
+const INSET = 1.2; // m: a fortified building's inner outline
 const PING_MS = 1100; // one 911 ping, wide to nothing
 const FREEZE_PULSE_MS = 1600; // one slow breath of a frozen survivor
+const ORIGIN_TICKS = 120; // how long patient zero's building is marked: 12 s of watching at 1×
+const ORIGIN_PING_MS = 1500;
+const ORIGIN_R_MAX = 70; // px, the mark's radius as each ping starts
+const ORIGIN_R_MIN = 22; // px, as it settles
 const FLASH_MS = 160;
 const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 
@@ -94,6 +100,7 @@ export class Renderer {
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, stroked in background colour
   private readonly bridgeRails: Path2D;
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
+  private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
   private readonly litPath: Path2D;
   private readonly density: DensityField;
   private readonly corpses: CorpseLayer;
@@ -102,6 +109,8 @@ export class Renderer {
   private pulses: { x: number; y: number; start: number }[] = [];
   private sounds: { x: number; y: number; radius: number; shout: boolean; start: number }[] = [];
   private readonly interp = new Interpolator();
+  /** Where the outbreak began, pinged with a biohazard mark until ORIGIN_TICKS. */
+  private origins: { x: number; y: number }[] = [];
   /** How a bitten survivor shows at near zoom: an amber ring, a pale amber dot, or not at all (?infected=). */
   infectedStyle: 'ring' | 'fill' | 'off' = 'ring';
   /** Each building's bounding box, for culling: minX, minY, maxX, maxY. */
@@ -172,8 +181,13 @@ export class Renderer {
     // Doors: a step DOOR_W wide standing DOOR_D proud of the wall, so it shows where
     // people go in and out — a dot reaching a door otherwise simply vanishes.
     this.doorPath = new Path2D();
-    const step = (x: number, y: number, nx: number, ny: number, w: number) => {
+    const step = (x: number, y: number, nx: number, ny: number, w: number, b: number) => {
       const tx = -ny * (w / 2), ty = nx * (w / 2);
+      // The bar a barricade puts across it: a little wider than the step, at its outer edge.
+      const bars = this.doorBars.get(b) ?? [];
+      const k = 1 + BAR_OVERHANG / (w / 2);
+      bars.push(x + tx * k + nx * DOOR_D, y + ty * k + ny * DOOR_D, x - tx * k + nx * DOOR_D, y - ty * k + ny * DOOR_D);
+      this.doorBars.set(b, bars);
       this.doorPath.moveTo(x + tx, y + ty);
       this.doorPath.lineTo(x + tx + nx * DOOR_D, y + ty + ny * DOOR_D);
       this.doorPath.lineTo(x - tx + nx * DOOR_D, y - ty + ny * DOOR_D);
@@ -182,15 +196,16 @@ export class Renderer {
     const d = map.doors;
     for (let i = 0; i < d.length; i += 5) {
       if (map.buildingChurch[d[i]!]) continue; // its plot's doors would float beside the drawn church
-      step(d[i + 1]!, d[i + 2]!, d[i + 3]!, d[i + 4]!, DOOR_W);
+      step(d[i + 1]!, d[i + 2]!, d[i + 3]!, d[i + 4]!, DOOR_W, d[i]!);
     }
     // A church's door: the west face of its tower, a little grander.
     for (let i = 0; i < map.buildingChurch.length; i++) {
       if (!map.buildingChurch[i]) continue;
       const f = churchFrame(map.outlines, i);
-      step(f.cx - f.ax * f.half, f.cy - f.ay * f.half, -f.ax, -f.ay, DOOR_W * 1.6);
+      step(f.cx - f.ax * f.half, f.cy - f.ay * f.half, -f.ax, -f.ay, DOOR_W * 1.6, i);
     }
     this.density = new DensityField(map.size);
+    for (const id of map.origins) this.origins.push(this.buildingCentre(id));
     this.corpses = new CorpseLayer(map.size);
   }
 
@@ -312,10 +327,12 @@ export class Renderer {
     if (cam.mode === 'far') {
       this.density.draw(g, frame, cam, dpr);
       this.drawCalls(g, frame, cam, dpr, wallMs);
+      this.drawOrigin(g, frame, cam, dpr, wallMs);
       return;
     }
     if (cam.mode === 'mid') this.density.draw(g, frame, cam, dpr, MID_DENSITY);
     this.drawOccupancy(g, frame, cam, dpr, wallMs);
+    if (cam.mode === 'near') this.drawStages(g, frame, cam, dpr);
     this.simTrails.sample(frame.simXY, frame.simKind, frame.tick, wallMs);
     this.zombieTrails.sample(frame.zombieXY, frame.zombieKind, frame.tick, wallMs);
     const near = cam.mode === 'near';
@@ -330,6 +347,36 @@ export class Renderer {
     this.drawPulses(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
     this.drawCalls(g, frame, cam, dpr, wallMs);
+    this.drawOrigin(g, frame, cam, dpr, wallMs);
+  }
+
+  /**
+   * Where it began: a red ☣ in a ring over patient zero's building, shrinking onto it
+   * like a ping, from the start (the run opens paused) until ORIGIN_TICKS have run.
+   */
+  private drawOrigin(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
+    if (this.origins.length === 0 || frame.tick >= ORIGIN_TICKS) return;
+    const t = (wallMs % ORIGIN_PING_MS) / ORIGIN_PING_MS; // 0 wide, 1 settled
+    const r = (ORIGIN_R_MAX - (ORIGIN_R_MAX - ORIGIN_R_MIN) * t) * dpr;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const [cr, cg, cb] = P.ZOMBIE_RGB;
+    const colour = `rgba(${cr}, ${cg}, ${cb}, ${(0.35 + 0.6 * t).toFixed(3)})`;
+    g.fillStyle = colour;
+    // A ring round the symbol; the two shrink together.
+    g.strokeStyle = colour;
+    g.lineWidth = 2 * dpr;
+    g.beginPath();
+    for (const o of this.origins) {
+      const x = cam.toScreenX(o.x) * dpr, y = cam.toScreenY(o.y) * dpr;
+      g.moveTo(x + r * 1.35, y);
+      g.arc(x, y, r * 1.35, 0, Math.PI * 2);
+    }
+    g.stroke();
+    g.font = `${Math.round(r * 2)}px "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols", "DejaVu Sans", sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (const o of this.origins) g.fillText('\u2623', cam.toScreenX(o.x) * dpr, cam.toScreenY(o.y) * dpr); // ☣
+    g.textAlign = 'start';
   }
 
   /**
@@ -393,6 +440,52 @@ export class Renderer {
       g.arc(p.x, p.y, Math.max(PULSE_RADIUS * t, 4 / cam.scale) + 1, 0, Math.PI * 2);
       g.stroke();
     }
+  }
+
+  /**
+   * How well each door is held, at near zoom: a bar across the door step when
+   * barricaded; a heavier outline as well when reinforced; and an inner outline too
+   * when fortified.
+   */
+  private drawStages(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+    const view = this.viewBounds(cam);
+    const o = this.map.outlines;
+    const bars = new Path2D(), walls = new Path2D(), inner = new Path2D();
+    let any = false;
+    for (let i = 0; i < frame.buildingFlags.length; i++) {
+      const stage = (frame.buildingFlags[i]! & BUILDING_STAGE_MASK) >> BUILDING_STAGE_SHIFT;
+      if (stage === 0) continue;
+      const b = i * 4;
+      if (this.bounds[b + 2]! < view.x0 || this.bounds[b]! > view.x1 || this.bounds[b + 3]! < view.y0 || this.bounds[b + 1]! > view.y1) continue;
+      any = true;
+      const bar = this.doorBars.get(i) ?? [];
+      for (let j = 0; j < bar.length; j += 4) {
+        bars.moveTo(bar[j]!, bar[j + 1]!);
+        bars.lineTo(bar[j + 2]!, bar[j + 3]!);
+      }
+      if (stage < 2) continue;
+      (this.map.buildingChurch[i] ? addChurch : addOutline)(walls, o, i);
+      if (stage < 3 || this.map.buildingChurch[i]) continue;
+      const k = i * 8;
+      const cx = (o[k]! + o[k + 2]! + o[k + 4]! + o[k + 6]!) / 4, cy = (o[k + 1]! + o[k + 3]! + o[k + 5]! + o[k + 7]!) / 4;
+      for (let c = 0; c < 4; c++) {
+        const x = o[k + c * 2]!, y = o[k + c * 2 + 1]!;
+        const d = Math.hypot(cx - x, cy - y) || 1;
+        const t = Math.min(0.4, INSET / d);
+        if (c === 0) inner.moveTo(x + (cx - x) * t, y + (cy - y) * t);
+        else inner.lineTo(x + (cx - x) * t, y + (cy - y) * t);
+      }
+      inner.closePath();
+    }
+    if (!any) return;
+    cam.apply(g, dpr);
+    g.strokeStyle = P.HELD;
+    g.lineWidth = 2.2 / (cam.scale * dpr);
+    g.stroke(bars);
+    g.lineWidth = 2 / (cam.scale * dpr);
+    g.stroke(walls);
+    g.lineWidth = 1 / (cam.scale * dpr);
+    g.stroke(inner);
   }
 
   /** Faint fill tracking how many are inside; residents and occupiers look the same. Contested buildings pulse. */
@@ -545,3 +638,4 @@ function pointSegment(px: number, py: number, a: { x: number; y: number }, b: { 
   const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / (dx * dx + dy * dy || 1)));
   return Math.hypot(px - a.x - t * dx, py - a.y - t * dy);
 }
+

@@ -11,11 +11,15 @@ import { daylight, timeOfDay } from '../sim/derived';
 import { defaultScenario } from '../sim/scenario';
 import { createWorld } from '../sim/setup';
 import type { SimEvent, World } from '../sim/state';
+import { stageOf } from '../sim/systems/common';
 import { modeOf } from '../sim/systems/panic';
+
+const STAGES = ['open', 'barricaded', 'reinforced', 'fortified'] as const;
 import { step } from '../sim/tick';
 import type { Context } from '../sim/context';
 import {
   BUILDING_CALL,
+  BUILDING_STAGE_SHIFT,
   BUILDING_CONTESTED,
   BUILDING_GARRISON,
   BUILDING_LIT,
@@ -71,6 +75,8 @@ function collect(w: World, c: Context): void {
   }
 }
 
+let origins: number[] = [];
+
 function mapSnapshot(w: World): MapSnapshot {
   const streets = new Float32Array(w.streets.length * 5);
   const streetLit = new Uint8Array(w.streets.length);
@@ -115,6 +121,7 @@ function mapSnapshot(w: World): MapSnapshot {
     streetBridge,
     outlines,
     buildingChurch,
+    origins,
     doors: new Float32Array(doors),
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),
@@ -156,7 +163,7 @@ function frameSnapshot(w: World): FrameSnapshot {
   for (const b of w.buildings) {
     fill[b.id] = Math.min(65535, b.residents + b.sheltered.length + b.zombiesInside);
     buildingFlags[b.id] =
-      (b.zombiesInside > 0 && b.sheltered.length > 0 ? BUILDING_CONTESTED : 0) | (b.garrisonedAt !== null ? BUILDING_GARRISON : 0) | (b.lit ? BUILDING_LIT : 0) | (b.dispatchedAt !== null ? BUILDING_CALL : 0);
+      (b.zombiesInside > 0 && b.sheltered.length > 0 ? BUILDING_CONTESTED : 0) | (b.garrisonedAt !== null ? BUILDING_GARRISON : 0) | (b.lit ? BUILDING_LIT : 0) | (b.dispatchedAt !== null ? BUILDING_CALL : 0) | (STAGES.indexOf(stageOf(w, b)) << BUILDING_STAGE_SHIFT);
   }
   const tod = timeOfDay(w.tick, w.scenario, w.config);
   const now = performance.now();
@@ -232,6 +239,8 @@ scope.onmessage = (e) => {
     const made = createWorld({ ...defaultScenario, runSeed: msg.runSeed, mapSeed: msg.mapSeed }, config);
     world = made.world;
     ctx = made.ctx;
+    // Patient zero's building, noted before anything moves: the view opens there.
+    origins = world.buildings.filter((b) => b.zombiesInside > 0).map((b) => b.id);
     while (world.tick < msg.advance) {
       step(world, ctx, { checkInvariant: false });
       // Deaths while fast-forwarding still belong on the corpse layer.

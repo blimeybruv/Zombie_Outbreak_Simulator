@@ -18,7 +18,7 @@ import { remember } from '../memory';
 import { chance, nextFloat, nextInt } from '../rng';
 import { spawnSim } from '../spawn';
 import type { Building, BuildingBelief, BuildingId, Sim, Weapon, World } from '../state';
-import { capacity, entranceNearest, exitTicks, isLiving, setDestination } from './common';
+import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from './common';
 import { modeOf } from './panic';
 
 // Door watch
@@ -452,7 +452,7 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
   let holders = b.residents;
   for (const id of b.sheltered) if (world.sims[id]!.shelter === b.id) holders++;
   if (b.garrisonedAt === null) {
-    if (b.zombiesInside === 0 && holders >= sc.garrisonMin && b.fortification >= sc.garrisonFortification) {
+    if (b.zombiesInside === 0 && holders >= sc.garrisonMin && stageOf(world, b) !== 'open') {
       b.garrisonedAt = tick;
       ctx.events.push({ type: 'shelterEstablished', tick, building: b.id, sim: null });
     }

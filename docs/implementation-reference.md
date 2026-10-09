@@ -109,6 +109,7 @@ The viewer, built after the shelter economy. Everything here is presentation: no
 - **Tracking:** clicking a roster name or a ticker line centres on its subject and follows it while it is on the map; dragging lets go.
 - **The inspector** is as specified. Detail is built by the worker and sent with every frame while the panel is open; a building's history is the ticker copy of its own events, kept on the page. The backstory moved to `src/worker/`, where the state is.
 - **Audio** has no assets yet: gunfire (by weapon), melee thuds and the moan bed are synthesised into buffers at start. It plays the weapon noise in each snapshot — the stimuli that draw the dead — on screen only, loudest first, at most four a frame (two above 4×, one at 8×), with per-category voice caps and ±6% pitch jitter. The bed's gain follows the square root of the awake dead on screen. M mutes. **Open:** real recorded sounds.
+- **The view opens where it began:** centred on patient zero's building at mid zoom, with a red ☣ in a ring pinging over it — the two shrinking together onto the building, over and over — until tick 120 (twelve seconds at 1×; the run opens paused, so it waits). The worker notes the buildings occupied at tick 0 for the map snapshot (`MapSnapshot.origins`); no simulation state.
 - **Frame counter** (development): top centre, on under the dev server, F toggles, `?fps` shows it in a build. Over the last second: frames per second, the worst frame, the main thread's draw time, and the simulation's achieved tick rate against its target; amber below 30 fps or 90% of the target rate. Draw time counts only issuing the drawing — rasterising happens after it — so frames per second is the number that decides.
 - **The density blur is done small.** Blurring the density field at screen resolution every frame took mid zoom from 30 to 11 fps in the build container once the underlay was added; it is now blurred on a canvas of four pixels per 80 m cell and scaled up with smoothing, which looks the same (24 fps there).
 - **Measuring:** `scripts/view.ts` screenshots far, mid and near zoom from a fast-forwarded run (`?advance=N`); `scripts/fps.ts` measures frame rate, draw time and the tick rate achieved at 8×. In the build container (software rendering, shared CPU) draws cost about 5.5 ms a frame and the simulation reaches only 19 of 80 ticks a second at the busiest stretch, so the 30 fps gate has to be measured on a real machine.
@@ -154,6 +155,23 @@ Floated by the user after the survivor revisions; each was measured on seed 1 be
 ### Firing from inside
 
 An armed sim sheltering in a building that knows about the outbreak fires on the dead within 20 m of one of its doors (`combat.doorDefenceRadius`), on the armed sims' staggered cycle: the ordinary ranged roll, measured from the door, the noise muffled by the walls, not while the dead are inside. It defends the door rather than sniping at the street, because every shot draws more. A shot fired from a building alerts it but does not drive its own residents out (`Stimulus.from`). No other new state: the building already knows who is inside. A defended building is now different from an empty barricaded one, and police have a reason to hold a station. Seed 1, 9,000 ticks: breaches 810 → 686, shelters fallen 154 → 125, dead 1,183 → 929, turned 1,372 → 1,078, police alive at the end 27 → 34.
+
+### Fortification stages
+
+Fortification was one number dividing the breach odds, and integrity multiplied them: one zombie at the door of a bare house got in within about 170 ticks, and a besieging zombie (600 ticks at the door) got into an unfortified house 97.5% of the time and a fully fortified one 70%. Nothing made a building safe from one zombie. Now there are stages (`buildings.stages`), derived, never stored (`common.ts stageOf`):
+
+- **Open:** the people inside do not know of the outbreak, nobody is inside, or the door has been opened in the last `barricadeTicks` (60). One zombie may try.
+- **Barricaded:** they know, someone is inside, and nobody has come in or gone out for 60 ticks: furniture against the door. Time only, no materials. Undone whenever the door opens — anyone entering or leaving, a resident released or driven out (`Building.doorOpenedAt`) — so a scavenger coming home, or one leading the dead home, leaves the door open behind it. It takes two zombies at the door to try.
+- **Reinforced:** fortification at least 0.3. Takes five. This is where materials and decay belong, as before.
+- **Fortified:** fortification at least 0.8. Takes fifteen — the crowd a cascade means.
+
+Integrity no longer scales the odds; it caps the stage (the user's suggestion): reinforcible from 0.4, fortifiable from 0.7. Houses, warehouses, workshops, hardware stores, gun shops and police stations can be fortified; offices and hospitals stop at reinforced; supermarkets and schools, glass-fronted, at barricaded. Within a stage the odds per roll are `breach.base` / (1 + 2 × fortification), with `base` 0.06 so a bare house keeps its old odds. Leaving through a barricade takes 10 ticks more. A garrison now forms on a barricaded door (it was fortification 0.05).
+
+Drawn at near zoom: a bar across each door step when barricaded; a heavier outline as well when reinforced; an inner outline too when fortified.
+
+Seed 1, 9,000 ticks: breaches 686 → 363, dead 929 → 633, turned 1,078 → 702. At tick 3,000, of 2,068 peopled buildings 1,838 were open (most never learned of the outbreak), 38 barricaded, 171 reinforced, 21 fortified; by 9,000, 201 barricaded, 135 reinforced, 2 fortified, as materials ran out.
+
+- **Sweep** (mapSeed 1, runSeeds 1–8): running; recorded here when it finishes.
 
 ## The concept in brief
 

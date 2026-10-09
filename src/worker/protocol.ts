@@ -19,6 +19,8 @@ export interface MapSnapshot {
   outlines: Float32Array;
   /** Per entrance, every building: building index, x, y on the wall, and the wall's outward normal nx, ny. */
   doors: Float32Array;
+  /** Where the outbreak began: the buildings patient zero was in at tick 0. The view opens on the first. */
+  origins: number[];
   /** Per building: 1 for a church, drawn in plan (nave, apse, tower). */
   buildingChurch: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
@@ -52,6 +54,9 @@ export const BUILDING_CONTESTED = 1;
 export const BUILDING_GARRISON = 2;
 export const BUILDING_LIT = 4;
 export const BUILDING_CALL = 8; // police on the way to a 911 call: a flashing light blue ring
+/** Fortification stage in two bits: 0 open, 1 barricaded, 2 reinforced, 3 fortified. */
+export const BUILDING_STAGE_SHIFT = 4;
+export const BUILDING_STAGE_MASK = 3 << BUILDING_STAGE_SHIFT;
 
 /**
  * What the ticker needs to know about an event, captured by the worker at the tick

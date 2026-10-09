@@ -4,6 +4,7 @@
 export const BACKGROUND = '#06070a';
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
 export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
+export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
 export const CONTESTED = [255, 255, 255] as const; // pulsing outline
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.045)'; // night only

@@ -2,10 +2,10 @@ import type { Config } from '../config';
 import type { Unit01 } from './state/units';
 
 /**
- * Chance that one adjacent zombie breaches a building on one roll. Integrity sets
- * how breachable the bare building is; fortification divides it. Never zero, and
- * a fortified weak building can outlast a bare strong one.
+ * Chance that one zombie in a crowd big enough to try (fortification stages) breaches
+ * a building on one roll: fortification divides it, never to zero. Integrity is not
+ * here: it caps the stage a building can reach (stageOf).
  */
-export function breachChance(integrity: Unit01, fortification: Unit01, config: Config): Unit01 {
-  return (config.buildings.breach.base * (1 - integrity)) / (1 + 2 * fortification);
+export function breachChance(fortification: Unit01, config: Config): Unit01 {
+  return config.buildings.breach.base / (1 + 2 * fortification);
 }

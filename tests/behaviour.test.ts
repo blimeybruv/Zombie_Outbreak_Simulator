@@ -8,7 +8,8 @@ import type { Sim, World } from '../src/sim/state';
 import { merge, resolveEncounters } from '../src/sim/systems/encounters';
 import { computePerception, rebuildHashes } from '../src/sim/systems/perception';
 import { simDecisions } from '../src/sim/systems/sims';
-import { setDestination } from '../src/sim/systems/common';
+import { openDoor, setDestination, stageOf } from '../src/sim/systems/common';
+import { buildingProcesses } from '../src/sim/systems/buildings';
 import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
 import { chooseShelter } from '../src/sim/systems/shelter';
 import { zombieDecisions } from '../src/sim/systems/zombies';
@@ -306,5 +307,53 @@ describe('firing from inside', () => {
     resolveCombat(world, ctx);
     expect(s.ammo).toBe(5);
     expect(world.stimuli.some((x) => x.from === b.id && x.kind === 'shotgun')).toBe(true);
+  });
+});
+
+describe('fortification stages', () => {
+  it('a building that knows, with someone inside and the door shut a minute, is barricaded; reinforcement and fortification follow fortification', () => {
+    const { world } = fresh();
+    const b = world.buildings.find((x) => x.residents > 0 && x.tag === 'residential')!; // a house can be fortified
+    expect(stageOf(world, b)).toBe('open'); // unaware
+    b.alertedAt = world.tick;
+    expect(stageOf(world, b)).toBe('open'); // not yet
+    world.tick += world.config.buildings.stages.barricadeTicks;
+    expect(stageOf(world, b)).toBe('barricaded');
+    b.fortification = 0.5;
+    expect(stageOf(world, b)).toBe('reinforced');
+    b.fortification = 0.9;
+    expect(stageOf(world, b)).toBe('fortified');
+    openDoor(world, b);
+    expect(stageOf(world, b)).toBe('open'); // someone came or went
+  });
+
+  it('integrity caps the stage: a supermarket stays barricaded however much work goes in', () => {
+    const { world } = fresh();
+    const b = world.buildings.find((x) => x.residents > 0 && x.tag === 'supermarket')!;
+    b.alertedAt = world.tick;
+    b.fortification = 1;
+    world.tick += world.config.buildings.stages.barricadeTicks;
+    expect(stageOf(world, b)).toBe('barricaded');
+  });
+
+  it('one zombie cannot break a barricade; at an open door it can', () => {
+    const cfg = structuredClone(baseConfig);
+    cfg.buildings.breach.base = 100; // every roll would succeed
+    const { world, ctx } = fresh(cfg);
+    const b = world.buildings.find((x) => x.residents > 0 && x.zombiesInside === 0)!;
+    b.alertedAt = 0;
+    world.tick = Math.ceil((world.config.buildings.stages.barricadeTicks + 1) / cfg.buildings.breach.interval) * cfg.buildings.breach.interval + (b.id % cfg.buildings.breach.interval);
+    const e = b.entrances[0]!;
+    spawnZombie(world, e.x + 1, e.y + 1, 'active', null, null);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    const breached = () => ctx.events.some((x) => x.type === 'buildingBreached' && x.building === b.id);
+    buildingProcesses(world, ctx, () => {});
+    expect(breached()).toBe(false);
+    openDoor(world, b);
+    world.tick += cfg.buildings.breach.interval;
+    rebuildHashes(world, ctx);
+    buildingProcesses(world, ctx, () => {});
+    expect(breached()).toBe(true);
   });
 });

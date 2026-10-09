@@ -82,6 +82,13 @@ export interface Building {
    */
   garrisonedAt: Tick | null;
   /**
+   * When anyone last came in or went out. A building is barricaded once it knows of the
+   * outbreak, someone is inside, and nobody has opened the door for `barricadeTicks`
+   * (derived, common.ts stageOf). Null if nobody has yet.
+   * @range tick | null @unit tick @readBy fortification stage, render
+   */
+  doorOpenedAt: Tick | null;
+  /**
    * A 911 call from here: someone got inside having just fled a zombie. Null when
    * there is none, when it has been answered, or when it lapses unanswered.
    * @range tick | null @unit tick @readBy police dispatch

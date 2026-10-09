@@ -241,7 +241,8 @@ describe('alert state belongs to the people inside', () => {
       b.sheltered.push(s.id);
       return s;
     });
-    work(world, ctx, b, 5);
+    const barricade = world.config.buildings.stages.barricadeTicks; // a garrison holds a barricaded door
+    work(world, ctx, b, barricade);
     expect(b.garrisonedAt).toBeNull();
     for (const s of visitors) s.shelter = b.id; // they make it home
     work(world, ctx, b, 5);

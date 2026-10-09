@@ -133,20 +133,21 @@ describe('derived quantities', () => {
 });
 
 describe('breach chance', () => {
-  const tags = Object.values(config.tags);
-
-  it('is never zero, even for the strongest building fully fortified', () => {
-    for (const t of tags) expect(breachChance(t.integrity, 1, config)).toBeGreaterThan(0);
+  it('is never zero, even fully fortified', () => {
+    expect(breachChance(1, config)).toBeGreaterThan(0);
   });
 
   it('falls as fortification rises', () => {
-    for (const t of tags) expect(breachChance(t.integrity, 0.5, config)).toBeLessThan(breachChance(t.integrity, 0, config));
+    expect(breachChance(0.5, config)).toBeLessThan(breachChance(0, config));
   });
 
-  it('lets a fortified weak building outlast a bare strong one', () => {
-    const weakest = Math.min(...tags.map((t) => t.integrity));
-    const strongestRoutine = config.tags.residential.integrity;
-    expect(breachChance(weakest, 1, config)).toBeLessThan(breachChance(strongestRoutine, 0, config));
+  it('integrity caps the stage instead: offices stop at reinforced, supermarkets at barricaded, houses can be fortified', () => {
+    const st = config.buildings.stages;
+    expect(config.tags.office.integrity).toBeLessThan(st.fortifiableFrom);
+    expect(config.tags.office.integrity).toBeGreaterThanOrEqual(st.reinforcibleFrom);
+    expect(config.tags.supermarket.integrity).toBeLessThan(st.reinforcibleFrom);
+    expect(config.tags.residential.integrity).toBeGreaterThanOrEqual(st.fortifiableFrom);
+    expect(config.tags.warehouse.integrity).toBeGreaterThanOrEqual(st.fortifiableFrom);
   });
 });
 

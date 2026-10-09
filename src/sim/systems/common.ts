@@ -1,6 +1,7 @@
 // Small helpers shared by sim decisions, building processes and the shelter
 // economy. Kept apart so those systems do not import each other.
 
+import { functionalProfile } from '../mapgen/generate';
 import type { Building, Sim, World } from '../state';
 
 export function entranceNearest(b: Building, x: number, y: number): { x: number; y: number } {
@@ -41,9 +42,36 @@ export function clearDestination(sim: Sim): void {
   sim.routeIndex = 0;
 }
 
-/** Barricades cut both ways: leaving takes fortification × exitTicksPerFortification. */
+export type Stage = 'open' | 'barricaded' | 'reinforced' | 'fortified';
+
+/**
+ * How well a building's door is held. Open unless the people inside know of the
+ * outbreak and nobody has opened the door for barricadeTicks; then barricaded, and
+ * reinforced or fortified as fortification reaches each threshold — as far as the
+ * building's integrity allows. Derived, never stored: the inputs are the door, the
+ * alert, fortification and the tag.
+ */
+export function stageOf(world: World, b: Building): Stage {
+  const st = world.config.buildings.stages;
+  if (b.alertedAt === null || b.residents + b.sheltered.length === 0) return 'open';
+  if (world.tick - Math.max(b.alertedAt, b.doorOpenedAt ?? b.alertedAt) < st.barricadeTicks) return 'open';
+  // How far the building itself allows: integrity caps the stage.
+  const integrity = world.config.tags[functionalProfile(b.tag, world.config)].integrity;
+  if (b.fortification >= st.fortifiedAt && integrity >= st.fortifiableFrom) return 'fortified';
+  if (b.fortification >= st.reinforcedAt && integrity >= st.reinforcibleFrom) return 'reinforced';
+  return 'barricaded';
+}
+
+/** Someone came in or went out: the barricade is down until it is put back. */
+export function openDoor(world: World, b: Building): void {
+  b.doorOpenedAt = world.tick;
+}
+
+/** Barricades cut both ways: leaving takes fortification × exitTicksPerFortification, and longer through a barricade. */
 export function exitTicks(world: World, b: Building): number {
-  return Math.round(b.fortification * world.config.buildings.exitTicksPerFortification);
+  const bc = world.config.buildings;
+  const barricade = stageOf(world, b) === 'open' ? 0 : bc.stages.barricadeExitTicks;
+  return Math.round(b.fortification * bc.exitTicksPerFortification) + barricade;
 }
 
 export function isLiving(s: Sim): boolean {

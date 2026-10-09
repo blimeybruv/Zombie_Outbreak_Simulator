@@ -6,13 +6,12 @@
 import { breachChance } from '../breach';
 import type { Context } from '../context';
 import { transfer, simLeaf } from '../counters';
-import { functionalProfile } from '../mapgen/generate';
 import { remember } from '../memory';
 import { chance, nextInt } from '../rng';
 import { spawnSim, spawnZombie } from '../spawn';
 import type { Building, Sim, World } from '../state';
 import { bite, destroyZombie, killSim } from './combat';
-import { capacity, entranceNearest, exitTicks, isLiving } from './common';
+import { capacity, entranceNearest, exitTicks, isLiving, openDoor, stageOf } from './common';
 import { merge } from './encounters';
 import { modeOf } from './panic';
 import { updateRelease } from './release';
@@ -43,6 +42,7 @@ function leave(world: World, ctx: Context, sim: Sim, b: Building): void {
   sim.y = p.y;
   sim.insideBuilding = null;
   sim.exitingUntil = null;
+  openDoor(world, b);
   sim.idleUntil = null;
   if (sim.destinationKind === 'routine') {
     sim.destinationBuilding = null;
@@ -156,6 +156,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   const from = simLeaf(sim);
   sim.insideBuilding = b.id;
   sim.street = null;
+  openDoor(world, b);
   if (b.alertedAt !== null) sim.awareAt ??= tick; // the house knows, and says so
   const e = entranceNearest(b, sim.x, sim.y);
   sim.x = e.x;
@@ -282,8 +283,7 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
   const br = config.buildings.breach;
   if (b.id % br.interval !== tick % br.interval) return;
   if (b.zombiesInside > 0 || b.residents + b.sheltered.length === 0) return;
-  const integrity = config.tags[functionalProfile(b.tag, config)].integrity;
-  const p = breachChance(integrity, b.fortification, config);
+  const p = breachChance(b.fortification, config);
   const seen = new Set<number>();
   const rollers: number[] = [];
   for (const e of b.entrances) {
@@ -297,6 +297,8 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
     }
   }
   rollers.sort((a, c) => a - c);
+  // It takes a crowd to break a held door: one zombie cannot follow anyone through a barricade.
+  if (rollers.length < config.buildings.stages.minCrowd[stageOf(world, b)]) return;
   for (const zid of rollers.slice(0, br.maxRolls)) {
     if (!chance(world.rng, p)) continue;
     const z = zombies[zid]!;
@@ -343,6 +345,7 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     b.pendingExpel--;
     b.residents--;
     const p = door();
+    openDoor(world, b);
     spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: config.behaviour.expelledPanic, destinationKind: 'shelter', aware: true });
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
@@ -351,6 +354,7 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     b.pendingRelease--;
     b.residents--;
     const p = door();
+    openDoor(world, b);
     spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'routine' });
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
