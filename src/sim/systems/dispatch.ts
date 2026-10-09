@@ -16,7 +16,7 @@
 import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
 import { capacity, exitTicks, isLiving } from './common';
-import { spawnSim } from '../spawn';
+import { makePolice, spawnSim } from '../spawn';
 
 /** Garrisons each station with enough residents with first responders. Called once at setup. */
 export function placeFirstResponders(world: World): void {
@@ -29,9 +29,7 @@ export function placeFirstResponders(world: World): void {
       b.residents--;
       const e = b.entrances[0]!;
       const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
-      sim.archetype = 'police';
-      sim.weapon = 'pistol';
-      sim.ammo = config.startingKit.policeAmmo;
+      makePolice(world, sim);
       sim.station = b.id;
       sim.shelter = b.id;
       sim.destinationKind = 'shelter';

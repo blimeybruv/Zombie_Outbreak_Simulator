@@ -30,7 +30,7 @@ import { nextFloat, nextInt } from '../rng';
 import type { Building, Sim, Stand, StreetId, World } from '../state';
 import { chooseObjective, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
-import { capacity, clearDestination, entranceNearest, exitTicks, setDestination } from './common';
+import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
 import { emitStimulus } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
@@ -93,6 +93,39 @@ function pickRoutineStop(world: World, sim: Sim): Building | null {
     if (r < 0) return p.b;
   }
   return picks[picks.length - 1]?.b ?? null;
+}
+
+/**
+ * The officers within unitRadius of this one, itself included: how many there are
+ * with something to shoot, the most danger any of them can see (perception snapshot,
+ * so every officer in the unit decides on the same numbers this tick), and whether
+ * any of them is on a call.
+ */
+function unitOf(world: World, ctx: Context, sim: Sim): { threat: number; size: number; onCall: boolean } {
+  ctx.simHash.query(sim.x, sim.y, world.config.police.unitRadius, ctx.ids2);
+  let threat = ctx.threat[sim.id]!;
+  let size = 1;
+  let onCall = sim.answering !== null;
+  for (const id of ctx.ids2) {
+    if (id === sim.id) continue;
+    const o = world.sims[id]!;
+    if (o.archetype !== 'police' || capacity(world, o) <= 0) continue;
+    size++;
+    if (ctx.threat[id]! > threat) threat = ctx.threat[id]!;
+    if (o.answering !== null) onCall = true;
+  }
+  return { threat, size, onCall };
+}
+
+/** Whether a partner on the same call is still leaving the station, or more than pairGap further from the call. */
+function aheadOfPartner(world: World, sim: Sim, dest: { x: number; y: number }): boolean {
+  const mine = Math.hypot(dest.x - sim.x, dest.y - sim.y);
+  for (const o of world.sims) {
+    if (o === sim || o.answering !== sim.answering || !isLiving(o)) continue;
+    if (o.insideBuilding !== null) return true;
+    if (Math.hypot(dest.x - o.x, dest.y - o.y) - mine > world.config.police.pairGap) return true;
+  }
+  return false;
 }
 
 /** Anyone going somewhere other than a routine stop, routing on memory, plans again now. */
@@ -383,13 +416,21 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
 
   const engages = arch.engageThreshold > 0 && capacity(world, sim) > 0;
-  // A first responder on a call holds its ground longer than a patrol officer would.
-  const engageBelow = sim.answering !== null ? Math.max(arch.engageThreshold, config.dispatch.engageThreshold) : arch.engageThreshold;
+  // Police decide as a unit: the danger the most exposed officer nearby sees, and a
+  // threshold that rises with numbers. Deciding alone, the officer in front fell back
+  // while those behind, not yet seeing it, walked on past.
+  const unit = engages && sim.archetype === 'police' ? unitOf(world, ctx, sim) : { threat, size: 1, onCall: sim.answering !== null };
+  // A first responder on a call holds its ground longer than a patrol officer would,
+  // and a patrol officer alongside one holds with it.
+  const base = unit.onCall ? Math.max(arch.engageThreshold, config.dispatch.engageThreshold) : arch.engageThreshold;
+  const pc = config.police;
+  const engageBelow = unit.size > 1 ? Math.max(base, Math.min(pc.unitMaxThreshold, base * (1 + pc.unitStrength * (unit.size - 1)))) : base;
+  const seen = unit.threat;
   const nearest = ctx.nearestZombie[sim.id]!;
   // Falling back is a decision: on the way to shelter it does not turn to engage again
   // when the danger dips (that dithered at the threshold); it still fights if blocked
   // or cornered, and engages again from the door as a dispatcher.
-  if (engages && nearest >= 0 && threat < engageBelow && sim.destinationKind !== 'shelter') {
+  if (engages && nearest >= 0 && seen < engageBelow && sim.destinationKind !== 'shelter') {
     const z = zombies[nearest]!;
     const w = sim.weapon!;
     const range = w === 'pistol' || w === 'smg' || w === 'shotgun' ? config.combat.ranged[w].range * 0.8 : config.combat.contactRange;
@@ -427,7 +468,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
 
   const nerve = sim.destinationKind === 'scavenge' ? config.roles.scavengerNerve : 0;
-  const seeks = threat >= Math.max(arch.shelterSeekThreshold + nerve, engageBelow === arch.engageThreshold ? 0 : engageBelow) || (engages && threat >= engageBelow);
+  // Those who engage fall back when the danger their unit sees passes what they will
+  // stand, or their own shelter threshold, whichever comes first.
+  const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve) : threat >= arch.shelterSeekThreshold + nerve;
   if (seeks || sim.destinationKind === 'shelter') {
     // On the way home with trouble now in sight: a home still far off is given up for
     // the best shelter nearer to hand.
@@ -465,8 +508,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     const dest = sim.destination;
     const arrival = sim.answering !== null ? config.dispatch.sceneRadius : config.awareness.respondArrival;
     if (dest !== null && Math.hypot(dest.x - sim.x, dest.y - sim.y) > arrival) {
-      sim.gait = 'walk';
-      travel(world, ctx, sim, mode);
+      // Officers sent together arrive together: the one ahead waits for its partner.
+      sim.gait = sim.answering !== null && aheadOfPartner(world, sim, dest) ? 'still' : 'walk';
+      if (sim.gait === 'walk') travel(world, ctx, sim, mode);
       return;
     }
     const street = dest === null ? null : ctx.map.nearestStreet(dest.x, dest.y, config.map.offStreetLookup);

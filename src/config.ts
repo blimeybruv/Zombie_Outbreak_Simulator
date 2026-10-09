@@ -110,7 +110,15 @@ export const config = {
     // Share of population outdoors at tick 0, by occupancy band.
     outdoorShareByBand: [0.02, 0.12, 0.15, 0.1],
     streetSpawnWeight: { main: 3, standard: 1, alley: 0.2 }, // relative
-    ageRange: [16, 85], // years
+    ageRange: [18, 67], // years: working age, for any profession without its own range below
+    // Ages by profession, where the job implies one. Police are cops of working age.
+    professionAge: {
+      retiree: [65, 85], student: [16, 25], parent: [22, 50], patrolOfficer: [22, 58], detective: [28, 60],
+      firefighter: [20, 55], paramedic: [21, 60], securityGuard: [20, 65], offDutySoldier: [19, 45],
+      homeless: [18, 75], tourist: [18, 80], drunk: [18, 75], hunter: [18, 75], caretaker: [30, 75],
+    } as Record<string, readonly [number, number]>,
+    // Anyone who is police is a cop by profession, whatever building they came from.
+    policeProfessions: ['patrolOfficer', 'detective'],
     originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
     originNeighbourhoodRadius: 300, // m; origins are weighted by the people living this close — guess
     multipleOriginCount: [3, 6], // sources in `multiple`
@@ -228,6 +236,13 @@ export const config = {
   // with at least `minResidents` start with `perStation` residents as first responders
   // (tracked police, garrisoned) — guess
   dispatch: { callWindow: 60, interval: 10, radius: 1000, perCall: 2, timeout: 600, minResidents: 4, perStation: 3, sceneRadius: 50, engageThreshold: 0.6 },
+
+  // Police decide as a unit: officers within `unitRadius` of each other engage and fall
+  // back on the danger the most exposed of them sees, and each officer beyond the first
+  // raises the unit's engage threshold by `unitStrength` (up to `unitMaxThreshold`).
+  // Officers sent to the same call keep together: the one ahead waits while it is more
+  // than `pairGap` metres nearer the call than its partner — guess
+  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not
@@ -438,6 +453,11 @@ export const config = {
     hospital: { integrity: 0.4, entrances: 4, sizes: ['large'], occupancyWeight: 10, bandMultiplier: [0.9, 1, 1, 0.9], materials: [0, 2], loot: {} },
   },
   flavourSizes: ['small', 'medium'], // footprint classes a flavour tag may occupy
+  // Relative odds of each flavour tag (1 if absent), and the least footprint (m²) some
+  // need. Churches drawn uniformly were one flavour building in twenty — 41 on map 1,
+  // most of them house-sized; a church now needs more ground than nine houses in ten.
+  flavourWeights: { church: 16 } as Record<string, number>,
+  flavourMinArea: { church: 400 } as Record<string, number>,
 
   // Each flavour tag behaves exactly like one functional profile but holds nothing useful.
   flavourProfiles: {
@@ -469,7 +489,8 @@ export const config = {
     officeWorker: 'civilian', retailAssistant: 'civilian', teacher: 'civilian', deliveryDriver: 'civilian',
     student: 'civilian', chef: 'civilian', cleaner: 'civilian', bartender: 'civilian', mechanic: 'civilian',
     courier: 'civilian', receptionist: 'civilian', barista: 'civilian',
-    patrolOfficer: 'police', detective: 'police', securityGuard: 'police', paramedic: 'police', firefighter: 'police',
+    // Only cops lean police (and a cop is always police, spawn.ts): police carry pistols.
+    patrolOfficer: 'police', detective: 'police', securityGuard: 'reckless', paramedic: 'civilian', firefighter: 'reckless',
     retiree: 'hunkerDown', parent: 'hunkerDown', librarian: 'hunkerDown', accountant: 'hunkerDown',
     nurse: 'hunkerDown', nightShiftWorker: 'hunkerDown', caretaker: 'hunkerDown',
     nightCleaner: 'loner', longHaulDriver: 'loner', groundskeeper: 'loner', homeless: 'loner', tourist: 'loner',

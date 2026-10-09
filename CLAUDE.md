@@ -241,7 +241,9 @@ after watching"): zombies wake their neighbours and besiege doors, age tells whe
 running, panic spreads from people running toward you and crowds align into a current,
 the faithful shelter in churches, and 911 calls bring first responders from police
 stations (`systems/dispatch.ts`). Police are light blue; anyone with a working firearm
-is a triangle; positions are interpolated between ticks.
+is a triangle; positions are interpolated between ticks. A third round: police decide
+as a unit, are cops by profession and age, churches are larger and fewer and drawn in
+plan, and every door has a step.
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.

@@ -37,6 +37,29 @@ function professionFor(rng: RngState, tag: BuildingTag, config: Config): Profess
   return list[nextInt(rng, 0, list.length - 1)]!;
 }
 
+/** An age for a profession: its own range if it has one, else working age. */
+function ageFor(rng: RngState, profession: Profession, config: Config): number {
+  const [lo, hi] = config.spawn.professionAge[profession] ?? config.spawn.ageRange;
+  return nextInt(rng, lo!, hi!);
+}
+
+/**
+ * Makes a sim police: a cop by profession and age (re-drawn unless it already is one),
+ * with the police kit. Police may come out of any building — the archetype is drawn
+ * from the scenario mix — but a receptionist with a pistol is not one.
+ */
+export function makePolice(world: World, sim: Sim): void {
+  const { config, rng } = world;
+  sim.archetype = 'police';
+  const cops = config.spawn.policeProfessions as readonly Profession[];
+  if (!cops.includes(sim.profession)) {
+    sim.profession = cops[nextInt(rng, 0, cops.length - 1)]!;
+    sim.age = ageFor(rng, sim.profession, config);
+  }
+  sim.weapon = 'pistol';
+  sim.ammo = config.startingKit.policeAmmo;
+}
+
 /** The scenario mix, with the profession's archetype weighted up: labels bias, they do not override. */
 function archetypeFor(rng: RngState, profession: Profession, world: World): Archetype {
   const { config } = world;
@@ -134,7 +157,8 @@ export function pickHome(world: World, x: number, y: number, from: BuildingId | 
 export function spawnSim(world: World, spec: SpawnSim): Sim {
   const { rng, config, tick } = world;
   const profession = professionFor(rng, spec.sourceTag, config);
-  const archetype = archetypeFor(rng, profession, world);
+  // A cop is police whatever the mix says; anyone else draws from the mix.
+  const archetype = (config.spawn.policeProfessions as readonly string[]).includes(profession) ? 'police' : archetypeFor(rng, profession, world);
   const { weapon, ammo } = kitFor(rng, archetype, config);
   const id = world.sims.length as SimId;
   const home = profession === 'homeless' ? null : pickHome(world, spec.x, spec.y, spec.from ?? null);
@@ -144,7 +168,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     id,
     archetype,
     profession,
-    age: nextInt(rng, config.spawn.ageRange[0]!, config.spawn.ageRange[1]!),
+    age: ageFor(rng, profession, config),
     caution: nextFloat(rng),
     condition: 'healthy',
     name: null,
@@ -207,6 +231,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     const b = world.buildings[church]!;
     sim.buildingMemory.set(church, { believedOccupants: b.residents, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false });
   }
+  if (archetype === 'police') makePolice(world, sim);
   world.sims.push(sim);
   return sim;
 }

@@ -26,6 +26,8 @@ const MID_TRAIL = 5; // samples of trail (~0.8 s) at mid zoom; near zoom draws a
 const PULSE_MS = 1400; // a conversion registers as an event, not a silent colour swap
 const PULSE_RADIUS = 7; // m
 const SHOUT_MS = 700;
+const DOOR_W = 1.8; // m
+const DOOR_D = 0.9; // m
 const PING_MS = 1100; // one 911 ping, wide to nothing
 const FLASH_MS = 160;
 const GUNS = new Set(['pistol', 'smg', 'shotgun']);
@@ -33,25 +35,46 @@ const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
 const FULL_AT = 24; // people inside at which a building reads as full
 
-/**
- * A church: an oval inscribed in its footprint with a spire off one end of the long
- * axis (the eastern one, for want of a liturgical east), so one reads at a glance.
- */
-function addChurch(path: Path2D, o: Float32Array, i: number): void {
+/** A church's frame: centre, unit long axis pointing east, half its length and half its width. */
+function churchFrame(o: Float32Array, i: number): { cx: number; cy: number; ax: number; ay: number; half: number; side: number } {
   const k = i * 8;
   const cx = (o[k]! + o[k + 2]! + o[k + 4]! + o[k + 6]!) / 4, cy = (o[k + 1]! + o[k + 3]! + o[k + 5]! + o[k + 7]!) / 4;
   const ux = o[k + 2]! - o[k]!, uy = o[k + 3]! - o[k + 1]!, vx = o[k + 6]! - o[k]!, vy = o[k + 7]! - o[k + 1]!;
   const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
-  const [lx, ly, long, short] = lu >= lv ? [ux / lu, uy / lu, lu / 2, lv / 2] : [vx / lv, vy / lv, lv / 2, lu / 2];
-  const rot = Math.atan2(ly, lx);
-  path.moveTo(cx + lx * long, cy + ly * long);
-  path.ellipse(cx, cy, long, short, rot, 0, Math.PI * 2);
-  const dir = lx >= 0 ? 1 : -1; // spire at the eastern end
-  const ex = cx + dir * lx * long, ey = cy + dir * ly * long;
-  const px = -ly * Math.min(1.8, short * 0.6), py = lx * Math.min(1.8, short * 0.6);
-  path.moveTo(ex + px, ey + py);
-  path.lineTo(ex + dir * lx * 5, ey + dir * ly * 5);
-  path.lineTo(ex - px, ey - py);
+  const [x, y, half, side] = lu >= lv ? [ux / lu, uy / lu, lu / 2, lv / 2] : [vx / lv, vy / lv, lv / 2, lu / 2];
+  const east = x < 0 ? -1 : 1; // the axis points east
+  return { cx, cy, ax: x * east, ay: y * east, half, side };
+}
+
+/**
+ * A church, in plan: a nave whose eastern end rounds into an apse and whose western
+ * end carries a square tower — the spire — so one reads at a glance among the boxes.
+ * East is the end of the long axis with the larger x, for want of a liturgical east.
+ */
+function addChurch(path: Path2D, o: Float32Array, i: number): void {
+  const { cx, cy, ax, ay, half, side } = churchFrame(o, i);
+  const px = -ay, py = ax; // across the nave
+  const at = (t: number, u: number): [number, number] => [cx + ax * t + px * u, cy + ay * t + py * u];
+  // A nave narrower than the footprint reads as a nave even on a squarish plot.
+  const width = Math.min(side * 0.75, half * 0.45); // half the nave's width, and the apse's radius
+  const tower = Math.min(width * 2.1, half * 0.7); // the tower's side: a little wider than the nave
+  const west = -half + tower * 0.5; // the nave starts inside the tower
+  const apse = width;
+  // Nave and apse.
+  path.moveTo(...at(west, width));
+  path.lineTo(...at(half - apse, width));
+  const [acx, acy] = at(half - apse, 0);
+  const north = Math.atan2(py, px);
+  path.arc(acx, acy, width, north, north - Math.PI, true);
+  path.lineTo(...at(west, -width));
+  path.closePath();
+  // Tower.
+  const t0 = -half, t1 = -half + tower, h = tower / 2;
+  path.moveTo(...at(t0, h));
+  path.lineTo(...at(t1, h));
+  path.lineTo(...at(t1, -h));
+  path.lineTo(...at(t0, -h));
+  path.closePath();
 }
 
 function addOutline(path: Path2D, o: Float32Array, i: number): void {
@@ -69,6 +92,7 @@ export class Renderer {
   private readonly riverPath: Path2D;
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, stroked in background colour
   private readonly bridgeRails: Path2D;
+  private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly litPath: Path2D;
   private readonly density: DensityField;
   private readonly corpses: CorpseLayer;
@@ -144,6 +168,27 @@ export class Renderer {
         this.bridgeRails.lineTo(x1 + nx * side, y1 + ny * side);
       }
     }
+    // Doors: a step DOOR_W wide standing DOOR_D proud of the wall, so it shows where
+    // people go in and out — a dot reaching a door otherwise simply vanishes.
+    this.doorPath = new Path2D();
+    const step = (x: number, y: number, nx: number, ny: number, w: number) => {
+      const tx = -ny * (w / 2), ty = nx * (w / 2);
+      this.doorPath.moveTo(x + tx, y + ty);
+      this.doorPath.lineTo(x + tx + nx * DOOR_D, y + ty + ny * DOOR_D);
+      this.doorPath.lineTo(x - tx + nx * DOOR_D, y - ty + ny * DOOR_D);
+      this.doorPath.lineTo(x - tx, y - ty);
+    };
+    const d = map.doors;
+    for (let i = 0; i < d.length; i += 5) {
+      if (map.buildingChurch[d[i]!]) continue; // its plot's doors would float beside the drawn church
+      step(d[i + 1]!, d[i + 2]!, d[i + 3]!, d[i + 4]!, DOOR_W);
+    }
+    // A church's door: the west face of its tower, a little grander.
+    for (let i = 0; i < map.buildingChurch.length; i++) {
+      if (!map.buildingChurch[i]) continue;
+      const f = churchFrame(map.outlines, i);
+      step(f.cx - f.ax * f.half, f.cy - f.ay * f.half, -f.ax, -f.ay, DOOR_W * 1.6);
+    }
     this.density = new DensityField(map.size);
     this.corpses = new CorpseLayer(map.size);
   }
@@ -211,6 +256,7 @@ export class Renderer {
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
     g.stroke(this.bridgeRails);
+    if (cam.mode === 'near') g.stroke(this.doorPath);
     g.globalAlpha = 1;
     return c;
   }

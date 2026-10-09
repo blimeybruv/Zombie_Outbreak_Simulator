@@ -82,6 +82,30 @@ function mapSnapshot(w: World): MapSnapshot {
   const outlines = new Float32Array(w.buildings.length * 8);
   w.buildings.forEach((b, i) => b.outline.forEach((p, j) => outlines.set([p.x, p.y], i * 8 + j * 2)));
   const buildingChurch = new Uint8Array(w.buildings.map((b) => (b.tag === 'church' ? 1 : 0)));
+  // Each entrance with its wall's outward normal: the wall nearest it, facing away from the centre.
+  const doors: number[] = [];
+  for (const b of w.buildings) {
+    const o = b.outline;
+    const cx = o.reduce((a, p) => a + p.x, 0) / o.length, cy = o.reduce((a, p) => a + p.y, 0) / o.length;
+    for (const e of b.entrances) {
+      let best = 0, bestD = Infinity;
+      for (let j = 0; j < o.length; j++) {
+        const a = o[j]!, c = o[(j + 1) % o.length]!;
+        const dx = c.x - a.x, dy = c.y - a.y;
+        const t = Math.max(0, Math.min(1, ((e.x - a.x) * dx + (e.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+        const d = Math.hypot(e.x - a.x - t * dx, e.y - a.y - t * dy);
+        if (d < bestD) {
+          bestD = d;
+          best = j;
+        }
+      }
+      const a = o[best]!, c = o[(best + 1) % o.length]!;
+      const len = Math.hypot(c.x - a.x, c.y - a.y) || 1;
+      let nx = -(c.y - a.y) / len, ny = (c.x - a.x) / len;
+      if (nx * (e.x - cx) + ny * (e.y - cy) < 0) [nx, ny] = [-nx, -ny];
+      doors.push(b.id, e.x, e.y, nx, ny);
+    }
+  }
   return {
     size: w.config.map.size,
     streets,
@@ -89,6 +113,7 @@ function mapSnapshot(w: World): MapSnapshot {
     streetBridge,
     outlines,
     buildingChurch,
+    doors: new Float32Array(doors),
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),
     streetNames: w.streets.map((s) => s.name),
@@ -214,7 +239,7 @@ scope.onmessage = (e) => {
       }
     }
     const map = mapSnapshot(world);
-    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer, map.buildingChurch.buffer]);
+    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer, map.buildingChurch.buffer, map.doors.buffer]);
   } else if (msg.type === 'rate') {
     rate = msg.ticksPerSecond;
     anchor = performance.now();

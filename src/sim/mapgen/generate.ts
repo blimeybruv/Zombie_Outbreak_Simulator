@@ -403,7 +403,15 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       if (sizes.includes(cls)) weights[tag] = weight;
     }
     const tagKey = pickWeighted(rng, weights) ?? 'residential';
-    const tag: BuildingTag = tagKey === 'flavour' ? pick(rng, FLAVOUR_TAGS) : (tagKey as FunctionalTag);
+    let tag: BuildingTag;
+    if (tagKey === 'flavour') {
+      const odds: Partial<Record<string, number>> = {};
+      for (const f of FLAVOUR_TAGS) {
+        if (w * depth < (config.flavourMinArea[f] ?? 0)) continue;
+        odds[f] = config.flavourWeights[f] ?? 1;
+      }
+      tag = (pickWeighted(rng, odds) ?? 'cafe') as BuildingTag;
+    } else tag = tagKey as FunctionalTag;
     const profile = config.tags[functionalProfile(tag, config)];
     const entrances = [0.5, 0.25, 0.75, 0.1].slice(0, profile.entrances).map((f) => add(rect[0]!, scale(dir, w * f)));
     const centre = scale(add(rect[0]!, rect[2]!), 0.5);

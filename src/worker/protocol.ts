@@ -17,7 +17,9 @@ export interface MapSnapshot {
   streetBridge: Uint8Array;
   /** Per building: the four outline corners, x0 y0 x1 y1 x2 y2 x3 y3. */
   outlines: Float32Array;
-  /** Per building: 1 for a church, drawn as an oval with a spire. */
+  /** Per entrance, every building: building index, x, y on the wall, and the wall's outward normal nx, ny. */
+  doors: Float32Array;
+  /** Per building: 1 for a church, drawn in plan (nave, apse, tower). */
   buildingChurch: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
   districts: { name: string; x: number; y: number; w: number; h: number }[];

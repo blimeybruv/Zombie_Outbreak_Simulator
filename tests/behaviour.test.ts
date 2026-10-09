@@ -250,3 +250,19 @@ describe('the faithful', () => {
     expect(chooseShelter(world, ctx, s, s.church)!.tag).not.toBe('church');
   });
 });
+
+describe('police', () => {
+  it('are cops of working age, wherever they came from', () => {
+    const { world } = fresh();
+    const police = world.sims.filter((s) => s.archetype === 'police');
+    expect(police.length).toBeGreaterThan(0);
+    for (const s of police) {
+      expect(world.config.spawn.policeProfessions).toContain(s.profession);
+      expect(s.age).toBeGreaterThanOrEqual(22);
+      expect(s.age).toBeLessThanOrEqual(60);
+      expect(s.weapon).toBe('pistol');
+    }
+    // ...and every cop is police.
+    expect(world.sims.filter((s) => (world.config.spawn.policeProfessions as readonly string[]).includes(s.profession)).every((s) => s.archetype === 'police')).toBe(true);
+  });
+});
