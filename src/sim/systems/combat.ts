@@ -25,11 +25,16 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
   const { config, tick, sims } = world;
   const from = simLeaf(victim)!;
   victim.condition = 'infected';
+  victim.awareAt ??= tick;
   victim.turnsAt = tick + nextInt(world.rng, config.infection.turnDelay[0]!, config.infection.turnDelay[1]!);
   transfer(world, from, 'turned.symptomatic');
 
   if (victim.insideBuilding !== null) {
-    for (const id of world.buildings[victim.insideBuilding]!.sheltered) if (id !== victim.id) sims[id]!.knownInfected.add(victim.id);
+    for (const id of world.buildings[victim.insideBuilding]!.sheltered) {
+      if (id === victim.id) continue;
+      sims[id]!.knownInfected.add(victim.id);
+      sims[id]!.awareAt ??= tick;
+    }
     return;
   }
   ctx.simHash.query(victim.x, victim.y, config.perception.dayRadius.open, ctx.ids2);
@@ -40,6 +45,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
     if (Math.hypot(w.x - victim.x, w.y - victim.y) > ctx.radius[wid]!) continue;
     if (!ctx.map.lineOfSight(w.x, w.y, victim.x, victim.y)) continue;
     w.knownInfected.add(victim.id);
+    w.awareAt ??= tick;
   }
 }
 
@@ -59,13 +65,16 @@ function sims(world: World, ctx: Context): void {
   const ids = ctx.ids;
   for (const sim of world.sims) {
     if (!isOutdoorLiving(sim) || tick < sim.nextAttackAt) continue;
-    if (modeOf(sim, config) === 'flight') continue;
+    // A frozen sim does nothing that might be noticed; a panicked one fights only when cornered.
+    if (sim.stand === 'freeze') continue;
+    if (modeOf(sim, config) === 'flight' && sim.stand !== 'fight') continue;
 
     const w = sim.weapon;
     const ranged = w === 'pistol' || w === 'smg' || w === 'shotgun' ? cc.ranged[w] : null;
     const usable = ranged !== null && sim.ammo >= ranged.ammoPerAttack;
-    const engages = config.archetypes[sim.archetype].engageThreshold > 0;
-    // Engagers pick targets at range on a staggered cycle; everyone defends in contact.
+    const engages = config.archetypes[sim.archetype].engageThreshold > 0 || sim.stand === 'fight';
+    // Engagers, and anyone standing to fight, pick targets at range on a staggered
+    // cycle; everyone else defends in contact.
     const atRange = usable && engages && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger;
     const reach = atRange ? ranged.range : cc.contactRange;
 

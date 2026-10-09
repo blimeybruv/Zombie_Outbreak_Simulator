@@ -41,9 +41,12 @@ export function updatePanic(world: World, ctx: Context): void {
       if (!ctx.map.lineOfSight(sim.x, sim.y, e.x, e.y)) continue;
       sim.panic = clamp01(sim.panic + pc.risePerEvent);
       sim.history.conversionsWitnessed++;
+      sim.awareAt ??= tick;
     }
     for (const s of noises) {
-      if (intensityAt(s, sim.x, sim.y) >= pc.noiseIntensityFloor) sim.panic = clamp01(sim.panic + pc.risePerEvent);
+      if (intensityAt(s, sim.x, sim.y) < pc.noiseIntensityFloor) continue;
+      sim.panic = clamp01(sim.panic + pc.risePerEvent);
+      sim.awareAt ??= tick; // gunfire, or someone shouting a warning
     }
   }
 }

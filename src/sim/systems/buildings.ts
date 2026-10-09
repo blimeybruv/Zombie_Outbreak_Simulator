@@ -155,6 +155,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   const from = simLeaf(sim);
   sim.insideBuilding = b.id;
   sim.street = null;
+  if (b.alertedAt !== null) sim.awareAt ??= tick; // the house knows, and says so
   const e = entranceNearest(b, sim.x, sim.y);
   sim.x = e.x;
   sim.y = e.y;
@@ -186,6 +187,8 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     sim.idleUntil = tick + nextInt(world.rng, config.routine.idleTicks[0]!, config.routine.idleTicks[1]!);
   } else if (sim.destinationKind === 'scavenge' && !contesting) {
     scavenge(world, ctx, sim, b);
+  } else if (sim.destinationKind === 'isolate') {
+    // Alone, to wait for it: no shelter taken, nobody told.
   } else {
     // Seeking shelter (or coming home): this is home now. A frightened arrival tells the house.
     sim.shelter = b.id;
@@ -337,7 +340,7 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     b.pendingExpel--;
     b.residents--;
     const p = door();
-    spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, initialPanic: config.behaviour.expelledPanic, destinationKind: 'shelter' });
+    spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: config.behaviour.expelledPanic, destinationKind: 'shelter', aware: true });
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 
@@ -345,7 +348,7 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     b.pendingRelease--;
     b.residents--;
     const p = door();
-    spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, initialPanic: 0, destinationKind: 'routine' });
+    spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'routine' });
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 }

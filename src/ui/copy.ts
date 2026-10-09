@@ -35,6 +35,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${who(n)} found a ${e.weapon} in ${n.place}.`;
     case 'districtChanged':
       return n.name ? `${n.name} crossed into ${n.district}.` : null;
+    case 'simIsolating':
+      return `${n.name ?? 'A survivor'}, bitten, is going off alone to ${n.place}.`;
     case 'zombieDestroyed':
       return null;
   }

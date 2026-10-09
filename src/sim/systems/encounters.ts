@@ -4,11 +4,16 @@
 //   street memory and building memory merge by recency, per key
 //   knownInfected merges by union
 //   panic averages toward the higher value, damped, so calm spreads slower than fear
+//   awareness of the outbreak: if either knows, both do (word of mouth)
+// and, between two outdoors, an invitation: a sociable sim bound for shelter goes
+// along with someone bound for a nearer one ("come with us").
 // One of three files allowed to read `panic`.
 
 import type { Context } from '../context';
 import { remember, trim } from '../memory';
+import { chance } from '../rng';
 import type { Sim, World } from '../state';
+import { entranceNearest, setDestination } from './common';
 import { rebuildSimHash } from './perception';
 
 function mergeNewer<K, V extends { observedAt: number; visited: boolean }>(into: Map<K, V>, from: Map<K, V>): void {
@@ -41,6 +46,34 @@ export function merge(world: World, a: Sim, b: Sim): void {
 
   for (const id of b.knownInfected) if (id !== a.id) a.knownInfected.add(id);
   for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);
+
+  if (a.awareAt !== null || b.awareAt !== null) {
+    a.awareAt ??= world.tick;
+    b.awareAt ??= world.tick;
+  }
+}
+
+/**
+ * Limited sociality: `a`, aware and on its way to a shelter it has not yet made its
+ * own, meets `b` bound for a different one that is nearer to `a` than its own goal,
+ * and goes with them, at the archetype's `sociality` chance. Nobody stops to talk
+ * with danger in sight; loners never go. The two then walk the same way, which is
+ * as much grouping as there is: no leader, no formation, no keeping together (that
+ * is for squads, later).
+ */
+function join(world: World, ctx: Context, a: Sim, b: Sim): boolean {
+  const { config, buildings } = world;
+  const arch = config.archetypes[a.archetype];
+  if (arch.sociality <= 0 || a.awareAt === null || a.shelter !== null) return false;
+  if (a.destinationKind !== 'shelter' || a.destination === null || b.destinationKind !== 'shelter') return false;
+  const x = b.destinationBuilding;
+  if (x === null || x === a.destinationBuilding || x === a.refusedBy) return false;
+  if (ctx.threat[a.id]! >= arch.shelterSeekThreshold) return false;
+  const e = entranceNearest(buildings[x]!, a.x, a.y);
+  if (Math.hypot(e.x - a.x, e.y - a.y) >= Math.hypot(a.destination.x - a.x, a.destination.y - a.y)) return false;
+  if (!chance(world.rng, arch.sociality)) return false;
+  setDestination(a, buildings[x]!, 'shelter');
+  return true;
 }
 
 /**
@@ -55,6 +88,7 @@ function hearWarnings(world: World, ctx: Context): void {
     for (const id of ctx.ids2) {
       if (id === w.from) continue;
       const s = sims[id]!;
+      s.awareAt ??= tick;
       const belief = s.streetMemory.get(w.street);
       if (belief) {
         if (belief.observedAt >= tick) continue;
@@ -89,6 +123,7 @@ export function resolveEncounters(world: World, ctx: Context): void {
       b.history.lastCompanyAt = tick;
       if (tick - a.lastMergeAt < cooldown || tick - b.lastMergeAt < cooldown) continue;
       merge(world, a, b);
+      if (!join(world, ctx, a, b)) join(world, ctx, b, a);
       a.lastMergeAt = tick;
       b.lastMergeAt = tick;
     }

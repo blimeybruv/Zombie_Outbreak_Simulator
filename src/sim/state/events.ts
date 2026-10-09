@@ -87,7 +87,17 @@ export interface DistrictChangedEvent extends EventBase {
   to: DistrictId;
 }
 
+export interface SimIsolatingEvent extends EventBase {
+  /** A bitten sim goes off alone to turn where it can hurt nobody. @range literal @unit — @readBy event consumers */
+  type: 'simIsolating';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+  /** The empty building it is making for. @range building id @unit id @readBy ticker */
+  building: BuildingId;
+}
+
 export type SimEvent =
+  | SimIsolatingEvent
   | SimDiedEvent
   | SimTurnedEvent
   | ZombieDestroyedEvent

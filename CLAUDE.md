@@ -209,7 +209,9 @@ If one seems necessary, raise it rather than adding it.
 - The viewer: `npm run dev`. A frame counter (top centre; F toggles, `?fps` in a build)
   shows fps, the worst frame, draw time and the simulation's achieved tick rate; amber
   when under 30 fps or behind. `npx tsx scripts/view.ts [--advance N]` screenshots far,
-  mid and near zoom in headless Chromium; `npx tsx scripts/fps.ts` measures the renderer
+  mid and near zoom in headless Chromium (`--at x,y` centres the near shot on a point,
+  `--flagged 1` on a bitten survivor, `--query k=v` passes page options such as
+  `infected=fill`); `npx tsx scripts/fps.ts` measures the renderer
   gate (run it on a real machine); `npx tsx scripts/ticker-rate.ts` replays a run through
   the ticker's salience filter and checks the lines-per-second gate.
 
@@ -228,6 +230,13 @@ measured headlessly and passing; the 30 fps at 8× gate needs measuring on a rea
 machine (`scripts/fps.ts`). Also built: the inspector (click a building or a person)
 and audio (`src/audio/`, synthesised; M mutes). Mid zoom has a density underlay, short
 trails and names; still to judge by eye whether the city is legible at a glance there.
+
+Survivor behaviour was revised alongside (reference, "Survivor behaviour revisions"):
+awareness of the outbreak and an objective in place of the errand (`systems/awareness.ts`),
+homes, limited sociality (shared destinations; squads stay deferred), fight, flight or
+freeze when cornered or blocked, and the bitten choosing to conceal or isolate
+(`systems/bitten.ts`). The renderer shows shouts, shots, the frozen, and — at near zoom
+only — the bitten (an amber ring).
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
 ticker surfaces fewer than 6 lines per second at 1×.

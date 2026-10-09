@@ -12,6 +12,13 @@ function ageFactor(age: number, world: World): number {
 
 /** Deflection angles tried on one side when the way ahead is blocked. */
 const DEFLECT = [0.4, 0.8, 1.2, 1.57, 2.0];
+/**
+ * When every deflection on both sides has failed, a fine sweep all the way round at
+ * half a step: in a slit between buildings the only way out can lie behind, narrower
+ * than the deflections can find, and without this an agent stood there for the rest
+ * of the run. Rare, so its cost does not matter.
+ */
+const SWEEP = Array.from({ length: 16 }, (_, k) => ((k + 1) * Math.PI) / 16);
 
 interface Mover {
   x: number;
@@ -43,6 +50,14 @@ function step(ctx: Context, e: Mover, heading: number, distance: number, slideSp
   for (const side of sides) {
     for (const d of DEFLECT) {
       if (tryMove(ctx, e, heading + side * d, distance * slideSpeed)) {
+        e.slide = side;
+        return;
+      }
+    }
+  }
+  for (const d of SWEEP) {
+    for (const side of sides) {
+      if (tryMove(ctx, e, heading + side * d, distance * slideSpeed * 0.5)) {
         e.slide = side;
         return;
       }

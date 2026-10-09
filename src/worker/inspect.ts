@@ -3,7 +3,7 @@
 // more than the people do — that is the whole dramatic engine.
 
 import { functionalProfile } from '../sim/mapgen/generate';
-import type { World } from '../sim/state';
+import type { Sim, World } from '../sim/state';
 import { scoreLiving } from '../sim/systems/promotion';
 import { backstory } from './backstory';
 import { words } from './notes';
@@ -37,7 +37,11 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     const e = scoreLiving(w).find((x) => x.sim.id === s.id);
     if (e) story = backstory(s, e.values, e.z, w.config);
   }
-  const home = s.shelter === null ? null : w.buildings[s.shelter]!;
+  const place = (id: number | null) => {
+    if (id === null) return null;
+    const b = w.buildings[id]!;
+    return `the ${words(b.tag)} on ${w.streets[b.street]!.name}`;
+  };
   return {
     kind: 'sim',
     id: s.id,
@@ -52,11 +56,35 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     ammo: s.ammo,
     materials: s.materials,
     role: s.role,
-    doing: s.sortieUntil !== null ? 'sortie' : s.destinationKind,
-    shelter: home ? `the ${words(home.tag)} on ${w.streets[home.street]!.name}` : null,
+    doing: living ? doing(s) : null,
+    home: place(s.home),
+    shelter: place(s.shelter),
     streetsKnown: s.streetMemory.size,
     buildingsKnown: s.buildingMemory.size,
     knownInfected: s.knownInfected.size,
     backstory: story,
   };
+}
+
+/** What a living sim is doing, in words, from its intent. */
+function doing(s: Sim): string | null {
+  if (s.stand === 'fight') return 'standing to fight';
+  if (s.stand === 'freeze') return 'frozen, hiding';
+  if (s.sortieUntil !== null) return 'on a sortie';
+  if (s.avoidUntil !== null) return 'backing off';
+  switch (s.destinationKind) {
+    case 'isolate':
+      return 'going off alone to turn';
+    case 'respond':
+      return 'responding to trouble';
+    case 'scavenge':
+      return 'scavenging';
+    case 'shelter':
+      if (s.insideBuilding !== null) return s.shelter === s.insideBuilding ? 'sheltering' : null;
+      return s.destinationBuilding !== null && s.destinationBuilding === s.home ? 'heading home' : 'heading for shelter';
+    case 'routine':
+      return s.awareAt === null ? 'errands, unaware' : 'patrolling';
+    default:
+      return null;
+  }
 }

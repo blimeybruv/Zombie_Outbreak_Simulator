@@ -12,11 +12,12 @@ config.promotion.final.fallbackTick = 900;
 
 function runTo(ticks: number, snapshots: number[] = []) {
   const { world, ctx } = createWorld({ ...defaultScenario, runSeed: 4 }, config);
-  const rosters: { tick: number; roster: number[]; names: (string | null)[] }[] = [];
+  const rosters: { tick: number; roster: number[]; names: (string | null)[]; living: number }[] = [];
   while (world.tick < ticks) {
     step(world, ctx, { checkInvariant: true });
     if (snapshots.includes(world.tick)) {
-      rosters.push({ tick: world.tick, roster: [...world.roster], names: world.roster.map((id) => world.sims[id]!.name) });
+      const living = world.roster.filter((id) => world.sims[id]!.condition === 'healthy' || world.sims[id]!.condition === 'infected').length;
+      rosters.push({ tick: world.tick, roster: [...world.roster], names: world.roster.map((id) => world.sims[id]!.name), living });
     }
   }
   return { world, rosters };
@@ -46,7 +47,7 @@ describe('promotion', () => {
     expect(after.roster.slice(0, before.roster.length)).toEqual(before.roster);
     expect(after.names.slice(0, before.names.length)).toEqual(before.names);
     expect(world.rescoredAt).toBe(900);
-    expect(livingNamed(world, after.roster)).toBeGreaterThanOrEqual(config.promotion.count);
+    expect(after.living).toBeGreaterThanOrEqual(config.promotion.count); // counted at tick 900, not at the end of the run
   });
 
   it('records when each was named', () => {

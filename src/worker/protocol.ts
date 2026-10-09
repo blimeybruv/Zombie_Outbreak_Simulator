@@ -27,6 +27,14 @@ export const SIM_HIDDEN = 0;
 export const SIM_LIVING = 1;
 export const SIM_PROMOTED = 2;
 
+/**
+ * Sim flags, alongside simKind: what the viewer may know that the city does not.
+ * Infected is drawn at near zoom only (an amber ring, or a pale amber fill, to try).
+ */
+export const SIM_INFECTED = 1;
+export const SIM_FROZEN = 2; // cornered and keeping still
+export const SIM_FIGHTING = 4; // standing its ground
+
 /** Zombie kinds on the map. */
 export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
 export const ZOMBIE_AWAKE = 1;
@@ -96,8 +104,11 @@ export interface SimDetail {
   ammo: number;
   materials: number;
   role: string | null;
+  /** What they are doing, in words: "heading home", "frozen, hiding", "errands, unaware"... */
   doing: string | null;
-  /** The building they have made home, as a place. */
+  /** Where they live, as a place. */
+  home: string | null;
+  /** The building they have taken as shelter, as a place. */
   shelter: string | null;
   // Beliefs.
   streetsKnown: number;
@@ -118,6 +129,7 @@ export interface FrameSnapshot {
   /** Per sim (indexed by id): x, y. */
   simXY: Float32Array;
   simKind: Uint8Array;
+  simFlags: Uint8Array;
   /** Per zombie (indexed by id): x, y. */
   zombieXY: Float32Array;
   zombieKind: Uint8Array;

@@ -17,6 +17,9 @@ import {
   BUILDING_CONTESTED,
   BUILDING_GARRISON,
   BUILDING_LIT,
+  SIM_FIGHTING,
+  SIM_FROZEN,
+  SIM_INFECTED,
   SIM_LIVING,
   SIM_PROMOTED,
   ZOMBIE_AWAKE,
@@ -90,11 +93,13 @@ function mapSnapshot(w: World): MapSnapshot {
 function frameSnapshot(w: World): FrameSnapshot {
   const simXY = new Float32Array(w.sims.length * 2);
   const simKind = new Uint8Array(w.sims.length);
+  const simFlags = new Uint8Array(w.sims.length);
   for (const s of w.sims) {
     if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null) continue;
     simXY[s.id * 2] = s.x;
     simXY[s.id * 2 + 1] = s.y;
     simKind[s.id] = s.name !== null ? SIM_PROMOTED : SIM_LIVING;
+    simFlags[s.id] = (s.condition === 'infected' ? SIM_INFECTED : 0) | (s.stand === 'freeze' ? SIM_FROZEN : 0) | (s.stand === 'fight' ? SIM_FIGHTING : 0);
   }
   const zombieXY = new Float32Array(w.zombies.length * 2);
   const zombieKind = new Uint8Array(w.zombies.length);
@@ -120,6 +125,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     hour: tod * 24,
     simXY,
     simKind,
+    simFlags,
     zombieXY,
     zombieKind,
     fill,
@@ -202,7 +208,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
   }
 };
 

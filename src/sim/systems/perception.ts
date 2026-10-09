@@ -40,6 +40,7 @@ export function computePerception(world: World, ctx: Context): void {
     ctx.threat[id] = 0;
     ctx.threatX[id] = 0;
     ctx.threatY[id] = 0;
+    ctx.threatFocus[id] = 1;
     ctx.nearestZombie[id] = -1;
     ctx.contacts[id] = 0;
     ctx.street[id] = -1;
@@ -84,6 +85,7 @@ export function computePerception(world: World, ctx: Context): void {
     ctx.threat[id] = threat > 1 ? 1 : threat;
     ctx.threatX[id] = tx;
     ctx.threatY[id] = ty;
+    ctx.threatFocus[id] = threat > 0 ? Math.hypot(tx, ty) / threat : 1;
     ctx.nearestZombie[id] = nearest;
   }
 

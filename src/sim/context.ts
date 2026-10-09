@@ -29,6 +29,11 @@ export interface Context {
   /** Unit-ish vector pointing toward what the sim fears, weighted by threat. */
   threatX: Float64Array;
   threatY: Float64Array;
+  /**
+   * How one-sided the danger is: |threat vector| over the summed weights, 1 when
+   * everything feared lies one way, toward 0 as it surrounds the sim. 1 with no threat.
+   */
+  threatFocus: Float64Array;
   radius: Float64Array;
   /** Nearest street within the off-street lookup, or -1. */
   street: Int32Array;
@@ -70,6 +75,7 @@ export function createContext(world: World): Context {
     threat: new Float64Array(0),
     threatX: new Float64Array(0),
     threatY: new Float64Array(0),
+    threatFocus: new Float64Array(0),
     radius: new Float64Array(0),
     street: new Int32Array(0),
     nearestZombie: new Int32Array(0),
@@ -99,6 +105,7 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.threat = new Float64Array(cap);
     ctx.threatX = new Float64Array(cap);
     ctx.threatY = new Float64Array(cap);
+    ctx.threatFocus = new Float64Array(cap);
     ctx.radius = new Float64Array(cap);
     ctx.street = new Int32Array(cap);
     ctx.nearestZombie = new Int32Array(cap);

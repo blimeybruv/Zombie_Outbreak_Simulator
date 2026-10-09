@@ -62,8 +62,52 @@ export interface SpawnSim {
   insideBuilding: BuildingId | null;
   /** Tag the person's profession is drawn from (where they started). */
   sourceTag: BuildingTag;
+  /** The building the person came out of, if any: home, if it is residential. */
+  from?: BuildingId;
   initialPanic: number;
   destinationKind: DestinationKind | null;
+  /** Already knows about the outbreak (driven out by it, or sent out to work in it). */
+  aware?: boolean;
+}
+
+const residentialCache = new WeakMap<readonly unknown[], BuildingId[]>();
+
+/** Residential buildings, in id order; computed once per map. */
+function residential(world: World): BuildingId[] {
+  let ids = residentialCache.get(world.buildings);
+  if (!ids) {
+    ids = world.buildings.filter((b) => functionalProfile(b.tag, world.config) === 'residential').map((b) => b.id);
+    residentialCache.set(world.buildings, ids);
+  }
+  return ids;
+}
+
+/**
+ * Where someone lives: the residential building they came out of, else one of a
+ * few sampled, nearer ones likelier. People mostly live within a walk of where they
+ * spend the day, though not always.
+ */
+export function pickHome(world: World, x: number, y: number, from: BuildingId | null): BuildingId | null {
+  const { config, rng, buildings } = world;
+  if (from !== null && functionalProfile(buildings[from]!.tag, config) === 'residential') return from;
+  const ids = residential(world);
+  if (ids.length === 0) return null;
+  const ac = config.awareness;
+  let total = 0;
+  const picks: { id: BuildingId; w: number }[] = [];
+  for (let i = 0; i < ac.homeSample; i++) {
+    const id = ids[nextInt(rng, 0, ids.length - 1)]!;
+    const e = buildings[id]!.entrances[0]!;
+    const w = 1 / (1 + Math.hypot(e.x - x, e.y - y) / ac.homeDistanceScale);
+    picks.push({ id, w });
+    total += w;
+  }
+  let r = nextFloat(rng) * total;
+  for (const p of picks) {
+    r -= p.w;
+    if (r < 0) return p.id;
+  }
+  return picks[picks.length - 1]!.id;
 }
 
 export function spawnSim(world: World, spec: SpawnSim): Sim {
@@ -72,6 +116,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
   const archetype = archetypeFor(rng, profession, world);
   const { weapon, ammo } = kitFor(rng, archetype, config);
   const id = world.sims.length as SimId;
+  const home = profession === 'homeless' ? null : pickHome(world, spec.x, spec.y, spec.from ?? null);
   const sim: Sim = {
     id,
     archetype,
@@ -90,6 +135,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     insideBuilding: spec.insideBuilding,
     street: null,
     exitingUntil: null,
+    awareAt: spec.aware ? tick : null,
     panic: spec.initialPanic,
     streetMemory: new Map(),
     buildingMemory: new Map(),
@@ -102,13 +148,18 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     routeIndex: 0,
     nextRepathAt: tick,
     idleUntil: null,
+    sightedAt: null,
     avoidUntil: null,
+    stand: null,
+    standUntil: null,
     refusedBy: null,
     weapon,
     ammo,
     materials: 0,
     nextAttackAt: tick,
     turnsAt: null,
+    infectedChoice: null,
+    home,
     shelter: null,
     role: null,
     roleSince: tick,

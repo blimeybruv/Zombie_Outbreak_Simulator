@@ -1,10 +1,11 @@
 // Serves the viewer, opens it in headless Chromium and screenshots it: a way to see
 // the renderer from a container with no display.
 //
-//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click] [--at x,y]
+//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click] [--at x,y] [--query k=v&...] [--flagged 1]
 //
 // Shots are taken at far, mid and near zoom (near centred on the busiest spot, or
-// on --at, a world point in metres).
+// on --at, a world point in metres, or with --flagged on the first survivor outdoors
+// carrying those SIM_* flag bits: 1 infected, 2 frozen, 4 fighting).
 // --click then clicks the middle of the near view and takes a fourth shot, with the
 // inspector open on whatever was there.
 
@@ -30,6 +31,7 @@ interface ViewHook {
   camera: { scale: number; version: number; centreOn(x: number, y: number): void };
   controls: { setSpeed(s: number): void; toggle(): void };
   centreOnBusiest(): void;
+  centreOnFlagged(flags: number): boolean;
   ready(): boolean;
 }
 // Callbacks passed to page.evaluate run inside the page, so each reaches the hook itself.
@@ -46,7 +48,7 @@ try {
   page.on('pageerror', (e) => console.error('page error:', e.message));
   // tsx keeps function names with a helper that serialised callbacks carry into the page.
   await page.addInitScript('window.__name = (f) => f');
-  await page.goto(`http://localhost:5199/?run=${runSeed}&map=${mapSeed}&advance=${advance}`);
+  await page.goto(`http://localhost:5199/?run=${runSeed}&map=${mapSeed}&advance=${advance}&${opt('query', '')}`);
   await page.waitForFunction(() => (window as unknown as Win).__view?.ready() ?? false, null, { timeout: 600_000 });
   if (speed > 0) {
     await page.evaluate((s) => {
@@ -71,8 +73,10 @@ try {
       else if (!busiest) v.camera.centreOn(1600, 1600);
     }, shot);
     if (shot.busiest) {
-      // Centre on the densest cluster of agents in the current frame.
-      await page.evaluate(() => (window as unknown as Win).__view!.centreOnBusiest());
+      // Centre on the densest cluster of agents in the current frame, or on someone flagged.
+      const flagged = Number(opt('flagged', '0'));
+      const found = flagged > 0 && (await page.evaluate((f) => (window as unknown as Win).__view!.centreOnFlagged(f), flagged));
+      if (!found) await page.evaluate(() => (window as unknown as Win).__view!.centreOnBusiest());
     }
     await page.waitForTimeout(400);
     const tick = await page.evaluate(() => (window as unknown as Win).__view!.stats.tick);

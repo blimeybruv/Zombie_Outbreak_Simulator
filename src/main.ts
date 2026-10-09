@@ -79,6 +79,8 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
   if (msg.type === 'map') {
     renderer = new Renderer(canvas, msg.map);
+    const infected = params.get('infected');
+    if (infected === 'ring' || infected === 'fill' || infected === 'off') renderer.infectedStyle = infected;
   } else {
     latest = msg.frame;
     stats.tick = latest.tick;
@@ -189,7 +191,17 @@ function centreOnBusiest(): void {
   for (let i = 1; i < counts.length; i++) if (counts[i]! > counts[best]!) best = i;
   camera.centreOn(((best % cols) + 0.5) * cell, (Math.floor(best / cols) + 0.5) * cell);
 }
-(window as unknown as { __view: unknown }).__view = { stats, camera, controls, ticker, centreOnBusiest, ready: () => latest !== null };
+/** Centres on the first survivor outdoors carrying any of `flags` (protocol SIM_*); false if none. */
+function centreOnFlagged(flags: number): boolean {
+  if (!latest) return false;
+  for (let i = 0; i < latest.simFlags.length; i++) {
+    if (!latest.simKind[i] || !(latest.simFlags[i]! & flags)) continue;
+    camera.centreOn(latest.simXY[i * 2]!, latest.simXY[i * 2 + 1]!);
+    return true;
+  }
+  return false;
+}
+(window as unknown as { __view: unknown }).__view = { stats, camera, controls, ticker, centreOnBusiest, centreOnFlagged, ready: () => latest !== null };
 
 const frameCounter = new FrameCounter(document.querySelector<HTMLElement>('#fps')!, import.meta.env.DEV || params.has('fps'));
 

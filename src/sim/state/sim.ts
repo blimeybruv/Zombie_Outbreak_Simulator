@@ -44,8 +44,19 @@ export type Condition = (typeof CONDITIONS)[number];
 export const GAITS = ['still', 'sneak', 'walk', 'run', 'sprint'] as const;
 export type Gait = (typeof GAITS)[number];
 
-export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup'] as const;
+export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate'] as const;
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
+
+/**
+ * What a bitten sim does with what it knows: carry on as if nothing happened, into a
+ * shelter if that is where it was going (the admission nobody saw), or go off alone
+ * to an empty building and turn there.
+ */
+export const INFECTED_CHOICES = ['conceal', 'isolate'] as const;
+export type InfectedChoice = (typeof INFECTED_CHOICES)[number];
+
+export const STANDS = ['fight', 'freeze'] as const;
+export type Stand = (typeof STANDS)[number];
 
 export const ROLES = ['builder', 'scavenger', 'dispatcher'] as const;
 export type Role = (typeof ROLES)[number];
@@ -168,6 +179,14 @@ export interface Sim {
 
   // Perception and belief
 
+  /**
+   * When this sim learned there is an outbreak: by seeing a zombie, a bite or a
+   * conversion, hearing gunfire or a shout, being told by someone who knew, or being
+   * indoors when the house was alerted. Null while unaware: an unaware sim keeps to
+   * its routine; an aware one drops it for an objective (home, shelter, respond).
+   * @range tick | null @unit tick @readBy sim decisions (objective), encounter merge (word of mouth), inspector
+   */
+  awareAt: Tick | null;
   /** @range 0–1 @unit scalar @readBy panic gating only: routing mode, memory use, expulsion */
   panic: Unit01;
   /** Beliefs about streets, keyed by street id. Bounded by streets seen. @range ~20 entries @unit — @readBy pathfinding, shelter desirability, encounter merge */
@@ -200,12 +219,28 @@ export interface Sim {
   /** Routine idle at a stop ends here; null when not idling. @range tick | null @unit tick @readBy routine behaviour */
   idleUntil: Tick | null;
   /**
-   * Keeps avoiding until this tick after a threat drops out of sight, so a zombie
-   * flickering at the edge of view does not flip the sim between fleeing and its
-   * route every tick. Null when not avoiding.
+   * Last tick a zombie was in sight. A sighting after more than avoidHold ticks
+   * without one is fresh: the sim notes the street and shouts a warning.
+   * @range tick | null @unit tick @readBy sim decisions
+   */
+  sightedAt: Tick | null;
+  /**
+   * Backing off from a way blocked by danger, with no other door to take: the sim
+   * keeps away until this tick, then resumes its re-planned route. The hold is what
+   * stops it flipping between backing off and its route every tick. Null otherwise.
    * @range tick | null @unit tick @readBy sim decisions
    */
   avoidUntil: Tick | null;
+  /**
+   * Cornered, or with the way blocked by more than it can run round, a sim holds its
+   * ground for a few ticks: 'fight' faces the nearest zombie and uses what it carries
+   * (at range too, whatever its archetype, and even in a panic); 'freeze' keeps still
+   * and hopes not to be seen. Null otherwise.
+   * @range fight | freeze | null @unit enum @readBy sim decisions, combat, snapshot (render, inspector)
+   */
+  stand: Stand | null;
+  /** When the stand is reconsidered. @range tick | null @unit tick @readBy sim decisions */
+  standUntil: Tick | null;
   /** The last building that turned this sim away (occupied, or someone inside knew it was bitten); never chosen again as a door or shelter. @range building id | null @unit id @readBy door and shelter choice */
   refusedBy: BuildingId | null;
 
@@ -224,9 +259,22 @@ export interface Sim {
 
   /** Conversion tick, set on a bite to tick + 20–40; null when not infected. @range tick | null @unit tick @readBy conversion */
   turnsAt: Tick | null;
+  /**
+   * Made once, by the sim itself, at its first decision after the bite. Its own
+   * infection is the one it may read.
+   * @range conceal | isolate | null @unit enum @readBy sim decisions, snapshot (inspector)
+   */
+  infectedChoice: InfectedChoice | null;
 
   // Shelter
 
+  /**
+   * Where this sim lives: a residential building, its own if it came out of one, else
+   * one near where it was first seen. Null for the homeless. Not a shelter until it
+   * gets there (`shelter` is set on arrival).
+   * @range building id | null @unit id @readBy objective choice, inspector
+   */
+  home: BuildingId | null;
   /** Building this sim has committed to; re-evaluated only on breach, fall, decay or migration. @range building id | null @unit id @readBy shelter return, roles, migration */
   shelter: BuildingId | null;
   /** @range 3 values | null @unit enum @readBy building processes, role re-evaluation */

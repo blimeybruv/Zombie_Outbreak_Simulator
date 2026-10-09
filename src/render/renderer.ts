@@ -2,14 +2,15 @@
 //
 // Layers, bottom to top: the static city (cached, redrawn only when the camera or
 // the light changes), the corpse paint, occupancy fill, trails (near zoom), the
-// agents, and conversion pulses. At far zoom the agents give way to a density
+// agents, conversion pulses, and the sounds that carry decisions: a warning shouted
+// is a ring as wide as earshot, a shot a flash. At far zoom the agents give way to a density
 // field — at that scale individuals are mush.
 //
 // `ingest` takes each snapshot's events exactly once; `draw` may run many times
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CONTESTED, SIM_HIDDEN, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
+import { BUILDING_CONTESTED, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -23,6 +24,9 @@ const MID_DENSITY = 0.5; // strength of the far-zoom density field under the dot
 const MID_TRAIL = 5; // samples of trail (~0.8 s) at mid zoom; near zoom draws all
 const PULSE_MS = 1400; // a conversion registers as an event, not a silent colour swap
 const PULSE_RADIUS = 7; // m
+const SHOUT_MS = 700;
+const FLASH_MS = 160;
+const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
 const FULL_AT = 24; // people inside at which a building reads as full
@@ -48,6 +52,9 @@ export class Renderer {
   private readonly simTrails = new Trails();
   private readonly zombieTrails = new Trails();
   private pulses: { x: number; y: number; start: number }[] = [];
+  private sounds: { x: number; y: number; radius: number; shout: boolean; start: number }[] = [];
+  /** How a bitten survivor shows at near zoom: an amber ring, a pale amber dot, or not at all (?infected=). */
+  infectedStyle: 'ring' | 'fill' | 'off' = 'ring';
   /** Each building's bounding box, for culling: minX, minY, maxX, maxY. */
   private readonly bounds: Float32Array;
 
@@ -122,6 +129,11 @@ export class Renderer {
     this.corpses.add(frame.events, frame.tick);
     for (const e of frame.events) if (e.type === 'simTurned' && e.sim !== null) this.pulses.push({ x: e.x, y: e.y, start: wallMs });
     if (this.pulses.length > 400) this.pulses = this.pulses.slice(-400);
+    for (const n of frame.noises) {
+      const shout = n.kind === 'shout';
+      if (shout || GUNS.has(n.kind)) this.sounds.push({ x: n.x, y: n.y, radius: n.radius, shout, start: wallMs });
+    }
+    if (this.sounds.length > 400) this.sounds = this.sounds.slice(-400);
   }
 
   /** Redraws the static city when the view or the light has changed since last time. */
@@ -227,6 +239,23 @@ export class Renderer {
     this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.2 : 1, near ? undefined : MID_TRAIL);
     this.drawAgents(g, frame, cam, dpr);
     this.drawPulses(g, cam, dpr, wallMs);
+    this.drawSounds(g, cam, dpr, wallMs);
+  }
+
+  /** Shouted warnings as faint rings growing to earshot; shots as brief flashes. */
+  private drawSounds(g: CanvasRenderingContext2D, cam: Camera, dpr: number, wallMs: number): void {
+    this.sounds = this.sounds.filter((n) => wallMs - n.start < (n.shout ? SHOUT_MS : FLASH_MS));
+    if (this.sounds.length === 0) return;
+    cam.apply(g, dpr);
+    g.lineWidth = 1 / (cam.scale * dpr);
+    for (const n of this.sounds) {
+      const t = (wallMs - n.start) / (n.shout ? SHOUT_MS : FLASH_MS);
+      const [r, gr, b] = n.shout ? P.SHOUT : P.FLASH;
+      g.strokeStyle = `rgba(${r}, ${gr}, ${b}, ${((n.shout ? 0.22 : 0.9) * (1 - t)).toFixed(3)})`;
+      g.beginPath();
+      g.arc(n.x, n.y, n.shout ? Math.max(1, n.radius * t) : 1.5 + 2 * t, 0, Math.PI * 2);
+      g.stroke();
+    }
   }
 
   /** Expanding, fading rings where someone has just turned. */
@@ -298,18 +327,47 @@ export class Renderer {
         g.fillRect(x, y, size, size);
       }
     }
-    const k = frame.simKind, xy = frame.simXY;
-    g.fillStyle = P.LIVING;
-    for (let i = 0; i < k.length; i++) {
-      if (k[i] === SIM_HIDDEN || k[i] === SIM_PROMOTED) continue;
-      const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
-      if (x < -size || y < -size || x > w || y > h) continue;
-      g.fillRect(x, y, size, size);
+    const k = frame.simKind, f = frame.simFlags, xy = frame.simXY;
+    // Near zoom only, the viewer is told who is bitten; the city is not.
+    const showInfected = cam.mode === 'near' ? this.infectedStyle : 'off';
+    const pale = showInfected === 'fill';
+    // A frozen survivor, cornered and keeping still, is drawn dim: hiding in plain sight.
+    for (const frozen of [false, true]) {
+      g.globalAlpha = frozen ? 0.4 : 1;
+      g.fillStyle = P.LIVING;
+      for (let i = 0; i < k.length; i++) {
+        if (k[i] === SIM_HIDDEN || k[i] === SIM_PROMOTED || ((f[i]! & SIM_FROZEN) !== 0) !== frozen) continue;
+        if (pale && f[i]! & SIM_INFECTED) continue;
+        const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
+        if (x < -size || y < -size || x > w || y > h) continue;
+        g.fillRect(x, y, size, size);
+      }
+      if (pale) {
+        g.fillStyle = P.INFECTED_PALE;
+        for (let i = 0; i < k.length; i++) {
+          if (k[i] === SIM_HIDDEN || k[i] === SIM_PROMOTED || !(f[i]! & SIM_INFECTED) || ((f[i]! & SIM_FROZEN) !== 0) !== frozen) continue;
+          g.fillRect(sx(xy[i * 2]!), sy(xy[i * 2 + 1]!), size, size);
+        }
+      }
     }
+    g.globalAlpha = 1;
     g.fillStyle = P.PROMOTED;
     for (let i = 0; i < k.length; i++) {
       if (k[i] !== SIM_PROMOTED) continue;
       g.fillRect(sx(xy[i * 2]!) - 1, sy(xy[i * 2 + 1]!) - 1, size + 2, size + 2);
+    }
+    if (showInfected === 'ring') {
+      g.strokeStyle = P.INFECTED;
+      g.lineWidth = 1.5 * dpr;
+      g.beginPath();
+      for (let i = 0; i < k.length; i++) {
+        if (k[i] === SIM_HIDDEN || !(f[i]! & SIM_INFECTED)) continue;
+        const cx = sx(xy[i * 2]!) + half, cy = sy(xy[i * 2 + 1]!) + half;
+        if (cx < -size * 3 || cy < -size * 3 || cx > w + size * 3 || cy > h + size * 3) continue;
+        g.moveTo(cx + size * 1.4, cy);
+        g.arc(cx, cy, size * 1.4, 0, Math.PI * 2);
+      }
+      g.stroke();
     }
     // Names on promoted survivors, so they can be picked out and followed (not at far zoom).
     g.font = `${(cam.mode === 'near' ? 11 : 10) * dpr}px ui-monospace, Menlo, Consolas, monospace`;

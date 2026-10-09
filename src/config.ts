@@ -167,9 +167,6 @@ export const config = {
     pathStreetSearch: 200, // m; widest search for the street a route starts or ends on
     observeInterval: 5, // ticks between close-pass building observations, staggered by id
     avoidHold: 15, // ticks a sim keeps avoiding after the threat drops out of sight
-    // After a scare a walker on a routine picks a new stop rather than walking back the
-    // way it fled; stops behind it (more than 90° off its heading) weigh this much — guess
-    scaredBehindWeight: 0.1,
     // A warning is shouted out loud: it is a stimulus with the warning's radius
     // (encounters.warnRadius), heard by the dead as well as the living — telling the
     // neighbours costs drawing the horde. Loudness at the source — guess
@@ -182,6 +179,42 @@ export const config = {
     // the cosine below of the threat's direction) counts as this many times as far — guess
     doorTowardThreatPenalty: 3,
     doorTowardThreatCos: 0.7,
+  },
+
+  // Fight, flight or freeze. Cornered — perceived threat at least `threat`, and either
+  // danger on several sides (|threat vector| / threat under `spread`) or no walkable
+  // ground `probe` metres along the way out — a sim fights if armed, else takes any door
+  // within doorSearchRadius, else freezes. With the way merely blocked (danger squarely
+  // ahead: avoidWeight × threat × aheadness at least `blockedAt`), it fights if what it
+  // carries can deal with the zombies within `fightRadius`, else takes a door that does
+  // not lie toward them, else backs off for avoidHold ticks.
+  cornered: {
+    threat: 0.4, // — guess
+    spread: 0.5, // — guess
+    probe: 6, // m
+    blockedAt: 0.8, // — guess
+    fightRadius: 15, // m
+    fightTicks: 10, // a stand is reconsidered after this long
+    freezeTicks: 20, // — guess
+  },
+
+  // Knowing there is an outbreak. Unaware, a sim keeps its routine; aware, it drops it
+  // for an objective: respond to trouble (those who engage), go home (within the
+  // archetype's homeReach, unless home is believed dangerous), or the best shelter it
+  // knows. Awareness spreads by sight, sound and word of mouth (sim.awareAt).
+  awareness: {
+    homeSample: 8, // residential buildings sampled when a home is assigned at spawn
+    homeDistanceScale: 400, // m; a sampled home's weight falls as 1 / (1 + d / scale) — guess
+    // Home counts as dangerous, and is passed over, when its street is believed at least
+    // this dangerous (danger × confidence) — guess
+    homeDangerous: 0.3,
+    // Already heading home and the threat crosses the shelter-seek threshold: a home
+    // further than this is abandoned for the best shelter nearer to hand — guess
+    divertBeyond: 250,
+    respondRadius: 600, // m; those who engage go toward trouble they believe in within this — guess
+    respondMin: 0.15, // believed danger × confidence for a street to be worth responding to — guess
+    respondArrival: 8, // m from the trouble's street midpoint to count as arrived
+    isolationRadius: 200, // m; a bitten sim going off alone looks this far for an empty building — guess
   },
 
   encounters: {
@@ -405,11 +438,17 @@ export const config = {
     // shelterSeekThreshold: perceivedThreat that starts shelter-seeking.
     // contestRatio: contest an occupation if capacity >= zombiesInside × ratio (null = never).
     // shelterWeights multiply the desirability weights below; loners invert groupTerm.
-    civilian: { panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },
-    police: { panicImmune: true, engageThreshold: 0.3, shelterSeekThreshold: 0.6, contestRatio: 1, shelterWeights: { integrity: 1.5, fortification: 1, streetQuiet: 1, group: 1, materials: 1, distance: 1 } },
-    hunkerDown: { panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, materials: 1, distance: 1 } },
-    loner: { panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.3, contestRatio: null, shelterWeights: { integrity: 1, fortification: 1, streetQuiet: 1.2, group: -1, materials: 1, distance: 1 } },
-    reckless: { panicImmune: false, engageThreshold: 1, shelterSeekThreshold: 0.9, contestRatio: 0.5, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.2, group: 1, materials: 0.5, distance: 1 } },
+    // homeReach: once aware, go home if it is within this many metres (0 = never: police
+    // and the reckless respond, loners keep their own counsel and pick a shelter).
+    // sociality: chance, on meeting someone bound for a nearer shelter, of going with
+    // them (0 = never; loners) — guess
+    // isolates: chance a bitten sim goes off alone to an empty building to turn, rather
+    // than carrying on as if nothing happened — guess
+    civilian: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },
+    police: { isolates: 0.6, sociality: 0, homeReach: 0, panicImmune: true, engageThreshold: 0.3, shelterSeekThreshold: 0.6, contestRatio: 1, shelterWeights: { integrity: 1.5, fortification: 1, streetQuiet: 1, group: 1, materials: 1, distance: 1 } },
+    hunkerDown: { isolates: 0.1, sociality: 0.3, homeReach: 3200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, materials: 1, distance: 1 } },
+    loner: { isolates: 0.7, sociality: 0, homeReach: 0, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.3, contestRatio: null, shelterWeights: { integrity: 1, fortification: 1, streetQuiet: 1.2, group: -1, materials: 1, distance: 1 } },
+    reckless: { isolates: 0.4, sociality: 0.3, homeReach: 0, panicImmune: false, engageThreshold: 1, shelterSeekThreshold: 0.9, contestRatio: 0.5, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.2, group: 1, materials: 0.5, distance: 1 } },
   },
 
   shelter: {

@@ -337,6 +337,8 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
 /** Somebody inside now knows. */
 export function alert(world: World, b: Building): void {
   b.alertedAt ??= world.tick;
+  // Everyone inside hears it, so everyone inside knows there is an outbreak.
+  for (const id of b.sheltered) world.sims[id]!.awareAt ??= world.tick;
 }
 
 /**
@@ -368,7 +370,7 @@ function sendResident(world: World, ctx: Context, b: Building, queued: number): 
   if (!seed.some((id) => world.buildings[id]!.materials > 0)) return;
 
   b.residents--;
-  const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, initialPanic: 0, destinationKind: null });
+  const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null, aware: true });
   b.sheltered.push(sim.id);
   sim.shelter = b.id;
   sim.gait = 'still';
