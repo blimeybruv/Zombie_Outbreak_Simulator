@@ -172,6 +172,7 @@ Drawn at near zoom: a bar across each door step when barricaded; a heavier outli
 Seed 1, 9,000 ticks: breaches 686 → 363, dead 929 → 633, turned 1,078 → 702. At tick 3,000, of 2,068 peopled buildings 1,838 were open (most never learned of the outbreak), 38 barricaded, 171 reinforced, 21 fortified; by 9,000, 201 barricaded, 135 reinforced, 2 fortified, as materials ran out.
 
 - **Sweep** (mapSeed 1, runSeeds 1–8): **gate 2 fails**, as expected. Six runs end at 31–36% turned and 22–27% dead, below the 40–90% band; two smoulder out (seed 3 resolved at tick 2,962, seed 8 at 12,435, both at 1–2%). Gate 4 passes: shelters form, fall and re-form in all eight, no stasis, survival by caution band 37.9% / 40.2% / 41.4% (z 4.5); named survivors live a median 18,000 ticks after naming, 54% alive at the end. **Open:** retune — the levers are the turn delay, the breach base, and the stage thresholds.
+- **Retune 1: turn delay 300–1,200 ticks (was 20–40), reinforced takes 4 (was 5)** (runSeeds 1–8): gate 2 still fails, and further: six runs at 21–31% turned, 20–26% dead; two smoulder out at 2–3%. The longer delay slows the epidemic more than admission speeds it — a conversion now comes minutes after the bite, not seconds, so each generation of the outbreak takes ten times as long. Gate 4 passes (survival by caution 43.1% / 44.2% / 45.2%, z 2.6).
 
 ## The concept in brief
 
