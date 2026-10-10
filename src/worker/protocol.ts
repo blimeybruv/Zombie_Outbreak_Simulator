@@ -112,6 +112,8 @@ export interface SimDetail {
   caution: number;
   /** Ground truth, including the infection nobody else may know about. */
   condition: string;
+  /** Bites taken; each after the first hastens the turn. */
+  bites: number;
   insideBuilding: number | null;
   weapon: string | null;
   ammo: number;

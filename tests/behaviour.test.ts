@@ -13,7 +13,7 @@ import { buildingProcesses } from '../src/sim/systems/buildings';
 import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
 import { chooseShelter } from '../src/sim/systems/shelter';
 import { zombieDecisions } from '../src/sim/systems/zombies';
-import { resolveCombat } from '../src/sim/systems/combat';
+import { bite, resolveCombat } from '../src/sim/systems/combat';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -355,5 +355,23 @@ describe('fortification stages', () => {
     rebuildHashes(world, ctx);
     buildingProcesses(world, ctx, () => {});
     expect(breached()).toBe(true);
+  });
+});
+
+describe('bites add up', () => {
+  it('each bite after the first halves the time left to turning', () => {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    bite(world, ctx, s);
+    expect(s.condition).toBe('infected');
+    expect(s.bites).toBe(1);
+    const left = s.turnsAt! - world.tick;
+    bite(world, ctx, s);
+    expect(s.bites).toBe(2);
+    expect(s.turnsAt! - world.tick).toBe(Math.ceil(left * world.config.infection.rebiteFactor));
   });
 });

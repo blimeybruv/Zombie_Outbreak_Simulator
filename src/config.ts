@@ -393,6 +393,7 @@ export const config = {
     // in, and turn behind the barricade — the admission nobody saw. (Was 20–40: most
     // turned before they reached a door.)
     turnDelay: [300, 1200],
+    rebiteFactor: 0.5, // each further bite multiplies the time left to turning by this
   },
 
   startingKit: {

@@ -265,6 +265,12 @@ export interface Sim {
    * @range conceal | isolate | null @unit enum @readBy sim decisions, snapshot (inspector)
    */
   infectedChoice: InfectedChoice | null;
+  /**
+   * Bites taken. Each after the first halves the time left to turning
+   * (infection.rebiteFactor): someone who got away from a crowd is further gone.
+   * @range 0–20 @unit bites @readBy combat (rebite), snapshot (inspector)
+   */
+  bites: Count;
 
   // Shelter
 

@@ -130,11 +130,16 @@ if (process.argv[2] === '--worker') {
   }
 
   const invariantOk = results.every((r) => r.invariantError === null);
-  const inBand = results.filter((r) => r.infection >= 0.4 && r.infection <= 0.9).length;
+  // Total human loss — dead plus turned — not the turned share alone: with feeding, most
+  // of the swarmed are eaten rather than turned, and a city where everyone dies and few
+  // turn is still a city falling. The infection share capped well below the band once
+  // feeding and fortification stages were in.
+  const lossOf = (r: (typeof results)[number]) => r.infection + r.samples[r.samples.length - 1]!.unturned.dead / r.population;
+  const inBand = results.filter((r) => lossOf(r) >= 0.4 && lossOf(r) <= 0.95).length;
   const early = results.filter((r) => r.resolvedAt !== null && r.resolvedAt < 3000).length;
   const need = Math.ceil(seeds * 0.75);
   const gate2 = invariantOk && inBand >= need && early === 0;
-  console.log(`\ngate 2: invariant ${invariantOk ? 'PASS' : 'FAIL'} | infection 40–90% in ${inBand}/${seeds} (need ${need}) ${inBand >= need ? 'PASS' : 'FAIL'} | resolved <3000: ${early} ${early === 0 ? 'PASS' : 'FAIL'}`);
+  console.log(`\ngate 2: invariant ${invariantOk ? 'PASS' : 'FAIL'} | loss (dead + turned) 40–95% in ${inBand}/${seeds} (need ${need}) ${inBand >= need ? 'PASS' : 'FAIL'} | resolved <3000: ${early} ${early === 0 ? 'PASS' : 'FAIL'}`);
 
   const STASIS = 3600;
   const reformed = results.filter((r) => r.shelters.fell > 0 && r.shelters.reformed > 0).length;

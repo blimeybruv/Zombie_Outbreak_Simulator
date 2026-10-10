@@ -86,7 +86,7 @@ export class Inspector {
     const r = this.root;
     r.append(el('div', 'head', s.name ?? 'A survivor'));
     r.append(el('div', 'sub', `${words(s.profession)}, ${s.age} · ${words(s.archetype)} · caution ${s.caution.toFixed(2)}`));
-    const truth = [s.condition === 'infected' ? 'bitten' : s.condition, s.insideBuilding !== null ? 'indoors' : 'outdoors', s.doing ?? '', s.role ? `role: ${s.role}` : ''].filter(Boolean);
+    const truth = [s.condition === 'infected' ? (s.bites > 1 ? `bitten ×${s.bites}` : 'bitten') : s.condition, s.insideBuilding !== null ? 'indoors' : 'outdoors', s.doing ?? '', s.role ? `role: ${s.role}` : ''].filter(Boolean);
     r.append(el('div', s.condition === 'infected' ? 'sub warn' : 'sub', truth.join(' · ')));
     r.append(el('div', 'sub', [s.weapon ? `${s.weapon}${s.ammo > 0 ? ` (${s.ammo})` : ''}` : 'unarmed', s.materials > 0 ? `carrying ${s.materials}` : ''].filter(Boolean).join(' · ')));
     if (s.home) r.append(el('div', 'sub', `lives at ${s.home}`));

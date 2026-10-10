@@ -22,8 +22,15 @@ export function destroyZombie(world: World, z: Zombie, by: Sim): void {
 
 /** A bite: infects a healthy sim and lets everyone who saw it know. */
 export function bite(world: World, ctx: Context, victim: Sim): void {
-  if (victim.condition !== 'healthy') return;
   const { config, tick, sims } = world;
+  if (victim.condition === 'infected') {
+    // Bitten again: further gone. The time left to turning shrinks with each bite.
+    victim.bites++;
+    if (victim.turnsAt !== null) victim.turnsAt = tick + Math.ceil((victim.turnsAt - tick) * config.infection.rebiteFactor);
+    return;
+  }
+  if (victim.condition !== 'healthy') return;
+  victim.bites = 1;
   const from = simLeaf(victim)!;
   victim.condition = 'infected';
   victim.awareAt ??= tick;
