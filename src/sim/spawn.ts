@@ -170,6 +170,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     profession,
     age: ageFor(rng, profession, config),
     caution: nextFloat(rng),
+    sociality: Math.min(1, Math.max(0, nextFloat(rng) + (config.spawn.professionSociality[profession] ?? 0))),
     condition: 'healthy',
     name: null,
     namedAt: null,

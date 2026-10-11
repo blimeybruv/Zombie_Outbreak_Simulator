@@ -112,6 +112,7 @@ export interface SimDetail {
   age: number;
   archetype: string;
   caution: number;
+  sociality: number;
   /** Ground truth, including the infection nobody else may know about. */
   condition: string;
   /** Bites taken; each after the first hastens the turn. */

@@ -131,15 +131,15 @@ describe('the bitten', () => {
 });
 
 describe('sociality', () => {
-  it('a sociable sim bound for a far shelter goes along with someone bound for a nearer one', () => {
-    const cfg = structuredClone(baseConfig);
-    cfg.archetypes.civilian.sociality = 1;
+  /** Two aware walkers side by side: `a` bound for a far shelter, `b` for a near one. Returns where `a` ends up going. */
+  function meet(archetype: Sim['archetype'], sociality: number, cfg: Config = baseConfig): { goes: boolean } {
     const { world, ctx } = fresh(cfg);
     const p = streetPoint(world);
     const a = walker(world, p.x, p.y);
     const b = walker(world, p.x + 1, p.y);
-    a.awareAt = 0;
-    b.awareAt = 0;
+    a.archetype = archetype;
+    a.sociality = sociality;
+    a.awareAt = b.awareAt = 0;
     const byDistance = [...world.buildings].sort(
       (m, n) => Math.hypot(m.entrances[0]!.x - p.x, m.entrances[0]!.y - p.y) - Math.hypot(n.entrances[0]!.x - p.x, n.entrances[0]!.y - p.y),
     );
@@ -148,25 +148,33 @@ describe('sociality', () => {
     a.lastMergeAt = b.lastMergeAt = -1000;
     sizeContext(ctx, world);
     resolveEncounters(world, ctx);
-    expect(a.destinationBuilding).toBe(byDistance[1]!.id);
     expect(b.destinationBuilding).toBe(byDistance[1]!.id);
+    return { goes: a.destinationBuilding === byDistance[1]!.id };
+  }
+
+  it('a sociable sim bound for a far shelter goes along with someone bound for a nearer one', () => {
+    expect(meet('civilian', 1).goes).toBe(true); // 2 × 1 × 0.8, up to 1
   });
 
-  it('a loner never goes along', () => {
-    const { world, ctx } = fresh();
-    const p = streetPoint(world);
-    const a = walker(world, p.x, p.y);
-    const b = walker(world, p.x + 1, p.y);
-    a.archetype = 'loner';
-    a.awareAt = b.awareAt = 0;
-    const far = world.buildings[world.buildings.length - 1]!;
-    const near = world.buildings.find((x) => Math.hypot(x.entrances[0]!.x - p.x, x.entrances[0]!.y - p.y) < 100)!;
-    setDestination(a, far, 'shelter');
-    setDestination(b, near, 'shelter');
-    a.lastMergeAt = b.lastMergeAt = -1000;
-    sizeContext(ctx, world);
-    resolveEncounters(world, ctx);
-    expect(a.destinationBuilding).toBe(far.id);
+  it('a solitary sim does not, whatever its archetype', () => {
+    expect(meet('civilian', 0).goes).toBe(false);
+  });
+
+  it('a loner never goes along, however sociable', () => {
+    expect(meet('loner', 1).goes).toBe(false);
+  });
+
+  it('draws the trait independently of archetype, nudged by profession', () => {
+    const { world } = fresh();
+    const rest = world.sims.filter((s) => !(s.profession in baseConfig.spawn.professionSociality));
+    const mean = (xs: number[]) => xs.reduce((a, x) => a + x, 0) / Math.max(1, xs.length);
+    // A uniform draw's mean, within three standard errors (sd of a uniform is 0.29).
+    const uniform = (xs: number[]) => expect(Math.abs(mean(xs) - 0.5)).toBeLessThan((3 * 0.29) / Math.sqrt(xs.length));
+    uniform(rest.map((s) => s.sociality));
+    for (const arch of ['civilian', 'prepper', 'reckless'] as const) uniform(rest.filter((s) => s.archetype === arch).map((s) => s.sociality));
+    const bartenders = world.sims.filter((s) => s.profession === 'bartender');
+    const drivers = world.sims.filter((s) => s.profession === 'longHaulDriver');
+    expect(mean(bartenders.map((s) => s.sociality))).toBeGreaterThan(mean(drivers.map((s) => s.sociality)));
   });
 });
 
@@ -195,6 +203,8 @@ describe('the dead', () => {
     const z = spawnZombie(world, p.x + p.ux * 5, p.y + p.uy * 5, 'active', null, null);
     s.insideBuilding = b.id;
     b.sheltered.push(s.id);
+    // Nobody else in sight to chase instead.
+    for (const o of world.sims) if (o !== s && o.insideBuilding === null && Math.hypot(o.x - p.x, o.y - p.y) < 100) o.insideBuilding = b.id;
     z.target = s.id;
     z.targetSeenAt = world.tick;
     sizeContext(ctx, world);

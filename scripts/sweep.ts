@@ -13,6 +13,8 @@
 // first one fell) in at least 15 of 20; no seed settles into stasis (an hour, 3,600
 // ticks, with nothing happening while anyone is alive); survival differs measurably by
 // caution band (lowest against highest band, pooled over seeds, |z| >= 2).
+// Also reported, not gated: survival by sociality band, over the sims whose archetype
+// ever joins anyone — whether going along with others helps or hurts.
 
 import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -144,23 +146,30 @@ if (process.argv[2] === '--worker') {
   const STASIS = 3600;
   const reformed = results.filter((r) => r.shelters.fell > 0 && r.shelters.reformed > 0).length;
   const stalled = results.filter((r) => r.longestQuiet >= STASIS).length;
-  const alive = [0, 0, 0];
-  const total = [0, 0, 0];
-  for (const r of results) for (let i = 0; i < 3; i++) {
-    alive[i]! += r.caution.alive[i]!;
-    total[i]! += r.caution.total[i]!;
-  }
-  const rate = alive.map((a, i) => a / Math.max(1, total[i]!));
-  const pooled = (alive[0]! + alive[2]!) / Math.max(1, total[0]! + total[2]!);
-  const se = Math.sqrt(pooled * (1 - pooled) * (1 / Math.max(1, total[0]!) + 1 / Math.max(1, total[2]!)));
-  const z = se > 0 ? (rate[2]! - rate[0]!) / se : 0;
+  const { rate, z } = bandSurvival(results.map((r) => r.caution));
   const cautionOk = Math.abs(z) >= 2;
   const gate4 = reformed >= need && stalled === 0 && cautionOk;
   console.log(
     `gate 4: shelters form, fall, re-form in ${reformed}/${seeds} (need ${need}) ${reformed >= need ? 'PASS' : 'FAIL'} | stasis ≥${STASIS}: ${stalled} ${stalled === 0 ? 'PASS' : 'FAIL'} | survival by caution low/mid/high ${rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${z.toFixed(1)}) ${cautionOk ? 'PASS' : 'FAIL'}`,
   );
+  const social = bandSurvival(results.map((r) => r.sociality));
+  console.log(`survival by sociality low/mid/high ${social.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${social.z.toFixed(1)}; joiners only, not gated)`);
   rosterSummary(results, rosterOut);
   console.log(`wall time ${((performance.now() - started) / 1000).toFixed(0)} s`);
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ mapSeed, overrides, results }, null, 1));
   process.exitCode = gate2 && gate4 ? 0 : 1;
+}
+
+/** Survival rate per band, pooled over seeds, and z for the highest band against the lowest. */
+function bandSurvival(runs: { alive: number[]; total: number[] }[]): { rate: number[]; z: number } {
+  const alive = [0, 0, 0];
+  const total = [0, 0, 0];
+  for (const r of runs) for (let i = 0; i < 3; i++) {
+    alive[i]! += r.alive[i]!;
+    total[i]! += r.total[i]!;
+  }
+  const rate = alive.map((a, i) => a / Math.max(1, total[i]!));
+  const pooled = (alive[0]! + alive[2]!) / Math.max(1, total[0]! + total[2]!);
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / Math.max(1, total[0]!) + 1 / Math.max(1, total[2]!)));
+  return { rate, z: se > 0 ? (rate[2]! - rate[0]!) / se : 0 };
 }

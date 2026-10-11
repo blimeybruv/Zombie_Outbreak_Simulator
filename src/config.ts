@@ -141,6 +141,13 @@ export const config = {
       homeless: [18, 75], tourist: [18, 80], drunk: [18, 75], hunter: [18, 75], caretaker: [30, 75],
       firearmInstructor: [28, 70], trailGuide: [20, 60], homesteader: [25, 75], hamRadioOperator: [30, 80],
     } as Record<string, readonly [number, number]>,
+    // Added to a sim's uniform sociality draw (clamped to 0–1): the jobs of people who
+    // work among people go along with others more readily; solitary ones less. Small,
+    // so the trait stays nearly independent of archetype — guess
+    professionSociality: {
+      bartender: 0.2, teacher: 0.15, parent: 0.15, barista: 0.1, nurse: 0.1, student: 0.1, receptionist: 0.1, retailAssistant: 0.05,
+      nightCleaner: -0.2, longHaulDriver: -0.2, groundskeeper: -0.15, homesteader: -0.15, hamRadioOperator: -0.1, trailGuide: -0.1, homeless: -0.1,
+    } as Record<string, number>,
     // Anyone who is police is a cop by profession, whatever building they came from.
     policeProfessions: ['patrolOfficer', 'detective'],
     originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
@@ -569,7 +576,8 @@ export const config = {
     // homeReach: once aware, go home if it is within this many metres (0 = never: police
     // and the reckless respond, loners keep their own counsel and pick a shelter).
     // sociality: chance, on meeting someone bound for a nearer shelter, of going with
-    // them (0 = never; loners) — guess
+    // them, for a sim of middling sociality (0.5); the sim's own trait scales it,
+    // 2 × trait × this, up to 1 (0 = never, whatever the trait; loners) — guess
     // isolates: chance a bitten sim goes off alone to an empty building to turn, rather
     // than carrying on as if nothing happened — guess
     civilian: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },

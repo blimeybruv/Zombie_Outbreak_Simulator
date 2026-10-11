@@ -56,7 +56,8 @@ export function merge(world: World, a: Sim, b: Sim): void {
 /**
  * Limited sociality: `a`, aware and on its way to a shelter it has not yet made its
  * own, meets `b` bound for a different one that is nearer to `a` than its own goal,
- * and goes with them, at the archetype's `sociality` chance. Nobody stops to talk
+ * and goes with them, at 2 × its own sociality × the archetype's (up to 1: the
+ * archetype's figure is the chance at middling sociality). Nobody stops to talk
  * with danger in sight; loners never go. The two then walk the same way, which is
  * as much grouping as there is: no leader, no formation, no keeping together (that
  * is for squads, later).
@@ -72,7 +73,7 @@ function join(world: World, ctx: Context, a: Sim, b: Sim): boolean {
   if (ctx.threat[a.id]! >= arch.shelterSeekThreshold) return false;
   const e = entranceNearest(buildings[x]!, a.x, a.y);
   if (Math.hypot(e.x - a.x, e.y - a.y) >= Math.hypot(a.destination.x - a.x, a.destination.y - a.y)) return false;
-  if (!chance(world.rng, arch.sociality)) return false;
+  if (!chance(world.rng, Math.min(1, 2 * a.sociality * arch.sociality))) return false;
   setDestination(a, buildings[x]!, 'shelter');
   return true;
 }

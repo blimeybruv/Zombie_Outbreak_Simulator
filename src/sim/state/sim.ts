@@ -141,6 +141,13 @@ export interface Sim {
    * @range 0–1 @unit scalar @readBy migration (requiredDelta), promotion, end stats (caution band)
    */
   caution: Unit01;
+  /**
+   * How readily this sim goes along with others: a uniform draw, nudged a little by
+   * profession (`spawn.professionSociality`), independent of archetype. The archetype
+   * scales it into a chance (encounters.ts join), so loners never join whatever it is.
+   * @range 0–1 @unit scalar @readBy joining, inspector, end stats (sociality band)
+   */
+  sociality: Unit01;
   /** @range 4 values @unit enum @readBy counters, every system that skips the dead, render */
   condition: Condition;
   /** Assigned at promotion; null until then. @range wordlist | null @unit — @readBy roster, ticker, labels */

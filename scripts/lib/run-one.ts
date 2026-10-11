@@ -94,6 +94,8 @@ export interface RunSummary {
   longestQuiet: number;
   /** Tracked sims alive and healthy at the end, and in total, by caution band (low, mid, high). */
   caution: { alive: number[]; total: number[] };
+  /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
+  sociality: { alive: number[]; total: number[] };
   /** Everyone promoted, in promotion order, as scored when named. */
   roster: RosterEntry[];
   stages: StageStats[];
@@ -178,6 +180,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     caution.total[band]!++;
     if (s.condition === 'healthy') caution.alive[band]!++;
   }
+  const sociality = { alive: [0, 0, 0], total: [0, 0, 0] };
+  for (const s of world.sims) {
+    if (config.archetypes[s.archetype].sociality <= 0) continue;
+    const band = s.sociality < bands[0]! ? 0 : s.sociality < bands[1]! ? 1 : 2;
+    sociality.total[band]!++;
+    if (s.condition === 'healthy') sociality.alive[band]!++;
+  }
   return {
     runSeed,
     mapSeed,
@@ -190,6 +199,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     shelters,
     longestQuiet,
     caution,
+    sociality,
     roster,
     stages,
     fates,
