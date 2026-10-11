@@ -7,12 +7,30 @@
 
 const SLACK = 2;
 
+// Trimming sorts one number per entry: newest first, then the lower key, packed as
+// -observedAt × KEY_SPAN + key so a plain numeric sort orders them. Exact while ticks
+// are integers and keys are below KEY_SPAN (street and building ids are thousands).
+const KEY_SPAN = 2 ** 20;
+let order = new Float64Array(0);
+const kept: unknown[] = [];
+
 /** Keeps the `cap` newest entries once the table runs past its slack; ties keep the lower key. Deterministic. */
 export function trim<K extends number, V extends { observedAt: number }>(table: Map<K, V>, cap: number): void {
   if (table.size <= cap * SLACK) return;
-  const keep = [...table.entries()].sort((a, b) => b[1].observedAt - a[1].observedAt || a[0] - b[0]).slice(0, cap);
+  if (order.length < table.size) order = new Float64Array(table.size * 2);
+  let n = 0;
+  for (const [k, v] of table) order[n++] = -v.observedAt * KEY_SPAN + k;
+  const sorted = order.subarray(0, n).sort();
+  // Read the survivors before clearing, then re-insert newest first, as before.
+  kept.length = 0;
+  for (let i = 0; i < cap; i++) {
+    const c = sorted[i]!;
+    const k = (c - Math.floor(c / KEY_SPAN) * KEY_SPAN) as K;
+    kept.push(k, table.get(k));
+  }
   table.clear();
-  for (const [k, v] of keep) table.set(k, v);
+  for (let i = 0; i < kept.length; i += 2) table.set(kept[i] as K, kept[i + 1] as V);
+  kept.length = 0;
 }
 
 /** Writes an observation, forgetting the oldest once the table runs past its slack. */
