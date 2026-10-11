@@ -135,7 +135,7 @@ export const config = {
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
     relevanceTrim: true,
-    dropQuietHearsay: false, // off until swept on its own, after relevanceTrim
+    dropQuietHearsay: true,
     conversations: true,
     unease: true,
     trust: true,
