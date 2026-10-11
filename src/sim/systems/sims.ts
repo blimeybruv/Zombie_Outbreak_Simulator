@@ -28,7 +28,7 @@ import { remember } from '../memory';
 import { sharedNode } from '../pathfinding';
 import { nextFloat, nextInt } from '../rng';
 import type { Building, Sim, Stand, StreetId, World } from '../state';
-import { chooseObjective, setObjective } from './awareness';
+import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
 import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
@@ -560,6 +560,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
         return;
       }
       setDestination(sim, b, 'shelter');
+    } else if (sim.awareAt !== null) {
+      reconsider(world, ctx, sim);
     }
     sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
     travel(world, ctx, sim, mode);

@@ -340,8 +340,10 @@ export interface Sim {
    * @range tick | null @unit tick @readBy sim decisions
    */
   sortieUntil: Tick | null;
-  /** Null if never migrated. @range tick | null @unit tick @readBy migration cooldown */
+  /** When it last moved shelter or changed objective; null if never. @range tick | null @unit tick @readBy migration cooldown, objective cooldown */
   lastMigratedAt: Tick | null;
+  /** News about where it is heading (its street or the building) has come in since it last weighed its objective. @range true/false @unit — @readBy objective re-evaluation */
+  reconsider: boolean;
 
   /** Inline for now; a parallel id-indexed structure is a later option if profiling asks. @range see SimHistory @unit — @readBy promotion, end stats */
   history: SimHistory;

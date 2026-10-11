@@ -17,7 +17,7 @@ import type { Context } from '../context';
 import { confidence } from '../derived';
 import type { Building, Sim, World } from '../state';
 import { capacity, entranceNearest, setDestination } from './common';
-import { chooseShelter } from './shelter';
+import { chooseShelter, desirability } from './shelter';
 
 export type Objective = { kind: 'respond'; x: number; y: number } | { kind: 'home' | 'shelter'; building: Building };
 
@@ -49,7 +49,7 @@ function trouble(world: World, sim: Sim): { x: number; y: number } | null {
 }
 
 /** Whether this sim believes its home street is dangerous now. */
-function homeDangerous(world: World, sim: Sim, home: Building): boolean {
+export function homeDangerous(world: World, sim: Sim, home: Building): boolean {
   const belief = sim.streetMemory.get(home.street);
   if (!belief) return false;
   return belief.danger * confidence(belief.observedAt, world.tick, world.config) >= world.config.awareness.homeDangerous;
@@ -88,4 +88,41 @@ export function setObjective(sim: Sim, o: Objective): void {
     return;
   }
   setDestination(sim, o.building, 'shelter');
+}
+
+/**
+ * Weighs again, with migration's rules, where an aware sim outdoors is heading for
+ * shelter: on migration's cadence, or at once when news of its street or the building
+ * has come in. Home is given up once believed dangerous. A shelter is given up for
+ * one better by more than migration's margin (base, the target's believed
+ * fortification, its own caution), and never sooner than migration's cooldown after
+ * the last change: a rumour does not turn it round, a bad street does.
+ */
+export function reconsider(world: World, ctx: Context, sim: Sim): void {
+  const { config, tick, buildings } = world;
+  const mg = config.migration;
+  if (sim.destinationBuilding === null || sim.station !== null) return;
+  if (!sim.reconsider && (sim.id + tick) % config.roles.interval !== 0) return;
+  sim.reconsider = false;
+  if (sim.lastMigratedAt !== null && tick - sim.lastMigratedAt < mg.cooldown) return;
+  const current = buildings[sim.destinationBuilding]!;
+  if (current.id === sim.home) {
+    if (!homeDangerous(world, sim, current)) return;
+    const b = chooseShelter(world, ctx, sim, current.id);
+    if (b === null) return;
+    sim.lastMigratedAt = tick;
+    setDestination(sim, b, 'shelter');
+    return;
+  }
+  const best = chooseShelter(world, ctx, sim, sim.refusedBy);
+  if (best === null || best.id === current.id) return;
+  const score = (b: Building) => {
+    const e = entranceNearest(b, sim.x, sim.y);
+    return desirability(world, sim, b, sim.buildingMemory.get(b.id), Math.hypot(e.x - sim.x, e.y - sim.y));
+  };
+  const believed = sim.buildingMemory.get(current.id);
+  const required = mg.baseDelta + mg.fortificationWeight * (believed ? believed.fortification : 0) + mg.cautionWeight * sim.caution;
+  if (score(best) - score(current) <= required) return;
+  sim.lastMigratedAt = tick;
+  setDestination(sim, best, 'shelter');
 }

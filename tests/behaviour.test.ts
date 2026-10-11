@@ -15,6 +15,7 @@ import { chooseShelter } from '../src/sim/systems/shelter';
 import { zombieDecisions } from '../src/sim/systems/zombies';
 import { bite, resolveCombat } from '../src/sim/systems/combat';
 import { updatePanic } from '../src/sim/systems/panic';
+import { reconsider } from '../src/sim/systems/awareness';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -308,6 +309,59 @@ describe('unease', () => {
     expect(s.awareAt).toBeNull();
     expect(s.unease).toBeGreaterThan(0.4);
     expect(s.unease).toBeLessThan(baseConfig.unease.believeAt);
+  });
+});
+
+describe('objectives', () => {
+  /** An aware civilian on a street, knowing only what it is given (nothing in sight). */
+  function setUp() {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    s.awareAt = 0;
+    s.caution = 0;
+    world.tick = 1000;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    ctx.radius[s.id] = 0; // choices from memory alone
+    const near = world.buildings
+      .filter((b) => b.tag === 'residential' && b.id !== s.home)
+      .sort((m, n) => Math.hypot(m.entrances[0]!.x - p.x, m.entrances[0]!.y - p.y) - Math.hypot(n.entrances[0]!.x - p.x, n.entrances[0]!.y - p.y));
+    const believe = (b: World['buildings'][number], occupants: number, fortification: number) =>
+      s.buildingMemory.set(b.id, { believedOccupants: occupants, materials: 0, fortification, observedAt: world.tick, visited: false });
+    return { world, ctx, s, x: near[0]!, y: near[1]! , believe };
+  }
+
+  it('turns back from home on hearing its street is dangerous', () => {
+    const { world, ctx, s, x, believe } = setUp();
+    const home = world.buildings[s.home!]!;
+    believe(x, 2, 0);
+    setDestination(s, home, 'shelter');
+    s.streetMemory.set(home.street, { danger: 1, observedAt: world.tick, visited: false });
+    s.reconsider = true;
+    reconsider(world, ctx, s);
+    expect(s.destinationBuilding).not.toBe(home.id);
+  });
+
+  it('keeps its shelter for one only slightly better, takes one much better, and not twice running', () => {
+    const { world, ctx, s, x, y, believe } = setUp();
+    believe(x, 0, 0);
+    believe(y, 1, 0); // a little company: slightly better
+    setDestination(s, x, 'shelter');
+    s.reconsider = true;
+    reconsider(world, ctx, s);
+    expect(s.destinationBuilding).toBe(x.id);
+    believe(y, 8, 1); // a fortified, peopled house
+    s.reconsider = true;
+    reconsider(world, ctx, s);
+    expect(s.destinationBuilding).toBe(y.id);
+    believe(x, 8, 1);
+    believe(y, 0, 0);
+    s.reconsider = true;
+    world.tick += 10; // within migration's cooldown
+    reconsider(world, ctx, s);
+    expect(s.destinationBuilding).toBe(y.id);
   });
 });
 

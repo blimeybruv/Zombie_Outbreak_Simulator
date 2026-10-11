@@ -77,8 +77,16 @@ function pass(world: World, a: Sim, b: Sim): void {
   else if (b.panic < a.panic) b.panic += (a.panic - b.panic) * damping;
 }
 
+/** How recent its news is of where it is heading: its street and the building, summed; -1 with no building in view. */
+function headingNews(world: World, s: Sim): number {
+  if (s.destinationBuilding === null) return -1;
+  const b = world.buildings[s.destinationBuilding]!;
+  return (s.streetMemory.get(b.street)?.observedAt ?? 0) + (s.buildingMemory.get(b.id)?.observedAt ?? 0);
+}
+
 /** Everything two sims trade when they talk. Also used when a sim walks into a building where others shelter. */
 export function merge(world: World, a: Sim, b: Sim): void {
+  const newsA = headingNews(world, a), newsB = headingNews(world, b);
   pass(world, a, b);
   const aWasAware = a.awareAt !== null;
   told(world, a, b);
@@ -91,6 +99,9 @@ export function merge(world: World, a: Sim, b: Sim): void {
   trim(b.streetMemory, streetCap);
   trim(a.buildingMemory, buildingCap);
   trim(b.buildingMemory, buildingCap);
+  // News of where either is heading: weigh it again (awareness.ts reconsider).
+  if (headingNews(world, a) !== newsA) a.reconsider = true;
+  if (headingNews(world, b) !== newsB) b.reconsider = true;
 
   // Who is said to be bitten: each takes it on at its own trust, judged on what the
   // other knew before they met.
@@ -174,6 +185,7 @@ function hearWarnings(world: World, ctx: Context): void {
         if (Math.hypot(w.x - s.x, w.y - s.y) <= ctx.radius[id]! && ctx.map.lineOfSight(s.x, s.y, w.x, w.y)) s.awareAt = tick;
         else told(world, s, shouter);
       }
+      if (s.destinationBuilding !== null && world.buildings[s.destinationBuilding]!.street === w.street) s.reconsider = true;
       const belief = s.streetMemory.get(w.street);
       if (belief) {
         if (belief.observedAt >= tick) continue;
