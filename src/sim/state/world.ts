@@ -18,7 +18,12 @@ import type { Stimulus } from './stimulus';
 import type { Count, SimId, Tick, Unit01 } from './units';
 import type { Zombie } from './zombie';
 
-export const OUTBREAK_ORIGINS = ['enclosed', 'street', 'multiple'] as const;
+/**
+ * Where the initial zombies start: enclosed, all in one high-occupancy building (a
+ * hospital, office or school); scattered, one each in as many buildings across the
+ * city, likelier where more people are; street, people outdoors who have just turned.
+ */
+export const OUTBREAK_ORIGINS = ['enclosed', 'scattered', 'street'] as const;
 export type OutbreakOrigin = (typeof OUTBREAK_ORIGINS)[number];
 
 export const ZOMBIE_GAITS = ['shambler', 'runner'] as const;
@@ -32,6 +37,8 @@ export interface Scenario {
   startHour: number;
   /** @range 3 values @unit enum @readBy setup */
   origin: OutbreakOrigin;
+  /** How many of the population have turned at tick 0 (taken from it, so the invariant holds). @range 1–200 @unit zombies @readBy setup */
+  initialZombies: Count;
   /** Share of each archetype; sums to 1. @range 0–1 each @unit fraction @readBy setup */
   archetypeMix: Record<Archetype, Unit01>;
   /** @range 2 values @unit enum @readBy zombie movement */

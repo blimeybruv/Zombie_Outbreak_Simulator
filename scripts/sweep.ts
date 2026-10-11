@@ -1,7 +1,7 @@
 // Parameter sweep and gate check: many runSeeds against one mapSeed, in parallel
 // child processes, with config overrides.
 //
-//   npx tsx scripts/sweep.ts [--seeds 20] [--map 1] [--jobs 4] [--set zombie.wanderRate=0.001 ...] [--json out.json] [--roster out.txt]
+//   npx tsx scripts/sweep.ts [--seeds 20] [--map 1] [--jobs 4] [--set zombie.wanderRate=0.001 ...] [--scenario initialZombies=20 --scenario origin=scattered ...] [--json out.json] [--roster out.txt]
 //
 // Also summarises who promotion named — which counters won, how ticksSurvived
 // correlates with the rest — and with --roster writes every promoted survivor, per
@@ -75,13 +75,14 @@ interface Job {
   runSeeds: number[];
   mapSeed: number;
   overrides: Record<string, unknown>;
+  scenario: Record<string, unknown>;
 }
 
 if (process.argv[2] === '--worker') {
   const send = process.send!.bind(process);
   process.once('message', async (job: Job) => {
     for (const seed of job.runSeeds) {
-      const summary = runOne(seed, job.mapSeed, job.overrides);
+      const summary = runOne(seed, job.mapSeed, job.overrides, 600, job.scenario);
       await new Promise<void>((resolve) => send(summary, undefined, undefined, () => resolve()));
     }
     process.exit(0);
@@ -93,10 +94,18 @@ if (process.argv[2] === '--worker') {
     return i >= 0 ? args[i + 1]! : fallback;
   };
   const overrides: Record<string, unknown> = {};
+  const scenario: Record<string, unknown> = {};
   args.forEach((a, i) => {
-    if (a !== '--set') return;
+    if (a !== '--set' && a !== '--scenario') return;
     const [path, raw] = args[i + 1]!.split('=') as [string, string];
-    overrides[path] = JSON.parse(raw);
+    // Numbers and booleans as JSON; anything else (an origin) as a plain string.
+    let value: unknown;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      value = raw;
+    }
+    (a === '--set' ? overrides : scenario)[path] = value;
   });
   const seeds = Number(opt('seeds', '20'));
   const mapSeed = Number(opt('map', '1'));
@@ -112,7 +121,7 @@ if (process.argv[2] === '--worker') {
       const mine = runSeeds.filter((_, i) => i % jobs === j);
       return new Promise<void>((resolve, reject) => {
         const child = fork(fileURLToPath(import.meta.url), ['--worker'], { execArgv: ['--import', 'tsx'] });
-        child.send({ runSeeds: mine, mapSeed, overrides } satisfies Job);
+        child.send({ runSeeds: mine, mapSeed, overrides, scenario } satisfies Job);
         child.on('message', (r: RunSummary) => {
           results.push(r);
           process.stderr.write('.');
@@ -126,7 +135,7 @@ if (process.argv[2] === '--worker') {
   results.sort((a, b) => a.runSeed - b.runSeed);
 
   const pct = (x: number) => `${(x * 100).toFixed(0)}%`.padStart(5);
-  console.log(`mapSeed ${mapSeed}, ${seeds} runSeeds, overrides ${JSON.stringify(overrides)}`);
+  console.log(`mapSeed ${mapSeed}, ${seeds} runSeeds, overrides ${JSON.stringify(overrides)}, scenario ${JSON.stringify(scenario)}`);
   console.log('seed  infect   dead  resolved  ms/tick  shelters est/fell/re  quiet  curve (turned share every 1800 ticks)');
   for (const r of results) {
     const pop = r.population;

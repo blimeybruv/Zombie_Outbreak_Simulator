@@ -189,9 +189,9 @@ export function withOverrides(overrides: Record<string, unknown>): Config {
   return copy as unknown as Config;
 }
 
-export function runOne(runSeed: number, mapSeed: number, overrides: Record<string, unknown>, sampleEvery = 600): RunSummary {
+export function runOne(runSeed: number, mapSeed: number, overrides: Record<string, unknown>, sampleEvery = 600, scenario: Record<string, unknown> = {}): RunSummary {
   const config = withOverrides(overrides);
-  const { world, ctx } = createWorld({ ...defaultScenario, runSeed, mapSeed, stalemateController: false }, config);
+  const { world, ctx } = createWorld({ ...defaultScenario, ...scenario, runSeed, mapSeed, stalemateController: false }, config);
   const samples: Counters[] = [structuredClone(world.counters)];
   let resolvedAt: number | null = null;
   let invariantError: string | null = null;

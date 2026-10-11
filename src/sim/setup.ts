@@ -123,32 +123,60 @@ function originBuildings(world: World, ctx: Context, count: number): Building[] 
   return chosen;
 }
 
+/** Turns one of a building's residents at tick 0: an occupier, taken from the residents so the population total is unchanged. */
+function turnResident(world: World, ctx: Context, b: Building): void {
+  b.residents--;
+  const cx = (ctx.map.bMinX[b.id]! + ctx.map.bMaxX[b.id]!) / 2;
+  const cy = (ctx.map.bMinY[b.id]! + ctx.map.bMaxY[b.id]!) / 2;
+  spawnZombie(world, cx, cy, 'occupying', b.id, null);
+  b.zombiesInside++;
+  transfer(world, 'unturned.indoors', 'turned.occupying');
+}
+
+/**
+ * The initial zombies (`scenario.initialZombies`), placed by `scenario.origin`:
+ * enclosed, all in one high-occupancy building (as many as it has residents);
+ * scattered, one each in as many buildings, drawn without replacement weighted by
+ * residents; street, people outdoors turned where they stand. Falls back to enclosed
+ * when nobody is outdoors.
+ */
 function seedOutbreak(world: World, ctx: Context): void {
-  const { scenario, config, rng } = world;
+  const { scenario, rng, buildings } = world;
+  const n = Math.max(1, Math.round(scenario.initialZombies));
   if (scenario.origin === 'street') {
-    const outdoors = world.sims.filter((s) => s.insideBuilding === null);
+    const outdoors = world.sims.filter((s) => s.insideBuilding === null && s.car === null);
     if (outdoors.length > 0) {
-      const s = outdoors[nextInt(rng, 0, outdoors.length - 1)]!;
-      s.condition = 'turned';
-      s.history.endedAt = 0;
-      spawnZombie(world, s.x, s.y, 'active', null, s.id);
-      transfer(world, 'unturned.outdoors', 'turned.outdoors');
+      for (let k = 0; k < n && outdoors.length > 0; k++) {
+        const s = outdoors.splice(nextInt(rng, 0, outdoors.length - 1), 1)[0]!;
+        s.condition = 'turned';
+        s.history.endedAt = 0;
+        spawnZombie(world, s.x, s.y, 'active', null, s.id);
+        transfer(world, 'unturned.outdoors', 'turned.outdoors');
+      }
       return;
     }
   }
-  const [lo, hi] = config.spawn.multipleOriginCount;
-  const count = scenario.origin === 'multiple' ? nextInt(rng, lo!, hi!) : 1;
-  for (const b of originBuildings(world, ctx, count)) {
-    if (b.residents === 0) continue;
-    // Patient zero is one of the residents, so the population total is unchanged.
-    b.residents--;
-    const cx = (ctx.map.bMinX[b.id]! + ctx.map.bMaxX[b.id]!) / 2;
-    const cy = (ctx.map.bMinY[b.id]! + ctx.map.bMaxY[b.id]!) / 2;
-    spawnZombie(world, cx, cy, 'occupying', b.id, null);
-    b.zombiesInside++;
-    transfer(world, 'unturned.indoors', 'turned.occupying');
-    occupierAppeared(world, ctx, b);
+  if (scenario.origin === 'scattered') {
+    const pool = buildings.filter((b) => b.residents > 0);
+    let total = pool.reduce((sum, b) => sum + b.residents, 0);
+    for (let k = 0; k < n && pool.length > 0; k++) {
+      let r = nextFloat(rng) * total;
+      let i = 0;
+      for (; i < pool.length - 1; i++) {
+        r -= pool[i]!.residents;
+        if (r < 0) break;
+      }
+      const b = pool.splice(i, 1)[0]!;
+      total -= b.residents;
+      turnResident(world, ctx, b);
+      occupierAppeared(world, ctx, b);
+    }
+    return;
   }
+  const b = originBuildings(world, ctx, 1)[0];
+  if (b === undefined || b.residents === 0) return;
+  for (let k = 0; k < n && b.residents > 0; k++) turnResident(world, ctx, b);
+  occupierAppeared(world, ctx, b);
 }
 
 export function createWorld(scenario: Scenario, config: Config): { world: World; ctx: Context } {

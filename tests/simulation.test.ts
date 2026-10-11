@@ -44,10 +44,14 @@ describe('setup', () => {
     for (const d of world.districts) expect(Math.abs(d.releaseAt - atTick)).toBeLessThanOrEqual(jitter);
   });
 
-  it.each(['street', 'multiple'] as const)('supports the %s origin', (origin) => {
-    const w = createWorld({ ...defaultScenario, origin }, config).world;
+  it.each(['enclosed', 'scattered', 'street'] as const)('places the initial zombies %s, taken from the population', (origin) => {
+    const w = createWorld({ ...defaultScenario, origin, initialZombies: 12 }, config).world;
     assertInvariant(w);
-    expect(w.counters.turned.outdoors + w.counters.turned.occupying).toBeGreaterThanOrEqual(1);
+    expect(w.zombies.length).toBe(12);
+    const inside = new Set(w.zombies.filter((z) => z.insideBuilding !== null).map((z) => z.insideBuilding));
+    if (origin === 'enclosed') expect(inside.size).toBe(1);
+    if (origin === 'scattered') expect(inside.size).toBe(12);
+    if (origin === 'street') expect(w.zombies.every((z) => z.state === 'active')).toBe(true);
   });
 });
 

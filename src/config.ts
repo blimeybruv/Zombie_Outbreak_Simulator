@@ -152,7 +152,6 @@ export const config = {
     policeProfessions: ['patrolOfficer', 'detective'],
     originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
     originNeighbourhoodRadius: 300, // m; origins are weighted by the people living this close — guess
-    multipleOriginCount: [3, 6], // sources in `multiple`
   },
 
   release: {
