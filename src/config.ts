@@ -132,6 +132,7 @@ export const config = {
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
   features: {
+    relevanceTrim: true,
     conversations: true,
     unease: true,
     trust: true,
@@ -254,6 +255,10 @@ export const config = {
     sightedDanger: 0.8,
     witnessedDanger: 1,
     fellDanger: 1,
+    // Street tables are trimmed by relevance (memory.ts trimStreets): a reserve of the
+    // gravest warnings anywhere, then the nearest streets, distance from the
+    // destination counting destinationWeight times distance from the sim — guesses
+    relevance: { reserve: 10, destinationWeight: 2, dangerFloor: 0.05 },
     streetCap: 150, // entries; beyond this the oldest observation is forgotten
     buildingCap: 30, // entries; terraces put hundreds of buildings within a close pass
   },

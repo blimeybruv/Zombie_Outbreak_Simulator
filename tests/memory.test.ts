@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { config } from '../src/config';
 import { noteStreet, settleDanger, trim } from '../src/sim/memory';
-import type { StreetBelief, StreetId } from '../src/sim/state';
+import { defaultScenario } from '../src/sim/scenario';
+import { createWorld } from '../src/sim/setup';
+import type { StreetId } from '../src/sim/state';
 
-const memory = { quietLook: 0.5, streetCap: 150 };
-const street = 3 as StreetId;
+function oneSim() {
+  const { world } = createWorld({ ...defaultScenario, population: 2000 }, config);
+  const sim = world.sims.find((s) => s.insideBuilding === null) ?? world.sims[0]!;
+  sim.streetMemory.clear();
+  sim.destination = null;
+  return { world, sim };
+}
 
 describe('street danger is not written symmetrically', () => {
   it('rises at once', () => {
@@ -11,18 +19,43 @@ describe('street danger is not written symmetrically', () => {
   });
 
   it('falls only part of the way on a quiet look, and repeated looks clear it', () => {
-    const table = new Map<StreetId, StreetBelief>([[street, { danger: 1, observedAt: 0, visited: false }]]);
-    noteStreet(table, street, 0, 100, memory, true);
-    expect(table.get(street)!.danger).toBe(0.5);
-    expect(table.get(street)!.observedAt).toBe(100);
-    for (let t = 0; t < 8; t++) noteStreet(table, street, 0, 200 + t, memory, true);
-    expect(table.get(street)!.danger).toBeLessThan(0.01);
+    const { world, sim } = oneSim();
+    const street = 3 as StreetId;
+    sim.streetMemory.set(street, { danger: 1, observedAt: 0, visited: false });
+    world.tick = 100;
+    noteStreet(world, sim, street, 0, true);
+    expect(sim.streetMemory.get(street)!.danger).toBe(config.memory.quietLook);
+    expect(sim.streetMemory.get(street)!.observedAt).toBe(100);
+    for (let t = 0; t < 8; t++) noteStreet(world, sim, street, 0, true);
+    expect(sim.streetMemory.get(street)!.danger).toBeLessThan(0.01);
   });
 
   it('keeps visited once set', () => {
-    const table = new Map<StreetId, StreetBelief>([[street, { danger: 0, observedAt: 0, visited: true }]]);
-    noteStreet(table, street, 1, 5, memory);
-    expect(table.get(street)!.visited).toBe(true);
+    const { world, sim } = oneSim();
+    const street = 3 as StreetId;
+    sim.streetMemory.set(street, { danger: 0, observedAt: 0, visited: true });
+    noteStreet(world, sim, street, 1);
+    expect(sim.streetMemory.get(street)!.visited).toBe(true);
+  });
+});
+
+describe('street tables are trimmed by relevance', () => {
+  it('keeps the nearest streets and the gravest warnings wherever they are', () => {
+    const { world, sim } = oneSim();
+    const cap = config.memory.streetCap;
+    const mid = (k: number) => {
+      const s = world.streets[k]!;
+      return Math.hypot((world.nodes[s.a]!.x + world.nodes[s.b]!.x) / 2 - sim.x, (world.nodes[s.a]!.y + world.nodes[s.b]!.y) / 2 - sim.y);
+    };
+    const ids = world.streets.map((_, k) => k).sort((a, b) => mid(a) - mid(b) || a - b);
+    const farthest = ids[ids.length - 1]! as StreetId;
+    // Fill past the slack with quiet streets, the gravest warning the farthest of all.
+    sim.streetMemory.set(farthest, { danger: 1, observedAt: world.tick, visited: false });
+    for (const k of ids.slice(0, 2 * cap)) sim.streetMemory.set(k as StreetId, { danger: 0, observedAt: 0, visited: false });
+    noteStreet(world, sim, ids[2 * cap]! as StreetId, 0);
+    expect(sim.streetMemory.size).toBe(cap);
+    expect(sim.streetMemory.has(farthest)).toBe(true);
+    for (const k of ids.slice(0, cap - 1)) expect(sim.streetMemory.has(k as StreetId)).toBe(true);
   });
 });
 

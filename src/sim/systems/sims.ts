@@ -46,7 +46,7 @@ function observe(world: World, ctx: Context, sim: Sim): void {
   if (street >= 0 && street !== sim.street) {
     const prev = sim.streetMemory.get(street as StreetId);
     if (!prev?.visited) sim.history.streetsVisited++;
-    noteStreet(sim.streetMemory, street as StreetId, ctx.threat[sim.id]!, tick, config.memory, true);
+    noteStreet(world, sim, street as StreetId, ctx.threat[sim.id]!, true);
   }
   sim.street = street >= 0 ? (street as StreetId) : null;
 
@@ -174,7 +174,7 @@ function replan(world: World, ctx: Context, sim: Sim, mode: Mode): void {
  * into it as soon as it stopped avoiding: flee, resume, approach, flee.
  */
 function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
-  const { config, tick, zombies } = world;
+  const { config, zombies } = world;
   const zid = ctx.nearestZombie[sim.id]!;
   if (zid < 0) return;
   const z = zombies[zid]!;
@@ -186,7 +186,7 @@ function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // a noise like any other: the dead hear it too.
     ctx.warnings.push({ from: sim.id, x: sim.x, y: sim.y, street, danger });
     emitStimulus(world, sim.x, sim.y, 'shout', config.encounters.warnRadius, false, config.behaviour.shoutIntensity);
-    noteStreet(sim.streetMemory, street, danger, tick, config.memory);
+    noteStreet(world, sim, street, danger);
   }
   replan(world, ctx, sim, mode);
 }
@@ -592,7 +592,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       return;
     }
     const street = dest === null ? null : ctx.map.nearestStreet(dest.x, dest.y, config.map.offStreetLookup);
-    if (street !== null) noteStreet(sim.streetMemory, street, threat, tick, config.memory);
+    if (street !== null) noteStreet(world, sim, street, threat);
     clearDestination(sim);
     sim.destinationKind = null;
     // A first responder on the scene: the call is answered; back to the station.

@@ -67,7 +67,7 @@ function expel(world: World, ctx: Context, sim: Sim, b: Building): void {
   sim.sortieUntil = null;
   if (fell) {
     // A shelter fallen: its street is where it happened, and they carry that away.
-    noteStreet(sim.streetMemory, b.street, world.config.memory.fellDanger, world.tick, world.config.memory);
+    noteStreet(world, sim, b.street, world.config.memory.fellDanger);
     if (sim.shelter === b.id) sim.shelter = null;
     sim.refusedBy = b.id;
   }
@@ -168,7 +168,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     } else {
       b.pendingSpill = Math.max(b.pendingSpill, b.zombiesInside);
       occupierStrike(world, ctx, b, sim);
-      noteStreet(sim.streetMemory, b.street, config.memory.fellDanger, tick, config.memory);
+      noteStreet(world, sim, b.street, config.memory.fellDanger);
       turnAway(world, sim, b);
       return;
     }

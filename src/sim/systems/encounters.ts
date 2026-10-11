@@ -21,7 +21,7 @@
 // One of three files allowed to read `panic`.
 
 import { isOutdoorLiving, type Context } from '../context';
-import { noteStreet, settleDanger, trim } from '../memory';
+import { noteStreet, settleDanger, trim, trimStreets } from '../memory';
 import { chance } from '../rng';
 import type { Sim, World } from '../state';
 import { entranceNearest, leaveTalk, setDestination } from './common';
@@ -109,12 +109,12 @@ export function merge(world: World, a: Sim, b: Sim): void {
   const aWasAware = a.awareAt !== null;
   told(world, a, b);
   if (aWasAware) told(world, b, a);
-  const { streetCap, buildingCap } = world.config.memory;
+  const { buildingCap } = world.config.memory;
   const shiftA = hearsayAge(world, a), shiftB = hearsayAge(world, b);
   mergeBoth(a.streetMemory, b.streetMemory, shiftA, shiftB, world.config.memory.quietLook);
   mergeBoth(a.buildingMemory, b.buildingMemory, shiftA, shiftB);
-  trim(a.streetMemory, streetCap);
-  trim(b.streetMemory, streetCap);
+  trimStreets(world, a);
+  trimStreets(world, b);
   trim(a.buildingMemory, buildingCap);
   trim(b.buildingMemory, buildingCap);
   // News of where either is heading: weigh it again (awareness.ts reconsider).
@@ -207,7 +207,7 @@ function hearWarnings(world: World, ctx: Context): void {
       }
       if (s.destinationBuilding !== null && world.buildings[s.destinationBuilding]!.street === w.street) s.reconsider = true;
       if ((s.streetMemory.get(w.street)?.observedAt ?? -Infinity) >= tick) continue;
-      noteStreet(s.streetMemory, w.street, w.danger, tick, config.memory);
+      noteStreet(world, s, w.street, w.danger);
       if (s.destination !== null && !ctx.queued[id] && tick >= s.nextRepathAt && s.route.includes(w.street)) {
         ctx.queued[id] = 1;
         world.repathQueue.push(s.id);

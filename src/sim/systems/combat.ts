@@ -50,7 +50,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
   // Out in the open: the street it happened on is dangerous, to the bitten and to
   // whoever saw it.
   const street = ctx.map.nearestStreet(victim.x, victim.y, config.map.offStreetLookup);
-  if (street !== null) noteStreet(victim.streetMemory, street, config.memory.witnessedDanger, tick, config.memory);
+  if (street !== null) noteStreet(world, victim, street, config.memory.witnessedDanger);
   ctx.simHash.query(victim.x, victim.y, config.perception.dayRadius.open, ctx.ids2);
   for (const wid of ctx.ids2) {
     if (wid === victim.id) continue;
@@ -60,7 +60,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
     if (!ctx.map.lineOfSight(w.x, w.y, victim.x, victim.y)) continue;
     w.knownInfected.add(victim.id);
     w.awareAt ??= tick;
-    if (street !== null) noteStreet(w.streetMemory, street, config.memory.witnessedDanger, tick, config.memory);
+    if (street !== null) noteStreet(world, w, street, config.memory.witnessedDanger);
   }
 }
 
