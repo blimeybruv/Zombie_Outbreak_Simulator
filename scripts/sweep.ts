@@ -13,6 +13,11 @@
 // first one fell) in at least 15 of 20; no seed settles into stasis (an hour, 3,600
 // ticks, with nothing happening while anyone is alive); survival differs measurably by
 // caution band (lowest against highest band, pooled over seeds, |z| >= 2).
+// Also reported, per seed and not gated, from each run's timeline: awake zombies at
+// their peak and over time, dormant at the end, unaware people outdoors early on,
+// conversations, gunshots and shouts, ticker lines per 10 minutes at 1× (every event
+// treated as on screen), "dead air" (10-minute windows after the first hour with no
+// ticker line at all), and conversions, breaches and 911 dispatches.
 // Also reported, not gated: survival by sociality band, over the sims whose archetype
 // ever joins anyone — whether going along with others helps or hurts; and by trust
 // band — whether believing what one is told does.
@@ -129,6 +134,25 @@ if (process.argv[2] === '--worker') {
     const dead = r.samples[r.samples.length - 1]!.unturned.dead / pop;
     console.log(
       `${String(r.runSeed).padStart(4)}  ${pct(r.infection)}  ${pct(dead)}  ${String(r.resolvedAt ?? '-').padStart(8)}  ${r.msPerTick.toFixed(2).padStart(7)}  ${`${r.shelters.established}/${r.shelters.fell}/${r.shelters.reformed}`.padStart(20)}  ${String(r.longestQuiet).padStart(5)}  ${curve}${r.invariantError ? `  INVARIANT: ${r.invariantError.split('\n')[0]}` : ''}`,
+    );
+  }
+
+  // Beyond the counters: why a run smoulders or takes off, and what there was to watch.
+  console.log('\nseed  awake peak@tick  awake 1h/2h/end  dormant end  unaware out 30m/1h  talk/gath 1h  shots/shouts  lines/10min median  dead air  conv/breach/calls');
+  for (const r of results) {
+    const t = r.timeline;
+    if (!t || t.length === 0) continue;
+    const at = (tick: number) => t.find((e) => e.tick >= tick) ?? t[t.length - 1]!;
+    const peak = t.reduce((m, e) => (e.zombies.awake > m.zombies.awake ? e : m), t[0]!);
+    const out = (e: (typeof t)[number]) => `${e.outdoors.unaware}/${e.outdoors.aware + e.outdoors.uneasy + e.outdoors.unaware}`;
+    const sum = (f: (e: (typeof t)[number]) => number) => t.reduce((a, e) => a + f(e), 0);
+    const lines = t.map((e) => e.lines).sort((a, b) => a - b);
+    // Dead air: windows (after the first hour) with no ticker line at all.
+    const later = t.filter((e) => e.tick > 3600);
+    const dead = later.filter((e) => e.lines === 0).length;
+    const ev = (k: string) => sum((e) => e.events[k] ?? 0);
+    console.log(
+      `${String(r.runSeed).padStart(4)}  ${`${peak.zombies.awake}@${peak.tick}`.padStart(15)}  ${`${at(3600).zombies.awake}/${at(7200).zombies.awake}/${t[t.length - 1]!.zombies.awake}`.padStart(15)}  ${String(t[t.length - 1]!.zombies.dormant).padStart(11)}  ${`${out(at(1800))} ${out(at(3600))}`.padStart(18)}  ${`${at(3600).talking}/${at(3600).gatherings}`.padStart(12)}  ${`${sum((e) => e.shots)}/${sum((e) => e.shouts)}`.padStart(12)}  ${String(lines[Math.floor(lines.length / 2)]).padStart(18)}  ${`${dead}/${later.length}`.padStart(8)}  ${ev('simTurned')}/${ev('buildingBreached')}/${ev('policeDispatched')}`,
     );
   }
 

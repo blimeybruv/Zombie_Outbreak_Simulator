@@ -7,7 +7,33 @@ import { turnedTotal, unturnedTotal, type Counters } from '../../src/sim/state';
 import { SCORED, scoreLiving, type Scored } from '../../src/sim/systems/promotion';
 import { step } from '../../src/sim/tick';
 import { backstory } from '../../src/worker/backstory';
+import { noteFor } from '../../src/worker/notes';
+import { line } from '../../src/ui/copy';
+import { BASE, MAJOR, Salience } from '../../src/ui/salience';
 import type { World } from '../../src/sim/state';
+
+/**
+ * What a sample window looked like beyond the counters: why a run smoulders or takes
+ * off, and what there was to watch. Each entry covers the `sampleEvery` ticks up to `tick`.
+ */
+export interface TimelineEntry {
+  tick: number;
+  /** Zombies at the end of the window, by state; `intact` of those not destroyed. */
+  zombies: { awake: number; dormant: number; occupying: number; intact: number };
+  /** Living outdoors at the end of the window: aware, uneasy (unease ≥ 0.2, unaware), unaware. */
+  outdoors: { aware: number; uneasy: number; unaware: number };
+  /** Outdoors in a conversation at the end of the window, and conversations of three or more. */
+  talking: number;
+  gatherings: number;
+  /** Noises made in the window: gunshots (and other weapon noise), shouts. */
+  shots: number;
+  shouts: number;
+  /** Events in the window, by type. */
+  events: Record<string, number>;
+  /** Ticker lines a viewer at 1× would get in the window if everything were on screen (an upper bound), and how many were major. */
+  lines: number;
+  majorLines: number;
+}
 
 export interface RosterEntry {
   stage: 'provisional' | 'final';
@@ -103,7 +129,35 @@ export interface RunSummary {
   stages: StageStats[];
   /** How everyone scored at a promotion stage ended: condition at the end, and when. */
   fates: Record<number, { condition: string; endedAt: number | null }>;
+  /** One entry per sample window: zombie states, awareness outdoors, talk, noise, events, ticker lines. */
+  timeline: TimelineEntry[];
   runLength: number;
+}
+
+/** The state half of a timeline entry, at the end of a window. */
+function snapshot(world: World): Pick<TimelineEntry, 'zombies' | 'outdoors' | 'talking' | 'gatherings'> {
+  const zombies = { awake: 0, dormant: 0, occupying: 0, intact: 0 };
+  for (const z of world.zombies) {
+    if (z.state === 'destroyed') continue;
+    if (z.intact) zombies.intact++;
+    if (z.state === 'dormant') zombies.dormant++;
+    else if (z.state === 'occupying') zombies.occupying++;
+    else zombies.awake++;
+  }
+  const outdoors = { aware: 0, uneasy: 0, unaware: 0 };
+  let talking = 0;
+  const sizes: number[] = [];
+  for (const s of world.sims) {
+    if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null) continue;
+    if (s.awareAt !== null) outdoors.aware++;
+    else if (s.unease >= 0.2) outdoors.uneasy++;
+    else outdoors.unaware++;
+    if (s.gathering !== null) {
+      talking++;
+      sizes[s.gathering] = (sizes[s.gathering] ?? 0) + 1;
+    }
+  }
+  return { zombies, outdoors, talking, gatherings: sizes.filter((n) => n >= 3).length };
 }
 
 /** Events that count as something happening, for the stasis check. */
@@ -137,6 +191,9 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   let longestQuiet = 0;
   const roster: RosterEntry[] = [];
   const stages: StageStats[] = [];
+  const timeline: TimelineEntry[] = [];
+  const salience = new Salience();
+  let win = { shots: 0, shouts: 0, events: {} as Record<string, number>, lines: 0, majorLines: 0 };
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
@@ -144,7 +201,21 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       step(world, ctx, { checkInvariant: true });
       if (world.promotedAt === world.tick) recordStage(world, 'provisional', world.roster.slice(named), roster, stages);
       else if (world.rescoredAt === world.tick) recordStage(world, 'final', world.roster.slice(named), roster, stages);
+      for (const s of world.stimuli) {
+        if (s.createdAt !== world.tick) continue;
+        if (s.kind === 'shout') win.shouts++;
+        else win.shots++;
+      }
       for (const e of world.events) {
+        win.events[e.type] = (win.events[e.type] ?? 0) + 1;
+        const n = noteFor(world, ctx, e);
+        if (n && line(e, n) !== null) {
+          const kind = salience.pass(e, n, 1, true);
+          if (kind !== null) {
+            win.lines++;
+            if (BASE[kind] >= MAJOR) win.majorLines++;
+          }
+        }
         if (ACTIVITY.has(e.type)) lastActivity = world.tick;
         if (e.type === 'shelterFell') shelters.fell++;
         if (e.type === 'shelterEstablished') {
@@ -158,7 +229,11 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       if (resolvedAt === null && (active === 0 || unturnedTotal(c) - c.unturned.dead - c.unturned.rescued === 0)) {
         resolvedAt = world.tick;
       }
-      if (world.tick % sampleEvery === 0) samples.push(structuredClone(c));
+      if (world.tick % sampleEvery === 0) {
+        samples.push(structuredClone(c));
+        timeline.push({ tick: world.tick, ...snapshot(world), ...win });
+        win = { shots: 0, shouts: 0, events: {}, lines: 0, majorLines: 0 };
+      }
     }
   } catch (e) {
     invariantError = e instanceof Error ? e.message : String(e);
@@ -207,6 +282,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     shelters,
     longestQuiet,
     caution,
+    timeline,
     sociality,
     trust,
     roster,
