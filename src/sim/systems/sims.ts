@@ -718,6 +718,7 @@ export function simDecisions(world: World, ctx: Context): void {
   locateTalks(world, ctx);
   for (const sim of world.sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
+    if (sim.car !== null) continue; // in a car: the car decides (cars.ts)
     decideBitten(world, ctx, sim);
     if (sim.insideBuilding !== null) {
       decideIndoor(world, ctx, sim);

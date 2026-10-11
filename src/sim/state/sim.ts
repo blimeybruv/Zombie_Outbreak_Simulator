@@ -9,7 +9,7 @@
 //   ticksAlone      — tick - history.lastCompanyAt
 //   promoted        — name !== null
 
-import type { BuildingId, Count, Metres, Radians, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
+import type { BuildingId, CarId, Count, Metres, Radians, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
 
 export const ARCHETYPES = ['civilian', 'police', 'prepper', 'loner', 'reckless'] as const;
 export type Archetype = (typeof ARCHETYPES)[number];
@@ -45,7 +45,7 @@ export type Condition = (typeof CONDITIONS)[number];
 export const GAITS = ['still', 'sneak', 'walk', 'run', 'sprint'] as const;
 export type Gait = (typeof GAITS)[number];
 
-export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate'] as const;
+export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car'] as const;
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
 
 /**
@@ -214,6 +214,12 @@ export interface Sim {
    * @range 0–population ids @unit — @readBy shelter admission, encounter merge
    */
   knownInfected: Set<SimId>;
+  /**
+   * The car it is in; null on foot or indoors. Inside, it counts as outdoors and moves
+   * with the car, out of reach of everything that acts on people on foot.
+   * @range car id | null @unit id @readBy every outdoor system (excludes it), car processes, counters, render
+   */
+  car: CarId | null;
   /** Rate-limits proximity merges. @range tick @unit tick @readBy encounters */
   lastMergeAt: Tick;
   /** Who has told this sim, still unaware, that there is an outbreak (each counts once); emptied once it believes. @range a few sim ids @unit — @readBy encounters */

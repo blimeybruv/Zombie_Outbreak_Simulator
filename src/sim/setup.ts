@@ -1,6 +1,7 @@
 // Building a world from a scenario: generate the map from mapSeed, then place the
 // population and the outbreak with the run RNG from runSeed.
 
+import { placeParkedCars } from './systems/cars';
 import type { Config } from '../config';
 import { createContext, type Context } from './context';
 import { add, transfer } from './counters';
@@ -165,6 +166,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     districts: map.districts,
     river: map.river,
     lots: map.lots,
+    cars: [],
     stimuli: [],
     events: [],
     repathQueue: [],
@@ -177,6 +179,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   };
   const ctx = createContext(world);
   scheduleRelease(world);
+  placeParkedCars(world, ctx);
 
   const band = bandForHour(scenario.startHour, config);
   const outdoors = Math.round(scenario.population * config.spawn.outdoorShareByBand[band]!);

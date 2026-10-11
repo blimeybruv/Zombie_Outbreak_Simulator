@@ -50,6 +50,11 @@ export const SIM_FLEEING = 32; // panicked flight, or backing off: a long bright
 export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
 export const ZOMBIE_AWAKE = 1;
 export const ZOMBIE_DORMANT = 2;
+/** Car states, as drawn. */
+export const CAR_PARKED = 0;
+export const CAR_DRIVING = 1;
+export const CAR_ABANDONED = 2;
+
 /** Awake and intact (turned from one bite): drawn paler at near zoom, where the viewer is told; the city is not. */
 export const ZOMBIE_INTACT = 3;
 
@@ -159,6 +164,10 @@ export interface FrameSnapshot {
   /** Per zombie (indexed by id): x, y. */
   zombieXY: Float32Array;
   zombieKind: Uint8Array;
+  /** Per car: x, y, heading. */
+  carXYH: Float32Array;
+  /** Per car: CAR_PARKED, CAR_DRIVING or CAR_ABANDONED. */
+  carState: Uint8Array;
   /** Per building: everyone inside — residents, tracked sims and occupiers, indistinguishable from outside. */
   fill: Uint16Array;
   buildingFlags: Uint8Array;

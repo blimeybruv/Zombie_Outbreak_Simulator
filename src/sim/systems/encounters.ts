@@ -20,7 +20,7 @@
 // flight or on a call; decisions break a conversation up when anyone in it sees danger.
 // One of three files allowed to read `panic`.
 
-import type { Context } from '../context';
+import { isOutdoorLiving, type Context } from '../context';
 import { remember, trim } from '../memory';
 import { chance } from '../rng';
 import type { Sim, World } from '../state';
@@ -115,6 +115,7 @@ function canTalk(world: World, ctx: Context, s: Sim): boolean {
   return (
     s.gathering === null &&
     s.insideBuilding === null &&
+    s.car === null &&
     s.exitingUntil === null &&
     s.stand === null &&
     s.avoidUntil === null &&
@@ -215,13 +216,13 @@ export function resolveEncounters(world: World, ctx: Context): void {
   ctx.talkSize.fill(0, 0, sims.length);
   for (const s of sims) {
     if (s.gathering === null) continue;
-    if (tick >= s.talkUntil! || s.insideBuilding !== null || (s.condition !== 'healthy' && s.condition !== 'infected')) leaveTalk(s, tick);
+    if (tick >= s.talkUntil! || s.insideBuilding !== null || s.car !== null || (s.condition !== 'healthy' && s.condition !== 'infected')) leaveTalk(s, tick);
     else ctx.talkSize[s.gathering]!++;
   }
 
   const ids = ctx.ids;
   for (const a of sims) {
-    if ((a.condition !== 'healthy' && a.condition !== 'infected') || a.insideBuilding !== null) continue;
+    if (!isOutdoorLiving(a)) continue;
     ctx.simHash.query(a.x, a.y, radius, ids);
     for (const bid of ids) {
       if (bid <= a.id) continue;
@@ -247,7 +248,7 @@ export function resolveEncounters(world: World, ctx: Context): void {
   // Passers drawn into a conversation within joinRadius: the nearest member's (ties to
   // the lower id), once per cooldown, at the passer's own sociality.
   for (const a of sims) {
-    if (a.gathering !== null || (a.condition !== 'healthy' && a.condition !== 'infected') || a.insideBuilding !== null) continue;
+    if (a.gathering !== null || !isOutdoorLiving(a)) continue;
     if (tick - a.lastMergeAt < cooldown) continue;
     ctx.simHash.query(a.x, a.y, tc.joinRadius, ids);
     let member: Sim | null = null;

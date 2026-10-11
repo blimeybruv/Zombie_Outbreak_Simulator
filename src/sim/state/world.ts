@@ -9,6 +9,7 @@
 import type { Config } from '../../config';
 import type { RngState } from '../rng';
 import type { Building } from './building';
+import type { Car } from './car';
 import type { Counters } from './counters';
 import type { SimEvent } from './events';
 import type { District, Lot, River, Street, StreetNode } from './map';
@@ -59,6 +60,8 @@ export interface World {
   sims: Sim[];
   /** Indexed by id; destroyed zombies stay in place. @range 0–population @unit — @readBy everything */
   zombies: Zombie[];
+  /** Indexed by id; abandoned cars stay where they stopped. @range a few thousand @unit — @readBy car systems, obstacles, render */
+  cars: Car[];
   /** Indexed by id. @range ~1,000–3,000 @unit — @readBy everything */
   buildings: Building[];
   /** Indexed by id. @range a few thousand @unit — @readBy pathfinding, perception, memory, render */

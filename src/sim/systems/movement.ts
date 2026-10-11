@@ -31,7 +31,7 @@ interface Mover {
 function tryMove(ctx: Context, e: Mover, heading: number, distance: number): boolean {
   const nx = e.x + Math.cos(heading) * distance;
   const ny = e.y + Math.sin(heading) * distance;
-  if (!ctx.map.walkable(nx, ny)) return false;
+  if (!ctx.map.walkable(nx, ny) || ctx.cars.blocks(nx, ny)) return false;
   e.x = nx;
   e.y = ny;
   return true;

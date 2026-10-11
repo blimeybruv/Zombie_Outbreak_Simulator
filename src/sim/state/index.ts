@@ -2,6 +2,7 @@ export * from './units';
 export * from './sim';
 export * from './zombie';
 export * from './building';
+export * from './car';
 export * from './map';
 export * from './stimulus';
 export * from './events';

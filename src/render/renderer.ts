@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -42,6 +42,9 @@ const STALL_W = 2.7; // m
 const STALL_D = 5; // m
 const AISLE = 7; // m
 const DRIVE_GAP = 4.5; // m either side of the driveway kept clear
+// A car, as drawn (the simulation's own size is config.cars).
+const CAR_L = 4.5; // m
+const CAR_W = 1.9; // m
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
@@ -278,9 +281,14 @@ export class Renderer {
   }
 
   /** Redraws the static city when the view or the light has changed since last time. */
-  private staticFor(cam: Camera, dpr: number, night: boolean): HTMLCanvasElement {
+  private staticFor(cam: Camera, dpr: number, night: boolean, frame: FrameSnapshot): HTMLCanvasElement {
     const far = cam.mode === 'far';
-    const key = `${cam.version}|${night}|${far}|${this.canvas.width}x${this.canvas.height}`;
+    // Cars standing still are part of the static city, redrawn only when one starts,
+    // stops or is abandoned (the states' signature changes).
+    let sig = 0;
+    const st = frame.carState;
+    for (let i = 0; i < st.length; i++) sig = (sig * 31 + st[i]! + 1) | 0;
+    const key = `${cam.version}|${night}|${far}|${cam.mode}|${sig}|${this.canvas.width}x${this.canvas.height}`;
     if (key === this.staticKey) return this.staticLayer;
     this.staticKey = key;
     const c = this.staticLayer;
@@ -320,6 +328,7 @@ export class Renderer {
     g.stroke(this.groundsPath);
     if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
+    if (!far) this.drawCars(g, frame, cam, dpr, false);
     return c;
   }
 
@@ -367,7 +376,7 @@ export class Renderer {
     const g = this.g;
     const night = frame.daylight < 0.5;
     g.setTransform(1, 0, 0, 1, 0, 0);
-    g.drawImage(this.staticFor(cam, dpr, night), 0, 0);
+    g.drawImage(this.staticFor(cam, dpr, night, frame), 0, 0);
 
     this.corpses.draw(g, cam, dpr);
     if (cam.mode === 'far') {
@@ -389,6 +398,7 @@ export class Renderer {
     const fleeing: number[] = [];
     for (let i = 0; i < frame.simFlags.length; i++) if (frame.simFlags[i]! & SIM_FLEEING) fleeing.push(i);
     if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
+    this.drawCars(g, frame, cam, dpr, true);
     this.drawTalk(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
     this.drawPulses(g, cam, dpr, wallMs);
@@ -401,6 +411,48 @@ export class Renderer {
    * Where it began: a red ☣ in a ring over patient zero's building, shrinking onto it
    * like a ping, from the start (the run opens paused) until ORIGIN_TICKS have run.
    */
+  /**
+   * Cars: a rectangle along its heading. Driving, filled, every frame (`moving`);
+   * standing still, into the static layer: abandoned, dark and crossed — a road that
+   * will not reopen — at mid and near zoom; parked, a dim outline, at near zoom only
+   * (at mid zoom a parked car is a pixel of clutter).
+   */
+  private drawCars(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, moving: boolean): void {
+    const xyh = frame.carXYH, st = frame.carState;
+    if (st.length === 0) return;
+    const near = cam.mode === 'near';
+    const hl = CAR_L / 2, hw = CAR_W / 2;
+    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D();
+    for (let i = 0; i < st.length; i++) {
+      const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
+      const c = Math.cos(h), s = Math.sin(h);
+      const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
+      if ((st[i] === CAR_DRIVING) !== moving || (st[i] !== CAR_DRIVING && st[i] !== CAR_ABANDONED && !near)) continue;
+      const path = st[i] === CAR_DRIVING ? driving : st[i] === CAR_ABANDONED ? abandoned : parked;
+      path.moveTo(...pt(hl, hw));
+      path.lineTo(...pt(-hl, hw));
+      path.lineTo(...pt(-hl, -hw));
+      path.lineTo(...pt(hl, -hw));
+      path.closePath();
+      if (st[i] === CAR_ABANDONED) {
+        crosses.moveTo(...pt(hl, hw));
+        crosses.lineTo(...pt(-hl, -hw));
+        crosses.moveTo(...pt(hl, -hw));
+        crosses.lineTo(...pt(-hl, hw));
+      }
+    }
+    g.lineWidth = 1 / (cam.scale * dpr);
+    g.strokeStyle = P.CAR;
+    g.stroke(parked);
+    g.fillStyle = P.CAR_DRIVING;
+    g.fill(driving);
+    g.fillStyle = P.CAR_ABANDONED;
+    g.fill(abandoned);
+    g.strokeStyle = P.CAR;
+    g.stroke(abandoned);
+    g.stroke(crosses);
+  }
+
   /**
    * Conversations: a faint line from each person in one to its middle, so a pair reads
    * as a link and a gathering as a hub. Mid and near zoom; at far zoom it is two pixels.

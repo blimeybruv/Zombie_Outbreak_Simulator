@@ -2,6 +2,7 @@
 // the spatial hashes, the per-tick perception snapshot and scratch buffers.
 // Rebuildable from a World at any time, so it is never serialised.
 
+import { CarIndex } from './systems/cars';
 import { Pathfinder } from './pathfinding';
 import { MapIndex } from './runtime';
 import { SpatialHash } from './spatial';
@@ -60,6 +61,8 @@ export interface Context {
   scent: { cols: number; strength: Float32Array; x: Float32Array; y: Float32Array; builtAt: number };
   /** Sims already waiting in the repath queue. */
   queued: Uint8Array;
+  /** Cars on a grid, rebuilt with the spatial hashes: obstacles to anyone on foot. */
+  cars: CarIndex;
   /** Per conversation, by the id that names it: people in it (encounters), and where it stands and whether anyone in it sees danger (decisions). */
   talkSize: Int32Array;
   talkX: Float64Array;
@@ -102,6 +105,7 @@ export function createContext(world: World): Context {
       return { cols, strength: new Float32Array(cols * cols), x: new Float32Array(cols * cols), y: new Float32Array(cols * cols), builtAt: -1 };
     })(),
     queued: new Uint8Array(0),
+    cars: new CarIndex(),
     talkSize: new Int32Array(0),
     talkX: new Float64Array(0),
     talkY: new Float64Array(0),
@@ -147,6 +151,7 @@ export function sizeContext(ctx: Context, world: World): void {
   }
 }
 
-export function isOutdoorLiving(s: { condition: string; insideBuilding: unknown }): boolean {
-  return (s.condition === 'healthy' || s.condition === 'infected') && s.insideBuilding === null;
+/** Living, outdoors and on foot: not in a building, not in a car. */
+export function isOutdoorLiving(s: { condition: string; insideBuilding: unknown; car: unknown }): boolean {
+  return (s.condition === 'healthy' || s.condition === 'infected') && s.insideBuilding === null && s.car === null;
 }

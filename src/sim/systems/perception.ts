@@ -18,6 +18,7 @@ export function rebuildSimHash(world: World, ctx: Context): void {
 
 export function rebuildHashes(world: World, ctx: Context): void {
   rebuildSimHash(world, ctx);
+  ctx.cars.rebuild(world);
   const zs = world.zombies.filter(onMap);
   ctx.zombieHash.rebuild(zs.length, (i) => zs[i]!.id, (i) => zs[i]!.x, (i) => zs[i]!.y);
 }

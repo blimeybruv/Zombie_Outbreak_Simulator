@@ -56,6 +56,7 @@ describe('awareness', () => {
     const a = walker(world, p.x, p.y);
     const b = walker(world, p.x + 1, p.y);
     a.awareAt = 0;
+    b.trust = 1; // believes the first telling
     expect(b.awareAt).toBeNull();
     merge(world, a, b);
     expect(b.awareAt).not.toBeNull();
@@ -410,6 +411,22 @@ describe('the intact dead', () => {
     z.nextAttackAt = world.tick;
     resolveCombat(world, ctx);
     expect(z.intact).toBe(false);
+  });
+});
+
+describe('cars', () => {
+  it('parks cars at the kerb and in the mall lot, none in a building or the river, and nobody walks through one', () => {
+    const { world, ctx } = fresh();
+    expect(world.cars.length).toBeGreaterThan(500);
+    expect(world.cars.every((c) => c.state === 'parked' && ctx.map.walkable(c.x, c.y))).toBe(true);
+    const lot = world.lots[0]!;
+    const xs = lot.outline.map((p) => p.x), ys = lot.outline.map((p) => p.y);
+    expect(world.cars.some((c) => c.x > Math.min(...xs) && c.x < Math.max(...xs) && c.y > Math.min(...ys) && c.y < Math.max(...ys))).toBe(true);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    const c = world.cars[0]!;
+    expect(ctx.cars.blocks(c.x, c.y)).toBe(true);
+    expect(ctx.cars.blocks(c.x + Math.cos(c.heading) * 3, c.y + Math.sin(c.heading) * 3)).toBe(false);
   });
 });
 

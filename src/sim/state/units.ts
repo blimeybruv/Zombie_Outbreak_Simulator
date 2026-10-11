@@ -25,6 +25,7 @@ type Id<Name extends string> = number & { readonly [brand]: Name };
 
 export type SimId = Id<'SimId'>;
 export type ZombieId = Id<'ZombieId'>;
+export type CarId = Id<'CarId'>;
 export type BuildingId = Id<'BuildingId'>;
 export type StreetId = Id<'StreetId'>;
 export type NodeId = Id<'NodeId'>;

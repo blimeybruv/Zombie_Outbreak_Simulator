@@ -10,6 +10,10 @@ export const CONTESTED = [255, 255, 255] as const; // pulsing outline
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.045)'; // night only
 export const LIVING = '#dfe7ef';
 export const LIVING_RGB = [223, 231, 239] as const;
+/** Cars: parked (outline), driving (fill), abandoned (dark fill, crossed). */
+export const CAR = 'rgba(150, 160, 175, 0.45)';
+export const CAR_DRIVING = 'rgba(200, 208, 220, 0.75)';
+export const CAR_ABANDONED = 'rgba(70, 72, 80, 0.9)';
 /** A conversation: the faint line joining the people in it. */
 export const TALK = 'rgba(223, 231, 239, 0.4)';
 export const PROMOTED = '#ffffff';

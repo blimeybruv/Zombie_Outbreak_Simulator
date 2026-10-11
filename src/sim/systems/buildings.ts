@@ -209,7 +209,7 @@ function arrivals(world: World, ctx: Context): void {
   const count = world.sims.length;
   for (let i = 0; i < count; i++) {
     const sim = world.sims[i]!;
-    if (!isLiving(sim) || sim.insideBuilding !== null) continue;
+    if (!isLiving(sim) || sim.insideBuilding !== null || sim.car !== null) continue;
     if (sim.destinationBuilding === null || sim.destination === null) continue;
     // The destination is the entrance chosen when the building was.
     if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) > radius) continue;

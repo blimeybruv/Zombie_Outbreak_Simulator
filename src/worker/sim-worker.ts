@@ -34,6 +34,9 @@ import {
   ZOMBIE_AWAKE,
   ZOMBIE_DORMANT,
   ZOMBIE_INTACT,
+  CAR_ABANDONED,
+  CAR_DRIVING,
+  CAR_PARKED,
   type EventNote,
   type FrameSnapshot,
   type FromWorker,
@@ -138,7 +141,7 @@ function frameSnapshot(w: World): FrameSnapshot {
   const simHeading = new Float32Array(w.sims.length);
   const talk: number[] = [];
   for (const s of w.sims) {
-    if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null) continue;
+    if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null || s.car !== null) continue;
     if (s.gathering !== null) talk.push(s.id, s.gathering);
     simXY[s.id * 2] = s.x;
     simXY[s.id * 2 + 1] = s.y;
@@ -162,6 +165,12 @@ function frameSnapshot(w: World): FrameSnapshot {
     zombieXY[z.id * 2 + 1] = z.y;
     zombieKind[z.id] = z.state === 'dormant' ? ZOMBIE_DORMANT : z.intact ? ZOMBIE_INTACT : ZOMBIE_AWAKE;
   }
+  const carXYH = new Float32Array(w.cars.length * 3);
+  const carState = new Uint8Array(w.cars.length);
+  for (const c of w.cars) {
+    carXYH.set([c.x, c.y, c.heading], c.id * 3);
+    carState[c.id] = c.state === 'driving' ? CAR_DRIVING : c.state === 'abandoned' ? CAR_ABANDONED : CAR_PARKED;
+  }
   const fill = new Uint16Array(w.buildings.length);
   const buildingFlags = new Uint8Array(w.buildings.length);
   for (const b of w.buildings) {
@@ -183,6 +192,8 @@ function frameSnapshot(w: World): FrameSnapshot {
     talk: new Int32Array(talk),
     zombieXY,
     zombieKind,
+    carXYH,
+    carState,
     fill,
     buildingFlags,
     counters: structuredClone(w.counters),
@@ -265,7 +276,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
   }
 };
 

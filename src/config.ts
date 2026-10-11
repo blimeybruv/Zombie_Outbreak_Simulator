@@ -362,6 +362,44 @@ export const config = {
     panicFloorRate: 0.05, // /tick toward the floor
   },
 
+  // Cars (systems/cars.ts): a building with a velocity, not traffic. Parked at setup at
+  // the kerb in front of a share of each tag's buildings (parkShare), on standard and
+  // main streets only (an alley is too narrow to pass one), never within nodeClear of
+  // a junction nor nearer than spacing to another, and in the mall's stalls (lotShare).
+  // A car is length × width, and parked kerbInset in from the edge of the street.
+  // Moving, it keeps laneOffset right of the centreline (at most a quarter of the
+  // street's width), so opposing cars never meet, at up to maxSpeed, slowed by
+  // congestion — 1 / (1 + congestion × cars within congestionRadius) — and it stops for
+  // anything within `gap` ahead in its own path; when two stop for each other the
+  // lower id yields. An aware sim heading for home or shelter more than driveBeyond
+  // away, on foot and not in flight, takes the nearest free parked car it can see
+  // within searchRadius; at boardRadius it gets in. It pulls up at the kerb by its
+  // destination's door (arriveRadius) and everyone gets out. A car stopped behind
+  // something for jamTicks is abandoned there: everyone gets out, and it stays —
+  // guess, all of it
+  cars: {
+    parkShare: { residential: 0.45, office: 0.5, workshop: 0.5, warehouse: 0.5, hardwareStore: 0.4, supermarket: 0.4, school: 0.3, hospital: 0.4, policeStation: 0.5, firearmsStore: 0.4, mall: 0, flavour: 0.25 } as Record<string, number>,
+    lotShare: 0.6,
+    stall: { width: 2.7, depth: 5, aisle: 7, driveGap: 4.5 }, // m: the mall's stalls, as drawn
+    length: 4.5, // m
+    width: 1.9, // m
+    kerbInset: 1.2, // m from the street's edge to the car's centreline
+    nodeClear: 14, // m
+    spacing: 6.5, // m between parked cars' centres
+    laneOffset: 2.5, // m
+    maxSpeed: 9, // m/tick, about 32 km/h
+    congestion: 0.3,
+    congestionRadius: 15, // m
+    gap: 7, // m
+    capacity: 4, // people
+    driveBeyond: 500, // m
+    searchRadius: 50, // m
+    boardRadius: 3, // m
+    arriveRadius: 6, // m
+    waypointRadius: 4, // m; a junction counts as passed within this
+    jamTicks: 180,
+  },
+
   pathfinding: {
     dangerWeight: 400, // m of detour one unit of believed danger is worth — guess
     // Multiplier on dangerWeight at caution 0 and 1, linear between: cautious sims pay
