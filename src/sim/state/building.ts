@@ -97,6 +97,12 @@ export interface Building {
   /** When officers were sent to the call; null until then. @range tick | null @unit tick @readBy police dispatch, render (alert ring) */
   dispatchedAt: Tick | null;
   /**
+   * An armoury's weapons left for reservists to draw (reservists.weaponStock at the
+   * start, spent one per reservist armed). Null for every other building.
+   * @range 0–reservists.weaponStock | null @unit weapons @readBy depot (arming), snapshot (inspector)
+   */
+  weaponStock: Count | null;
+  /**
    * When the crowd outside a garrison crossed cascade density; null below it.
    * @range tick | null @unit tick @readBy cascade event, siege
    */

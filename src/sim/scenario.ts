@@ -6,7 +6,7 @@ export const defaultScenario: Scenario = {
   startHour: 9,
   origin: 'scattered',
   initialZombies: 10,
-  archetypeMix: { civilian: 0.68, police: 0.02, prepper: 0.26, loner: 0.03, reckless: 0.01 },
+  archetypeMix: { civilian: 0.68, police: 0.02, prepper: 0.26, loner: 0.03, reckless: 0.01, reservist: 0 }, // reservists are placed, not drawn (squads.ts placeReservists)
   zombieGait: 'shambler',
   power: true,
   mapSeed: 1,

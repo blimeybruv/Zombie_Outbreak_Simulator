@@ -65,6 +65,13 @@ export interface Context {
   cars: CarIndex;
   /** Per conversation, by the id that names it: people in it (encounters), and where it stands and whether anyone in it sees danger (decisions). */
   talkSize: Int32Array;
+  /** Per squad, by leader id: its living members' engagement capacity, summed (squads.ts squadPass). */
+  squadCap: Float64Array;
+  /** Per squad, by leader id: a follower is far behind its slot, so the leader waits. */
+  squadLag: Uint8Array;
+  /** Per follower: where its slot is this tick (squads.ts squadPass). */
+  slotX: Float64Array;
+  slotY: Float64Array;
   talkX: Float64Array;
   talkY: Float64Array;
   talkAlarm: Uint8Array;
@@ -107,6 +114,10 @@ export function createContext(world: World): Context {
     queued: new Uint8Array(0),
     cars: new CarIndex(),
     talkSize: new Int32Array(0),
+    squadCap: new Float64Array(0),
+    squadLag: new Uint8Array(0),
+    slotX: new Float64Array(0),
+    slotY: new Float64Array(0),
     talkX: new Float64Array(0),
     talkY: new Float64Array(0),
     talkAlarm: new Uint8Array(0),
@@ -136,6 +147,10 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.contacts = new Int32Array(cap);
     ctx.dark = new Uint8Array(cap);
     ctx.talkSize = new Int32Array(cap);
+    ctx.squadCap = new Float64Array(cap);
+    ctx.squadLag = new Uint8Array(cap);
+    ctx.slotX = new Float64Array(cap);
+    ctx.slotY = new Float64Array(cap);
     ctx.talkX = new Float64Array(cap);
     ctx.talkY = new Float64Array(cap);
     ctx.talkAlarm = new Uint8Array(cap);

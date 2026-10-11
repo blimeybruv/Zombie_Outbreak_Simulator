@@ -17,6 +17,7 @@ import { DensityField } from './density';
 import { Interpolator } from './interpolate';
 import * as P from './palette';
 import { Trails } from './trails';
+import { FIREARMS } from '../sim/state';
 
 // Mid zoom sits between reading the city as density and following people: a faint
 // density underlay so mass and flow read, short trails and names so individuals
@@ -51,7 +52,7 @@ const CAR_W = 1.9; // m
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
 const TALK_RING_PX = 5; // device px at least
-const GUNS = new Set(['pistol', 'smg', 'shotgun']);
+const GUNS = new Set<string>(FIREARMS);
 
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
 const FULL_AT = 24; // people inside at which a building reads as full

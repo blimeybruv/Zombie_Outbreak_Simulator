@@ -3,6 +3,7 @@
 
 import { functionalProfile } from '../mapgen/generate';
 import type { Building, Sim, World } from '../state';
+import { isFirearm } from '../state';
 
 export function entranceNearest(b: Building, x: number, y: number): { x: number; y: number } {
   let best = b.entrances[0]!;
@@ -22,7 +23,7 @@ export function capacity(world: World, sim: Sim): number {
   const { combat } = world.config;
   const w = sim.weapon;
   if (w === null) return 0;
-  if (w === 'pistol' || w === 'smg' || w === 'shotgun') return Math.floor(sim.ammo * combat.ranged[w].baseKill);
+  if (isFirearm(w)) return Math.floor(sim.ammo * combat.ranged[w].baseKill);
   return combat.melee[w].capacity;
 }
 

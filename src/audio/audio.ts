@@ -107,6 +107,7 @@ export class Audio {
     this.buffers.set('pistol', burst(ctx, 0.35, 0.05, 2400));
     this.buffers.set('smg', burst(ctx, 0.12, 0.03, 2800, 3, 0.07));
     this.buffers.set('shotgun', burst(ctx, 0.6, 0.11, 1100));
+    this.buffers.set('rifle', burst(ctx, 0.45, 0.06, 1800));
     this.buffers.set('club', burst(ctx, 0.18, 0.04, 260));
     this.buffers.set('sledgehammer', burst(ctx, 0.3, 0.07, 180));
     this.buffers.set('shout', shout(ctx));

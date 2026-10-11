@@ -395,6 +395,7 @@ describe('the intact dead', () => {
     const { world, ctx } = fresh();
     const p = streetPoint(world);
     for (const z of world.zombies) if (z.state !== 'occupying') z.state = 'destroyed';
+    for (const o of world.sims) o.weapon = null; // nobody to shoot it from a door first
     const s = walker(world, p.x, p.y);
     const z = spawnZombie(world, p.x + p.ux * d, p.y + p.uy * d, 'active', null, null);
     z.intact = intact;

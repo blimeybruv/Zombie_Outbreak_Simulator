@@ -8,9 +8,11 @@ import { isLiving } from './common';
 import { transfer, simLeaf } from '../counters';
 import { chance, nextInt } from '../rng';
 import type { Sim, World, Zombie } from '../state';
+import { isFirearm } from '../state';
 import { modeOf } from './panic';
 import { recognisedWithin } from './perception';
 import { emitStimulus } from './stimuli';
+import { mobilise } from './squads';
 
 /** Kills a zombie: it stays in the array, destroyed. */
 export function destroyZombie(world: World, z: Zombie, by: Sim): void {
@@ -60,6 +62,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
     if (!ctx.map.lineOfSight(w.x, w.y, victim.x, victim.y)) continue;
     w.knownInfected.add(victim.id);
     w.awareAt ??= tick;
+    mobilise(world, w); // a reservist who sees someone bitten is called up
     if (street !== null) noteStreet(world, w, street, config.memory.witnessedDanger);
   }
 }
@@ -89,7 +92,7 @@ function sims(world: World, ctx: Context): void {
     if (modeOf(sim, config) === 'flight' && sim.stand !== 'fight') continue;
 
     const w = sim.weapon;
-    const ranged = w === 'pistol' || w === 'smg' || w === 'shotgun' ? cc.ranged[w] : null;
+    const ranged = isFirearm(w) ? cc.ranged[w] : null;
     const usable = ranged !== null && sim.ammo >= ranged.ammoPerAttack;
     const engages = config.archetypes[sim.archetype].engageThreshold > 0 || sim.stand === 'fight';
     // Engagers, and anyone standing to fight, pick targets at range on a staggered
@@ -164,7 +167,7 @@ function fromInside(world: World, ctx: Context, sim: Sim): void {
   const cc = config.combat;
   if (!isLiving(sim) || sim.id % cc.armedTargetStagger !== tick % cc.armedTargetStagger) return;
   const w = sim.weapon;
-  if (w !== 'pistol' && w !== 'smg' && w !== 'shotgun') return;
+  if (!isFirearm(w)) return;
   const ranged = cc.ranged[w];
   if (sim.ammo < ranged.ammoPerAttack) return;
   const b = buildings[sim.insideBuilding!]!;

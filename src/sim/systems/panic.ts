@@ -12,6 +12,7 @@ import { isOutdoorLiving, type Context } from '../context';
 import { clamp01 } from '../geometry';
 import { noteStreet } from '../memory';
 import type { Sim, World } from '../state';
+import { mobilise } from './squads';
 import { intensityAt } from './stimuli';
 
 export type Mode = 'informed' | 'direct' | 'flight';
@@ -50,6 +51,7 @@ export function updatePanic(world: World, ctx: Context): void {
       sim.panic = clamp01(sim.panic + pc.risePerEvent);
       sim.history.conversionsWitnessed++;
       sim.awareAt ??= tick;
+      mobilise(world, sim); // a reservist who sees someone turn is called up
       // Someone turned there: the street remembers it, whatever walks it next.
       const street = ctx.map.nearestStreet(e.x, e.y, config.map.offStreetLookup);
       if (street !== null) noteStreet(world, sim, street, config.memory.witnessedDanger);

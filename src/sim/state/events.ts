@@ -118,7 +118,21 @@ export interface CarAbandonedEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface SquadEvent extends EventBase, Located {
+  /**
+   * squadFormed: reservists armed at a depot deploy. squadEngaged: from file to
+   * diamond, facing the dead. squadDissolved: too few left, they stand down.
+   * @range 3 values @unit enum @readBy event consumers
+   */
+  type: 'squadFormed' | 'squadEngaged' | 'squadDissolved';
+  /** Its leader (the last of it, when dissolved). @range sim id @unit id @readBy ticker */
+  sim: SimId;
+  /** Its members, at the time. @range 1–squads.size @unit people @readBy ticker copy */
+  members: Count;
+}
+
 export type SimEvent =
+  | SquadEvent
   | CarAbandonedEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent

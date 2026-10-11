@@ -45,6 +45,7 @@ import {
 } from './protocol';
 import { inspect } from './inspect';
 import { noteFor, centreOf } from './notes';
+import { isFirearm } from '../sim/state';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept
@@ -147,7 +148,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     simXY[s.id * 2 + 1] = s.y;
     simKind[s.id] = s.name !== null ? SIM_PROMOTED : SIM_LIVING;
     const gun = s.weapon;
-    const shoots = (gun === 'pistol' || gun === 'smg' || gun === 'shotgun') && s.ammo >= w.config.combat.ranged[gun].ammoPerAttack;
+    const shoots = isFirearm(gun) && s.ammo >= w.config.combat.ranged[gun].ammoPerAttack;
     simFlags[s.id] =
       (s.condition === 'infected' ? SIM_INFECTED : 0) |
       (s.stand === 'freeze' ? SIM_FROZEN : 0) |

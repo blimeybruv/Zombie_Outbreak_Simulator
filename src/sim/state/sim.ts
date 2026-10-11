@@ -11,7 +11,7 @@
 
 import type { BuildingId, CarId, Count, Metres, Radians, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
 
-export const ARCHETYPES = ['civilian', 'police', 'prepper', 'loner', 'reckless'] as const;
+export const ARCHETYPES = ['civilian', 'police', 'prepper', 'loner', 'reckless', 'reservist'] as const;
 export type Archetype = (typeof ARCHETYPES)[number];
 
 /** Display labels. Assigned at spawn from the starting building's tag; bias the archetype. */
@@ -45,8 +45,17 @@ export type Condition = (typeof CONDITIONS)[number];
 export const GAITS = ['still', 'sneak', 'walk', 'run', 'sprint'] as const;
 export type Gait = (typeof GAITS)[number];
 
-export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car'] as const;
+export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car', 'muster'] as const;
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
+
+/**
+ * A reservist's place in the call-up. reserve: a civilian in every way, until called
+ * up. mobilised: on the way to its depot. waiting: armed at the depot, for a squad.
+ * deployed: in a squad. stoodDown: its squad dissolved, or the depot had no weapon
+ * left — an ordinary sim again, keeping whatever it carries.
+ */
+export const MUSTERS = ['reserve', 'mobilised', 'waiting', 'deployed', 'stoodDown'] as const;
+export type Muster = (typeof MUSTERS)[number];
 
 /**
  * What a bitten sim does with what it knows: carry on as if nothing happened, into a
@@ -62,8 +71,12 @@ export type Stand = (typeof STANDS)[number];
 export const ROLES = ['builder', 'scavenger', 'dispatcher'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const WEAPONS = ['pistol', 'smg', 'shotgun', 'knife', 'club', 'sledgehammer'] as const;
+export const WEAPONS = ['pistol', 'smg', 'shotgun', 'rifle', 'knife', 'club', 'sledgehammer'] as const;
 export type Weapon = (typeof WEAPONS)[number];
+/** The weapons that shoot (combat.ranged). The rifle is found only in an armoury. */
+export const FIREARMS = ['pistol', 'smg', 'shotgun', 'rifle'] as const;
+export type Firearm = (typeof FIREARMS)[number];
+export const isFirearm = (w: Weapon | string | null): w is Firearm => (FIREARMS as readonly string[]).includes(w ?? '');
 
 /** One remembered observation of a street. Merged by recency on encounter. */
 export interface StreetBelief {
@@ -334,8 +347,29 @@ export interface Sim {
    * @range building id | null @unit id @readBy police dispatch, inspector
    */
   station: BuildingId | null;
-  /** The call a first responder is on its way to; null otherwise. @range building id | null @unit id @readBy sim decisions (respond arrival), police dispatch */
+  /** The call a first responder is on its way to, or what a squad leader has claimed; null otherwise. @range building id | null @unit id @readBy sim decisions (respond arrival), police dispatch, squads */
   answering: BuildingId | null;
+
+  // Reservists and squads (squads.ts)
+
+  /** A reservist's place in the call-up; null for everyone else. @range 5 values | null @unit enum @readBy sim decisions, squads, panic (mode), snapshot (render, inspector) */
+  muster: Muster | null;
+  /** A reservist's depot: the armoury nearest home, known from the start; null for everyone else, or with no armoury on the map. @range building id | null @unit id @readBy sim decisions (depot run), squads, building entry */
+  depot: BuildingId | null;
+  /** The squad this sim is in, named by its leader's id (its own, for the leader); null outside a squad. @range sim id | null @unit id @readBy squads, sim decisions, building entry, snapshot (render) */
+  squadLeader: SimId | null;
+  /** Its place in the squad: 0 the leader, then 1, 2… in id order. @range 0–squads.size-1 @unit slot @readBy squads (formation) */
+  squadSlot: Count;
+  /** A follower out of reach of its slot since this tick; null while near it. @range tick | null @unit tick @readBy squads (unreachable slots) */
+  offSlotSince: Tick | null;
+  /** A follower that could not reach its slot heads straight for the leader until this tick; null otherwise. @range tick | null @unit tick @readBy squads */
+  directUntil: Tick | null;
+  /** A squad leader's recent path, oldest first, a point each squads.fileSpacing metres: where the file walks. Empty for everyone else. @range 0–squads.size points @unit m @readBy squads (file formation) */
+  trail: Vec2[];
+  /** A squad leader's formation is the diamond (engaged) until this tick; null in file. @range tick | null @unit tick @readBy squads, snapshot (render) */
+  diamondUntil: Tick | null;
+  /** When a squad leader claimed what it is answering; null with nothing claimed. @range tick | null @unit tick @readBy squads (staleness) */
+  answeringSince: Tick | null;
   /** Building this sim has committed to; re-evaluated only on breach, fall, decay or migration. @range building id | null @unit id @readBy shelter return, roles, migration */
   shelter: BuildingId | null;
   /** @range 3 values | null @unit enum @readBy building processes, role re-evaluation */

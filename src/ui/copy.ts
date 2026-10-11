@@ -43,6 +43,12 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${who(n)} was turned away from ${n.place}.`;
     case 'carAbandoned':
       return `A car was abandoned on ${n.place}.`;
+    case 'squadFormed':
+      return `${e.members} reservists, armed at the depot on ${n.place}, have formed a squad.`;
+    case 'squadEngaged':
+      return `A squad has formed up to fight on ${n.place}.`;
+    case 'squadDissolved':
+      return e.members === 1 ? `The last of a squad stands down on ${n.place}.` : `What is left of a squad stands down on ${n.place}.`;
     case 'zombieDestroyed':
       return null;
   }

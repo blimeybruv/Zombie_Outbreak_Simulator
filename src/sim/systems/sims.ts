@@ -28,6 +28,7 @@ import { noteStreet, remember } from '../memory';
 import { sharedNode } from '../pathfinding';
 import { nextFloat, nextInt } from '../rng';
 import type { Building, Sim, Stand, StreetId, World } from '../state';
+import { isFirearm } from '../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
 import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, setDestination } from './common';
@@ -35,6 +36,7 @@ import { carStillMine, considerDriving, decideCars, giveUpCar } from './cars';
 import { modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
+import { resolveTarget, squadPass, squadTarget } from './squads';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -135,7 +137,7 @@ function shotHeard(world: World, sim: Sim): { x: number; y: number } | null {
   let best: { x: number; y: number } | null = null;
   let loudest = 0;
   for (const st of world.stimuli) {
-    if (st.createdAt < tick - 1 || (st.kind !== 'pistol' && st.kind !== 'smg' && st.kind !== 'shotgun')) continue;
+    if (st.createdAt < tick - 1 || !isFirearm(st.kind)) continue;
     if (Math.hypot(st.x - sim.x, st.y - sim.y) <= config.police.shotIgnoreRadius) continue;
     const i = intensityAt(st, sim.x, sim.y);
     if (i > loudest) {
@@ -387,6 +389,153 @@ function travel(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   if (followRoute(world, ctx, sim)) wayBlocked(world, ctx, sim, mode);
 }
 
+/**
+ * Called up: to the depot, never stopping to shelter. Panicked, it gets clear of the
+ * danger first — away from it, not into a doorway — and goes on when calm; otherwise
+ * it walks, running only with danger in sight (it is a long way, and a reservist run
+ * dry was caught on the way). The way blocked: it fights if what it carries is up to
+ * the zombies close by, else backs off for avoidHold ticks, plans again, and goes on.
+ */
+function decideMuster(world: World, ctx: Context, sim: Sim, mode: Mode): void {
+  const { config, buildings } = world;
+  const depot = buildings[sim.depot!]!;
+  if (sim.destinationBuilding !== depot.id || sim.destinationKind !== 'muster') setDestination(sim, depot, 'muster');
+  if (mode === 'flight') {
+    sim.gait = 'sprint';
+    steerAway(ctx, sim);
+    return;
+  }
+  sim.gait = ctx.threat[sim.id]! > 0 || mode === 'direct' ? 'run' : 'walk';
+  if (!followRoute(world, ctx, sim)) return;
+  const cap = capacity(world, sim);
+  if (cap > 0) {
+    ctx.zombieHash.query(sim.x, sim.y, config.cornered.fightRadius, ctx.ids2);
+    if (ctx.ids2.length > 0 && cap >= ctx.ids2.length) return takeStand(world, sim, 'fight');
+  }
+  sim.avoidUntil = world.tick + config.behaviour.avoidHold;
+  replan(world, ctx, sim, mode);
+  steerAway(ctx, sim);
+}
+
+/** Faces the nearest zombie in sight, or `fallback`'s way. */
+function faceDanger(world: World, ctx: Context, sim: Sim, fallback: number): void {
+  const zid = ctx.nearestZombie[sim.id]!;
+  if (zid >= 0) steerToward(sim, world.zombies[zid]!.x, world.zombies[zid]!.y);
+  else sim.heading = fallback;
+}
+
+/**
+ * A squad leader: engaged, it holds the diamond, facing the danger (combat does the
+ * shooting). Otherwise on to its target (squads.ts squadTarget), or back to its depot
+ * with none, at a walk, waiting while a follower lags. At an occupied door it goes in,
+ * if the squad's summed capacity says so (buildings.ts acceptable); a call with nothing
+ * left to fight is answered. Only the leader plans a route.
+ */
+function decideLeader(world: World, ctx: Context, sim: Sim): void {
+  const { config, tick, buildings } = world;
+  const sq = config.squads;
+  if (sim.diamondUntil !== null && tick < sim.diamondUntil) {
+    sim.gait = 'still';
+    faceDanger(world, ctx, sim, sim.heading);
+    return;
+  }
+  const t = squadTarget(world, sim);
+  if (t !== null && Math.hypot(t.x - sim.x, t.y - sim.y) <= sq.sceneRadius) {
+    if (t.building !== null && t.building.zombiesInside > 0) {
+      if (sim.destinationBuilding !== t.building.id) setDestination(sim, t.building, 'respond');
+      sim.gait = 'walk';
+      headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
+      return;
+    }
+    resolveTarget(world, sim);
+    sim.gait = 'still';
+    return;
+  }
+  if (t === null) {
+    const depot = buildings[sim.depot!]!;
+    if (sim.destinationBuilding !== depot.id) setDestination(sim, depot, 'respond');
+  } else if (t.building !== null && sim.destinationBuilding !== t.building.id) {
+    setDestination(sim, t.building, 'respond');
+  }
+  sim.gait = ctx.squadLag[sim.id] ? 'still' : 'walk';
+  if (sim.gait === 'still') return;
+  // The way blocked: the squad stands and fights it out (the diamond, next tick).
+  if (followRoute(world, ctx, sim)) {
+    sim.diamondUntil = tick + sq.diamondHold;
+    sim.gait = 'still';
+  }
+}
+
+/**
+ * A follower: no route, only its slot (squads.ts squadPass) — or, with the leader gone
+ * in somewhere, after it through the door. A slot out of reach slotPatience ticks
+ * running (round a corner, inside a wall) and it makes straight for the leader for
+ * directHold ticks or until within rejoinRadius: the hysteresis that keeps it from
+ * swinging between the two, as backing off does for the fleeing.
+ */
+function decideFollower(world: World, ctx: Context, sim: Sim): void {
+  const { config, tick, buildings } = world;
+  const sq = config.squads;
+  const leader = world.sims[sim.squadLeader!]!;
+  if (leader.insideBuilding !== null) {
+    const b = buildings[leader.insideBuilding]!;
+    if (sim.destinationBuilding !== b.id) setDestination(sim, b, 'respond');
+    sim.gait = 'run';
+    headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
+    return;
+  }
+  if (sim.destination !== null) clearDestination(sim);
+  sim.destinationKind = null;
+  let tx = ctx.slotX[sim.id]!, ty = ctx.slotY[sim.id]!;
+  if (sim.directUntil !== null) {
+    if (tick < sim.directUntil && Math.hypot(leader.x - sim.x, leader.y - sim.y) > sq.rejoinRadius) {
+      tx = leader.x;
+      ty = leader.y;
+    } else {
+      sim.directUntil = null;
+    }
+  }
+  if (sim.directUntil === null) {
+    if (Math.hypot(tx - sim.x, ty - sim.y) > sq.slotLost) {
+      sim.offSlotSince ??= tick;
+      if (tick - sim.offSlotSince >= sq.slotPatience) {
+        sim.directUntil = tick + sq.directHold;
+        sim.offSlotSince = null;
+        tx = leader.x;
+        ty = leader.y;
+      }
+    } else {
+      sim.offSlotSince = null;
+    }
+  }
+  const d = Math.hypot(tx - sim.x, ty - sim.y);
+  if (d <= sq.slotStill) {
+    sim.gait = 'still';
+    faceDanger(world, ctx, sim, leader.heading);
+    return;
+  }
+  sim.gait = d > sq.slotRun ? 'run' : 'walk';
+  headFor(world, ctx, sim, tx, ty);
+}
+
+/**
+ * A squad indoors. The leader: a building still occupied is fought for (contest); a
+ * call answered; at its depot it waits for a target, and goes out to one; anywhere
+ * else, out. A follower stays while its leader is in the same building, else goes out.
+ */
+function decideSquadIndoor(world: World, sim: Sim): void {
+  const { tick, buildings } = world;
+  const b = buildings[sim.insideBuilding!]!;
+  if (sim.squadLeader !== sim.id) {
+    if (world.sims[sim.squadLeader!]!.insideBuilding !== b.id) sim.exitingUntil = tick + exitTicks(world, b);
+    return;
+  }
+  if (b.zombiesInside > 0) return;
+  if (sim.answering === b.id) resolveTarget(world, sim);
+  if (b.id === sim.depot && squadTarget(world, sim) === null) return;
+  sim.exitingUntil = tick + exitTicks(world, b);
+}
+
 function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const { config, buildings, zombies, tick } = world;
   const arch = config.archetypes[sim.archetype];
@@ -432,6 +581,10 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     sim.avoidUntil = null;
   }
 
+  // Called up, or in a squad (squads.ts): their own business, not shelter or flight.
+  if (sim.muster === 'mobilised') return decideMuster(world, ctx, sim, mode);
+  if (sim.squadLeader !== null) return sim.squadLeader === sim.id ? decideLeader(world, ctx, sim) : decideFollower(world, ctx, sim);
+
   if (mode === 'flight') {
     sim.gait = 'sprint';
     // Not choosing a shelter: running for a door in sight, preferring one that does not
@@ -471,7 +624,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   if (engages && nearest >= 0 && seen < engageBelow && sim.destinationKind !== 'shelter') {
     const z = zombies[nearest]!;
     const w = sim.weapon!;
-    const range = w === 'pistol' || w === 'smg' || w === 'shotgun' ? config.combat.ranged[w].range * 0.8 : config.combat.contactRange;
+    const range = isFirearm(w) ? config.combat.ranged[w].range * 0.8 : config.combat.contactRange;
     const d = Math.hypot(z.x - sim.x, z.y - sim.y);
     steerToward(sim, z.x, z.y);
     sim.gait = d > range ? 'walk' : 'still';
@@ -653,6 +806,13 @@ function decideIndoor(world: World, ctx: Context, sim: Sim): void {
   sim.gait = 'still';
   sim.stamina = Math.min(1, sim.stamina + config.movement.gait.still.stamina);
   if (sim.exitingUntil !== null) return;
+  // A squad, a reservist waiting at its depot, or one called up somewhere else (out, and on).
+  if (sim.squadLeader !== null) return decideSquadIndoor(world, sim);
+  if (sim.muster === 'waiting') return;
+  if (sim.muster === 'mobilised' && sim.insideBuilding !== sim.depot) {
+    sim.exitingUntil = tick + exitTicks(world, buildings[sim.insideBuilding!]!);
+    return;
+  }
   // Heard the news while out on an errand: stay, if this is as good a shelter as it
   // knows, or set out for the objective.
   if (sim.destinationKind === 'routine' && sim.awareAt !== null) {
@@ -722,6 +882,7 @@ function locateTalks(world: World, ctx: Context): void {
 
 export function simDecisions(world: World, ctx: Context): void {
   locateTalks(world, ctx);
+  squadPass(world, ctx);
   for (const sim of world.sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     if (sim.car !== null) continue; // in a car: the car decides (cars.ts)

@@ -27,6 +27,9 @@ export const BASE = {
   policeDispatched: 20, // not in the reference: a 911 call answered
   simIsolating: 30, // not in the reference: a decision only the viewer sees
   carAbandoned: 25, // not in the reference: a road closing for good
+  squadFormed: 50, // not in the reference: an armed group, mid-run — rare
+  squadDissolved: 40, // not in the reference
+  squadEngaged: 30, // not in the reference: file to diamond
   strangerRefused: 12, // not in the reference: common once shelters fill, worth a line when rare
   weaponFound: 15,
   shelterEstablished: 10, // not in the reference: common, worth a line only when rare

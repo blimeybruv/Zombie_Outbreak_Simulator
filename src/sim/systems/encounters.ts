@@ -156,6 +156,8 @@ function canTalk(world: World, ctx: Context, s: Sim): boolean {
   return (
     world.config.features.conversations &&
     s.gathering === null &&
+    s.muster !== 'mobilised' &&
+    s.squadLeader === null &&
     s.insideBuilding === null &&
     s.car === null &&
     s.exitingUntil === null &&

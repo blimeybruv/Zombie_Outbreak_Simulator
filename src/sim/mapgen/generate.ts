@@ -500,6 +500,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       garrisonedAt: null,
       doorOpenedAt: null,
       callAt: null,
+      weaponStock: null,
       dispatchedAt: null,
       cascadeAt: null,
       pendingRelease: 0,

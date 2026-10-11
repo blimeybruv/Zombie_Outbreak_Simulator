@@ -11,10 +11,12 @@ import { functionalProfile } from '../mapgen/generate';
 import { chance, nextInt } from '../rng';
 import { spawnSim, spawnZombie } from '../spawn';
 import type { Building, Sim, World } from '../state';
+import { isFirearm } from '../state';
 import { bite, destroyZombie, killSim } from './combat';
 import { capacity, entranceNearest, exitTicks, isLiving, openDoor, stageOf } from './common';
 import { merge } from './encounters';
 import { modeOf } from './panic';
+import { armAtDepot, mobilise } from './squads';
 import { updateRelease } from './release';
 import { carProcesses } from './cars';
 import { dispatchCalls, placeCall } from './dispatch';
@@ -68,13 +70,19 @@ function expel(world: World, ctx: Context, sim: Sim, b: Building): void {
   if (fell) {
     // A shelter fallen: its street is where it happened, and they carry that away.
     noteStreet(world, sim, b.street, world.config.memory.fellDanger);
+    mobilise(world, sim); // a reservist driven out of a fallen shelter is called up
     if (sim.shelter === b.id) sim.shelter = null;
     sim.refusedBy = b.id;
   }
 }
 
-/** Whether a sim inside an occupation judges the odds acceptable. Archetype sets the ratio. */
-function acceptable(world: World, sim: Sim, b: Building): boolean {
+/**
+ * Whether a sim inside an occupation judges the odds acceptable. Archetype sets the
+ * ratio. A squad member goes by its squad: its members' capacity, summed, against the
+ * occupiers — one decision, the leader's at the door, which each member then shares.
+ */
+function acceptable(world: World, ctx: Context, sim: Sim, b: Building): boolean {
+  if (sim.squadLeader !== null) return capacity(world, sim) > 0 && ctx.squadCap[sim.squadLeader]! >= b.zombiesInside * world.config.squads.contestRatio;
   const ratio = world.config.archetypes[sim.archetype].contestRatio;
   const cap = capacity(world, sim);
   return ratio !== null && cap > 0 && cap >= b.zombiesInside * ratio;
@@ -119,7 +127,7 @@ export function occupierAppeared(world: World, ctx: Context, b: Building): void 
   for (const id of [...b.sheltered].sort((p, q) => p - q)) {
     const sim = world.sims[id]!;
     if (!isLiving(sim) || sim.exitingUntil !== null) continue;
-    if (modeOf(sim, config) === 'flight' || acceptable(world, sim, b)) {
+    if (modeOf(sim, config) === 'flight' || acceptable(world, ctx, sim, b)) {
       ctx.events.push({ type: 'occupationContested', tick, building: b.id, sim: sim.id });
     } else {
       sim.exitingUntil = tick + exitTicks(world, b);
@@ -145,7 +153,7 @@ function turnAway(world: World, sim: Sim, b: Building): void {
  */
 function refusedAsStranger(world: World, sim: Sim, b: Building): boolean {
   const sc = world.config.shelter;
-  if (!world.config.features.strangerVeto || b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id) return false;
+  if (!world.config.features.strangerVeto || b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id || sim.depot === b.id) return false;
   let admit = 1;
   for (const id of b.sheltered) {
     const o = world.sims[id]!;
@@ -162,7 +170,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   if (b.zombiesInside > 0) {
     // Entry commits: the occupiers are discovered at the door. A panicked sim
     // entered blind and fights on reflex; others fight only if the odds suit them.
-    if (modeOf(sim, config) === 'flight' || acceptable(world, sim, b)) {
+    if (modeOf(sim, config) === 'flight' || acceptable(world, ctx, sim, b)) {
       contesting = true;
       ctx.events.push({ type: 'occupationContested', tick, building: b.id, sim: sim.id });
     } else {
@@ -211,7 +219,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   );
   const to = simLeaf(sim);
   if (from !== null && to !== null && from !== to) transfer(world, from, to);
-  if (!contesting) placeCall(world, sim, b);
+  if (!contesting && sim.squadLeader === null) placeCall(world, sim, b);
 
   if (sim.destinationKind === 'routine') {
     // The uneasy cut their errands short.
@@ -221,6 +229,13 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     scavenge(world, ctx, sim, b);
   } else if (sim.destinationKind === 'isolate') {
     // Alone, to wait for it: no shelter taken, nobody told.
+  } else if (sim.squadLeader !== null) {
+    // In with its squad: no shelter taken; the leader decides when they leave.
+    sim.destinationKind = null;
+    sim.destinationBuilding = null;
+    sim.destination = null;
+  } else if (sim.destinationKind === 'muster') {
+    armAtDepot(world, sim, b);
   } else {
     // Seeking shelter (or coming home): this is home now. A frightened arrival tells the house.
     sim.shelter = b.id;
@@ -415,14 +430,14 @@ function contest(world: World, ctx: Context, b: Building): void {
     if (b.zombiesInside === 0) break;
     const sim = world.sims[id]!;
     if (!isLiving(sim) || sim.insideBuilding !== b.id || sim.exitingUntil !== null) continue;
-    if (modeOf(sim, config) !== 'flight' && !acceptable(world, sim, b)) {
+    if (modeOf(sim, config) !== 'flight' && !acceptable(world, ctx, sim, b)) {
       sim.exitingUntil = tick + exitTicks(world, b); // the odds turned: withdraw
       continue;
     }
     if (tick < sim.nextAttackAt) continue;
 
     const w = sim.weapon;
-    const ranged = w === 'pistol' || w === 'smg' || w === 'shotgun' ? cc.ranged[w] : null;
+    const ranged = isFirearm(w) ? cc.ranged[w] : null;
     let shots = 1;
     let p: number;
     if (ranged !== null && sim.ammo >= ranged.ammoPerAttack) {

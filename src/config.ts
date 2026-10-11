@@ -131,9 +131,11 @@ export const config = {
   //   cars            no cars at all
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
+  //   reservists      no armouries, so reservists are never called up: civilians
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    reservists: true,
     relevanceTrim: true,
     dropQuietHearsay: true,
     conversations: true,
@@ -331,6 +333,54 @@ export const config = {
   // `shotIgnoreRadius` away (not their own, nor their neighbour's), drop their path and
   // run for the sound, standing like an officer on a call — guess
   police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15 },
+
+  // Reservists (archetype 'reservist'; squads.ts): `share` of the population, taken
+  // from residents at the start and tracked from then on — civilians in every way until called
+  // up by something local — a bite or a turning seen, or a shelter falling within sight — never
+  // by general awareness, which would call everyone up at once. Then each makes for
+  // its depot (the armoury nearest home, known from the start), never stopping to
+  // shelter — panicked, it gets clear of the danger first, then goes on — draws a
+  // weapon if any are left, and waits. `armouries` depots, spread across the map (the one nearest
+  // the middle, then each next the farthest from those chosen), hold `weaponStock`
+  // weapons each. Off duty, pistolShare of them carry a pistol of their own — guesses
+  reservists: { share: 0.02, armouries: 2, weaponStock: 12, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.5, pistolAmmo: 12 },
+
+  // Squads: reservists waiting armed at a depot deploy as a squad once there are
+  // `size` of them, the lowest id leading. Only the leader plans a route; the others
+  // steer for their slots: in file behind it along its path (a point every
+  // fileSpacing metres) while travelling, and in a diamond around it (diamondRadius,
+  // turned toward the danger) while any member has a zombie within engageRange of its
+  // weapon's range, holding the diamond diamondHold ticks after. A follower more than
+  // slotLost from its slot for slotPatience ticks heads straight for the leader for
+  // directHold ticks, or until within rejoinRadius of it: without that, squads
+  // deadlocked on corners. The leader waits while any follower is more than lagRadius
+  // from its slot. A leader claims a 911 call within targetRadius (failing that, an
+  // occupied building it knows of), nearest first, one squad to a target, and holds
+  // it until it is resolved, judged too strong, or claimed staleAfter ticks ago; with
+  // nothing to claim it looks again every retargetInterval ticks, from its depot.
+  // Arriving at an occupied building, the squad goes in if its members' capacity,
+  // summed, is at least contestRatio × the occupiers: the leader's decision, at the
+  // door, not a vote. The leader falls: the lowest surviving id leads. Below two, the
+  // squad dissolves and its members stand down, keeping their weapons — guesses
+  squads: {
+    size: 4,
+    contestRatio: 1,
+    targetRadius: 1200,
+    staleAfter: 1800,
+    retargetInterval: 30,
+    sceneRadius: 30,
+    fileSpacing: 3,
+    diamondRadius: 3,
+    engageRange: 0.8,
+    diamondHold: 30,
+    slotLost: 8,
+    slotPatience: 20,
+    directHold: 30,
+    rejoinRadius: 4,
+    lagRadius: 12,
+    slotStill: 1.5,
+    slotRun: 5,
+  },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not
@@ -557,6 +607,9 @@ export const config = {
       pistol: { range: 25, cooldown: 12, baseKill: 0.55, ammoPerAttack: 1, noise: 120, targets: 1, arc: 0 },
       smg: { range: 25, cooldown: 4, baseKill: 0.3, ammoPerAttack: 3, noise: 160, targets: 1, arc: 0 },
       shotgun: { range: 10, cooldown: 18, baseKill: 0.85, ammoPerAttack: 1, noise: 200, targets: 3, arc: 45 },
+      // A reservist's service rifle, drawn at an armoury and nowhere else: reaches
+      // furthest, kills most surely per round, and is the loudest thing on the map — guess
+      rifle: { range: 40, cooldown: 8, baseKill: 0.6, ammoPerAttack: 1, noise: 220, targets: 1, arc: 0 },
     },
     melee: {
       // cooldown ticks, baseKill, infection chance on a miss, noise m, capacity for engagement
@@ -594,7 +647,7 @@ export const config = {
     // rounds, leaving ~3: capacity floor(3 * 0.55) = 1, below any occupation. One
     // engagement turns a capable officer into an ordinary person.
     policeAmmo: 12,
-    meleeShare: { civilian: 0.08, police: 0, prepper: 0.05, loner: 0.15, reckless: 0.5 }, // guess
+    meleeShare: { civilian: 0.08, police: 0, prepper: 0.05, loner: 0.15, reckless: 0.5, reservist: 0.08 }, // guess
     meleeWeights: { knife: 3, club: 2, sledgehammer: 1 }, // guess
     recklessFirearmShare: 0.15, // reckless sims who start with a found shotgun — guess
     recklessAmmo: 6, // guess
@@ -745,6 +798,8 @@ export const config = {
     prepper: { isolates: 0.1, sociality: 0.3, homeReach: 3200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, materials: 1, distance: 1 } },
     loner: { isolates: 0.7, sociality: 0, homeReach: 0, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.3, contestRatio: null, shelterWeights: { integrity: 1, fortification: 1, streetQuiet: 1.2, group: -1, materials: 1, distance: 1 } },
     reckless: { isolates: 0.4, sociality: 0.3, homeReach: 0, panicImmune: false, engageThreshold: 1, shelterSeekThreshold: 0.9, contestRatio: 0.5, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.2, group: 1, materials: 0.5, distance: 1 } },
+    // A civilian until called up (reservists, squads): the same figures throughout.
+    reservist: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },
   },
 
   shelter: {

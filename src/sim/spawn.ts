@@ -20,6 +20,7 @@ import {
   type ZombieId,
   type ZombieState,
 } from './state';
+import { nearestArmoury } from './systems/squads';
 
 function weighted<K extends string>(rng: RngState, weights: Record<K, number>, keys: readonly K[]): K {
   let total = 0;
@@ -223,6 +224,15 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     role: null,
     roleSince: tick,
     sortieUntil: null,
+    muster: archetype === 'reservist' ? 'reserve' : null,
+    depot: archetype === 'reservist' ? nearestArmoury(world, anchor.x, anchor.y) : null,
+    squadLeader: null,
+    squadSlot: 0,
+    offSlotSince: null,
+    directUntil: null,
+    trail: [],
+    diamondUntil: null,
+    answeringSince: null,
     lastMigratedAt: null,
     reconsider: false,
     history: {

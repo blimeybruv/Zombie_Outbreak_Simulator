@@ -53,6 +53,13 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
       x = e.x;
       y = e.y;
       break;
+    case 'squadFormed':
+    case 'squadEngaged':
+    case 'squadDissolved':
+      sim = e.sim;
+      x = e.x;
+      y = e.y;
+      break;
     default:
       sim = e.sim;
       building = e.building;
