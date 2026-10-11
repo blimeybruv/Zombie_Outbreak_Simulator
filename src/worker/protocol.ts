@@ -4,6 +4,7 @@
 // snapshots. Positions travel as typed arrays (transferred, not copied), so the
 // renderer cannot write simulation state even by accident: it never holds any.
 
+import type { Scenario } from '../sim/state';
 import type { Counters, SimEvent } from '../sim/state';
 
 /** The map, sent once. Everything the renderer draws that never changes. */
@@ -191,7 +192,7 @@ export interface FrameSnapshot {
 
 export type ToWorker =
   /** `advance` ticks are stepped before the first frame: for looking at, or measuring, a run part-way through. */
-  | { type: 'start'; runSeed: number; mapSeed: number; advance: number }
+  | { type: 'start'; runSeed: number; mapSeed: number; advance: number; settings: Partial<Scenario> }
   /** Ticks per wall-clock second; 0 pauses. */
   | { type: 'rate'; ticksPerSecond: number }
   /** The main thread is ready for another frame. */

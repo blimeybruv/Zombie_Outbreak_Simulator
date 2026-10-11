@@ -1,7 +1,9 @@
 # CLAUDE.md
 
 Spectator-only zombie outbreak simulation. ~2,000 agents, top-down canvas, dots and
-building outlines. No player — the viewer controls camera, roster, ticker and time only.
+building outlines. No player — before a run the viewer chooses its settings on the setup
+screen (`src/ui/setup.ts`); once it starts, the viewer controls camera, roster, ticker and
+time only.
 
 Full specification lives in `docs/implementation-reference.md`, which defines the
 simulation from primitives upward: foundations, scalar conventions, every entity's

@@ -48,7 +48,7 @@ try {
   page.on('pageerror', (e) => console.error('page error:', e.message));
   // tsx keeps function names with a helper that serialised callbacks carry into the page.
   await page.addInitScript('window.__name = (f) => f');
-  await page.goto(`http://localhost:5199/?run=${runSeed}&map=${mapSeed}&advance=${advance}&${opt('query', '')}`);
+  await page.goto(`http://localhost:5199/?start=1&run=${runSeed}&map=${mapSeed}&advance=${advance}&${opt('query', '')}`);
   await page.waitForFunction(() => (window as unknown as Win).__view?.ready() ?? false, null, { timeout: 600_000 });
   if (speed > 0) {
     await page.evaluate((s) => {

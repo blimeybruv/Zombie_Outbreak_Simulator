@@ -252,10 +252,10 @@ yieldChannel.port1.onmessage = () => run();
 scope.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === 'start') {
-    const made = createWorld({ ...defaultScenario, runSeed: msg.runSeed, mapSeed: msg.mapSeed }, config);
+    const made = createWorld({ ...defaultScenario, ...msg.settings, runSeed: msg.runSeed, mapSeed: msg.mapSeed }, config);
     world = made.world;
     ctx = made.ctx;
-    // Patient zero's building, noted before anything moves: the view opens there.
+    // Where the outbreak began, noted before anything moves: the view opens on the first.
     origins = world.buildings.filter((b) => b.zombiesInside > 0).map((b) => b.id);
     while (world.tick < msg.advance) {
       step(world, ctx, { checkInvariant: false });

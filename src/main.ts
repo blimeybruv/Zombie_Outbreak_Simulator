@@ -11,13 +11,21 @@ import { Controls } from './ui/controls';
 import { FrameCounter } from './ui/frame-counter';
 import { Inspector } from './ui/inspector';
 import { Roster } from './ui/roster';
+import { addressFor, settingsFrom, showSetup } from './ui/setup';
 import { Ticker } from './ui/ticker';
 import type { EventNote, FrameSnapshot, FromWorker, ToWorker } from './worker/protocol';
 
 const params = new URLSearchParams(location.search);
-const runSeed = Number(params.get('run') ?? 1);
-const mapSeed = Number(params.get('map') ?? 1);
+// Without `start` in the address, the setup screen first (ui/setup.ts); Start reloads with it.
+const starting = params.has('start');
+if (!starting) showSetup(document.querySelector<HTMLElement>('#setup')!, params);
+const settings = settingsFrom(params);
+const { runSeed, mapSeed } = settings;
 const advance = Number(params.get('advance') ?? 0);
+const newRun = document.querySelector<HTMLButtonElement>('#newrun')!;
+newRun.hidden = !starting;
+document.querySelector<HTMLElement>('#controls')!.hidden = !starting;
+newRun.addEventListener('click', () => (location.href = addressFor(settings, false, params)));
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const worker = new Worker(new URL('./worker/sim-worker.ts', import.meta.url), { type: 'module' });
@@ -84,7 +92,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
   if (msg.type === 'map') {
     renderer = new Renderer(canvas, msg.map);
-    // Open on where it began: patient zero's building, close enough to see the street.
+    // Open on where it began: the first building the dead started in, close enough to see the street.
     const origin = msg.map.origins[0];
     if (origin !== undefined) {
       const c = renderer.buildingCentre(origin);
@@ -117,7 +125,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     audio.update(latest, camera, controls.currentSpeed);
   }
 };
-send({ type: 'start', runSeed, mapSeed, advance });
+if (starting) send({ type: 'start', runSeed, mapSeed, advance, settings });
 
 function resize(): void {
   const dpr = window.devicePixelRatio || 1;

@@ -120,6 +120,13 @@ export const config = {
     bandStartHours: [0, 6, 12, 18],
   },
 
+  // The setup screen's ranges (src/ui/setup.ts): survivors [min, max, step]; initial
+  // zombies [min, max]. Above about 10,000 people, 8× falls behind on a busy run.
+  setup: {
+    population: [2000, 10000, 500],
+    initialZombies: [1, 200],
+  },
+
   playback: {
     ticksPerSecondAt1x: 10,
     speeds: [0.25, 1, 2, 4, 8],

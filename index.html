@@ -10,6 +10,7 @@
       #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
       #view:active { cursor: grabbing; }
       #controls { position: fixed; left: 12px; bottom: 12px; display: flex; gap: 4px; align-items: center; background: rgba(6, 7, 10, 0.75); padding: 6px 8px; border-radius: 4px; }
+      #controls[hidden] { display: none; }
       #controls button { background: none; color: #7c858f; border: 1px solid #2a2f36; border-radius: 3px; padding: 2px 7px; font: inherit; cursor: pointer; }
       #controls button.on, #controls button:hover { color: #e6ecf2; border-color: #5a636d; }
       #controls .status { margin-left: 10px; white-space: nowrap; }
@@ -45,6 +46,22 @@
       #inspector .sq.tracked { background: #eef3f7; }
       #inspector .sq.occupier { background: #c03a43; }
       #inspector .sq.click { cursor: pointer; }
+      #setup { position: fixed; inset: 0; margin: auto; width: min(440px, calc(100vw - 32px)); height: fit-content; max-height: calc(100vh - 32px); overflow-y: auto; background: rgba(10, 12, 16, 0.96); border: 1px solid #2a2f36; border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; z-index: 10; }
+      #setup[hidden] { display: none; }
+      #setup .title { color: #eef3f7; font-size: 16px; }
+      #setup .sub { color: #7c858f; margin-bottom: 6px; }
+      #setup .row { display: flex; align-items: center; gap: 10px; }
+      #setup .label { width: 120px; color: #9aa3ad; flex: none; }
+      #setup input[type=range] { flex: 1; min-width: 0; accent-color: #8b949e; }
+      #setup .value { width: 110px; color: #d6dde4; flex: none; }
+      #setup select, #setup input[type=number] { background: #11151a; color: #d6dde4; border: 1px solid #2a2f36; border-radius: 3px; font: inherit; padding: 2px 5px; }
+      #setup input[type=number] { width: 100px; }
+      #setup .seed { display: flex; gap: 6px; }
+      #setup button { background: none; color: #9aa3ad; border: 1px solid #2a2f36; border-radius: 3px; font: inherit; padding: 2px 8px; cursor: pointer; }
+      #setup button:hover { color: #fff; border-color: #5a636d; }
+      #setup .start { margin-top: 8px; align-self: flex-end; padding: 5px 18px; color: #eef3f7; border-color: #5a636d; }
+      #newrun { position: fixed; left: 12px; bottom: 52px; background: rgba(6, 7, 10, 0.75); color: #7c858f; border: 1px solid #2a2f36; border-radius: 3px; font: inherit; padding: 2px 8px; cursor: pointer; }
+      #newrun:hover { color: #e6ecf2; border-color: #5a636d; }
       #inspector .history { color: #7c858f; border-top: 1px solid #1a1f26; margin-top: 4px; padding-top: 4px; font-size: 11px; }
     </style>
   </head>
@@ -55,6 +72,8 @@
     <div id="roster"></div>
     <div id="inspector"></div>
     <div id="fps" hidden></div>
+    <div id="setup" hidden></div>
+    <button id="newrun" hidden>new run…</button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

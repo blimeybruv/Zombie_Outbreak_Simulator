@@ -38,7 +38,7 @@ try {
   page.on('pageerror', (e) => console.error('page error:', e.message));
   // tsx keeps function names with a helper that serialised callbacks carry into the page.
   await page.addInitScript('window.__name = (f) => f');
-  await page.goto(`http://localhost:5198/?advance=${advance}`);
+  await page.goto(`http://localhost:5198/?start=1&advance=${advance}`);
   await page.waitForFunction(() => (window as unknown as Win).__view?.ready() ?? false, null, { timeout: 900_000 });
   const start = await page.evaluate((s) => {
     const v = (window as unknown as Win).__view!;

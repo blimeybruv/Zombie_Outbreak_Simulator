@@ -231,7 +231,7 @@ Built at the user's request ahead of the sequencing in the design notes (cars we
 
 ## The concept in brief
 
-A spectator-only outbreak simulation. A top-down city of dots and building outlines, roughly 2,000 people, rendered to a plain canvas. There is no player: the viewer controls the camera, a survivor roster, a news ticker and the speed of time, nothing else.
+A spectator-only outbreak simulation. A top-down city of dots and building outlines, roughly 2,000 people, rendered to a plain canvas. There is no player: before a run the viewer chooses its settings on a setup screen; once it starts, the viewer controls the camera, a survivor roster, a news ticker and the speed of time, nothing else.
 
 The simulation runs on local perception. No agent knows anything it has not seen or been told. Sims carry beliefs about the city that decay with age and spread by contact, so a survivor can act confidently on information that is no longer true.
 
@@ -1144,6 +1144,8 @@ Distribution is weighted by street type — main streets dense, alleys sparse �
 ### Scenario settings
 
 In front of the viewer, not in the config file: population, start time, outbreak origin, archetype mix, zombie gait (`shambler` or `runner`), power on or off, seed.
+
+**Built as the setup screen** (`src/ui/setup.ts`), at the user's request, replacing the single patient zero: survivors (2,000–10,000 in steps of 500), initial zombies (1–200; `Scenario.initialZombies`), where they start (all in one high-occupancy building; scattered, one each in as many buildings weighted by residents; or out on the streets — `Scenario.origin` enclosed / scattered / street, `multiple` renamed), start hour, shamblers or runners, power, and the city and run seeds (each with a random roll the page makes; the simulation only ever sees the number). Archetype mix and the tuning stay off it. Every setting lives in the page address, so a run is reproducible from its address and can be shared; without `start` in the address the page shows the panel prefilled from it, and Start reloads with every setting and `start=1`. A "new run…" button returns to the panel with the current settings. The initial zombies are taken from the population (residents turned, or people outdoors turned), so the invariant holds. The ranges are `config.setup`. The sweep takes the same settings (`--scenario initialZombies=20 --scenario origin=scattered`); the gates are judged at the defaults.
 
 Everything in the tuning tables stays in `config.ts`. Those interact chaotically and thirty sliders produce frustration rather than agency.
 
