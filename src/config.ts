@@ -281,8 +281,8 @@ export const config = {
     pathStreetSearch: 200, // m; widest search for the street a route starts or ends on
     observeInterval: 5, // ticks between close-pass building observations, staggered by id
     avoidHold: 15, // ticks a sim keeps avoiding after the threat drops out of sight
-    // A warning is shouted out loud: it is a stimulus with the warning's radius
-    // (encounters.warnRadius), heard by the dead as well as the living — telling the
+    // A warning is shouted out loud: it is a stimulus
+    // (encounters.shoutNoiseRadius, by default the warning's), heard by the dead as well as the living — telling the
     // neighbours costs drawing the horde. Loudness at the source — guess
     shoutIntensity: 0.6,
     // Going somewhere with a zombie in the way: the heading blends in "away from the
@@ -360,6 +360,7 @@ export const config = {
     radius: 4, // m
     cooldown: 30, // ticks between merges for one sim — guess (10 made merging the largest cost with crowds outdoors)
     warnRadius: 30, // m; a survivor who sights a zombie shouts a warning about its street to everyone outdoors this close — guess
+    shoutNoiseRadius: 30, // m; how far the dead hear that shout — apart from warnRadius so either can be swept alone
   },
 
   // Conversations. Two who meet outdoors pass on fear whatever happens; they stop to

@@ -185,7 +185,7 @@ function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // ...and shouts it to whoever is near (heard in the encounters step). The shout is
     // a noise like any other: the dead hear it too.
     ctx.warnings.push({ from: sim.id, x: sim.x, y: sim.y, street, danger });
-    emitStimulus(world, sim.x, sim.y, 'shout', config.encounters.warnRadius, false, config.behaviour.shoutIntensity);
+    emitStimulus(world, sim.x, sim.y, 'shout', config.encounters.shoutNoiseRadius, false, config.behaviour.shoutIntensity);
     noteStreet(world, sim, street, danger);
   }
   replan(world, ctx, sim, mode);
