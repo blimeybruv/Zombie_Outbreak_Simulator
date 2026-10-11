@@ -141,7 +141,7 @@ if (process.argv[2] === '--worker') {
   }
 
   // Beyond the counters: why a run smoulders or takes off, and what there was to watch.
-  console.log('\nseed  awake peak@tick  awake 1h/2h/end  dormant end  unaware out 30m/1h  talk/gath 1h  shots/shouts  lines/10min median  dead air  conv/breach/calls');
+  console.log('\nseed  awake peak@tick  awake 1h/2h/end  dormant end  unaware out 30m/1h  talk/gath 1h  shots/shouts  lines/10min median  dead air  conv/breach/calls  cars peak/abandoned');
   for (const r of results) {
     const t = r.timeline;
     if (!t || t.length === 0) continue;
@@ -155,7 +155,7 @@ if (process.argv[2] === '--worker') {
     const dead = later.filter((e) => e.lines === 0).length;
     const ev = (k: string) => sum((e) => e.events[k] ?? 0);
     console.log(
-      `${String(r.runSeed).padStart(4)}  ${`${peak.zombies.awake}@${peak.tick}`.padStart(15)}  ${`${at(3600).zombies.awake}/${at(7200).zombies.awake}/${t[t.length - 1]!.zombies.awake}`.padStart(15)}  ${String(t[t.length - 1]!.zombies.dormant).padStart(11)}  ${`${out(at(1800))} ${out(at(3600))}`.padStart(18)}  ${`${at(3600).talking}/${at(3600).gatherings}`.padStart(12)}  ${`${sum((e) => e.shots)}/${sum((e) => e.shouts)}`.padStart(12)}  ${String(lines[Math.floor(lines.length / 2)]).padStart(18)}  ${`${dead}/${later.length}`.padStart(8)}  ${ev('simTurned')}/${ev('buildingBreached')}/${ev('policeDispatched')}`,
+      `${String(r.runSeed).padStart(4)}  ${`${peak.zombies.awake}@${peak.tick}`.padStart(15)}  ${`${at(3600).zombies.awake}/${at(7200).zombies.awake}/${t[t.length - 1]!.zombies.awake}`.padStart(15)}  ${String(t[t.length - 1]!.zombies.dormant).padStart(11)}  ${`${out(at(1800))} ${out(at(3600))}`.padStart(18)}  ${`${at(3600).talking}/${at(3600).gatherings}`.padStart(12)}  ${`${sum((e) => e.shots)}/${sum((e) => e.shouts)}`.padStart(12)}  ${String(lines[Math.floor(lines.length / 2)]).padStart(18)}  ${`${dead}/${later.length}`.padStart(8)}  ${ev('simTurned')}/${ev('buildingBreached')}/${ev('policeDispatched')}  ${Math.max(...t.map((e) => e.cars?.driving ?? 0))}/${t[t.length - 1]!.cars?.abandoned ?? 0}`,
     );
   }
 

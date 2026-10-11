@@ -25,6 +25,8 @@ export interface TimelineEntry {
   /** Outdoors in a conversation at the end of the window, and conversations of three or more. */
   talking: number;
   gatherings: number;
+  /** Cars driving and abandoned at the end of the window. */
+  cars: { driving: number; abandoned: number };
   /** Noises made in the window: gunshots (and other weapon noise), shouts. */
   shots: number;
   shouts: number;
@@ -137,7 +139,7 @@ export interface RunSummary {
 }
 
 /** The state half of a timeline entry, at the end of a window. */
-function snapshot(world: World): Pick<TimelineEntry, 'zombies' | 'outdoors' | 'talking' | 'gatherings'> {
+function snapshot(world: World): Pick<TimelineEntry, 'zombies' | 'outdoors' | 'talking' | 'gatherings' | 'cars'> {
   const zombies = { awake: 0, dormant: 0, occupying: 0, intact: 0 };
   for (const z of world.zombies) {
     if (z.state === 'destroyed') continue;
@@ -159,7 +161,12 @@ function snapshot(world: World): Pick<TimelineEntry, 'zombies' | 'outdoors' | 't
       sizes[s.gathering] = (sizes[s.gathering] ?? 0) + 1;
     }
   }
-  return { zombies, outdoors, talking, gatherings: sizes.filter((n) => n >= 3).length };
+  const cars = { driving: 0, abandoned: 0 };
+  for (const c of world.cars) {
+    if (c.state === 'driving') cars.driving++;
+    else if (c.state === 'abandoned') cars.abandoned++;
+  }
+  return { zombies, outdoors, talking, gatherings: sizes.filter((n) => n >= 3).length, cars };
 }
 
 /** Events that count as something happening, for the stasis check. */
