@@ -318,6 +318,17 @@ export const config = {
   // none did); what the conversation knows
   // is pooled every poolInterval ticks. Nobody stops with danger in sight, in flight,
   // or on a call, and a conversation breaks up when anyone in it sees danger — guess
+  // Hearsay, judged by the listener's trust (0–1). What it is told is taken as
+  // (1 − trust) × ageShift ticks older than it is — at memory.halfLife, a sceptic
+  // believes it half as much, and hearsay of hearsay grows staler at every telling.
+  // Believing in the outbreak takes 1 + round((1 − trust) × (maxTellings − 1)) tellings
+  // from different people (one for the trusting); who is said to be bitten is taken on
+  // at chance `trust` each time it is heard — guess
+  trust: {
+    ageShift: 1800, // ticks
+    maxTellings: 3,
+  },
+
   talk: {
     chance: 1.5,
     ticks: [4, 20],

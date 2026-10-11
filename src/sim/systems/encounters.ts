@@ -2,10 +2,12 @@
 // this tick are heard (a street's danger, by everyone within earshot). Then, between
 // two sims who come within range of each other, passing:
 //   panic averages toward the higher value, damped, so calm spreads slower than fear
-// and, only if they stop to talk (conversations, below), what they know:
-//   awareness of the outbreak: if either knows, both do (word of mouth)
-//   street memory and building memory merge by recency, per key
-//   knownInfected merges by union
+// and, only if they stop to talk (conversations, below), what they know, as each
+// listener judges it by its trust (config.trust):
+//   awareness of the outbreak: told by enough different people, it believes
+//   street memory and building memory merge by recency as heard, per key: a
+//     sceptic hears everything as older than it is
+//   knownInfected merges by union, each side taking it on at its own trust
 // and an invitation: a sociable sim bound for shelter goes along with someone bound
 // for a nearer one ("come with us").
 //
@@ -24,18 +26,38 @@ import { entranceNearest, leaveTalk, setDestination } from './common';
 import { modeOf } from './panic';
 import { rebuildSimHash } from './perception';
 
-function mergeNewer<K, V extends { observedAt: number; visited: boolean }>(into: Map<K, V>, from: Map<K, V>): void {
+/** Takes what `from` knows that is newer, as the listener hears it: `shift` ticks older than it is. */
+function mergeNewer<K, V extends { observedAt: number; visited: boolean }>(into: Map<K, V>, from: Map<K, V>, shift: number): void {
   for (const [key, theirs] of from) {
     const mine = into.get(key);
-    if (mine === undefined) into.set(key, { ...theirs, visited: false });
-    else if (theirs.observedAt > mine.observedAt) Object.assign(mine, theirs, { visited: mine.visited });
+    const heard = theirs.observedAt - shift;
+    if (mine === undefined) into.set(key, { ...theirs, observedAt: heard, visited: false });
+    else if (heard > mine.observedAt) Object.assign(mine, theirs, { observedAt: heard, visited: mine.visited });
   }
 }
 
-/** Both ways, newer wins. The second pass cannot undo the first: copied entries tie on observedAt. */
-function mergeBoth<K, V extends { observedAt: number; visited: boolean }>(a: Map<K, V>, b: Map<K, V>): void {
-  mergeNewer(a, b);
-  mergeNewer(b, a);
+/**
+ * Both ways, newer (as heard) wins. The second pass cannot undo the first: a copied
+ * entry is no newer than the original it came from.
+ */
+function mergeBoth<K, V extends { observedAt: number; visited: boolean }>(a: Map<K, V>, b: Map<K, V>, shiftA: number, shiftB: number): void {
+  mergeNewer(a, b, shiftA);
+  mergeNewer(b, a, shiftB);
+}
+
+/** How much older hearsay seems to this listener. */
+function hearsayAge(world: World, s: Sim): number {
+  return Math.round((1 - s.trust) * world.config.trust.ageShift);
+}
+
+/** `listener`, unaware, is told by `teller` that there is an outbreak; believes it after enough different people say so. */
+function told(world: World, listener: Sim, teller: Sim): void {
+  if (listener.awareAt !== null || teller.awareAt === null) return;
+  listener.toldBy.add(teller.id);
+  const needed = 1 + Math.round((1 - listener.trust) * (world.config.trust.maxTellings - 1));
+  if (listener.toldBy.size < needed) return;
+  listener.awareAt = world.tick;
+  listener.toldBy.clear();
 }
 
 /**
@@ -51,20 +73,23 @@ function pass(world: World, a: Sim, b: Sim): void {
 /** Everything two sims trade when they talk. Also used when a sim walks into a building where others shelter. */
 export function merge(world: World, a: Sim, b: Sim): void {
   pass(world, a, b);
-  if (a.awareAt !== null || b.awareAt !== null) {
-    a.awareAt ??= world.tick;
-    b.awareAt ??= world.tick;
-  }
+  const aWasAware = a.awareAt !== null;
+  told(world, a, b);
+  if (aWasAware) told(world, b, a);
   const { streetCap, buildingCap } = world.config.memory;
-  mergeBoth(a.streetMemory, b.streetMemory);
-  mergeBoth(a.buildingMemory, b.buildingMemory);
+  const shiftA = hearsayAge(world, a), shiftB = hearsayAge(world, b);
+  mergeBoth(a.streetMemory, b.streetMemory, shiftA, shiftB);
+  mergeBoth(a.buildingMemory, b.buildingMemory, shiftA, shiftB);
   trim(a.streetMemory, streetCap);
   trim(b.streetMemory, streetCap);
   trim(a.buildingMemory, buildingCap);
   trim(b.buildingMemory, buildingCap);
 
-  for (const id of b.knownInfected) if (id !== a.id) a.knownInfected.add(id);
-  for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);
+  // Who is said to be bitten: each takes it on at its own trust, judged on what the
+  // other knew before they met.
+  const fromB = b.knownInfected.size > 0 && chance(world.rng, a.trust) ? [...b.knownInfected] : [];
+  if (a.knownInfected.size > 0 && chance(world.rng, b.trust)) for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);
+  for (const id of fromB) if (id !== a.id) a.knownInfected.add(id);
 }
 
 /** Free to stop and talk: outdoors, not already talking, nothing in sight, not in flight, fighting, backing off or on a call. */

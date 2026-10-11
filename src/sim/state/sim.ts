@@ -148,6 +148,13 @@ export interface Sim {
    * @range 0–1 @unit scalar @readBy joining, inspector, end stats (sociality band)
    */
   sociality: Unit01;
+  /**
+   * How readily it believes what it is told: a uniform draw, independent of archetype.
+   * Judged by the listener alone: a sceptic takes hearsay as older than it is, needs
+   * more tellings to believe in the outbreak, and often dismisses who is said to be bitten.
+   * @range 0–1 @unit scalar @readBy encounters (hearsay), inspector, end stats (trust band)
+   */
+  trust: Unit01;
   /** @range 4 values @unit enum @readBy counters, every system that skips the dead, render */
   condition: Condition;
   /** Assigned at promotion; null until then. @range wordlist | null @unit — @readBy roster, ticker, labels */
@@ -209,6 +216,8 @@ export interface Sim {
   knownInfected: Set<SimId>;
   /** Rate-limits proximity merges. @range tick @unit tick @readBy encounters */
   lastMergeAt: Tick;
+  /** Who has told this sim, still unaware, that there is an outbreak; emptied once it believes. @range 0–3 sim ids @unit — @readBy encounters */
+  toldBy: Set<SimId>;
   /**
    * The conversation this sim has stopped for, named by the sim that started it (its
    * own id if it did); null when not talking. Only talking trades what sims know.

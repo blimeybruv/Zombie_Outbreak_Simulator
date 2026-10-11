@@ -180,7 +180,7 @@ describe('sociality', () => {
 
 describe('conversations', () => {
   /** Two walkers side by side, cooldowns spent, `a` knowing one street's danger. */
-  function pair(sa: number, sb: number) {
+  function pair(sa: number, sb: number, trustB = 1) {
     const { world, ctx } = fresh();
     const p = streetPoint(world);
     // Nobody else close enough to join or be met.
@@ -189,6 +189,7 @@ describe('conversations', () => {
     const b = walker(world, p.x + 1, p.y);
     a.sociality = sa;
     b.sociality = sb;
+    b.trust = trustB;
     a.awareAt = 0;
     a.lastMergeAt = b.lastMergeAt = -1000;
     a.streetMemory.set(0 as never, { danger: 0.9, observedAt: 0, visited: true });
@@ -216,9 +217,24 @@ describe('conversations', () => {
     expect(b.streetMemory.has(0 as never)).toBe(false);
   });
 
-  it('talking passes on the outbreak', () => {
-    const { b } = pair(1, 1);
+  it('talking passes on the outbreak to the trusting', () => {
+    const { b } = pair(1, 1, 1);
     expect(b.awareAt).not.toBeNull();
+  });
+
+  it('a sceptic needs telling by more than one, and hears news as older than it is', () => {
+    const { world, a, b } = pair(1, 1, 0);
+    expect(b.awareAt).toBeNull(); // one telling of three
+    expect(b.toldBy.has(a.id)).toBe(true);
+    expect(b.streetMemory.get(0 as never)!.observedAt).toBe(-world.config.trust.ageShift);
+    const c = walker(world, b.x, b.y);
+    const d = walker(world, b.x, b.y);
+    c.awareAt = d.awareAt = 0;
+    merge(world, c, b);
+    expect(b.awareAt).toBeNull();
+    merge(world, d, b);
+    expect(b.awareAt).not.toBeNull();
+    expect(b.toldBy.size).toBe(0);
   });
 
   it('breaks up when anyone in it sees danger', () => {

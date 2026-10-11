@@ -51,6 +51,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     archetype: s.archetype,
     caution: s.caution,
     sociality: s.sociality,
+    trust: s.trust,
     condition: s.condition,
     bites: s.bites,
     insideBuilding: s.insideBuilding,

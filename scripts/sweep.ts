@@ -14,7 +14,8 @@
 // ticks, with nothing happening while anyone is alive); survival differs measurably by
 // caution band (lowest against highest band, pooled over seeds, |z| >= 2).
 // Also reported, not gated: survival by sociality band, over the sims whose archetype
-// ever joins anyone — whether going along with others helps or hurts.
+// ever joins anyone — whether going along with others helps or hurts; and by trust
+// band — whether believing what one is told does.
 
 import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -154,6 +155,8 @@ if (process.argv[2] === '--worker') {
   );
   const social = bandSurvival(results.map((r) => r.sociality));
   console.log(`survival by sociality low/mid/high ${social.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${social.z.toFixed(1)}; joiners only, not gated)`);
+  const trusting = bandSurvival(results.map((r) => r.trust));
+  console.log(`survival by trust low/mid/high ${trusting.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${trusting.z.toFixed(1)}; not gated)`);
   rosterSummary(results, rosterOut);
   console.log(`wall time ${((performance.now() - started) / 1000).toFixed(0)} s`);
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ mapSeed, overrides, results }, null, 1));
