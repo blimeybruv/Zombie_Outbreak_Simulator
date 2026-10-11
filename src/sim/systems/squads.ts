@@ -22,23 +22,22 @@
 import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
 import { chance, nextInt } from '../rng';
-import { spawnSim } from '../spawn';
+import { makePolice, spawnSim } from '../spawn';
 import { isFirearm } from '../state';
 import { capacity, isLiving, leaveTalk } from './common';
+import { boardSquad, parkVan } from './cars';
 import { intensityAt } from './stimuli';
 
 const armouryCache = new WeakMap<readonly unknown[], BuildingId[]>();
 
 /**
- * Chooses the armouries among the depots: the one nearest the middle of the map, then
- * each next the depot farthest from those already chosen (ties to the lower id), so the
- * call-up is spread across the city. Called once at setup, before anyone spawns.
+ * Up to `count` of `among`, spread across the city: the one nearest the middle of the
+ * map, then each next the one farthest from those already chosen (ties to the lower id).
  */
-export function designateArmouries(world: World): void {
-  const { config, buildings } = world;
-  if (!config.features.reservists) return;
-  const depots = buildings.filter((b) => b.tag === 'depot');
-  if (depots.length === 0) return;
+function spread(world: World, among: Building[], count: number): Building[] {
+  const { buildings } = world;
+  if (among.length === 0) return [];
+  const depots = among;
   let cx = 0, cy = 0;
   for (const b of buildings) {
     cx += b.entrances[0]!.x;
@@ -51,7 +50,7 @@ export function designateArmouries(world: World): void {
   let first = depots[0]!;
   for (const b of depots) if (Math.hypot(door(b).x - cx, door(b).y - cy) < Math.hypot(door(first).x - cx, door(first).y - cy)) first = b;
   chosen.push(first);
-  while (chosen.length < Math.min(config.reservists.armouries, depots.length)) {
+  while (chosen.length < Math.min(count, depots.length)) {
     let best: Building | null = null;
     let bestD = -1;
     for (const b of depots) {
@@ -65,7 +64,55 @@ export function designateArmouries(world: World): void {
     }
     chosen.push(best!);
   }
-  for (const b of chosen) b.weaponStock = config.reservists.weaponStock;
+  return chosen;
+}
+
+/** Chooses the armouries among the depots, spread across the city. Called once at setup, before anyone spawns. */
+export function designateArmouries(world: World): void {
+  const { config, buildings } = world;
+  if (!config.features.reservists) return;
+  const depots = buildings.filter((b) => b.tag === 'depot');
+  for (const b of spread(world, depots, config.reservists.armouries)) b.weaponStock = config.reservists.weaponStock;
+}
+
+/**
+ * SWAT: a squad garrisoned at each of `swat.stations` police stations, spread across the
+ * city, from the start: police, taken from the station's residents, with a van at the
+ * kerb. Called once at setup, after the first responders and the parked cars.
+ */
+export function placeSwat(world: World, ctx: Context): void {
+  const { config, buildings } = world;
+  if (!config.features.swat) return;
+  const size = config.squads.size;
+  const stations = buildings.filter((b) => b.tag === 'policeStation' && b.residents >= size);
+  for (const b of spread(world, stations, config.swat.stations)) {
+    const e = b.entrances[0]!;
+    let leader: Sim | null = null;
+    for (let i = 0; i < size; i++) {
+      // A resident becomes tracked: indoors either way, so the counters do not move.
+      b.residents--;
+      const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
+      makePolice(world, sim);
+      sim.weapon = config.swat.weapon;
+      sim.ammo = config.swat.ammo;
+      sim.station = b.id;
+      sim.shelter = b.id;
+      sim.depot = b.id;
+      sim.destinationKind = 'shelter';
+      sim.gait = 'still';
+      sim.history.buildingsEntered = 1;
+      leader ??= sim;
+      sim.squadLeader = leader.id;
+      sim.squadSlot = i;
+      b.sheltered.push(sim.id);
+    }
+    if (config.features.cars) parkVan(world, ctx, b);
+  }
+}
+
+/** SWAT: a squad that set out from a police station. */
+export function isSwat(sim: Sim): boolean {
+  return sim.station !== null && sim.squadLeader !== null;
 }
 
 /** The armoury nearest a point (lower id on a tie), or null on a map without one. */
@@ -223,13 +270,13 @@ export function squadPass(world: World, ctx: Context): void {
     }
     ctx.squadCap[leader.id] = cap;
     ctx.squadLag[leader.id] = 0;
-    if (leader.insideBuilding !== null) continue;
+    if (leader.insideBuilding !== null || leader.car !== null) continue;
 
     // Engaged: any member outdoors with a zombie within reach.
     let engaged = false;
     for (const m of g) {
       const zid = ctx.nearestZombie[m.id]!;
-      if (m.insideBuilding !== null || zid < 0) continue;
+      if (m.insideBuilding !== null || m.car !== null || zid < 0) continue;
       const z = zombies[zid]!;
       if (Math.hypot(z.x - m.x, z.y - m.y) <= rangeOf(world, m) * sq.engageRange) engaged = true;
     }
@@ -274,6 +321,59 @@ export function squadPass(world: World, ctx: Context): void {
 /** Diamond slots, as turns from the danger's bearing: ahead, either side, behind. */
 const DIAMOND = [0, Math.PI / 2, -Math.PI / 2, Math.PI];
 
+/**
+ * SWAT answers only something larger than a call: a shelter that fell, or a horde massed
+ * at a garrison (last tick's events), within swat.radius, nearest first, that no other
+ * squad holds. Held until resolved, judged too strong at the door, or stale.
+ */
+function swatTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
+  const { config, tick, buildings, sims } = world;
+  if (sim.answering !== null) {
+    const b = buildings[sim.answering]!;
+    if (tick - sim.answeringSince! <= config.squads.staleAfter && b.id !== sim.refusedBy) return { x: b.entrances[0]!.x, y: b.entrances[0]!.y, building: b };
+    release(sim);
+  }
+  let best: Building | null = null;
+  let bestD = Infinity;
+  for (const e of world.events) {
+    if (e.type !== 'shelterFell' && e.type !== 'cascadeCrossed') continue;
+    const b = buildings[e.building]!;
+    if (b.id === sim.refusedBy || sims.some((o) => o.squadLeader === o.id && o !== sim && o.answering === b.id)) continue;
+    const d = Math.hypot(b.entrances[0]!.x - sim.x, b.entrances[0]!.y - sim.y);
+    if (d <= config.swat.radius && (d < bestD || (d === bestD && b.id < best!.id))) {
+      bestD = d;
+      best = b;
+    }
+  }
+  if (best === null) return null;
+  sim.answering = best.id;
+  sim.answeringSince = tick;
+  const e = best.entrances[0]!;
+  ctx.events.push({ type: 'swatDeployed', tick, building: best.id, station: sim.station!, sim: sim.id });
+  return { x: e.x, y: e.y, building: best };
+}
+
+/**
+ * SWAT setting out from the station with its van there and a long way to go: to the
+ * van, and in together once every member is within swat.vanGather of it. True while
+ * this is what the leader is doing.
+ */
+export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): boolean {
+  const { config, cars, sims, buildings } = world;
+  if (sim.station === null || t.building === null) return false;
+  const door = buildings[sim.station]!.entrances[0]!;
+  const van = cars.find((c) => c.kind === 'van' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0);
+  if (van === undefined || Math.hypot(van.x - door.x, van.y - door.y) > config.swat.radius / 10) return false;
+  if (Math.hypot(t.x - van.x, t.y - van.y) <= config.cars.driveBeyond) return false;
+  const members = sims.filter((s) => s.squadLeader === sim.id && isLiving(s));
+  const gathered = members.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - van.x, s.y - van.y) <= config.swat.vanGather);
+  if (gathered && boardSquad(world, ctx, van, members, t.building)) return true;
+  sim.destination = { x: van.x, y: van.y };
+  sim.destinationBuilding = null;
+  sim.destinationKind = 'respond';
+  return true;
+}
+
 /** What a squad leader is answering: a building (a 911 call) or a point (gunfire heard). */
 export interface SquadTarget {
   x: number;
@@ -306,9 +406,10 @@ export function resolveTarget(world: World, sim: Sim): void {
  * heard since it last looked, beyond police.shotIgnoreRadius (not its own squad's).
  * Never thrashing between newer ones: a held target is kept.
  */
-export function squadTarget(world: World, sim: Sim): SquadTarget | null {
+export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
   const { config, tick, buildings, sims } = world;
   const sq = config.squads;
+  if (sim.station !== null) return swatTarget(world, ctx, sim);
   if (sim.answeringSince !== null) {
     const stale = tick - sim.answeringSince > sq.staleAfter;
     if (sim.answering !== null) {

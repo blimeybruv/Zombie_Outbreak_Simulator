@@ -36,7 +36,7 @@ import { carStillMine, considerDriving, decideCars, giveUpCar } from './cars';
 import { modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
-import { resolveTarget, squadPass, squadTarget } from './squads';
+import { resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -439,7 +439,7 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     faceDanger(world, ctx, sim, sim.heading);
     return;
   }
-  const t = squadTarget(world, sim);
+  const t = squadTarget(world, ctx, sim);
   if (t !== null && Math.hypot(t.x - sim.x, t.y - sim.y) <= sq.sceneRadius) {
     if (t.building !== null && t.building.zombiesInside > 0) {
       if (sim.destinationBuilding !== t.building.id) setDestination(sim, t.building, 'respond');
@@ -449,6 +449,14 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     }
     resolveTarget(world, sim);
     sim.gait = 'still';
+    return;
+  }
+  // SWAT with its van at the station and a long way to go: to the van, and in together.
+  if (t !== null && swatVan(world, ctx, sim, t)) {
+    if (sim.car === null) {
+      sim.gait = ctx.squadLag[sim.id] ? 'still' : 'walk';
+      if (sim.gait === 'walk') headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
+    }
     return;
   }
   if (t === null) {
@@ -523,7 +531,7 @@ function decideFollower(world: World, ctx: Context, sim: Sim): void {
  * call answered; at its depot it waits for a target, and goes out to one; anywhere
  * else, out. A follower stays while its leader is in the same building, else goes out.
  */
-function decideSquadIndoor(world: World, sim: Sim): void {
+function decideSquadIndoor(world: World, ctx: Context, sim: Sim): void {
   const { tick, buildings } = world;
   const b = buildings[sim.insideBuilding!]!;
   if (sim.squadLeader !== sim.id) {
@@ -532,7 +540,7 @@ function decideSquadIndoor(world: World, sim: Sim): void {
   }
   if (b.zombiesInside > 0) return;
   if (sim.answering === b.id) resolveTarget(world, sim);
-  if (b.id === sim.depot && squadTarget(world, sim) === null) return;
+  if (b.id === sim.depot && squadTarget(world, ctx, sim) === null) return;
   sim.exitingUntil = tick + exitTicks(world, b);
 }
 
@@ -807,7 +815,7 @@ function decideIndoor(world: World, ctx: Context, sim: Sim): void {
   sim.stamina = Math.min(1, sim.stamina + config.movement.gait.still.stamina);
   if (sim.exitingUntil !== null) return;
   // A squad, a reservist waiting at its depot, or one called up somewhere else (out, and on).
-  if (sim.squadLeader !== null) return decideSquadIndoor(world, sim);
+  if (sim.squadLeader !== null) return decideSquadIndoor(world, ctx, sim);
   if (sim.muster === 'waiting') return;
   if (sim.muster === 'mobilised' && sim.insideBuilding !== sim.depot) {
     sim.exitingUntil = tick + exitTicks(world, buildings[sim.insideBuilding!]!);

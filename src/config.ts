@@ -132,10 +132,12 @@ export const config = {
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
   //   evacuation      districts never evacuate: the release at the start is the only one
+  //   swat            no SWAT squads or vans
   //   reservists      no armouries, so reservists are never called up: civilians
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    swat: true,
     evacuation: true,
     reservists: true,
     relevanceTrim: true,
@@ -393,6 +395,19 @@ export const config = {
     slotStill: 1.5,
     slotRun: 5,
   },
+
+  // SWAT: the institution responding, where reservists are the city improvising. At
+  // `stations` police stations (the one nearest the middle, then each next the farthest
+  // from those chosen) a squad of squads.size is garrisoned from the start, armed with
+  // `weapon` and `ammo` rounds each, a van at the kerb. Finite: once spent, that
+  // station has no more. They do not answer 911 calls; they set out for something
+  // larger — a shelter falling, or a horde massing at a garrison (cascade) — within
+  // `radius` of where the squad is, held like any squad's target. From the station, with
+  // the van there and the target beyond cars.driveBeyond, they drive: the leader walks
+  // to the van, waits while any member is more than vanGather from it, and all board
+  // together. One way: the van is transport, not a base; where it stops it stays, for
+  // anyone to take — guesses
+  swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 8 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

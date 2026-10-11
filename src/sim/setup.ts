@@ -12,7 +12,7 @@ import { spawnSim, spawnZombie } from './spawn';
 import { emptyCounters, type Building, type Scenario, type World } from './state';
 import { occupierAppeared } from './systems/buildings';
 import { placeFirstResponders } from './systems/dispatch';
-import { designateArmouries, placeReservists } from './systems/squads';
+import { designateArmouries, placeReservists, placeSwat } from './systems/squads';
 import { scheduleRelease } from './systems/release';
 
 const MAX_RESIDENTS = 200;
@@ -216,6 +216,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   placeResidents(world, scenario.population - outdoors, band);
   placeFirstResponders(world);
   placeReservists(world);
+  placeSwat(world, ctx);
   placeStreetPopulation(world, outdoors);
   seedOutbreak(world, ctx);
   world.events = ctx.events;

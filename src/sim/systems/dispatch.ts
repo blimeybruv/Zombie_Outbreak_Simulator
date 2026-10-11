@@ -58,7 +58,8 @@ export function dispatchCalls(world: World, ctx: Context): void {
   const { config, tick, buildings, sims } = world;
   const dc = config.dispatch;
   if (tick % dc.interval !== 0) return;
-  const responders = sims.filter((s) => s.station !== null && isLiving(s));
+  // SWAT squads are no first responders: they answer only something larger (squads.ts).
+  const responders = sims.filter((s) => s.station !== null && s.squadLeader === null && isLiving(s));
   // One who fell back or was turned on the way has given the call up.
   for (const s of responders) if (s.answering !== null && s.destinationKind !== 'respond') s.answering = null;
   const onTheWay = new Set<BuildingId>();

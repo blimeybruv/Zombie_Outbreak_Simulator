@@ -24,6 +24,10 @@ export interface Car {
   id: CarId;
   /** @range 3 values @unit enum @readBy car decisions, obstacles, render */
   state: CarState;
+  /** A car, or a SWAT van: the same in every way, but only its squad sets out in it from the station. @range 2 values @unit enum @readBy squads (SWAT), render */
+  kind: 'car' | 'van';
+  /** A van's station; null for a car. @range building id | null @unit id @readBy squads (SWAT) */
+  home: BuildingId | null;
   /** Centre. @range 0–3200 @unit m @readBy obstacles, car decisions, render */
   x: Metres;
   /** @range 0–3200 @unit m @readBy obstacles, car decisions, render */

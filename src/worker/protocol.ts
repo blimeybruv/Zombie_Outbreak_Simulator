@@ -56,6 +56,8 @@ export const ZOMBIE_DORMANT = 2;
 export const CAR_PARKED = 0;
 export const CAR_DRIVING = 1;
 export const CAR_ABANDONED = 2;
+export const CAR_STATE_MASK = 3;
+export const CAR_VAN = 4; // a SWAT van: longer, police blue
 
 /** Awake and intact (turned from one bite): drawn paler at near zoom, where the viewer is told; the city is not. */
 export const ZOMBIE_INTACT = 3;

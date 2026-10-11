@@ -140,7 +140,19 @@ export interface DistrictEvacuatingEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface SwatDeployedEvent extends EventBase {
+  /** A SWAT squad sets out from its station for something larger than a call. @range literal @unit — @readBy event consumers */
+  type: 'swatDeployed';
+  /** Where it is going: a fallen shelter, or a garrison with a horde at its door. @range building id @unit id @readBy ticker */
+  building: BuildingId;
+  /** @range building id @unit id @readBy ticker copy */
+  station: BuildingId;
+  /** Its leader. @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export type SimEvent =
+  | SwatDeployedEvent
   | DistrictEvacuatingEvent
   | SquadEvent
   | CarAbandonedEvent

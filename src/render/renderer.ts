@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -48,6 +48,8 @@ const DRIVE_GAP = 4.5; // m either side of the driveway kept clear
 // A car, as drawn (the simulation's own size is config.cars).
 const CAR_L = 4.5; // m
 const CAR_W = 1.9; // m
+const VAN_L = 6; // m: a SWAT van
+const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
@@ -402,6 +404,7 @@ export class Renderer {
     for (let i = 0; i < frame.simFlags.length; i++) if (frame.simFlags[i]! & SIM_FLEEING) fleeing.push(i);
     if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
     this.drawCars(g, frame, cam, dpr, true);
+    this.drawVanLights(g, frame, cam, dpr, wallMs);
     this.drawTalk(g, frame, cam, dpr);
     if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
@@ -425,20 +428,24 @@ export class Renderer {
     const xyh = frame.carXYH, st = frame.carState;
     if (st.length === 0) return;
     const near = cam.mode === 'near';
-    const hl = CAR_L / 2, hw = CAR_W / 2;
-    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D();
+    const hw = CAR_W / 2;
+    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
+      const state = st[i]! & CAR_STATE_MASK;
+      const van = (st[i]! & CAR_VAN) !== 0;
+      const hl = van ? VAN_L / 2 : CAR_L / 2;
       const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
-      if ((st[i] === CAR_DRIVING) !== moving || (st[i] !== CAR_DRIVING && st[i] !== CAR_ABANDONED && !near)) continue;
-      const path = st[i] === CAR_DRIVING ? driving : st[i] === CAR_ABANDONED ? abandoned : parked;
+      // A van shows at mid zoom too, parked or not: it is a squad's way out, or its box.
+      if ((state === CAR_DRIVING) !== moving || (state !== CAR_DRIVING && state !== CAR_ABANDONED && !near && !van)) continue;
+      const path = van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
       path.lineTo(...pt(-hl, -hw));
       path.lineTo(...pt(hl, -hw));
       path.closePath();
-      if (st[i] === CAR_ABANDONED) {
+      if (state === CAR_ABANDONED) {
         crosses.moveTo(...pt(hl, hw));
         crosses.lineTo(...pt(-hl, -hw));
         crosses.moveTo(...pt(hl, -hw));
@@ -452,6 +459,8 @@ export class Renderer {
     g.fill(driving);
     g.fillStyle = P.CAR_ABANDONED;
     g.fill(abandoned);
+    g.fillStyle = P.POLICE;
+    g.fill(vans);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);
@@ -493,6 +502,26 @@ export class Renderer {
     g.strokeStyle = P.TALK;
     g.lineWidth = Math.max(1 / (cam.scale * dpr), 0.35);
     g.stroke(path);
+  }
+
+  /** A SWAT van on the move: a light bar on the roof, red and blue taking turns. */
+  private drawVanLights(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
+    const xyh = frame.carXYH, st = frame.carState;
+    const r = Math.max(0.55, 2.2 / (cam.scale * dpr));
+    const swap = Math.floor(wallMs / VAN_FLASH_MS) % 2 === 1;
+    for (let i = 0; i < st.length; i++) {
+      if ((st[i]! & CAR_VAN) === 0 || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING) continue;
+      const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
+      const c = Math.cos(h), s = Math.sin(h);
+      // Across the cab, a little forward of the middle.
+      for (const side of [1, -1]) {
+        const u = VAN_L * 0.15, v = side * CAR_W * 0.28;
+        g.fillStyle = (side === 1) !== swap ? P.SIREN_RED : P.SIREN_BLUE;
+        g.beginPath();
+        g.arc(x + c * u - s * v, y + s * u + c * v, r, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
   }
 
   /** Squads: a thin line from each follower to its leader, so the unit reads as one. Near zoom. */

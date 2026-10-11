@@ -182,3 +182,59 @@ describe('squads', () => {
     expect(f.directUntil).not.toBeNull();
   });
 });
+
+describe('SWAT', () => {
+  it('starts formed at a few stations, with a van at the kerb, and answers no 911 call', () => {
+    const { world } = fresh();
+    const swat = world.sims.filter((s) => s.station !== null && s.squadLeader !== null);
+    const stations = new Set(swat.map((s) => s.station));
+    expect(stations.size).toBe(config.swat.stations);
+    expect(swat).toHaveLength(config.swat.stations * config.squads.size);
+    for (const s of swat) {
+      expect(s.archetype).toBe('police');
+      expect(s.weapon).toBe(config.swat.weapon);
+      expect(s.insideBuilding).toBe(s.station);
+    }
+    expect(world.cars.filter((c) => c.kind === 'van').every((c) => c.home !== null && stations.has(c.home))).toBe(true);
+  });
+
+  it('sets out for a shelter that fell, in its van when it is far', () => {
+    const { world, ctx } = fresh();
+    const leader = world.sims.find((s) => s.station !== null && s.squadLeader === s.id && world.cars.some((c) => c.kind === 'van' && c.home === s.station))!;
+    const station = world.buildings[leader.station!]!;
+    const door = station.entrances[0]!;
+    const far = world.buildings.find((b) => {
+      const d = Math.hypot(b.entrances[0]!.x - door.x, b.entrances[0]!.y - door.y);
+      return d > config.cars.driveBeyond + 100 && d < config.swat.radius - 100;
+    })!;
+    world.events = [{ type: 'shelterFell', tick: world.tick, building: far.id, sim: null }];
+    for (let t = 0; t < 400 && leader.car === null; t++) {
+      world.tick++;
+      pass(world, ctx);
+      simDecisions(world, ctx);
+      world.events = [];
+      // Out of the door and on: the building and movement steps, by hand.
+      for (const s of world.sims) {
+        if (s.squadLeader !== leader.id) continue;
+        if (s.insideBuilding !== null && s.exitingUntil !== null && world.tick >= s.exitingUntil) {
+          s.insideBuilding = null;
+          s.exitingUntil = null;
+          s.x = door.x;
+          s.y = door.y;
+          station.sheltered = station.sheltered.filter((id) => id !== s.id);
+        }
+      }
+      for (const s of world.sims) if (s.squadLeader === leader.id && s.insideBuilding === null && s.car === null) {
+        const v = world.cars.find((c) => c.kind === 'van' && c.home === leader.station)!;
+        s.x += (v.x - s.x) * 0.5;
+        s.y += (v.y - s.y) * 0.5;
+      }
+    }
+    expect(leader.answering).toBe(far.id);
+    expect(leader.car).not.toBeNull();
+    const van = world.cars[leader.car!]!;
+    expect(van.kind).toBe('van');
+    expect(van.occupants).toHaveLength(config.squads.size);
+    expect(van.state).toBe('driving');
+  });
+});

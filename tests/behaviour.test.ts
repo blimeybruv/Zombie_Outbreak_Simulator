@@ -21,9 +21,10 @@ import { convertDue } from '../src/sim/systems/infection';
 import { carProcesses, decideCars } from '../src/sim/systems/cars';
 import { step } from '../src/sim/tick';
 
-// Pinned to one zombie in one building: these tests set their own scenes, and were written against it.
+// Pinned to one zombie in one building and no SWAT: these tests set their own scenes,
+// and were written against that world (SWAT has its own, tests/squads.test.ts).
 function fresh(cfg: Config = baseConfig) {
-  return createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, cfg);
+  return createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, { ...cfg, features: { ...cfg.features, swat: false } });
 }
 
 /** A point in the middle of a long street well inside the city, and the street's direction. */
@@ -725,7 +726,7 @@ describe('police', () => {
       expect(world.config.spawn.policeProfessions).toContain(s.profession);
       expect(s.age).toBeGreaterThanOrEqual(22);
       expect(s.age).toBeLessThanOrEqual(60);
-      expect(s.weapon).toBe('pistol');
+      if (s.squadLeader === null) expect(s.weapon).toBe('pistol'); // SWAT carry their own
     }
     // ...and every cop is police.
     expect(world.sims.filter((s) => (world.config.spawn.policeProfessions as readonly string[]).includes(s.profession)).every((s) => s.archetype === 'police')).toBe(true);

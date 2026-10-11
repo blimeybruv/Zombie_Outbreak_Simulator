@@ -22,7 +22,7 @@ import { isOutdoorLiving, type Context } from '../context';
 import { functionalProfile } from '../mapgen/generate';
 import { sharedNode } from '../pathfinding';
 import { chance } from '../rng';
-import type { Building, Car, CarId, Sim, World } from '../state';
+import type { Building, BuildingId, Car, CarId, Sim, World } from '../state';
 import { bite } from './combat';
 import { entranceNearest, leaveTalk, setDestination } from './common';
 import type { Mode } from './panic';
@@ -138,13 +138,15 @@ function kerbBy(world: World, b: Building, x: number, y: number): { x: number; y
   return { x: a.x + ux * t - uy * off * side, y: a.y + uy * t + ux * off * side, heading: Math.atan2(uy, ux) };
 }
 
-function addCar(world: World, ctx: Context, x: number, y: number, heading: number, spaced: boolean): void {
+function addCar(world: World, ctx: Context, x: number, y: number, heading: number, spaced: boolean, home: BuildingId | null = null): Car | null {
   const cc = world.config.cars;
-  if (!ctx.map.walkable(x, y)) return;
-  if (spaced) for (const c of world.cars) if (Math.hypot(c.x - x, c.y - y) < cc.spacing) return;
-  world.cars.push({
+  if (!ctx.map.walkable(x, y)) return null;
+  if (spaced) for (const c of world.cars) if (Math.hypot(c.x - x, c.y - y) < cc.spacing) return null;
+  const car: Car = {
     id: world.cars.length as CarId,
     state: 'parked',
+    kind: home === null ? 'car' : 'van',
+    home,
     x,
     y,
     heading,
@@ -156,7 +158,26 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
     route: [],
     routeIndex: 0,
     blockedSince: null,
-  });
+  };
+  world.cars.push(car);
+  return car;
+}
+
+/** A SWAT van at the kerb by its station's door, or the nearest clear spot along the street; null if there is none. */
+export function parkVan(world: World, ctx: Context, b: Building): Car | null {
+  const e = b.entrances[0]!;
+  const s = world.streets[b.street]!;
+  const a = world.nodes[s.a]!, n = world.nodes[s.b]!;
+  const len = Math.hypot(n.x - a.x, n.y - a.y) || 1;
+  const ux = (n.x - a.x) / len, uy = (n.y - a.y) / len;
+  const step = world.config.cars.spacing;
+  for (const d of [0, step, -step, 2 * step, -2 * step, 3 * step, -3 * step]) {
+    const k = kerbBy(world, b, e.x + ux * d, e.y + uy * d);
+    if (k === null) continue;
+    const van = addCar(world, ctx, k.x, k.y, k.heading, true, b.id);
+    if (van !== null) return van;
+  }
+  return null;
 }
 
 /** Parks cars at the kerb in front of a share of buildings, and in the mall's stalls. Called once at setup. */
@@ -287,7 +308,7 @@ function alight(world: World, ctx: Context, car: Car): void {
     }
     s.gait = 'walk';
     if (s.condition !== 'healthy' && s.condition !== 'infected') continue;
-    if (b !== null) setDestination(s, b, 'shelter');
+    if (b !== null && s.squadLeader === null) setDestination(s, b, 'shelter'); // a squad goes where its leader takes it
   }
   car.occupants = [];
   car.speed = 0;
@@ -338,6 +359,35 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
     s.destinationBuilding = b.id;
     s.destination = { x: e.x, y: e.y };
   }
+}
+
+/**
+ * A squad gets into its van together, the leader driving, for `target`. False, and
+ * nobody aboard, if there is no way there by road.
+ */
+export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[], target: Building): boolean {
+  const leader = members[0]!;
+  const e = entranceNearest(target, car.x, car.y);
+  const dest = pullUpBy(world, target, e.x, e.y);
+  const route = ctx.paths.route(leader, dest.x, dest.y, true);
+  if (route === null) return false;
+  for (const s of members) {
+    if (s.gathering !== null) leaveTalk(s, world.tick);
+    s.car = car.id;
+    s.boarding = null;
+    s.gait = 'still';
+    s.x = car.x;
+    s.y = car.y;
+    car.occupants.push(s.id);
+  }
+  car.claimedBy = null;
+  car.destinationBuilding = target.id;
+  car.destination = dest;
+  car.state = 'driving';
+  car.route = route;
+  car.routeIndex = 0;
+  car.blockedSince = null;
+  return true;
 }
 
 /** Car processes, in building processes (step 10): stale claims, boarding, arriving, abandoning. */
