@@ -36,6 +36,8 @@ const ORIGIN_TICKS = 120; // how long patient zero's building is marked: 12 s of
 const ORIGIN_PING_MS = 1500;
 const ORIGIN_R_MAX = 70; // px, the mark's radius as each ping starts
 const ORIGIN_R_MIN = 22; // px, as it settles
+const ORIGIN_FULL_UP_TO = 3; // starting points drawn full size; more shrink with the square root of their number
+const ORIGIN_MIN_SCALE = 0.3; // never smaller than this share of full size
 const FLASH_MS = 160;
 // A mall's parking: double rows of stalls, nose to nose, between drive aisles.
 const STALL_W = 2.7; // m
@@ -251,7 +253,7 @@ export class Renderer {
       }
     }
     this.density = new DensityField(map.size);
-    for (const id of map.origins) this.origins.push(this.buildingCentre(id));
+    this.origins = map.origins.map((o) => ({ x: o.x, y: o.y }));
     this.corpses = new CorpseLayer(map.size);
   }
 
@@ -494,7 +496,10 @@ export class Renderer {
   private drawOrigin(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     if (this.origins.length === 0 || frame.tick >= ORIGIN_TICKS) return;
     const t = (wallMs % ORIGIN_PING_MS) / ORIGIN_PING_MS; // 0 wide, 1 settled
-    const r = (ORIGIN_R_MAX - (ORIGIN_R_MAX - ORIGIN_R_MIN) * t) * dpr;
+    // Many starting points: smaller pings, so the city shows between them.
+    const n = this.origins.length;
+    const size = n <= ORIGIN_FULL_UP_TO ? 1 : Math.max(ORIGIN_MIN_SCALE, Math.sqrt(ORIGIN_FULL_UP_TO / n));
+    const r = (ORIGIN_R_MAX - (ORIGIN_R_MAX - ORIGIN_R_MIN) * t) * dpr * size;
     g.setTransform(1, 0, 0, 1, 0, 0);
     const [cr, cg, cb] = P.ZOMBIE_RGB;
     const colour = `rgba(${cr}, ${cg}, ${cb}, ${(0.35 + 0.6 * t).toFixed(3)})`;

@@ -95,9 +95,8 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     // Open on where it began: the first building the dead started in, close enough to see the street.
     const origin = msg.map.origins[0];
     if (origin !== undefined) {
-      const c = renderer.buildingCentre(origin);
       camera.scale = 1;
-      camera.centreOn(c.x, c.y);
+      camera.centreOn(origin.x, origin.y);
       camera.version++;
     }
     const infected = params.get('infected');

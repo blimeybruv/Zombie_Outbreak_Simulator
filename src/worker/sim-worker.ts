@@ -44,7 +44,7 @@ import {
   type ToWorker,
 } from './protocol';
 import { inspect } from './inspect';
-import { noteFor } from './notes';
+import { noteFor, centreOf } from './notes';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept
@@ -79,7 +79,7 @@ function collect(w: World, c: Context): void {
   }
 }
 
-let origins: number[] = [];
+let origins: { x: number; y: number }[] = [];
 
 function mapSnapshot(w: World): MapSnapshot {
   const streets = new Float32Array(w.streets.length * 5);
@@ -256,7 +256,10 @@ scope.onmessage = (e) => {
     world = made.world;
     ctx = made.ctx;
     // Where the outbreak began, noted before anything moves: the view opens on the first.
-    origins = world.buildings.filter((b) => b.zombiesInside > 0).map((b) => b.id);
+    origins = [
+      ...world.buildings.filter((b) => b.zombiesInside > 0).map((b) => centreOf(b)),
+      ...world.zombies.filter((z) => z.insideBuilding === null && z.state !== 'destroyed').map((z) => ({ x: z.x, y: z.y })),
+    ];
     while (world.tick < msg.advance) {
       step(world, ctx, { checkInvariant: false });
       // Deaths while fast-forwarding still belong on the corpse layer.

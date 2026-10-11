@@ -20,8 +20,8 @@ export interface MapSnapshot {
   outlines: Float32Array;
   /** Per entrance, every building: building index, x, y on the wall, and the wall's outward normal nx, ny. */
   doors: Float32Array;
-  /** Where the outbreak began: the buildings patient zero was in at tick 0. The view opens on the first. */
-  origins: number[];
+  /** Where the outbreak began: each building the dead started in (its centre) and each spot where someone turned in the street, at tick 0. The view opens on the first. */
+  origins: { x: number; y: number }[];
   /** Per building: 1 for a church, drawn in plan (nave, apse, tower). */
   buildingChurch: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
