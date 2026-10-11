@@ -11,7 +11,7 @@
 
 import type { BuildingId, Count, Metres, Radians, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
 
-export const ARCHETYPES = ['civilian', 'police', 'hunkerDown', 'loner', 'reckless'] as const;
+export const ARCHETYPES = ['civilian', 'police', 'prepper', 'loner', 'reckless'] as const;
 export type Archetype = (typeof ARCHETYPES)[number];
 
 /** Display labels. Assigned at spawn from the starting building's tag; bias the archetype. */
@@ -19,10 +19,11 @@ export const PROFESSIONS = [
   // civilian profile
   'officeWorker', 'retailAssistant', 'teacher', 'deliveryDriver', 'student', 'chef',
   'cleaner', 'bartender', 'mechanic', 'courier', 'receptionist', 'barista',
+  'parent', 'librarian', 'accountant', 'nurse', 'nightShiftWorker', 'caretaker',
   // police profile
   'patrolOfficer', 'detective', 'securityGuard', 'paramedic', 'firefighter',
-  // hunker-down profile
-  'retiree', 'parent', 'librarian', 'accountant', 'nurse', 'nightShiftWorker', 'caretaker',
+  // prepper profile
+  'retiree', 'firearmInstructor', 'reseller', 'trailGuide', 'hamRadioOperator', 'homesteader', 'locksmith',
   // loner profile
   'nightCleaner', 'longHaulDriver', 'groundskeeper', 'homeless', 'tourist',
   // reckless profile

@@ -142,7 +142,7 @@ Police retreat *toward* something rather than simply away: a defensible building
 | --- | --- |
 | Civilian | Office worker, retail assistant, teacher, delivery driver, student, chef, cleaner, bartender, mechanic, courier, receptionist, barista |
 | Police | Patrol officer, detective, security guard, paramedic, firefighter |
-| Hunker-down | Retiree, parent, librarian, accountant, nurse, night-shift worker, caretaker |
+| Hunker-down (now prepper) | Retiree, parent, librarian, accountant, nurse, night-shift worker, caretaker |
 | Loner | Night cleaner, long-haul driver, groundskeeper, homeless, tourist |
 | Reckless | Off-duty soldier, hunter, bouncer, amateur survivalist, drunk |
 

@@ -116,6 +116,7 @@ export const config = {
       retiree: [65, 85], student: [16, 25], parent: [22, 50], patrolOfficer: [22, 58], detective: [28, 60],
       firefighter: [20, 55], paramedic: [21, 60], securityGuard: [20, 65], offDutySoldier: [19, 45],
       homeless: [18, 75], tourist: [18, 80], drunk: [18, 75], hunter: [18, 75], caretaker: [30, 75],
+      firearmInstructor: [28, 70], trailGuide: [20, 60], homesteader: [25, 75], hamRadioOperator: [30, 80],
     } as Record<string, readonly [number, number]>,
     // Anyone who is police is a cop by profession, whatever building they came from.
     policeProfessions: ['patrolOfficer', 'detective'],
@@ -403,7 +404,7 @@ export const config = {
     // rounds, leaving ~3: capacity floor(3 * 0.55) = 1, below any occupation. One
     // engagement turns a capable officer into an ordinary person.
     policeAmmo: 12,
-    meleeShare: { civilian: 0.08, police: 0, hunkerDown: 0.05, loner: 0.15, reckless: 0.5 }, // guess
+    meleeShare: { civilian: 0.08, police: 0, prepper: 0.05, loner: 0.15, reckless: 0.5 }, // guess
     meleeWeights: { knife: 3, club: 2, sledgehammer: 1 }, // guess
     recklessFirearmShare: 0.15, // reckless sims who start with a found shotgun — guess
     recklessAmmo: 6, // guess
@@ -502,12 +503,12 @@ export const config = {
 
   // Professions a building's people are drawn from, per functional tag (flavour tags use their profile's list).
   tagProfessions: {
-    residential: ['retiree', 'parent', 'student', 'nightShiftWorker', 'homeless', 'longHaulDriver', 'accountant', 'offDutySoldier', 'drunk'],
-    firearmsStore: ['retailAssistant', 'hunter', 'amateurSurvivalist', 'securityGuard'],
+    residential: ['retiree', 'parent', 'student', 'nightShiftWorker', 'homeless', 'longHaulDriver', 'accountant', 'offDutySoldier', 'drunk', 'homesteader', 'hamRadioOperator', 'trailGuide'],
+    firearmsStore: ['retailAssistant', 'hunter', 'amateurSurvivalist', 'securityGuard', 'firearmInstructor'],
     policeStation: ['patrolOfficer', 'detective', 'receptionist', 'cleaner'],
-    hardwareStore: ['retailAssistant', 'mechanic', 'caretaker', 'amateurSurvivalist'],
+    hardwareStore: ['retailAssistant', 'mechanic', 'caretaker', 'amateurSurvivalist', 'locksmith'],
     workshop: ['mechanic', 'courier', 'deliveryDriver', 'nightCleaner'],
-    warehouse: ['deliveryDriver', 'courier', 'securityGuard', 'longHaulDriver', 'nightCleaner'],
+    warehouse: ['deliveryDriver', 'courier', 'securityGuard', 'longHaulDriver', 'nightCleaner', 'reseller'],
     supermarket: ['retailAssistant', 'chef', 'barista', 'bartender', 'cleaner', 'bouncer', 'tourist'],
     office: ['officeWorker', 'receptionist', 'accountant', 'cleaner', 'securityGuard'],
     school: ['teacher', 'student', 'caretaker', 'librarian', 'groundskeeper'],
@@ -523,8 +524,10 @@ export const config = {
     courier: 'civilian', receptionist: 'civilian', barista: 'civilian',
     // Only cops lean police (and a cop is always police, spawn.ts): police carry pistols.
     patrolOfficer: 'police', detective: 'police', securityGuard: 'reckless', paramedic: 'civilian', firefighter: 'reckless',
-    retiree: 'hunkerDown', parent: 'hunkerDown', librarian: 'hunkerDown', accountant: 'hunkerDown',
-    nurse: 'hunkerDown', nightShiftWorker: 'hunkerDown', caretaker: 'hunkerDown',
+    parent: 'civilian', librarian: 'civilian', accountant: 'civilian',
+    nurse: 'civilian', nightShiftWorker: 'civilian', caretaker: 'civilian',
+    retiree: 'prepper', firearmInstructor: 'prepper', reseller: 'prepper', trailGuide: 'prepper',
+    hamRadioOperator: 'prepper', homesteader: 'prepper', locksmith: 'prepper',
     nightCleaner: 'loner', longHaulDriver: 'loner', groundskeeper: 'loner', homeless: 'loner', tourist: 'loner',
     offDutySoldier: 'reckless', hunter: 'reckless', bouncer: 'reckless', amateurSurvivalist: 'reckless', drunk: 'reckless',
   },
@@ -544,7 +547,7 @@ export const config = {
     // than carrying on as if nothing happened — guess
     civilian: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },
     police: { isolates: 0.6, sociality: 0, homeReach: 0, panicImmune: true, engageThreshold: 0.3, shelterSeekThreshold: 0.6, contestRatio: 1, shelterWeights: { integrity: 1.5, fortification: 1, streetQuiet: 1, group: 1, materials: 1, distance: 1 } },
-    hunkerDown: { isolates: 0.1, sociality: 0.3, homeReach: 3200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, materials: 1, distance: 1 } },
+    prepper: { isolates: 0.1, sociality: 0.3, homeReach: 3200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, materials: 1, distance: 1 } },
     loner: { isolates: 0.7, sociality: 0, homeReach: 0, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.3, contestRatio: null, shelterWeights: { integrity: 1, fortification: 1, streetQuiet: 1.2, group: -1, materials: 1, distance: 1 } },
     reckless: { isolates: 0.4, sociality: 0.3, homeReach: 0, panicImmune: false, engageThreshold: 1, shelterSeekThreshold: 0.9, contestRatio: 0.5, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.2, group: 1, materials: 0.5, distance: 1 } },
   },

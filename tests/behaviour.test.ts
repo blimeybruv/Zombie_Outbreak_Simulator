@@ -57,7 +57,7 @@ describe('awareness', () => {
     merge(world, a, b);
     expect(b.awareAt).not.toBeNull();
 
-    b.archetype = 'hunkerDown'; // goes home from anywhere in the city
+    b.archetype = 'prepper'; // goes home from anywhere in the city
     expect(b.home).not.toBeNull();
     decide(world, ctx);
     expect(b.destinationKind).toBe('shelter');
