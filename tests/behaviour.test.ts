@@ -262,6 +262,30 @@ describe('conversations', () => {
   });
 });
 
+describe('release', () => {
+  it('from a building that knows: households stay home, workers leave knowing', () => {
+    const { world, ctx } = fresh();
+    const quiet = (b: World['buildings'][number]) => b.zombiesInside === 0 && b.sheltered.length === 0 && b.alertedAt === null;
+    const office = world.buildings.find((b) => b.tag === 'office' && quiet(b) && b.residents >= 2)!;
+    const [house, other] = world.buildings.filter((b) => b.tag === 'residential' && quiet(b)); // at 09:00 a house holds one at most
+    house!.residents = other!.residents = 3;
+    office.alertedAt = house!.alertedAt = 0;
+    for (const b of [office, house!, other!]) b.pendingRelease = 2;
+    const before = world.sims.length;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    buildingProcesses(world, ctx);
+    const out = world.sims.slice(before);
+    const from = (b: typeof office) => out.filter((s) => b.entrances.some((e) => Math.hypot(e.x - s.x, e.y - s.y) < 3));
+    expect(from(house!)).toHaveLength(0);
+    expect(house!.pendingRelease).toBe(0);
+    expect(from(office).length).toBe(2);
+    expect(from(office).every((s) => s.awareAt !== null)).toBe(true);
+    expect(from(other!).length).toBe(2);
+    expect(from(other!).every((s) => s.awareAt === null)).toBe(true);
+  });
+});
+
 describe('the dead', () => {
   it('a zombie that sights someone wakes the dormant dead near it', () => {
     const { world, ctx } = fresh();

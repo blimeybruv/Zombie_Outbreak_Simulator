@@ -1,8 +1,10 @@
 // The occupant release: the only code that may read district release state.
 //
 // At its release tick a district queues a share of each building's residents to
-// leave onto ordinary routines, unaware of the outbreak. Building processes drain
-// the queue under a per-tick cap. This changes who exists, never what anyone decides.
+// leave onto ordinary routines. Building processes drain the queue under a per-tick
+// cap, and decide what those leaving know: from a building alerted to the outbreak,
+// nobody leaves home, and people leave work knowing (buildings.ts). This changes who
+// exists, never what anyone decides.
 
 import { nextInt } from '../rng';
 import type { World } from '../state';

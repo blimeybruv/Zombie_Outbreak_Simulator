@@ -7,6 +7,7 @@ import { breachChance } from '../breach';
 import type { Context } from '../context';
 import { transfer, simLeaf } from '../counters';
 import { remember } from '../memory';
+import { functionalProfile } from '../mapgen/generate';
 import { chance, nextInt } from '../rng';
 import { spawnSim, spawnZombie } from '../spawn';
 import type { Building, Sim, World } from '../state';
@@ -350,12 +351,17 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 
+  // Release. From a building that knows of the outbreak nobody strolls out to the
+  // shops: a household that knows stays home; people at work leave knowing, to get
+  // home (chosen as their objective on their first decision outdoors).
+  const knows = b.alertedAt !== null;
+  if (knows && functionalProfile(b.tag, config) === 'residential') b.pendingRelease = 0;
   for (let n = 0; n < config.release.perBuildingPerTick && b.pendingRelease > 0; n++) {
     b.pendingRelease--;
     b.residents--;
     const p = door();
     openDoor(world, b);
-    spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'routine' });
+    spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'routine', aware: knows });
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 }
