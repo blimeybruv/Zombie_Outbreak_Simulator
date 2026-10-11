@@ -188,7 +188,9 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   if (!contesting) placeCall(world, sim, b);
 
   if (sim.destinationKind === 'routine') {
-    sim.idleUntil = tick + nextInt(world.rng, config.routine.idleTicks[0]!, config.routine.idleTicks[1]!);
+    // The uneasy cut their errands short.
+    const idle = nextInt(world.rng, config.routine.idleTicks[0]!, config.routine.idleTicks[1]!);
+    sim.idleUntil = tick + Math.round(idle * (1 - config.unease.idleCut * sim.unease));
   } else if (sim.destinationKind === 'scavenge' && !contesting) {
     scavenge(world, ctx, sim, b);
   } else if (sim.destinationKind === 'isolate') {
@@ -241,18 +243,18 @@ function exits(world: World, ctx: Context): void {
 }
 
 /**
- * Noise this tick near a building tells the people inside; gunfire also drives a
- * share of its residents out. A shouted warning alerts them, but nobody runs out
- * into the street toward it.
+ * Gunfire this tick near a building tells the people inside, and drives a share of
+ * its residents out. A shout outside does neither: through a wall it says something
+ * is wrong, not what (the people inside are anonymous; outdoors, a shout is a telling).
  */
 function noiseExpulsion(world: World, ctx: Context): void {
   const { config, tick } = world;
   const r = config.buildings.spill.alertRadius;
   const heard = new Map<number, boolean>(); // building → heard gunfire
   for (const s of world.stimuli) {
-    if (s.createdAt !== tick) continue;
+    if (s.createdAt !== tick || s.kind === 'shout') continue;
     // (A building's own defence alerts it, but does not drive its own people out.)
-    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) heard.set(bid, (heard.get(bid) ?? false) || (s.kind !== 'shout' && s.from !== bid));
+    for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) heard.set(bid, (heard.get(bid) ?? false) || s.from !== bid);
   }
   for (const bid of [...heard.keys()].sort((a, b) => a - b)) {
     const b = world.buildings[bid]!;

@@ -52,6 +52,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     caution: s.caution,
     sociality: s.sociality,
     trust: s.trust,
+    unease: s.unease,
     condition: s.condition,
     bites: s.bites,
     insideBuilding: s.insideBuilding,
@@ -87,7 +88,8 @@ function doing(s: Sim): string | null {
       if (s.insideBuilding !== null) return s.shelter === s.insideBuilding ? 'sheltering' : null;
       return s.destinationBuilding !== null && s.destinationBuilding === s.home ? 'heading home' : 'heading for shelter';
     case 'routine':
-      return s.awareAt === null ? 'errands, unaware' : 'patrolling';
+      if (s.awareAt !== null) return 'patrolling';
+      return s.unease >= 0.2 ? 'errands, uneasy' : 'errands, unaware';
     default:
       return null;
   }

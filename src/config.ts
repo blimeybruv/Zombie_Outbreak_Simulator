@@ -309,26 +309,15 @@ export const config = {
     warnRadius: 30, // m; a survivor who sights a zombie shouts a warning about its street to everyone outdoors this close — guess
   },
 
-  // Conversations. Two who meet outdoors pass on panic and that there is an outbreak
-  // whatever happens; they stop to talk at `chance` × their mean sociality (up to 1),
-  // and only talking trades what they know — streets, buildings, who is bitten. A sim
-  // stays from ticks[0] (least sociable) to ticks[1] (most); a passer within joinRadius
-  // joins one already going at joinChance × its sociality, up to `cap` people (a passer
-  // had to come within the 4 m encounter radius of a pair standing still, and almost
-  // none did); what the conversation knows
-  // is pooled every poolInterval ticks. Nobody stops with danger in sight, in flight,
-  // or on a call, and a conversation breaks up when anyone in it sees danger — guess
-  // Hearsay, judged by the listener's trust (0–1). What it is told is taken as
-  // (1 − trust) × ageShift ticks older than it is — at memory.halfLife, a sceptic
-  // believes it half as much, and hearsay of hearsay grows staler at every telling.
-  // Believing in the outbreak takes 1 + round((1 − trust) × (maxTellings − 1)) tellings
-  // from different people (one for the trusting); who is said to be bitten is taken on
-  // at chance `trust` each time it is heard — guess
-  trust: {
-    ageShift: 1800, // ticks
-    maxTellings: 3,
-  },
-
+  // Conversations. Two who meet outdoors pass on fear whatever happens; they stop to
+  // talk at `chance` × their mean sociality (up to 1), and only talking trades what
+  // they know — the outbreak, streets, buildings, who is bitten. A sim stays from
+  // ticks[0] (least sociable) to ticks[1] (most); a passer within joinRadius joins one
+  // already going at joinChance × its sociality, up to `cap` people (a passer had to
+  // come within the 4 m encounter radius of a pair standing still, and almost none
+  // did); what the conversation knows is pooled every poolInterval ticks. Nobody stops
+  // with danger in sight, in flight, or on a call, and a conversation breaks up when
+  // anyone in it sees danger — guess
   talk: {
     chance: 1.5,
     ticks: [4, 20],
@@ -340,6 +329,37 @@ export const config = {
     closeInPer: 0.4, // m per person
     cap: 10,
     poolInterval: 5,
+  },
+
+  // Hearsay, judged by the listener's trust (0–1). What it is told is taken as
+  // (1 − trust) × ageShift ticks older than it is — at memory.halfLife, a sceptic
+  // believes it half as much, and hearsay of hearsay grows staler at every telling.
+  // Who is said to be bitten is taken on at chance `trust` each time it is heard — guess
+  trust: {
+    ageShift: 1800, // ticks
+  },
+
+  // Unease (0–1): belief short of knowing, in someone not yet aware of the outbreak.
+  // Each telling from someone new (in conversation, or a shout heard but its shouter
+  // not seen) closes tellingGain of the gap to 1, from tellingGain[0] for the least
+  // trusting to [1] for the most; at believeAt it becomes awareness: one telling for
+  // the trusting, two at middling trust, three for a sceptic. Being swept along by a
+  // running crowd moves it toward fleeingShare × the crowd's pull, at the panic
+  // contagion's rate — never far enough to know, only to be unsettled — and gunfire
+  // too faint to know for what it is closes `distantNoise` of the gap. It fades by
+  // `decay` of itself a tick. Meanwhile it shortens stops on errands (idle ×
+  // 1 − idleCut × unease), draws the next stop toward home (home's weight × homePull ×
+  // unease among the sampled stops), and holds panic up to unease × panicFloor — guess
+  unease: {
+    tellingGain: [0.4, 1],
+    believeAt: 0.75,
+    fleeingShare: 0.6,
+    distantNoise: 0.3,
+    decay: 0.0005, // /tick
+    idleCut: 0.8,
+    homePull: 3,
+    panicFloor: 0.3,
+    panicFloorRate: 0.05, // /tick toward the floor
   },
 
   pathfinding: {

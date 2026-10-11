@@ -32,6 +32,13 @@ export function updatePanic(world: World, ctx: Context): void {
   for (const sim of sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     sim.panic += (0 - sim.panic) * pc.decayRate;
+    // Unease fades, and while it lasts holds panic up a little: the uneasy startle sooner.
+    if (sim.awareAt === null && sim.unease > 0) {
+      const uc = config.unease;
+      sim.unease += (0 - sim.unease) * uc.decay;
+      const floor = sim.unease * uc.panicFloor;
+      if (sim.panic < floor) sim.panic += (floor - sim.panic) * uc.panicFloorRate;
+    }
     if (!isOutdoorLiving(sim)) continue;
 
     const r = ctx.radius[sim.id]!;
@@ -46,10 +53,19 @@ export function updatePanic(world: World, ctx: Context): void {
     // Contagion: a crowd running this way frightens, toward how many and how close.
     const target = Math.min(1, ctx.fleeingSeen[sim.id]! * config.crowd.fleeingGain);
     if (target > sim.panic) sim.panic += (target - sim.panic) * config.crowd.fleeingRate;
+    const uc = config.unease;
+    const unaware = sim.awareAt === null;
+    // Swept along without knowing why: unsettled, never knowing.
+    if (unaware && target * uc.fleeingShare > sim.unease) sim.unease += (target * uc.fleeingShare - sim.unease) * config.crowd.fleeingRate;
     for (const s of noises) {
-      if (intensityAt(s, sim.x, sim.y) < pc.noiseIntensityFloor) continue;
-      sim.panic = clamp01(sim.panic + pc.risePerEvent);
-      sim.awareAt ??= tick; // gunfire, or someone shouting a warning
+      const i = intensityAt(s, sim.x, sim.y);
+      // A shout frightens; what it means is for the encounters step (hearWarnings).
+      if (i >= pc.noiseIntensityFloor) {
+        sim.panic = clamp01(sim.panic + pc.risePerEvent);
+        if (s.kind !== 'shout') sim.awareAt ??= tick; // gunfire close enough to know for what it is
+      } else if (i > 0 && unaware && s.kind !== 'shout') {
+        sim.unease += (1 - sim.unease) * uc.distantNoise; // gunfire, far off
+      }
     }
   }
 }

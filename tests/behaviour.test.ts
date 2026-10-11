@@ -14,6 +14,7 @@ import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
 import { chooseShelter } from '../src/sim/systems/shelter';
 import { zombieDecisions } from '../src/sim/systems/zombies';
 import { bite, resolveCombat } from '../src/sim/systems/combat';
+import { updatePanic } from '../src/sim/systems/panic';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -259,6 +260,54 @@ describe('conversations', () => {
     resolveEncounters(world, ctx);
     expect(b.gathering).toBeNull();
     expect(a.gathering).toBe(a.id);
+  });
+});
+
+describe('unease', () => {
+  /** A shouter and a hearer 20 m apart on a street, nobody else near. */
+  function shout(hearerSees: boolean) {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    for (const o of world.sims) if (o.insideBuilding === null && Math.hypot(o.x - p.x, o.y - p.y) < 80) o.insideBuilding = 0 as never;
+    const shouter = walker(world, p.x, p.y);
+    const hearer = walker(world, p.x + p.ux * 20, p.y + p.uy * 20);
+    shouter.awareAt = 0;
+    hearer.trust = 0;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    if (!hearerSees) ctx.radius[hearer.id] = 10; // as at night: the shout carries further than sight
+    const street = 0 as never;
+    ctx.warnings.push({ from: shouter.id, x: shouter.x, y: shouter.y, street, danger: 0.8 });
+    resolveEncounters(world, ctx);
+    return { hearer, street };
+  }
+
+  it('a shout heard but not seen marks the street and unsettles, without telling what it was', () => {
+    const { hearer, street } = shout(false);
+    expect(hearer.awareAt).toBeNull();
+    expect(hearer.unease).toBeCloseTo(baseConfig.unease.tellingGain[0]!); // a sceptic's first telling
+    expect(hearer.streetMemory.get(street)?.danger).toBe(0.8);
+  });
+
+  it('seeing the one who shouted is a sighting', () => {
+    expect(shout(true).hearer.awareAt).not.toBeNull();
+  });
+
+  it('being swept along by a running crowd unsettles but never tells', () => {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    sizeContext(ctx, world);
+    for (let t = 0; t < 300; t++) {
+      world.tick++;
+      ctx.radius[s.id] = 45;
+      ctx.fleeingSeen[s.id] = 10; // a crowd running this way
+      updatePanic(world, ctx);
+    }
+    expect(s.awareAt).toBeNull();
+    expect(s.unease).toBeGreaterThan(0.4);
+    expect(s.unease).toBeLessThan(baseConfig.unease.believeAt);
   });
 });
 

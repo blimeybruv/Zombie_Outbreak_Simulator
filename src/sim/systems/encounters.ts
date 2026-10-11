@@ -1,5 +1,7 @@
 // Tick step 11: proximity encounters, from final positions. First, warnings shouted
-// this tick are heard (a street's danger, by everyone within earshot). Then, between
+// this tick are heard: a street's danger, by everyone within earshot, and that there
+// is an outbreak only by those who see the shouter — to the rest a shout is a telling,
+// raising unease (config.unease). Then, between
 // two sims who come within range of each other, passing:
 //   panic averages toward the higher value, damped, so calm spreads slower than fear
 // and, only if they stop to talk (conversations, below), what they know, as each
@@ -50,12 +52,17 @@ function hearsayAge(world: World, s: Sim): number {
   return Math.round((1 - s.trust) * world.config.trust.ageShift);
 }
 
-/** `listener`, unaware, is told by `teller` that there is an outbreak; believes it after enough different people say so. */
+/**
+ * `listener`, unaware, is told by `teller` that there is an outbreak: unease rises by
+ * the listener's trust, once per teller, and at `believeAt` it believes.
+ */
 function told(world: World, listener: Sim, teller: Sim): void {
-  if (listener.awareAt !== null || teller.awareAt === null) return;
+  if (listener.awareAt !== null || teller.awareAt === null || listener.toldBy.has(teller.id)) return;
+  const uc = world.config.unease;
   listener.toldBy.add(teller.id);
-  const needed = 1 + Math.round((1 - listener.trust) * (world.config.trust.maxTellings - 1));
-  if (listener.toldBy.size < needed) return;
+  const gain = uc.tellingGain[0]! + (uc.tellingGain[1]! - uc.tellingGain[0]!) * listener.trust;
+  listener.unease = Math.min(1, listener.unease + (1 - listener.unease) * gain);
+  if (listener.unease < uc.believeAt) return;
   listener.awareAt = world.tick;
   listener.toldBy.clear();
 }
@@ -156,11 +163,17 @@ function join(world: World, ctx: Context, a: Sim, b: Sim): boolean {
 function hearWarnings(world: World, ctx: Context): void {
   const { config, tick, sims } = world;
   for (const w of ctx.warnings) {
+    const shouter = sims[w.from]!;
     ctx.simHash.query(w.x, w.y, config.encounters.warnRadius, ctx.ids2);
     for (const id of ctx.ids2) {
       if (id === w.from) continue;
       const s = sims[id]!;
-      s.awareAt ??= tick;
+      // A shout says something is wrong here, not what. Seeing the one who shouted,
+      // fleeing or set upon, is a sighting; hearing alone is a telling.
+      if (s.awareAt === null) {
+        if (Math.hypot(w.x - s.x, w.y - s.y) <= ctx.radius[id]! && ctx.map.lineOfSight(s.x, s.y, w.x, w.y)) s.awareAt = tick;
+        else told(world, s, shouter);
+      }
       const belief = s.streetMemory.get(w.street);
       if (belief) {
         if (belief.observedAt >= tick) continue;

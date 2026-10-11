@@ -216,8 +216,15 @@ export interface Sim {
   knownInfected: Set<SimId>;
   /** Rate-limits proximity merges. @range tick @unit tick @readBy encounters */
   lastMergeAt: Tick;
-  /** Who has told this sim, still unaware, that there is an outbreak; emptied once it believes. @range 0–3 sim ids @unit — @readBy encounters */
+  /** Who has told this sim, still unaware, that there is an outbreak (each counts once); emptied once it believes. @range a few sim ids @unit — @readBy encounters */
   toldBy: Set<SimId>;
+  /**
+   * Belief short of knowing, while unaware: raised by tellings, by being swept along
+   * by a running crowd and by distant gunfire; fades. At `unease.believeAt` it becomes
+   * awareness. Meanwhile it cuts errands short, draws them toward home, and holds panic up.
+   * @range 0–1 @unit scalar @readBy encounters (belief), panic (floor, fading), routine (idle, next stop), inspector
+   */
+  unease: Unit01;
   /**
    * The conversation this sim has stopped for, named by the sim that started it (its
    * own id if it did); null when not talking. Only talking trades what sims know.

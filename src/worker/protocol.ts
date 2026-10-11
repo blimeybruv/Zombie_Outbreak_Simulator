@@ -114,6 +114,7 @@ export interface SimDetail {
   caution: number;
   sociality: number;
   trust: number;
+  unease: number;
   /** Ground truth, including the infection nobody else may know about. */
   condition: string;
   /** Bites taken; each after the first hastens the turn. */

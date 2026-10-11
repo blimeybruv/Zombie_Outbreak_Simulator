@@ -87,6 +87,15 @@ function pickRoutineStop(world: World, sim: Sim): Building | null {
     picks.push({ b, w });
     total += w;
   }
+  // The uneasy are drawn home: home joins the sampled stops, weighted as a stop that
+  // suits them would be, times homePull × unease.
+  if (sim.unease > 0 && sim.home !== null && sim.home !== sim.destinationBuilding) {
+    const home = buildings[sim.home]!;
+    const e = home.entrances[0]!;
+    const w = (config.unease.homePull * sim.unease * config.routine.professionStopWeight) / (1 + Math.hypot(e.x - sim.x, e.y - sim.y) / bc.routineDistanceScale);
+    picks.push({ b: home, w });
+    total += w;
+  }
   let r = nextFloat(rng) * total;
   for (const p of picks) {
     r -= p.w;
