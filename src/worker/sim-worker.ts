@@ -30,6 +30,7 @@ import {
   SIM_INFECTED,
   SIM_LIVING,
   SIM_POLICE,
+  SIM_GUARD,
   SIM_PROMOTED,
   ZOMBIE_AWAKE,
   ZOMBIE_DORMANT,
@@ -141,9 +142,11 @@ function frameSnapshot(w: World): FrameSnapshot {
   const simFlags = new Uint8Array(w.sims.length);
   const simHeading = new Float32Array(w.sims.length);
   const talk: number[] = [];
+  const squad: number[] = [];
   for (const s of w.sims) {
     if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null || s.car !== null) continue;
     if (s.gathering !== null) talk.push(s.id, s.gathering);
+    if (s.squadLeader !== null && s.squadLeader !== s.id && w.sims[s.squadLeader]!.insideBuilding === null) squad.push(s.id, s.squadLeader);
     simXY[s.id * 2] = s.x;
     simXY[s.id * 2 + 1] = s.y;
     simKind[s.id] = s.name !== null ? SIM_PROMOTED : SIM_LIVING;
@@ -155,7 +158,8 @@ function frameSnapshot(w: World): FrameSnapshot {
       (s.stand === 'fight' || s.nextAttackAt > w.tick ? SIM_FIGHTING : 0) |
       (s.avoidUntil !== null || (s.stand === null && modeOf(s, w.config) === 'flight') ? SIM_FLEEING : 0) |
       (shoots ? SIM_ARMED : 0) |
-      (s.archetype === 'police' ? SIM_POLICE : 0);
+      (s.archetype === 'police' ? SIM_POLICE : 0) |
+      (s.weapon === 'rifle' ? SIM_GUARD : 0);
     simHeading[s.id] = s.heading;
   }
   const zombieXY = new Float32Array(w.zombies.length * 2);
@@ -191,6 +195,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     simFlags,
     simHeading,
     talk: new Int32Array(talk),
+    squad: new Int32Array(squad),
     zombieXY,
     zombieKind,
     carXYH,
@@ -280,7 +285,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
   }
 };
 

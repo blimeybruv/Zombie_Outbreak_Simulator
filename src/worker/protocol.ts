@@ -46,6 +46,7 @@ export const SIM_FIGHTING = 4; // standing its ground, or has struck or fired wi
 export const SIM_ARMED = 8; // carries a firearm with ammunition: shoots back (drawn as a triangle)
 export const SIM_POLICE = 16; // drawn light blue
 export const SIM_FLEEING = 32; // panicked flight, or backing off: a long bright trail
+export const SIM_GUARD = 64; // a reservist armed at an armoury (National Guard): drawn pale green
 
 /** Zombie kinds on the map. */
 export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
@@ -162,6 +163,8 @@ export interface FrameSnapshot {
   simHeading: Float32Array;
   /** Everyone outdoors in a conversation, as pairs: sim id, and the id that names the conversation. */
   talk: Int32Array;
+  /** Squad followers outdoors with their leader outdoors too, as pairs: follower id, leader id. */
+  squad: Int32Array;
   /** Per zombie (indexed by id): x, y. */
   zombieXY: Float32Array;
   zombieKind: Uint8Array;

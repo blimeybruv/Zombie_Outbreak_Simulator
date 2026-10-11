@@ -364,7 +364,7 @@ export interface Sim {
   offSlotSince: Tick | null;
   /** A follower that could not reach its slot heads straight for the leader until this tick; null otherwise. @range tick | null @unit tick @readBy squads */
   directUntil: Tick | null;
-  /** A squad leader's recent path, oldest first, a point each squads.fileSpacing metres: where the file walks. Empty for everyone else. @range 0–squads.size points @unit m @readBy squads (file formation) */
+  /** A squad leader's recent path, oldest first, a point each squads.fileSpacing metres: where the file walks. Empty for everyone else. @range 0–squads.size+1 points @unit m @readBy squads (file formation) */
   trail: Vec2[];
   /** A squad leader's formation is the diamond (engaged) until this tick; null in file. @range tick | null @unit tick @readBy squads, snapshot (render) */
   diamondUntil: Tick | null;

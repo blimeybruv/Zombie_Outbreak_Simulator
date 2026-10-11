@@ -240,12 +240,13 @@ export function squadPass(world: World, ctx: Context): void {
       leader.diamondUntil = null;
     }
 
-    // The leader's trail: a point each fileSpacing metres, as many as there are followers.
+    // The leader's trail: a point each fileSpacing metres, the newest where it stands,
+    // and one more behind it for each follower.
     const t = leader.trail;
     const last = t[t.length - 1];
     if (last === undefined || Math.hypot(leader.x - last.x, leader.y - last.y) >= sq.fileSpacing) {
       t.push({ x: leader.x, y: leader.y });
-      if (t.length > g.length) t.shift();
+      if (t.length > g.length + 1) t.shift();
     }
 
     // Slots: in the diamond, around the leader, turned toward the danger it sees (or
@@ -261,7 +262,7 @@ export function squadPass(world: World, ctx: Context): void {
         ctx.slotX[m.id] = leader.x + Math.cos(a) * r;
         ctx.slotY[m.id] = leader.y + Math.sin(a) * r;
       } else {
-        const p = t[t.length - i] ?? t[0] ?? leader;
+        const p = t[t.length - 1 - i] ?? t[0] ?? leader;
         ctx.slotX[m.id] = p.x;
         ctx.slotY[m.id] = p.y;
       }

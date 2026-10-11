@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -403,6 +403,7 @@ export class Renderer {
     if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
     this.drawCars(g, frame, cam, dpr, true);
     this.drawTalk(g, frame, cam, dpr);
+    if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
     this.drawPulses(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
@@ -491,6 +492,21 @@ export class Renderer {
     }
     g.strokeStyle = P.TALK;
     g.lineWidth = Math.max(1 / (cam.scale * dpr), 0.35);
+    g.stroke(path);
+  }
+
+  /** Squads: a thin line from each follower to its leader, so the unit reads as one. Near zoom. */
+  private drawSquads(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+    const q = frame.squad;
+    if (q.length === 0) return;
+    const path = new Path2D();
+    for (let i = 0; i < q.length; i += 2) {
+      const a = this.simAt(q[i]!), b = this.simAt(q[i + 1]!);
+      path.moveTo(a.x, a.y);
+      path.lineTo(b.x, b.y);
+    }
+    g.strokeStyle = P.SQUAD;
+    g.lineWidth = Math.max(1 / (cam.scale * dpr), 0.3);
     g.stroke(path);
   }
 
@@ -691,9 +707,9 @@ export class Renderer {
     // Near zoom only, the viewer is told who is bitten; the city is not.
     const showInfected = cam.mode === 'near' ? this.infectedStyle : 'off';
     const pale = showInfected === 'fill';
-    // Colour says who (police light blue); shape says what they can do: anyone who can
+    // Colour says who (police light blue, the National Guard pale green); shape says what they can do: anyone who can
     // shoot back is a triangle pointing the way they face.
-    const colourOf = (i: number) => (pale && f[i]! & SIM_INFECTED ? P.INFECTED_PALE : f[i]! & SIM_POLICE ? P.POLICE : P.LIVING);
+    const colourOf = (i: number) => (pale && f[i]! & SIM_INFECTED ? P.INFECTED_PALE : f[i]! & SIM_POLICE ? P.POLICE : f[i]! & SIM_GUARD ? P.GUARD : P.LIVING);
     const hd = frame.simHeading;
     const r = Math.max(size * 1.3, 4 * dpr); // a triangle needs more room than a square to read
     const triangle = (path: Path2D, i: number, x: number, y: number, scale: number) => {
@@ -708,7 +724,7 @@ export class Renderer {
     const frozenAlpha = 0.2 + 0.35 * (0.5 + 0.5 * Math.sin((wallMs / FREEZE_PULSE_MS) * Math.PI * 2));
     for (const frozen of [false, true]) {
       g.globalAlpha = frozen ? frozenAlpha : 1;
-      for (const colour of [P.LIVING, P.POLICE, P.INFECTED_PALE]) {
+      for (const colour of [P.LIVING, P.POLICE, P.GUARD, P.INFECTED_PALE]) {
         g.fillStyle = colour;
         const armed = new Path2D();
         for (let i = 0; i < k.length; i++) {
@@ -724,7 +740,7 @@ export class Renderer {
     g.globalAlpha = 1;
     for (let i = 0; i < k.length; i++) {
       if (k[i] !== SIM_PROMOTED) continue;
-      g.fillStyle = f[i]! & SIM_POLICE ? P.POLICE : P.PROMOTED;
+      g.fillStyle = f[i]! & SIM_POLICE ? P.POLICE : f[i]! & SIM_GUARD ? P.GUARD : P.PROMOTED;
       const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
       if (f[i]! & SIM_ARMED) {
         const p = new Path2D();

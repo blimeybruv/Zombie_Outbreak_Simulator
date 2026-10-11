@@ -78,6 +78,10 @@ function doing(s: Sim): string | null {
   if (s.avoidUntil !== null) return 'backing off';
   if (s.gathering !== null) return 'stopped to talk';
   if (s.car !== null) return 'in a car';
+  if (s.squadLeader === s.id) return s.diamondUntil !== null ? 'leading a squad, engaged' : 'leading a squad';
+  if (s.squadLeader !== null) return s.directUntil !== null ? 'catching up with its squad' : 'in a squad';
+  if (s.muster === 'mobilised') return 'called up, making for the depot';
+  if (s.muster === 'waiting') return 'armed, waiting at the depot for a squad';
   if (s.destinationKind === 'car') return 'going for a car';
   switch (s.destinationKind) {
     case 'isolate':

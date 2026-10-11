@@ -19,6 +19,9 @@ export const TALK = 'rgba(223, 231, 239, 0.4)';
 export const PROMOTED = '#ffffff';
 export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a triangle, whatever its colour
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring
+export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
+/** A squad: the thin line from each follower to its leader (near zoom). */
+export const SQUAD = 'rgba(191, 232, 180, 0.45)';
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only
 export const INFECTED_PALE = '#e9cf9c';
 export const FIGHT = '#fff1b8'; // a bright warm outline: standing and fighting
