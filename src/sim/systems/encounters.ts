@@ -2,8 +2,8 @@
 // this tick are heard (a street's danger, by everyone within earshot). Then, between
 // two sims who come within range of each other, passing:
 //   panic averages toward the higher value, damped, so calm spreads slower than fear
-//   awareness of the outbreak: if either knows, both do (word of mouth)
 // and, only if they stop to talk (conversations, below), what they know:
+//   awareness of the outbreak: if either knows, both do (word of mouth)
 //   street memory and building memory merge by recency, per key
 //   knownInfected merges by union
 // and an invitation: a sociable sim bound for shelter goes along with someone bound
@@ -38,20 +38,23 @@ function mergeBoth<K, V extends { observedAt: number; visited: boolean }>(a: Map
   mergeNewer(b, a);
 }
 
-/** What passes between two who meet, talking or not: fear, and that there is an outbreak. */
+/**
+ * What passes between two who meet, talking or not: fear. That there is an outbreak
+ * takes a conversation — a passer-by's frightened look is not news.
+ */
 function pass(world: World, a: Sim, b: Sim): void {
   const damping = world.config.panic.encounterDamping;
   if (a.panic < b.panic) a.panic += (b.panic - a.panic) * damping;
   else if (b.panic < a.panic) b.panic += (a.panic - b.panic) * damping;
-  if (a.awareAt !== null || b.awareAt !== null) {
-    a.awareAt ??= world.tick;
-    b.awareAt ??= world.tick;
-  }
 }
 
 /** Everything two sims trade when they talk. Also used when a sim walks into a building where others shelter. */
 export function merge(world: World, a: Sim, b: Sim): void {
   pass(world, a, b);
+  if (a.awareAt !== null || b.awareAt !== null) {
+    a.awareAt ??= world.tick;
+    b.awareAt ??= world.tick;
+  }
   const { streetCap, buildingCap } = world.config.memory;
   mergeBoth(a.streetMemory, b.streetMemory);
   mergeBoth(a.buildingMemory, b.buildingMemory);

@@ -209,11 +209,16 @@ describe('conversations', () => {
     expect(Math.cos(b.heading)).toBeLessThan(-0.99); // b, east of a, faces west
   });
 
-  it('the solitary pass by: the outbreak passes on, the details do not', () => {
+  it('the solitary pass by: neither the outbreak nor the details pass on', () => {
     const { a, b } = pair(0, 0);
     expect(a.gathering).toBeNull();
-    expect(b.awareAt).not.toBeNull();
+    expect(b.awareAt).toBeNull();
     expect(b.streetMemory.has(0 as never)).toBe(false);
+  });
+
+  it('talking passes on the outbreak', () => {
+    const { b } = pair(1, 1);
+    expect(b.awareAt).not.toBeNull();
   });
 
   it('breaks up when anyone in it sees danger', () => {
