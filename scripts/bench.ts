@@ -1,6 +1,6 @@
 // Whole-run timing: the yardstick for "did this change make the simulation faster".
 //
-//   npx tsx scripts/bench.ts [--ticks 15000] [--runs 5] [--seed 1] [--map 1] [--population 6000]
+//   npx tsx scripts/bench.ts [--ticks 15000] [--runs 5] [--seed 1] [--map 1] [--population 6000] [--set features.cars=false ...]
 //
 // Runs the headless loop from fixed seeds for a fixed number of ticks, each run in a
 // fresh process so every run pays the same JIT warm-up, one after another so they
@@ -21,7 +21,7 @@
 
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { config } from '../src/config';
+import { withOverrides } from './lib/run-one';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { step } from '../src/sim/tick';
@@ -46,6 +46,13 @@ const runs = opt('runs', 5);
 const runSeed = opt('seed', 1);
 const mapSeed = opt('map', 1);
 const population = opt('population', defaultScenario.population);
+const overrides: Record<string, unknown> = {};
+args.forEach((a, i) => {
+  if (a !== '--set') return;
+  const [path, raw] = args[i + 1]!.split('=') as [string, string];
+  overrides[path] = JSON.parse(raw);
+});
+const config = withOverrides(overrides);
 
 /** A cheap digest of the final state: counters plus a hash over every agent's position. */
 function fingerprint(world: ReturnType<typeof createWorld>['world']): string {
@@ -89,7 +96,7 @@ if (args.includes('--once')) {
   const r = once();
   process.send!(r, undefined, undefined, () => process.exit(0));
 } else {
-  console.log(`bench: ${ticks} ticks, runSeed ${runSeed}, mapSeed ${mapSeed}, population ${population}, ${runs} runs`);
+  console.log(`bench: ${ticks} ticks, runSeed ${runSeed}, mapSeed ${mapSeed}, population ${population}, ${runs} runs, overrides ${JSON.stringify(overrides)}`);
   const results: Result[] = [];
   for (let i = 0; i < runs; i++) {
     const r = await new Promise<Result>((resolve, reject) => {

@@ -26,7 +26,7 @@ export function convertDue(world: World, ctx: Context): void {
     }
     if (inside === null) {
       const z = spawnZombie(world, sim.x, sim.y, 'active', null, sim.id);
-      z.intact = sim.bites <= 1; // one bite, no worse: nothing to see
+      z.intact = world.config.features.intactZombies && sim.bites <= 1; // one bite, no worse: nothing to see
       transfer(world, 'turned.symptomatic', 'turned.outdoors');
       ctx.events.push({ type: 'simTurned', tick, sim: sim.id, zombie: z.id, x: sim.x, y: sim.y });
       continue;
@@ -34,7 +34,7 @@ export function convertDue(world: World, ctx: Context): void {
     const b = world.buildings[inside]!;
     b.sheltered = b.sheltered.filter((id) => id !== sim.id);
     const z = spawnZombie(world, sim.x, sim.y, 'occupying', b.id, sim.id);
-    z.intact = sim.bites <= 1;
+    z.intact = world.config.features.intactZombies && sim.bites <= 1;
     b.zombiesInside++;
     transfer(world, 'turned.symptomatic', 'turned.occupying');
     ctx.events.push({ type: 'simTurned', tick, sim: sim.id, zombie: z.id, x: sim.x, y: sim.y });

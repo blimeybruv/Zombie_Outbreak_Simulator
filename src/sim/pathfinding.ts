@@ -20,7 +20,7 @@ import type { NodeId, Sim, StreetId, World } from './state';
 export function believedDanger(sim: Sim, street: StreetId, tick: number, config: Config): number {
   const m = config.memory;
   const ramp = Math.max(0, (sim.caution - m.unknownDangerFrom) / (1 - m.unknownDangerFrom));
-  const prior = m.unknownStreetDanger * ramp;
+  const prior = config.features.cautiousRouting ? m.unknownStreetDanger * ramp : 0;
   const belief = sim.streetMemory.get(street);
   if (!belief) return prior;
   const c = confidence(belief.observedAt, tick, config);

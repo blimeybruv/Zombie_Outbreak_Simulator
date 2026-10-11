@@ -207,7 +207,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   };
   const ctx = createContext(world);
   scheduleRelease(world);
-  placeParkedCars(world, ctx);
+  if (config.features.cars) placeParkedCars(world, ctx);
 
   const band = bandForHour(scenario.startHour, config);
   const outdoors = Math.round(scenario.population * config.spawn.outdoorShareByBand[band]!);

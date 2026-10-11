@@ -143,7 +143,7 @@ function turnAway(world: World, sim: Sim, b: Building): void {
  */
 function refusedAsStranger(world: World, sim: Sim, b: Building): boolean {
   const sc = world.config.shelter;
-  if (b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id) return false;
+  if (!world.config.features.strangerVeto || b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id) return false;
   let admit = 1;
   for (const id of b.sheltered) {
     const o = world.sims[id]!;

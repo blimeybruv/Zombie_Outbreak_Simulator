@@ -120,6 +120,28 @@ export const config = {
     bandStartHours: [0, 6, 12, 18],
   },
 
+  // Feature switches, for measuring what each costs and changes (bench and sweep take
+  // --set features.cars=false). Each off restores the behaviour before it:
+  //   conversations   every meeting trades everything, no stopping or gatherings
+  //   unease          the first telling convinces; no unease from crowds, distant
+  //                   gunfire or shouts, so no shortened errands or panic floor
+  //   trust           everyone believes what they hear at face value
+  //   reconsider      objectives held until arrival, refusal or diversion
+  //   intactZombies   the one-bite dead are recognised like any other
+  //   cars            no cars at all
+  //   strangerVeto    the cautious let strangers in
+  //   cautiousRouting the cautious take an unknown street for safe
+  features: {
+    conversations: true,
+    unease: true,
+    trust: true,
+    reconsider: true,
+    intactZombies: true,
+    cars: true,
+    strangerVeto: true,
+    cautiousRouting: true,
+  },
+
   // The setup screen's ranges (src/ui/setup.ts): survivors [min, max, step]; initial
   // zombies [min, max]. Above about 10,000 people, 8× falls behind on a busy run.
   setup: {

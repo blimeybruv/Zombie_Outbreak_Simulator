@@ -33,7 +33,7 @@ export function updatePanic(world: World, ctx: Context): void {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     sim.panic += (0 - sim.panic) * pc.decayRate;
     // Unease fades, and while it lasts holds panic up a little: the uneasy startle sooner.
-    if (sim.awareAt === null && sim.unease > 0) {
+    if (config.features.unease && sim.awareAt === null && sim.unease > 0) {
       const uc = config.unease;
       sim.unease += (0 - sim.unease) * uc.decay;
       const floor = sim.unease * uc.panicFloor;
@@ -54,7 +54,7 @@ export function updatePanic(world: World, ctx: Context): void {
     const target = Math.min(1, ctx.fleeingSeen[sim.id]! * config.crowd.fleeingGain);
     if (target > sim.panic) sim.panic += (target - sim.panic) * config.crowd.fleeingRate;
     const uc = config.unease;
-    const unaware = sim.awareAt === null;
+    const unaware = config.features.unease && sim.awareAt === null;
     // Swept along without knowing why: unsettled, never knowing.
     if (unaware && target * uc.fleeingShare > sim.unease) sim.unease += (target * uc.fleeingShare - sim.unease) * config.crowd.fleeingRate;
     for (const s of noises) {

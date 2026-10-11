@@ -49,7 +49,12 @@ function mergeBoth<K, V extends { observedAt: number; visited: boolean }>(a: Map
 
 /** How much older hearsay seems to this listener. */
 function hearsayAge(world: World, s: Sim): number {
-  return Math.round((1 - s.trust) * world.config.trust.ageShift);
+  return Math.round((1 - trustOf(world, s)) * world.config.trust.ageShift);
+}
+
+/** A sim's trust, or full trust with the feature off. */
+function trustOf(world: World, s: Sim): number {
+  return world.config.features.trust ? s.trust : 1;
 }
 
 /**
@@ -60,7 +65,12 @@ function told(world: World, listener: Sim, teller: Sim): void {
   if (listener.awareAt !== null || teller.awareAt === null || listener.toldBy.has(teller.id)) return;
   const uc = world.config.unease;
   listener.toldBy.add(teller.id);
-  const gain = uc.tellingGain[0]! + (uc.tellingGain[1]! - uc.tellingGain[0]!) * listener.trust;
+  if (!world.config.features.unease) {
+    listener.awareAt = world.tick;
+    listener.toldBy.clear();
+    return;
+  }
+  const gain = uc.tellingGain[0]! + (uc.tellingGain[1]! - uc.tellingGain[0]!) * trustOf(world, listener);
   listener.unease = Math.min(1, listener.unease + (1 - listener.unease) * gain);
   if (listener.unease < uc.believeAt) return;
   listener.awareAt = world.tick;
@@ -105,14 +115,15 @@ export function merge(world: World, a: Sim, b: Sim): void {
 
   // Who is said to be bitten: each takes it on at its own trust, judged on what the
   // other knew before they met.
-  const fromB = b.knownInfected.size > 0 && chance(world.rng, a.trust) ? [...b.knownInfected] : [];
-  if (a.knownInfected.size > 0 && chance(world.rng, b.trust)) for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);
+  const fromB = b.knownInfected.size > 0 && chance(world.rng, trustOf(world, a)) ? [...b.knownInfected] : [];
+  if (a.knownInfected.size > 0 && chance(world.rng, trustOf(world, b))) for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);
   for (const id of fromB) if (id !== a.id) a.knownInfected.add(id);
 }
 
 /** Free to stop and talk: outdoors, not already talking, nothing in sight, not in flight, fighting, backing off or on a call. */
 function canTalk(world: World, ctx: Context, s: Sim): boolean {
   return (
+    world.config.features.conversations &&
     s.gathering === null &&
     s.insideBuilding === null &&
     s.car === null &&
@@ -207,6 +218,7 @@ function hearWarnings(world: World, ctx: Context): void {
 export function resolveEncounters(world: World, ctx: Context): void {
   const { config, tick, sims } = world;
   const tc = config.talk;
+  const talking = config.features.conversations;
   const radius = config.encounters.radius;
   const cooldown = config.encounters.cooldown;
   rebuildSimHash(world, ctx);
@@ -231,10 +243,12 @@ export function resolveEncounters(world: World, ctx: Context): void {
       b.history.lastCompanyAt = tick;
       if (a.gathering !== null || b.gathering !== null) continue; // passing a conversation: below
       if (tick - a.lastMergeAt < cooldown || tick - b.lastMergeAt < cooldown) continue;
-      pass(world, a, b);
+      // Without conversations, every meeting trades everything.
+      if (!talking) merge(world, a, b);
+      else pass(world, a, b);
       // A conversation is named by whoever started it; not by one whose last is still going.
       const host = ctx.talkSize[a.id] === 0 ? a.id : ctx.talkSize[b.id] === 0 ? b.id : null;
-      if (host !== null && canTalk(world, ctx, a) && canTalk(world, ctx, b) && chance(world.rng, Math.min(1, (tc.chance * (a.sociality + b.sociality)) / 2))) {
+      if (talking && host !== null && canTalk(world, ctx, a) && canTalk(world, ctx, b) && chance(world.rng, Math.min(1, (tc.chance * (a.sociality + b.sociality)) / 2))) {
         enterTalk(world, ctx, a, host);
         enterTalk(world, ctx, b, host);
         merge(world, a, b);
@@ -247,7 +261,7 @@ export function resolveEncounters(world: World, ctx: Context): void {
 
   // Passers drawn into a conversation within joinRadius: the nearest member's (ties to
   // the lower id), once per cooldown, at the passer's own sociality.
-  for (const a of sims) {
+  for (const a of talking ? sims : []) {
     if (a.gathering !== null || !isOutdoorLiving(a)) continue;
     if (tick - a.lastMergeAt < cooldown) continue;
     ctx.simHash.query(a.x, a.y, tc.joinRadius, ids);

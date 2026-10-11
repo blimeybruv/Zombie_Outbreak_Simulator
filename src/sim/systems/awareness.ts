@@ -101,7 +101,7 @@ export function setObjective(sim: Sim, o: Objective): void {
 export function reconsider(world: World, ctx: Context, sim: Sim): void {
   const { config, tick, buildings } = world;
   const mg = config.migration;
-  if (sim.destinationBuilding === null || sim.station !== null) return;
+  if (!config.features.reconsider || sim.destinationBuilding === null || sim.station !== null) return;
   if (!sim.reconsider && (sim.id + tick) % config.roles.interval !== 0) return;
   sim.reconsider = false;
   if (sim.lastMigratedAt !== null && tick - sim.lastMigratedAt < mg.cooldown) return;
