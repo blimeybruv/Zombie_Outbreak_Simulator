@@ -32,13 +32,17 @@ import { rebuildSimHash } from './perception';
  * Takes what `from` knows that is newer, as the listener hears it: `shift` ticks older
  * than it is. With `quietLook`, danger is settled rather than replaced (memory.ts
  * settleDanger): newer news of a quiet street lowers a warning only part of the way.
+ * With `quietFloor`, a street the listener knows nothing of is taken only if the news
+ * is of danger above it: that a far street was quiet changes nothing for one who reads
+ * an unknown street as safe.
  */
-function mergeNewer<K, V extends { observedAt: number; visited: boolean; danger?: number }>(into: Map<K, V>, from: Map<K, V>, shift: number, quietLook?: number): void {
+function mergeNewer<K, V extends { observedAt: number; visited: boolean; danger?: number }>(into: Map<K, V>, from: Map<K, V>, shift: number, quietLook?: number, quietFloor?: number): void {
   for (const [key, theirs] of from) {
     const mine = into.get(key);
     const heard = theirs.observedAt - shift;
-    if (mine === undefined) into.set(key, { ...theirs, observedAt: heard, visited: false });
-    else if (heard > mine.observedAt) {
+    if (mine === undefined) {
+      if (quietFloor === undefined || theirs.danger! > quietFloor) into.set(key, { ...theirs, observedAt: heard, visited: false });
+    } else if (heard > mine.observedAt) {
       const believed = mine.danger;
       Object.assign(mine, theirs, { observedAt: heard, visited: mine.visited });
       if (quietLook !== undefined && believed !== undefined) mine.danger = settleDanger(believed, theirs.danger!, quietLook);
@@ -50,9 +54,28 @@ function mergeNewer<K, V extends { observedAt: number; visited: boolean; danger?
  * Both ways, newer (as heard) wins. The second pass cannot undo the first: a copied
  * entry is no newer than the original it came from.
  */
-function mergeBoth<K, V extends { observedAt: number; visited: boolean; danger?: number }>(a: Map<K, V>, b: Map<K, V>, shiftA: number, shiftB: number, quietLook?: number): void {
-  mergeNewer(a, b, shiftA, quietLook);
-  mergeNewer(b, a, shiftB, quietLook);
+function mergeBoth<K, V extends { observedAt: number; visited: boolean; danger?: number }>(
+  a: Map<K, V>,
+  b: Map<K, V>,
+  shiftA: number,
+  shiftB: number,
+  quietLook?: number,
+  floorA?: number,
+  floorB?: number,
+): void {
+  mergeNewer(a, b, shiftA, quietLook, floorA);
+  mergeNewer(b, a, shiftB, quietLook, floorB);
+}
+
+/**
+ * Below which hearsay of a street `s` knows nothing of is not worth keeping: none for
+ * the especially cautious, who read an unknown street as dangerous and so learn from
+ * news that one is quiet (pathfinding.ts believedDanger).
+ */
+function quietFloorOf(world: World, s: Sim): number | undefined {
+  const m = world.config.memory;
+  if (!world.config.features.dropQuietHearsay || (world.config.features.cautiousRouting && s.caution >= m.unknownDangerFrom)) return undefined;
+  return m.relevance.dangerFloor;
 }
 
 /** How much older hearsay seems to this listener. */
@@ -111,7 +134,7 @@ export function merge(world: World, a: Sim, b: Sim): void {
   if (aWasAware) told(world, b, a);
   const { buildingCap } = world.config.memory;
   const shiftA = hearsayAge(world, a), shiftB = hearsayAge(world, b);
-  mergeBoth(a.streetMemory, b.streetMemory, shiftA, shiftB, world.config.memory.quietLook);
+  mergeBoth(a.streetMemory, b.streetMemory, shiftA, shiftB, world.config.memory.quietLook, quietFloorOf(world, a), quietFloorOf(world, b));
   mergeBoth(a.buildingMemory, b.buildingMemory, shiftA, shiftB);
   trimStreets(world, a);
   trimStreets(world, b);

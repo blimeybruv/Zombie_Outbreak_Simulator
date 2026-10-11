@@ -131,8 +131,11 @@ export const config = {
   //   cars            no cars at all
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
+  //   relevanceTrim   street memory forgets its oldest, not its least relevant
+  //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
     relevanceTrim: true,
+    dropQuietHearsay: false, // off until swept on its own, after relevanceTrim
     conversations: true,
     unease: true,
     trust: true,
