@@ -124,6 +124,8 @@ export interface RunSummary {
   sociality: { alive: number[]; total: number[] };
   /** The same by trust band, every tracked sim. */
   trust: { alive: number[]; total: number[] };
+  /** By caution band among the asocial (sociality below the lowest band edge): whether caution still matters for those who seldom talk or join. */
+  cautionAsocial: { alive: number[]; total: number[] };
   /** Everyone promoted, in promotion order, as scored when named. */
   roster: RosterEntry[];
   stages: StageStats[];
@@ -257,6 +259,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     caution.total[band]!++;
     if (s.condition === 'healthy') caution.alive[band]!++;
   }
+  const cautionAsocial = { alive: [0, 0, 0], total: [0, 0, 0] };
+  for (const s of world.sims) {
+    if (s.sociality >= bands[0]!) continue;
+    const band = s.caution < bands[0]! ? 0 : s.caution < bands[1]! ? 1 : 2;
+    cautionAsocial.total[band]!++;
+    if (s.condition === 'healthy') cautionAsocial.alive[band]!++;
+  }
   const trust = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     const band = s.trust < bands[0]! ? 0 : s.trust < bands[1]! ? 1 : 2;
@@ -285,6 +294,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     timeline,
     sociality,
     trust,
+    cautionAsocial,
     roster,
     stages,
     fates,

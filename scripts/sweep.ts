@@ -20,13 +20,16 @@
 // ticker line at all), and conversions, breaches and 911 dispatches.
 // Also reported, not gated: survival by sociality band, over the sims whose archetype
 // ever joins anyone — whether going along with others helps or hurts; and by trust
-// band — whether believing what one is told does.
+// band — whether believing what one is told does; and by caution among the asocial,
+// who seldom talk or join, so caution can be seen to matter where sociality does not
+// stand in for it.
 
 import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runOne, type RunSummary } from './lib/run-one';
+import { config as baseConfig } from '../src/config';
 
 /** Who got named, and why: does scoring find different characters, or one character many times? */
 function rosterSummary(results: RunSummary[], file: string): void {
@@ -179,6 +182,8 @@ if (process.argv[2] === '--worker') {
   );
   const social = bandSurvival(results.map((r) => r.sociality));
   console.log(`survival by sociality low/mid/high ${social.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${social.z.toFixed(1)}; joiners only, not gated)`);
+  const asocial = bandSurvival(results.map((r) => r.cautionAsocial));
+  console.log(`survival by caution among the asocial (sociality < ${bandsEdge()}) low/mid/high ${asocial.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${asocial.z.toFixed(1)}; not gated)`);
   const trusting = bandSurvival(results.map((r) => r.trust));
   console.log(`survival by trust low/mid/high ${trusting.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${trusting.z.toFixed(1)}; not gated)`);
   rosterSummary(results, rosterOut);
@@ -199,4 +204,8 @@ function bandSurvival(runs: { alive: number[]; total: number[] }[]): { rate: num
   const pooled = (alive[0]! + alive[2]!) / Math.max(1, total[0]! + total[2]!);
   const se = Math.sqrt(pooled * (1 - pooled) * (1 / Math.max(1, total[0]!) + 1 / Math.max(1, total[2]!)));
   return { rate, z: se > 0 ? (rate[2]! - rate[0]!) / se : 0 };
+}
+
+function bandsEdge(): number {
+  return baseConfig.promotion.cautionBands[0]!;
 }
