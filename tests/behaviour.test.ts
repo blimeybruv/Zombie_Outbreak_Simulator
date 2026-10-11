@@ -482,6 +482,62 @@ describe('cars', () => {
     expect(car.state).toBe('abandoned');
     expect(s.car).toBeNull();
   });
+
+  /** The driver() set-up, once it is in the car and facing the way it will go. */
+  function inCar() {
+    const d = driver();
+    const { world, ctx, s } = d;
+    for (let t = 0; t < 200 && s.car === null; t++) step(world, ctx, { checkInvariant: false });
+    world.tick++;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    decideCars(world, ctx);
+    return d;
+  }
+
+  it('a car being driven makes engine noise, which frightens nobody', () => {
+    const { world, ctx, car } = inCar();
+    const before = world.sims.map((x) => x.panic);
+    let engines = 0;
+    for (let t = 0; t < baseConfig.cars.engineInterval; t++) {
+      world.tick++;
+      sizeContext(ctx, world);
+      rebuildHashes(world, ctx);
+      decideCars(world, ctx);
+      engines += world.stimuli.filter((n) => n.kind === 'engine' && n.createdAt === world.tick && n.x === car.x && n.y === car.y).length;
+    }
+    expect(engines).toBe(1);
+    world.tick++;
+    computePerception(world, ctx);
+    updatePanic(world, ctx);
+    expect(world.sims.every((x, i) => x.panic <= (before[i] ?? 0) + 1e-9)).toBe(true);
+  });
+
+  it('the dead at an occupied car break in, and everyone inside is out among them', () => {
+    const { world, ctx, s, car } = inCar();
+    for (let k = 0; k < 6; k++) spawnZombie(world, car.x + Math.cos((k * Math.PI) / 3) * 2.5, car.y + Math.sin((k * Math.PI) / 3) * 2.5, 'active', null, null);
+    for (let t = 0; t < 200 && car.state === 'driving'; t++) {
+      world.tick++;
+      sizeContext(ctx, world);
+      rebuildHashes(world, ctx);
+      carProcesses(world, ctx);
+    }
+    expect(car.state).toBe('abandoned');
+    expect(s.car).toBeNull();
+  });
+
+  it('someone turning inside leaves the car stopped, and the others out', () => {
+    const { world, ctx, s, car } = inCar();
+    const passenger = walker(world, car.x, car.y);
+    passenger.car = car.id;
+    car.occupants.push(passenger.id);
+    bite(world, ctx, s);
+    s.turnsAt = world.tick;
+    convertDue(world, ctx);
+    expect(car.state).toBe('abandoned');
+    expect(car.occupants).toHaveLength(0);
+    expect(passenger.car).toBeNull();
+  });
 });
 
 describe('release', () => {

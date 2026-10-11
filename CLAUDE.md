@@ -174,7 +174,7 @@ If one seems necessary, raise it rather than adding it.
 - Health pools, wounds, bandages, healer archetype — replaced by one infection flag
 - Heavy weapons, grenades — changes capability rather than decisions
 - Multi-slot inventory — one weapon, one ammo count, one materials count
-- Traffic modelling — cars are deferred entirely; when built, no lanes or intersections
+- Traffic modelling — cars are built (reference, "Cars") as containers that drive, jam and are abandoned: no lanes, intersections or right of way beyond "the lower id yields"
 - Corpses as attractors — would make every killing a magnet
 - Isometric projection, authored art, line-of-sight rendering
 - Any game engine. TypeScript and a plain canvas
@@ -245,7 +245,7 @@ is a triangle; positions are interpolated between ticks. A third round: police d
 as a unit, are cops by profession and age, churches are larger and fewer and drawn in
 plan, and every door has a step. Police run toward gunfire; fight, flight and freeze show
 as an outline, a streak and a slow pulse. Sheltered armed sims fire from the door.
-Sociality and trust are per sim, like caution; only stopping to talk trades what people know (the outbreak included), sociable passers join conversations into gatherings, drawn as a faint line or ring, and sceptics discount hearsay (reference, "Fourth round"). Fortification has stages — open, barricaded, reinforced, fortified — each needing a bigger
+Sociality and trust are per sim, like caution; only stopping to talk trades what people know (the outbreak included), sociable passers join conversations into gatherings, drawn as a faint line or ring, and sceptics discount hearsay (reference, "Fourth round"). Cars park, drive, jam and are abandoned for good, draw the dead with their engines, and can be broken into (`systems/cars.ts`). Fortification has stages — open, barricaded, reinforced, fortified — each needing a bigger
 crowd to break, with integrity capping the stage (`common.ts stageOf`).
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the

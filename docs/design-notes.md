@@ -450,7 +450,7 @@ Recorded so they are not re-litigated.
 | Wounds, HP, bandages, healer archetype | Cut | Replaced by one infection flag and a witness check, which produces the interesting scene without the system. |
 | Heavy weapons, grenades | Cut | Changes capability rather than decisions, and one sim able to clear crowds breaks the one-way infection curve. |
 | Building on Project Zomboid | Rejected | Wants the opposite half of that engine: mass agents and a spectator camera rather than one deep character. No headless harness, and the core parameters would not be reachable. |
-| Cars and traffic | Deferred | Second expansion, after base dynamics prove out. |
+| Cars and traffic | Built (fourth round) | Brought forward at the user's request: gridlock as a vector, engines as a dinner bell. See the reference, "Cars". |
 | Memory sharing between sims | Deferred | Now core rather than deferred: street-keyed memory makes merging a recency comparison, and it is what makes grouping an advantage. |
 | Procedural map variety | Deferred | Generation quality is its own tuning problem. |
 | Rescue ending | Deferred to v2 | The better ending; the demo uses timer and stalemate. |

@@ -206,7 +206,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       for (const s of world.stimuli) {
         if (s.createdAt !== world.tick) continue;
         if (s.kind === 'shout') win.shouts++;
-        else win.shots++;
+        else if (s.kind !== 'engine') win.shots++;
       }
       for (const e of world.events) {
         win.events[e.type] = (win.events[e.type] ?? 0) + 1;

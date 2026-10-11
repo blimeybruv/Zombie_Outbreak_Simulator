@@ -12,6 +12,8 @@
 //   arriving    at the kerb by the destination's door, everyone gets out
 //   abandoning  stopped behind something for jamTicks: everyone gets out, and the car
 //               stays where it is for the rest of the run
+//   siege       a car being driven makes engine noise the dead hear; the dead at an
+//               occupied car break in; someone turning inside bites the others
 //
 // Everyone inside counts as outdoors (or symptomatic), and is out of reach of
 // everything that acts on people on foot: the population invariant does not change.
@@ -21,8 +23,10 @@ import { functionalProfile } from '../mapgen/generate';
 import { sharedNode } from '../pathfinding';
 import { chance } from '../rng';
 import type { Building, Car, CarId, Sim, World } from '../state';
+import { bite } from './combat';
 import { entranceNearest, leaveTalk, setDestination } from './common';
 import type { Mode } from './panic';
+import { emitStimulus } from './stimuli';
 
 const CELL = 10; // m
 
@@ -366,6 +370,19 @@ export function carProcesses(world: World, ctx: Context): void {
       alight(world, ctx, car);
       continue;
     }
+    // The dead at the doors: each awake one breaks in at breakIn a tick.
+    ctx.zombieHash.query(car.x, car.y, cc.length / 2 + config.combat.contactRange, ctx.ids2);
+    let at = 0;
+    for (const id of ctx.ids2) {
+      const z = world.zombies[id]!;
+      if (z.state === 'active' || z.state === 'wandering') at++;
+    }
+    if (at > 0 && chance(world.rng, 1 - (1 - cc.breakIn) ** at)) {
+      car.state = 'abandoned';
+      ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });
+      alight(world, ctx, car);
+      continue;
+    }
     if (car.blockedSince !== null && tick - car.blockedSince >= cc.jamTicks) {
       car.state = 'abandoned';
       ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });
@@ -460,6 +477,10 @@ export function decideCars(world: World, ctx: Context): void {
     if (car.routeIndex >= car.route.length - 1) speed = Math.min(speed, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
     car.speed = speed;
   }
+  // Engines, moving or stuck: the dead hear them.
+  for (const car of moving) {
+    if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
+  }
 }
 
 /** Car movement (step 9): along its heading by its speed, everyone inside with it. */
@@ -485,8 +506,11 @@ export function turnedInCar(world: World, ctx: Context, sim: Sim): void {
   const car = world.cars[sim.car!]!;
   sim.car = null;
   car.occupants = car.occupants.filter((id) => id !== sim.id);
+  // Shut in with it: each of the others is bitten at turnInsideBite.
+  for (const id of car.occupants) if (chance(world.rng, world.config.cars.turnInsideBite)) bite(world, ctx, world.sims[id]!);
   if (car.state === 'driving') {
-    car.state = car.occupants.length > 0 ? 'abandoned' : 'abandoned';
+    car.state = 'abandoned';
+    ctx.events.push({ type: 'carAbandoned', tick: world.tick, car: car.id, x: car.x, y: car.y, sim: null });
     alight(world, ctx, car);
   }
 }

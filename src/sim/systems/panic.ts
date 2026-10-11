@@ -58,6 +58,7 @@ export function updatePanic(world: World, ctx: Context): void {
     // Swept along without knowing why: unsettled, never knowing.
     if (unaware && target * uc.fleeingShare > sim.unease) sim.unease += (target * uc.fleeingShare - sim.unease) * config.crowd.fleeingRate;
     for (const s of noises) {
+      if (s.kind === 'engine') continue; // an engine running is not news, and frightens nobody
       const i = intensityAt(s, sim.x, sim.y);
       // A shout frightens; what it means is for the encounters step (hearWarnings).
       if (i >= pc.noiseIntensityFloor) {

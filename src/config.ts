@@ -398,6 +398,17 @@ export const config = {
     arriveRadius: 6, // m
     waypointRadius: 4, // m; a junction counts as passed within this
     jamTicks: 180,
+    // Engines: a car being driven (moving or stuck) makes a noise every engineInterval
+    // ticks, staggered by id, heard by the dead to engineNoise metres at
+    // engineIntensity — a street of cars is a dinner bell. People ignore it.
+    engineInterval: 10,
+    engineNoise: 45, // m
+    engineIntensity: 0.6,
+    // Each awake zombie at an occupied car (within half its length and contact range)
+    // breaks in at breakIn a tick: the doors give, and everyone inside is out among
+    // them. Someone who turns inside bites each of the others at turnInsideBite.
+    breakIn: 0.02,
+    turnInsideBite: 0.6,
   },
 
   pathfinding: {
