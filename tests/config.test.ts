@@ -128,7 +128,7 @@ describe('derived quantities', () => {
     expect(timeOfDay(0, s, config)).toBeCloseTo(0.5, 10);
     expect(timeOfDay(config.time.dayLength, s, config)).toBeCloseTo(0.5, 10);
     expect(timeOfDay(config.time.dayLength / 2, s, config)).toBeCloseTo(0, 10);
-    expect(Number.isInteger(config.time.runLength / config.time.dayLength)).toBe(true); // whole day/night cycles
+    // The run need not be whole days: at 48,000 ticks it ends at night, by choice.
   });
 });
 

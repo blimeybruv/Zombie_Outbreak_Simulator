@@ -183,7 +183,7 @@ If one seems necessary, raise it rather than adding it.
 
 ## Working practice
 
-- **Headless before visual.** Milestone 2 is a script that runs a full run (36,000 ticks)
+- **Headless before visual.** Milestone 2 is a script that runs a full run (48,000 ticks; 36,000 until the fourth round)
   from a fixed seed and prints the eight counters every 600. No renderer until the counters
   reconcile and the infection curve has a shape across 20 seeds.
 - Write the parameter-sweep harness early. Tuning is the actual work on this project;
@@ -263,7 +263,7 @@ Milestone 2 (headless loop) is done: `npm run sim -- <runSeed> <mapSeed>` prints
 counters every 600 ticks; `npm run sweep` runs 20 runSeeds on one mapSeed in parallel,
 asserts the invariant every tick and checks the gate (`--set path=value` overrides any
 config value; `--seeds 8` for quicker exploration). A full sweep takes about 30 minutes
-at the default population of 6,000 and run length of 36,000 ticks. Re-run it after any change to simulation code,
+at the default population of 6,000 and run length of 36,000 ticks (the run is now 48,000 ticks, so about a third longer). Re-run it after any change to simulation code,
 map generation or tuning — a passing test suite does not mean the infection curve
 still has its shape.
 

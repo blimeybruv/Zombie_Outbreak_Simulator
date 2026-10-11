@@ -56,7 +56,7 @@ Choices the specification left open, made while implementing the headless loop. 
 
 ### Revisions after milestone 2
 
-- **Run length is 36,000 ticks** (was 21,600): five whole day/night cycles at `dayLength` 7,200, so the run ends at the same time of day it began.
+- **Run length is 36,000 ticks** (was 21,600): five whole day/night cycles at `dayLength` 7,200, so the run ends at the same time of day it began. (Since the fourth round, 48,000: see "Run length 48,000".)
 - **Promotion is two-stage** (provisional at 50% living, re-score at 30%) with an append-only roster; see Promotion. It was 8% living, which at 6,000 population would have named survivors only once the city was nearly gone.
 
 **Tuning that passed the milestone 2 gate** (swept from the guessed defaults): zombie `dormantAfter` 300 → 1,200 ticks, `wanderRate` 0.0002 → 0.001, scent `idleDrift` 0.02 → 0.2, breach split 45/20/35 → 60/10/30 (turn/die/expel), and breach `base` 0.05 → 0.35 (0.15 passed on the old one-building-per-block map; subdivided blocks put most people in small houses, where a breach yields one or two conversions, so breaches had to come more often). On the current map at a population of 6,000, after the movement fixes (agents no longer stall against walls), mapSeed 1 has 20 of 20 runSeeds between 40% and 90% infection (65–68%, with about 24% dead without turning); the invariant held on every tick of every run, and no run resolved early. At the 36,000-tick run length the gate still passes 20 of 20 (72–74% turned, 23–26% dead; wall time about 20 minutes). The curve flattens after about 25,000 ticks, and from about tick 11,000 almost nobody is outdoors: with no shelter economy, nothing brings the sheltered back out — milestone 4's job. **Open:** the spread across seeds is now only about 2 points; the sweep targets treat low variance as the outcome being determined, so this is the first thing milestone 4 tuning should look at.
@@ -198,6 +198,10 @@ Seed 1, 9,000 ticks: breaches 686 → 363, dead 929 → 633, turned 1,078 → 70
   - **What there is to watch:** at 1×, with every event treated as on screen (an upper bound), a median 8–9 ticker lines per 10 minutes once an outbreak has taken off — one a minute or so — and 1–2 in a smouldering run, where 12–18 of 54 ten-minute windows after the first hour have no line at all ("dead air"); taking-off runs have none. The first hour reads alike in every seed (52–83 lines), before the runs part ways. Awake zombies peak late in several runs (seeds 2, 5, 6 at ticks 17,400–34,800) as dormant hordes build (250–350 dormant at the end where it took off).
   - The sweep now records this timeline per run (`scripts/lib/run-one.ts TimelineEntry`) and prints it per seed.
 
+### Run length 48,000
+
+At the user's request, the run is now 48,000 ticks (was 36,000): 13⅓ simulated hours, 6⅔ day/night cycles, so a run started at 09:00 ends at about 01:00, in the dark. The sweep after the fourth round showed runs unfinished at 36,000 — awake zombies peaking at ticks 17,400–34,800 and 250–350 dormant at the end where the outbreak took off — and the late rise of dormant hordes needed room. Nothing but the stopping point reads the run length (viewer, harness); the roster's stages, the release and the day all run on their own ticks. A whole number of days (43,200 or 50,400) was offered and declined. Sweeps run about a third longer. The loss gate is measured at the end, so it reads higher than at 36,000 for the same run; earlier sweeps in this document are at 36,000.
+
 ### Cars
 
 Built at the user's request ahead of the sequencing in the design notes (cars were the second expansion, after the base dynamics proved out): gridlock as a vector for infection, and engines as a dinner bell for an opening that smoulders. Jams and abandonment, not traffic modelling (`state/car.ts`, `systems/cars.ts`, `config.cars`).
@@ -266,7 +270,7 @@ The street graph is an overlay on continuous space, not a replacement for it. Si
 | Display rate at 1× | 10 ticks/s | A 1× minute of watching is 10 simulated minutes |
 | Speed multipliers | 0.25×, 1×, 2×, 4×, 8× | Plus pause and step-one-tick |
 | Speed ceiling | 8× | Above this, audio and ticker become unreadable |
-| Run length | 36,000 ticks | Ten simulated hours: five day/night cycles, 60 min at 1×, 7.5 min at 8× (was 21,600) |
+| Run length | 48,000 ticks | 13⅓ simulated hours: 6⅔ day/night cycles, ending at night (about 01:00 from a 09:00 start); 80 min at 1×, 10 min at 8× (was 36,000; before that 21,600) |
 | Day length | 7,200 ticks | Compressed: three day/night cycles per run. `timeOfDay` is derived from tick, start hour and day length, never stored |
 
 **Correction to the design notes:** the "one in-game month" ending is not reachable at one tick per second and should be read as flavour. The timer ending is a tick count.
@@ -544,7 +548,7 @@ Everything needed to resume a run exactly. If this serialises and reloads identi
 
 | Field | Type | Range / unit | Meaning |
 | --- | --- | --- | --- |
-| `tick` | `int` | 0–36,000 | Simulated seconds elapsed |
+| `tick` | `int` | 0–48,000 | Simulated seconds elapsed |
 | `seed` | `int` | — | Reproduces the whole run |
 | `rng` | `PRNG` | — | Seeded instance; its internal state is part of the snapshot |
 | `timeOfDay` | `float` | 0–1 | 0 midnight, 0.5 noon; drives perception radii |
@@ -1131,7 +1135,7 @@ Everything in the tuning tables stays in `config.ts`. Those interact chaotically
 
 ### Ending
 
-One terminal condition for the demo: the timer, at 36,000 ticks. Stalemate is handled by the controller rather than by ending the run. The rescue is a v2 ending and is not built.
+One terminal condition for the demo: the timer, at 48,000 ticks (36,000 until the fourth round). Stalemate is handled by the controller rather than by ending the run. The rescue is a v2 ending and is not built.
 
 ## Presentation
 
@@ -1262,7 +1266,7 @@ Each gate is a question with a yes or no answer. A milestone is not done because
 
 &#91;embedded content: build order · 5 milestones, 4 gates\]
 
-**Milestone 2 is the one that matters.** The deliverable is a script that runs a full run (36,000 ticks) from a fixed seed and prints the eight counters every 600. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape — is answerable without one.
+**Milestone 2 is the one that matters.** The deliverable is a script that runs a full run (now 48,000 ticks) from a fixed seed and prints the eight counters every 600. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape — is answerable without one.
 
 That output doubles as the first test. The invariant assertion runs every tick, which is what keeps a growing simulation from silently rotting.
 
@@ -1271,7 +1275,7 @@ That output doubles as the first test. The invariant assertion runs every tick, 
 | Gate | Passes when |
 | --- | --- |
 | After 1 | Every field has a type, a range and a unit. Coordinates and tick length are settled. No field exists that nothing reads |
-| After 2 | The invariant holds for a full run (36,000 ticks) across 20 runSeeds on one mapSeed; infection reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks |
+| After 2 | The invariant holds for a full run (now 48,000 ticks) across 20 runSeeds on one mapSeed; infection reaches 40–90% of population in at least 15 of them; no seed resolves in under 3,000 ticks |
 | After 3 | The city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the ticker surfaces fewer than 6 lines per second at 1× |
 | After 4 | Shelters form, fall and re-form; no seed settles into stasis with the controller off; survival differs measurably by caution band |
 

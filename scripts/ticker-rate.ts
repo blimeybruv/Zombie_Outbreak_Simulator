@@ -1,6 +1,6 @@
 // Measures the ticker gate headlessly: fewer than 6 lines per second at 1×.
 //
-//   npx tsx scripts/ticker-rate.ts [--seed 1] [--map 1] [--ticks 36000]
+//   npx tsx scripts/ticker-rate.ts [--seed 1] [--map 1] [--ticks 48000]
 //
 // Replays one run through the same notes and salience filter the viewer uses, at
 // each playback speed, assuming the worst case for proximity (every event on
