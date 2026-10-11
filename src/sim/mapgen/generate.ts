@@ -371,39 +371,59 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   const graph: PlanarGraph = planarise(segs, mc.snap);
 
   // 6. The mall site: of the standard streets between two blocks, the one whose blocks
-  // together make the largest compound within bounds. It is cut back to a driveway from
-  // its lower-id end, so the two blocks become one face with the driveway reaching in.
+  // together make the largest compound within bounds — preferring one that meets a main
+  // street, as retail parks sit on the arterial roads. It is cut back to a driveway from
+  // that end (else its lower-id end), so the two blocks become one face with the
+  // driveway reaching in. A site the compound does not fit in (an irregular block) is
+  // put back and the next tried.
   const mm = mc.mall;
-  let drive: { edge: number; from: Pt; inward: Pt; end: Pt } | null = null;
+  let drive: { edge: number; layout: MallLayout } | null = null;
   {
     const fs = faces(graph);
     const faceOf: number[][] = graph.edges.map(() => []);
     fs.forEach((f, fi) => f.edges.forEach((e) => faceOf[e]!.includes(fi) || faceOf[e]!.push(fi)));
-    let best = -1;
-    let bestArea = 0;
+    const onMain = new Uint8Array(graph.nodes.length);
+    for (const e of graph.edges) if (lines[e.line]!.kind === 'main') onMain[e.a] = onMain[e.b] = 1;
+    const sites: { id: number; score: number }[] = [];
     graph.edges.forEach((e, id) => {
       const l = lines[e.line]!;
       const pair = faceOf[id]!;
       if (l.bridge || l.kind !== 'standard' || pair.length !== 2) return;
       const [f1, f2] = [fs[pair[0]!]!, fs[pair[1]!]!];
       const area = f1.area + f2.area;
-      if (f1.area < mm.minBlock || f2.area < mm.minBlock || area > mm.maxArea || area <= bestArea) return;
+      if (f1.area < mm.minBlock || f2.area < mm.minBlock || area > mm.maxArea) return;
       const a = graph.nodes[e.a]!, b = graph.nodes[e.b]!;
       if (dist(a, b) < mm.minLength) return;
       if (!mm.districts.includes(districts[districtAt(scale(add(a, b), 0.5))]!.kind)) return;
       if (![...f1.nodes, ...f2.nodes].every((n) => riverDist(graph.nodes[n]!) > rc.width / 2 + 2)) return;
-      best = id;
-      bestArea = area;
+      sites.push({ id, score: area + (onMain[e.a] || onMain[e.b] ? mm.maxArea : 0) });
     });
-    if (best >= 0) {
-      const e = graph.edges[best]!;
-      const [from, to] = e.a < e.b ? [e.a, e.b] : [e.b, e.a];
-      const p = graph.nodes[from]!;
-      const inward = unit(sub(graph.nodes[to]!, p));
+    sites.sort((x, y) => y.score - x.score || x.id - y.id);
+    for (const { id } of sites.slice(0, mm.tries)) {
+      const e = graph.edges[id]!;
+      const lowFirst = e.a < e.b ? [e.a, e.b] : [e.b, e.a];
+      const [from, to] = onMain[lowFirst[0]!] || !onMain[lowFirst[1]!] ? lowFirst : [lowFirst[1]!, lowFirst[0]!];
+      const p = graph.nodes[from!]!;
+      const inward = unit(sub(graph.nodes[to!]!, p));
       const end = add(p, scale(inward, mm.driveway));
       graph.nodes.push(end);
-      graph.edges[best] = { a: from, b: graph.nodes.length - 1, line: e.line };
-      drive = { edge: best, from: p, inward, end };
+      graph.edges[id] = { a: from!, b: graph.nodes.length - 1, line: e.line };
+      const merged = faces(graph).find((f) => f.edges.includes(id));
+      const layout = merged
+        ? mallLayout(
+            merged.nodes.map((n) => graph.nodes[n]!).filter((q) => q !== end),
+            Math.max(...merged.edges.map((m) => widths[lines[graph.edges[m]!.line]!.kind])) / 2 + mc.setback,
+            p,
+            inward,
+            mm,
+          )
+        : null;
+      if (layout && layout.building.every((q) => riverDist(q) > rc.width / 2 + 2)) {
+        drive = { edge: id, layout };
+        break;
+      }
+      graph.nodes.pop();
+      graph.edges[id] = e;
     }
   }
 
@@ -490,49 +510,16 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     });
   };
 
-  /**
-   * The compound: grounds filling the merged block inside its streets; parking from the
-   * front to the driveway's end; the building beyond, as wide as the grounds allow
-   * (centred on the driveway where it can be) and at most maxDepth deep. False if it
-   * does not fit, and the block is built up as usual.
-   */
-  const placeMall = (edgeIds: number[], face: Pt[], centre: Pt): boolean => {
-    const { from, inward, end } = drive!;
-    // The block's outline without the driveway, which reaches in and back out.
-    const poly = face.filter((p) => p !== end).filter((p, i, all) => p !== all[(i + 1) % all.length]);
-    const dir = perp(inward);
-    const us = poly.map((p) => dot2(sub(p, from), dir));
-    const vs = poly.map((p) => dot2(sub(p, from), inward));
-    const margin = Math.max(...edgeIds.map((e) => streets[e]!.width)) / 2 + mc.setback;
-    let u0 = Math.min(...us) + margin, u1 = Math.max(...us) - margin;
-    const v0 = margin;
-    let v1 = Math.max(...vs) - margin;
-    const at = (u: number, v: number) => add(add(from, scale(dir, u)), scale(inward, v));
-    let grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
-    for (let k = 0; k < 20 && !polygonInside(grounds, poly); k++) {
-      u0 += 2;
-      u1 -= 2;
-      v1 -= 2;
-      grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
-    }
-    if (!polygonInside(grounds, poly)) return false;
-    const bv0 = mm.driveway + mm.apron;
-    const depth = Math.min(mm.maxDepth, v1 - bv0);
-    const w = Math.min(mm.maxWidth, u1 - u0 - 2 * mm.sideYard);
-    if (depth < 30 || w < 40) return false;
-    const uc = Math.min(Math.max(0, u0 + mm.sideYard + w / 2), u1 - mm.sideYard - w / 2);
-    const rect = rectFromFront(at(uc - w / 2, bv0), dir, w, inward, depth);
-    if (!polygonInside(rect, poly) || ![...rect, centre].every(dryAt)) return false;
-    makeBuilding(rect, dir, w, depth, streets[drive!.edge]!, districtAt(centre), 'mall');
-    lots.push({ outline: grounds, parkingDepth: bv0 - mm.apron / 2 - v0, entry: -u0 });
-    return true;
-  };
-
   for (const face of faces(graph)) {
     if (face.area < mc.minBlockArea) continue;
     const poly = face.nodes.map((id) => graph.nodes[id]!);
     const centre = poly.reduce((acc, p) => add(acc, scale(p, 1 / poly.length)), { x: 0, y: 0 });
-    if (drive && face.edges.includes(drive.edge) && placeMall(face.edges, poly, centre)) continue;
+    if (drive && face.edges.includes(drive.edge)) {
+      const { building, dir, width, depth, lot } = drive.layout;
+      makeBuilding(building, dir, width, depth, streets[drive.edge]!, districtAt(centre), 'mall');
+      lots.push(lot);
+      continue;
+    }
     if (face.area < mc.plazaArea) {
       if (dryAt(centre)) openUp(face.edges);
       continue;
@@ -617,6 +604,49 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   }
 
   return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots };
+}
+
+interface MallLayout {
+  building: Pt[];
+  dir: Pt;
+  width: number;
+  depth: number;
+  lot: Lot;
+}
+
+/**
+ * The compound in a merged block (its outline, the driveway's far end left out):
+ * grounds filling the block inside its streets (margin in from them); parking from the
+ * front to the driveway's end; the building beyond, as wide as the grounds allow
+ * (centred on the driveway where it can be) and at most maxDepth deep. Null if it does
+ * not fit.
+ */
+function mallLayout(face: Pt[], margin: number, from: Pt, inward: Pt, mm: Config['map']['mall']): MallLayout | null {
+  // The driveway reaches in and back out: drop the repeated junction it leaves behind.
+  const poly = face.filter((p, i, all) => p !== all[(i + 1) % all.length]);
+  const dir = perp(inward);
+  const us = poly.map((p) => dot2(sub(p, from), dir));
+  const vs = poly.map((p) => dot2(sub(p, from), inward));
+  let u0 = Math.min(...us) + margin, u1 = Math.max(...us) - margin;
+  const v0 = margin;
+  let v1 = Math.max(...vs) - margin;
+  const at = (u: number, v: number) => add(add(from, scale(dir, u)), scale(inward, v));
+  let grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
+  for (let k = 0; k < 30 && !polygonInside(grounds, poly); k++) {
+    u0 += 2;
+    u1 -= 2;
+    v1 -= 2;
+    grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
+  }
+  if (!polygonInside(grounds, poly)) return null;
+  const bv0 = mm.driveway + mm.apron;
+  const depth = Math.min(mm.maxDepth, v1 - bv0);
+  const width = Math.min(mm.maxWidth, u1 - u0 - 2 * mm.sideYard);
+  if (depth < mm.minDepth || width < mm.minWidth) return null;
+  const uc = Math.min(Math.max(0, u0 + mm.sideYard + width / 2), u1 - mm.sideYard - width / 2);
+  const building = rectFromFront(at(uc - width / 2, bv0), dir, width, inward, depth);
+  if (!polygonInside(building, poly)) return null;
+  return { building, dir, width, depth, lot: { outline: grounds, parkingDepth: bv0 - mm.apron / 2 - v0, entry: -u0 } };
 }
 
 /** Footprint area of a building outline (a convex quad). */

@@ -46,13 +46,15 @@ export const config = {
     offStreetLookup: 40, // m; perception reads the nearest street within this, else `standard`
     // One mall per map: the street between two neighbouring blocks is cut back to a
     // driveway, and the merged block becomes grounds — parking in front, one large
-    // building behind. The pair chosen is the largest within maxArea whose blocks are
-    // each at least minBlock, across a standard street at least minLength long, in one
-    // of these district kinds. driveway is its length from the junction; the building
-    // stands apron beyond its end, at most maxWidth × maxDepth, sideYard clear of the
-    // grounds' sides. No mall if no pair qualifies.
+    // building behind. Pairs qualify whose blocks are each at least minBlock and
+    // together at most maxArea, across a standard street at least minLength long, in one
+    // of these district kinds; those meeting a main street come first, then the largest.
+    // The best `tries` are tried in turn until the compound fits. driveway is its length
+    // from the junction; the building stands apron beyond its end, at most maxWidth ×
+    // maxDepth (at least minWidth × minDepth), sideYard clear of the grounds' sides. No
+    // mall if nothing fits.
     mall: {
-      districts: ['suburb', 'industrial'] as readonly string[],
+      districts: ['suburb'] as readonly string[], // malls are suburban; industrial blocks are larger and won every time
       minBlock: 8000, // m²
       maxArea: 50000, // m²
       minLength: 90, // m
@@ -61,6 +63,9 @@ export const config = {
       maxWidth: 170, // m
       maxDepth: 80, // m
       sideYard: 8, // m
+      minWidth: 80, // m; a smaller building is no mall
+      minDepth: 40, // m
+      tries: 12, // sites tried, best first, before the map goes without
     },
   },
 
