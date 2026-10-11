@@ -39,6 +39,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${e.officers === 1 ? 'An officer is' : 'Officers are'} on the way to ${n.place}.`;
     case 'simIsolating':
       return `${n.name ?? 'A survivor'}, bitten, is going off alone to ${n.place}.`;
+    case 'strangerRefused':
+      return `${who(n)} was turned away from ${n.place}.`;
     case 'carAbandoned':
       return `A car was abandoned on ${n.place}.`;
     case 'zombieDestroyed':

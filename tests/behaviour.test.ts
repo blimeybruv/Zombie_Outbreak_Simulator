@@ -564,6 +564,46 @@ describe('the especially cautious', () => {
   });
 });
 
+describe('strangers at the door', () => {
+  /** A house that knows of the outbreak with one survivor inside of the given caution, and someone arriving at its door. */
+  function arrive(insiderCaution: number, comingHome: boolean) {
+    const cfg = structuredClone(baseConfig);
+    cfg.shelter.strangerVeto = 1; // a certain veto, to test who it applies to
+    const { world, ctx } = fresh(cfg);
+    const b = world.buildings.find((x) => x.tag === 'residential' && x.zombiesInside === 0 && x.sheltered.length === 0)!;
+    const e = b.entrances[0]!;
+    const inside = walker(world, e.x, e.y);
+    inside.caution = insiderCaution;
+    inside.insideBuilding = b.id;
+    b.sheltered.push(inside.id);
+    b.alertedAt = 0;
+    const s = walker(world, e.x, e.y);
+    s.awareAt = 0;
+    if (comingHome) s.home = b.id;
+    setDestination(s, b, 'shelter');
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    buildingProcesses(world, ctx);
+    return { s, b, world };
+  }
+
+  it('the especially cautious inside keep a stranger out', () => {
+    const { s, b } = arrive(1, false);
+    expect(s.insideBuilding).toBeNull();
+    expect(s.refusedBy).toBe(b.id);
+  });
+
+  it('but let someone come home', () => {
+    const { s, b } = arrive(1, true);
+    expect(s.insideBuilding).toBe(b.id);
+  });
+
+  it('and nobody below the threshold refuses anyone', () => {
+    const { s, b } = arrive(baseConfig.shelter.strangerVetoFrom - 0.01, false);
+    expect(s.insideBuilding).toBe(b.id);
+  });
+});
+
 describe('release', () => {
   it('from a building that knows: households stay home, workers leave knowing', () => {
     const { world, ctx } = fresh();

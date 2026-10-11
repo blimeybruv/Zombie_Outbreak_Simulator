@@ -135,6 +135,25 @@ function turnAway(world: World, sim: Sim, b: Building): void {
   sim.nextRepathAt = world.tick + world.config.pathfinding.repathCooldown;
 }
 
+/**
+ * Whether the especially cautious inside keep a stranger out: in a building that knows
+ * of the outbreak, each of them refuses at strangerVeto, ramped in by caution. Nobody
+ * reads the stranger's infection; a stranger is refused for being one. Someone coming
+ * home, the congregation at its church and an officer at its station are no strangers.
+ */
+function refusedAsStranger(world: World, sim: Sim, b: Building): boolean {
+  const sc = world.config.shelter;
+  if (b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id) return false;
+  let admit = 1;
+  for (const id of b.sheltered) {
+    const o = world.sims[id]!;
+    if (!isLiving(o)) continue;
+    const ramp = Math.max(0, (o.caution - sc.strangerVetoFrom) / (1 - sc.strangerVetoFrom));
+    admit *= 1 - sc.strangerVeto * ramp;
+  }
+  return admit < 1 && !chance(world.rng, admit);
+}
+
 function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   const { config, tick } = world;
   let contesting = false;
@@ -152,6 +171,10 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
       return;
     }
   } else if (b.sheltered.some((id) => world.sims[id]!.knownInfected.has(sim.id))) {
+    turnAway(world, sim, b);
+    return;
+  } else if (refusedAsStranger(world, sim, b)) {
+    ctx.events.push({ type: 'strangerRefused', tick, building: b.id, sim: sim.id });
     turnAway(world, sim, b);
     return;
   }

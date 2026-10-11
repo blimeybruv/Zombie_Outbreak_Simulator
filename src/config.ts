@@ -702,6 +702,14 @@ export const config = {
   },
 
   shelter: {
+    // Strangers at the door. In a building that knows of the outbreak, each especially
+    // cautious person sheltering inside refuses a stranger at strangerVeto, ramping in
+    // from caution strangerVetoFrom (none below) to the full chance at caution 1. Not a
+    // stranger: someone coming home, one of the congregation at its church, an officer
+    // at its station. A veto by whoever is inside, like the one on someone known to be
+    // bitten: a cautious shelter is one with cautious people in it — guess
+    strangerVeto: 0.5,
+    strangerVetoFrom: 0.66,
     // desirability = Σ weight × term; distance term is per kilometre.
     weights: { integrity: 2, fortification: 1.5, streetQuiet: 1.2, group: 0.8, materials: 0.6, distance: 1 },
     groupPeak: 8, // believed occupants at which groupTerm peaks
