@@ -22,7 +22,8 @@ import { carProcesses, decideCars } from '../src/sim/systems/cars';
 import { step } from '../src/sim/tick';
 
 function fresh(cfg: Config = baseConfig) {
-  return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
+// Pinned to one zombie in one building: these tests set their own scenes, and were written against it.
+  return createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, cfg);
 }
 
 /** A point in the middle of a long street well inside the city, and the street's direction. */

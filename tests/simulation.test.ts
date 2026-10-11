@@ -24,7 +24,7 @@ function fingerprint(world: ReturnType<typeof run>): string {
 }
 
 describe('setup', () => {
-  const { world } = createWorld(defaultScenario, config);
+  const { world } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1 }, config);
 
   it('places exactly the scenario population, consistently with a recount', () => {
     expect(populationTotal(world.counters)).toBe(defaultScenario.population);
