@@ -131,7 +131,17 @@ export interface SquadEvent extends EventBase, Located {
   members: Count;
 }
 
+export interface DistrictEvacuatingEvent extends EventBase, Located {
+  /** A district that has come to know empties onto the roads: where its evacuees set out from, on average. @range literal @unit — @readBy event consumers */
+  type: 'districtEvacuating';
+  /** @range district id @unit id @readBy ticker */
+  district: DistrictId;
+  /** Always null: the line is about the district. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export type SimEvent =
+  | DistrictEvacuatingEvent
   | SquadEvent
   | CarAbandonedEvent
   | PoliceDispatchedEvent

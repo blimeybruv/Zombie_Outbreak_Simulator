@@ -131,10 +131,12 @@ export const config = {
   //   cars            no cars at all
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
+  //   evacuation      districts never evacuate: the release at the start is the only one
   //   reservists      no armouries, so reservists are never called up: civilians
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    evacuation: true,
     reservists: true,
     relevanceTrim: true,
     dropQuietHearsay: true,
@@ -188,6 +190,16 @@ export const config = {
     originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
     originNeighbourhoodRadius: 300, // m; origins are weighted by the people living this close — guess
   },
+
+  // Evacuation, a second release apart from the first: a district that comes to know
+  // — `threshold` of its buildings alerted, checked every `interval` ticks — sends
+  // `share` of the residents still in each of its buildings out together, aware and
+  // leaving, `perBuildingPerTick` at a time, each for a building between minDistance
+  // and maxDistance away (the most robust of `sample` drawn at random; failing any in
+  // range, the farthest): far enough to drive. Driven by the district's own state, not
+  // the clock, so it happens where and when the outbreak arrives, and a neighbourhood
+  // empties onto the roads while the next is calm — guesses; threshold is for sweeping
+  evacuation: { threshold: 0.07, interval: 30, share: 0.5, perBuildingPerTick: 1, minDistance: 800, maxDistance: 2000, sample: 8 },
 
   release: {
     atTick: 600, // tick

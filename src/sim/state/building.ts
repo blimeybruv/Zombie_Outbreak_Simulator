@@ -110,6 +110,8 @@ export interface Building {
 
   /** Residents queued to leave as calm sims on routines (phase release). @range 0–residents @unit people @readBy building processes */
   pendingRelease: Count;
+  /** Residents queued to leave knowing, for somewhere far off: their district is evacuating (release.ts). @range 0–residents @unit people @readBy building processes */
+  pendingEvacuate: Count;
   /** Residents queued to leave as panicked sims (expulsion, breach). @range 0–residents @unit people @readBy building processes */
   pendingExpel: Count;
   /** Residents queued to convert after a breach. @range 0–residents @unit people @readBy building processes */

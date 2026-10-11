@@ -1187,6 +1187,14 @@ The only mechanism that makes an armed group mid-run (`systems/squads.ts`). Poli
 - **Drawn** pale green (anyone with a rifle), a triangle like any firearm; at near zoom a thin line joins each follower to its leader. The inspector says where a reservist stands in the call-up.
 - **Measured** (seeds 1–3, to tick 24,000): 42–45 called up, 10 armed at a depot, 2 squads formed, 5–10 engagements, both squads dissolved. Off with `features.reservists`.
 
+### Evacuation
+
+The release at tick 600 was a cold-start fix — people onto the streets so the map is not dead — and it stays exactly as it was. But at tick 600 only 77 of 8,592 buildings know of the outbreak (seed 1), so release and awareness are two unrelated things at the same moment by accident: 674 of 883 released walked out unaware. Traffic was sparse (at most about 30 cars driving) because people learned in a trickle and left one at a time; a jam needs simultaneity.
+
+So a second, separate event (`release.ts updateEvacuation`, the only other reader of district release state, `District.evacuatedAt`): every 30 ticks, a district with `evacuation.threshold` (7%) of its buildings alerted evacuates — half the residents still in each of its buildings leave together (one a tick per building), aware, each for a building 800–2,000 m away (the most robust of 8 drawn at random; failing any in range, the farthest drawn), far enough to drive. It happens where and when the outbreak arrives, per district, so a neighbourhood empties onto the roads while the next is still calm (`districtEvacuating`, a ticker line). Nothing is learnt by proximity: a building knowing does not tell the house next door; shouts and conversation still carry news.
+
+Measured (seeds 1–2, to tick 15,000, against evacuation off): peak cars driving 28–29 → 44–48, peak stopped behind another 8–11 → 13–16, abandoned 9–21 → 34–83. Four to six districts evacuate per run; the first can go within 120 ticks where the outbreak starts. The threshold is a sweep parameter (5–10% the plausible range). Off with `features.evacuation`.
+
 **Feature switches** (`config.features`), so each later addition can be benchmarked and swept with it off: `conversations` (off: every meeting trades everything, as before the fourth round), `unease` (off: the first telling convinces), `trust` (off: everything heard is taken at face value), `reconsider` (off: objectives are held once chosen), `intactZombies` (off: the one-bite dead are recognised like any other), `cars` (off: none are placed), `strangerVeto` (off: strangers are let in), `cautiousRouting` (off: unknown streets read as safe). All default on. Timing: `npx tsx scripts/bench.ts --ticks 15000 --runs 3 --set features.cars=false`, interleaved with a run at the defaults; behaviour: `npm run sweep -- --seeds 8 --set features.conversations=false`.
 
 Everything in the tuning tables stays in `config.ts`. Those interact chaotically and thirty sliders produce frustration rather than agency.

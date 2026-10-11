@@ -13,11 +13,11 @@ import { spawnSim, spawnZombie } from '../spawn';
 import type { Building, Sim, World } from '../state';
 import { isFirearm } from '../state';
 import { bite, destroyZombie, killSim } from './combat';
-import { capacity, entranceNearest, exitTicks, isLiving, openDoor, stageOf } from './common';
+import { capacity, entranceNearest, exitTicks, isLiving, openDoor, setDestination, stageOf } from './common';
 import { merge } from './encounters';
 import { modeOf } from './panic';
 import { armAtDepot, mobilise } from './squads';
-import { updateRelease } from './release';
+import { updateEvacuation, updateRelease } from './release';
 import { carProcesses } from './cars';
 import { dispatchCalls, placeCall } from './dispatch';
 import { alert, deliver, scavenge, shelterWork, visibleFill } from './shelter';
@@ -31,7 +31,7 @@ function outsideOf(ctx: Context, b: Building, e: { x: number; y: number }): { x:
 }
 
 function queued(b: Building): number {
-  return b.pendingRelease + b.pendingExpel + b.pendingTurn + b.pendingDie;
+  return b.pendingRelease + b.pendingEvacuate + b.pendingExpel + b.pendingTurn + b.pendingDie;
 }
 
 function removeSheltered(b: Building, sim: Sim): void {
@@ -358,7 +358,7 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
 }
 
 function drainQueues(world: World, ctx: Context, b: Building): void {
-  if (b.pendingTurn + b.pendingDie + b.pendingExpel + b.pendingRelease === 0) return;
+  if (queued(b) === 0) return;
   const { config, tick } = world;
   const bc = config.buildings;
   let k = 0;
@@ -394,6 +394,19 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 
+  // Evacuation: out together, knowing, for somewhere far off (release.ts). Calm, not
+  // fleeing: they are leaving before it reaches them.
+  for (let n = 0; n < config.evacuation.perBuildingPerTick && b.pendingEvacuate > 0; n++) {
+    b.pendingEvacuate--;
+    b.residents--;
+    const p = door();
+    openDoor(world, b);
+    const sim = spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'shelter', aware: true });
+    const to = evacuateTo(world, b);
+    if (to !== null) setDestination(sim, to, 'shelter');
+    transfer(world, 'unturned.indoors', 'unturned.outdoors');
+  }
+
   // Release. From a building that knows of the outbreak nobody strolls out to the
   // shops: a household that knows stays home; people at work leave knowing, to get
   // home (chosen as their objective on their first decision outdoors).
@@ -407,6 +420,35 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'routine', aware: knows });
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
+}
+
+/**
+ * Where an evacuee from `from` makes for: of `evacuation.sample` buildings drawn at
+ * random, the most robust (its tag's integrity; ties to the lower id) between
+ * minDistance and maxDistance away; failing any in range, the farthest drawn.
+ */
+function evacuateTo(world: World, from: Building): Building | null {
+  const { config, buildings, rng } = world;
+  const ec = config.evacuation;
+  const o = from.entrances[0]!;
+  let best: Building | null = null, bestScore = -Infinity;
+  let far: Building | null = null, farD = -1;
+  for (let i = 0; i < ec.sample; i++) {
+    const b = buildings[nextInt(rng, 0, buildings.length - 1)]!;
+    const e = b.entrances[0]!;
+    const d = Math.hypot(e.x - o.x, e.y - o.y);
+    if (d > farD) {
+      farD = d;
+      far = b;
+    }
+    if (d < ec.minDistance || d > ec.maxDistance) continue;
+    const score = config.tags[functionalProfile(b.tag, config)].integrity;
+    if (score > bestScore || (score === bestScore && b.id < best!.id)) {
+      bestScore = score;
+      best = b;
+    }
+  }
+  return best ?? far;
 }
 
 /** The first occupier record inside a building (lowest id). */
@@ -515,6 +557,7 @@ function spill(world: World, ctx: Context, b: Building): void {
 /** `probe` marks sub-stage boundaries for a profiler; the simulation never reads a clock. */
 export function buildingProcesses(world: World, ctx: Context, probe: (stage: string) => void = () => {}): void {
   updateRelease(world);
+  updateEvacuation(world, ctx);
   arrivals(world, ctx);
   probe('buildings.arrivals');
   exits(world, ctx);

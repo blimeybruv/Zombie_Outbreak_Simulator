@@ -64,6 +64,8 @@ export interface District {
   released: boolean;
   /** Release tick: config default ± per-district jitter, drawn from the run RNG at setup. @range tick @unit tick @readBy occupant release only */
   releaseAt: Tick;
+  /** When the district began to evacuate (release.ts); null until it does. @range tick | null @unit tick @readBy occupant release only */
+  evacuatedAt: Tick | null;
 }
 
 /**

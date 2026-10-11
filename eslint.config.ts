@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 // A read anywhere else in sim/ is a lint error — the quarantine is mechanical.
 const restrictedReads = [
   {
-    fields: ['released', 'releaseAt'],
+    fields: ['released', 'releaseAt', 'evacuatedAt'],
     allow: ['src/sim/systems/release.ts'],
     message: 'Only the occupant release may read district release state.',
   },

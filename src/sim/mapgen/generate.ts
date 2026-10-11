@@ -141,6 +141,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
         bounds: { x: c * cell, y: r * cell, w: cell, h: cell },
         released: false,
         releaseAt: 0,
+        evacuatedAt: null,
       });
     }
   }
@@ -501,6 +502,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       doorOpenedAt: null,
       callAt: null,
       weaponStock: null,
+      pendingEvacuate: 0,
       dispatchedAt: null,
       cascadeAt: null,
       pendingRelease: 0,
