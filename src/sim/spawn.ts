@@ -270,6 +270,7 @@ export function spawnZombie(
     besiegeUntil: null,
     nextAttackAt: tick + config.combat.zombieAttack.cooldown,
     wasSim,
+    intact: false,
   };
   world.zombies.push(z);
   return z;

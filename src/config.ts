@@ -417,6 +417,10 @@ export const config = {
     // A tracked survivor who goes indoors leaves the zombie holding that door this long
     // (it is the zombies at a door that make a building's breach rolls) — guess
     besiegeTicks: 600,
+    // Turned from a single bite: survivors register it at intactSight × their sight
+    // radius, but never nearer than intactGiveaway (its gait gives it away) — guess
+    intactSight: 0.35,
+    intactGiveaway: 8, // m
     cascadeCount: 15, // zombies within cascadeRadius of a shelter: self-sustaining crowd
     cascadeRadius: 30, // m
   },

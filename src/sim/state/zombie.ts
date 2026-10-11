@@ -52,4 +52,12 @@ export interface Zombie {
   nextAttackAt: Tick;
   /** Who this used to be; null for patient zero spawned without a sim. @range sim id | null @unit id @readBy ticker, inspector */
   wasSim: SimId | null;
+  /**
+   * Turned from a single bite: no wounds or torn clothes to give it away, so survivors
+   * register it only at a fraction of their sight, though never closer than its gait
+   * gives it away (`zombie.intactSight`, `intactGiveaway`). Lost on its first attack,
+   * bite or miss: the first grab is when people notice.
+   * @range true/false @unit — @readBy perception (survivors' sight), combat, render
+   */
+  intact: boolean;
 }

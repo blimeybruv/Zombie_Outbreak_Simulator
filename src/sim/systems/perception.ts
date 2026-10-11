@@ -1,6 +1,7 @@
 // Tick steps 2 and 4: rebuild the spatial hashes, then compute the read-only
 // perception snapshot every decision reads. Nothing here writes entity state.
 
+import type { Config } from '../../config';
 import { isOutdoorLiving, type Context } from '../context';
 import { daylight, timeOfDay } from '../derived';
 import { chance } from '../rng';
@@ -19,6 +20,16 @@ export function rebuildHashes(world: World, ctx: Context): void {
   rebuildSimHash(world, ctx);
   const zs = world.zombies.filter(onMap);
   ctx.zombieHash.rebuild(zs.length, (i) => zs[i]!.id, (i) => zs[i]!.x, (i) => zs[i]!.y);
+}
+
+/**
+ * How near a zombie must be to be recognised, for someone who would see one at `r`:
+ * `r`, unless it is intact (turned from one bite) — then a fraction of it, but never
+ * nearer than the way it moves gives it away.
+ */
+export function recognisedWithin(config: Config, r: number, z: Zombie): number {
+  if (!z.intact) return r;
+  return Math.max(r * config.zombie.intactSight, Math.min(r, config.zombie.intactGiveaway));
 }
 
 /** How visible a sim is to zombie sight, from gait and concealment. */
@@ -73,8 +84,10 @@ export function computePerception(world: World, ctx: Context): void {
       const dy = z.y - sim.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d <= contact) ctx.contacts[id]!++;
+      const seenAt = recognisedWithin(config, r, z); // an intact zombie registers only nearer
+      if (d > seenAt) continue;
       if (d > contact && !ctx.map.lineOfSight(sim.x, sim.y, z.x, z.y)) continue;
-      const w = (1 - d / r) * (z.state === 'dormant' ? config.perception.dormantThreatWeight : 1);
+      const w = (1 - d / seenAt) * (z.state === 'dormant' ? config.perception.dormantThreatWeight : 1);
       threat += w;
       if (d > 0) {
         tx += (w * dx) / d;

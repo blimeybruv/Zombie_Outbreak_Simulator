@@ -16,6 +16,7 @@ import { zombieDecisions } from '../src/sim/systems/zombies';
 import { bite, resolveCombat } from '../src/sim/systems/combat';
 import { updatePanic } from '../src/sim/systems/panic';
 import { reconsider } from '../src/sim/systems/awareness';
+import { convertDue } from '../src/sim/systems/infection';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -362,6 +363,53 @@ describe('objectives', () => {
     world.tick += 10; // within migration's cooldown
     reconsider(world, ctx, s);
     expect(s.destinationBuilding).toBe(y.id);
+  });
+});
+
+describe('the intact dead', () => {
+  it('one bite leaves nothing to see; more than one does', () => {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    const once = walker(world, p.x, p.y);
+    const twice = walker(world, p.x + 2, p.y);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    bite(world, ctx, once);
+    bite(world, ctx, twice);
+    bite(world, ctx, twice);
+    once.turnsAt = twice.turnsAt = world.tick;
+    convertDue(world, ctx);
+    const z = (s: Sim) => world.zombies.find((x) => x.wasSim === s.id)!;
+    expect(z(once).intact).toBe(true);
+    expect(z(twice).intact).toBe(false);
+  });
+
+  /** A survivor on a street with one zombie `d` m up it. */
+  function lookAt(d: number, intact: boolean) {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    for (const z of world.zombies) if (z.state !== 'occupying') z.state = 'destroyed';
+    const s = walker(world, p.x, p.y);
+    const z = spawnZombie(world, p.x + p.ux * d, p.y + p.uy * d, 'active', null, null);
+    z.intact = intact;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    return { world, ctx, s, z, seen: ctx.nearestZombie[s.id] === z.id };
+  }
+
+  it('is recognised only nearer, but never closer than its gait gives it away', () => {
+    expect(lookAt(25, false).seen).toBe(true);
+    expect(lookAt(25, true).seen).toBe(false);
+    expect(lookAt(baseConfig.zombie.intactGiveaway - 1, true).seen).toBe(true);
+  });
+
+  it('loses it on its first grab, bite or miss', () => {
+    const { world, ctx, z } = lookAt(0.5, true);
+    z.nextAttackAt = world.tick;
+    resolveCombat(world, ctx);
+    expect(z.intact).toBe(false);
   });
 });
 

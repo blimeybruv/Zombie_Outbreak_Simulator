@@ -8,6 +8,7 @@ import { transfer, simLeaf } from '../counters';
 import { chance, nextInt } from '../rng';
 import type { Sim, World, Zombie } from '../state';
 import { modeOf } from './panic';
+import { recognisedWithin } from './perception';
 import { emitStimulus } from './stimuli';
 
 /** Kills a zombie: it stays in the array, destroyed. */
@@ -98,6 +99,7 @@ function sims(world: World, ctx: Context): void {
       if (z.state === 'destroyed' || z.state === 'occupying') continue;
       const d = Math.hypot(z.x - sim.x, z.y - sim.y);
       if (d >= targetD) continue;
+      if (d > cc.contactRange && d > recognisedWithin(config, ctx.radius[sim.id]!, z)) continue; // not seen for what it is
       if (d > cc.contactRange && !ctx.map.lineOfSight(sim.x, sim.y, z.x, z.y)) continue;
       target = z;
       targetD = d;
@@ -171,6 +173,7 @@ function fromInside(world: World, ctx: Context, sim: Sim): void {
       const z = zombies[zid]!;
       if (z.state !== 'active' && z.state !== 'wandering') continue;
       const d = Math.hypot(z.x - e.x, z.y - e.y);
+      if (d > recognisedWithin(config, reach, z)) continue; // from the door, not seen for what it is
       if (d < targetD || (d === targetD && target !== null && zid < target.id)) {
         target = z;
         targetD = d;
@@ -206,6 +209,7 @@ function zombiesAttack(world: World, ctx: Context): void {
     }
     if (victim === null) continue;
     z.nextAttackAt = tick + za.cooldown;
+    z.intact = false; // a grab, bite or miss, is when it is seen for what it is
 
     const awayX = victim.x - z.x;
     const awayY = victim.y - z.y;

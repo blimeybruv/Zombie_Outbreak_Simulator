@@ -14,7 +14,7 @@
 
 import type { Camera } from '../render/camera';
 import type { FrameSnapshot } from '../worker/protocol';
-import { ZOMBIE_AWAKE } from '../worker/protocol';
+import { ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
 type Category = 'gun' | 'melee' | 'voice';
 const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3 };
@@ -136,7 +136,7 @@ export class Audio {
     // The bed follows the awake dead on screen.
     let dead = 0;
     for (let i = 0; i < frame.zombieKind.length; i++) {
-      if (frame.zombieKind[i] === ZOMBIE_AWAKE && onScreen(frame.zombieXY[i * 2]!, frame.zombieXY[i * 2 + 1]!)) dead++;
+      if ((frame.zombieKind[i] === ZOMBIE_AWAKE || frame.zombieKind[i] === ZOMBIE_INTACT) && onScreen(frame.zombieXY[i * 2]!, frame.zombieXY[i * 2 + 1]!)) dead++;
     }
     const bedLevel = Math.min(0.35, 0.025 * Math.sqrt(dead)) * (speed > 4 ? 0.5 : 1);
     this.gains.get('bed')!.gain.setTargetAtTime(bedLevel, ctx.currentTime, 0.4);

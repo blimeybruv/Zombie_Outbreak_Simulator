@@ -50,6 +50,8 @@ export const SIM_FLEEING = 32; // panicked flight, or backing off: a long bright
 export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
 export const ZOMBIE_AWAKE = 1;
 export const ZOMBIE_DORMANT = 2;
+/** Awake and intact (turned from one bite): drawn paler at near zoom, where the viewer is told; the city is not. */
+export const ZOMBIE_INTACT = 3;
 
 /** Building flags. */
 export const BUILDING_CONTESTED = 1;

@@ -33,6 +33,7 @@ import {
   SIM_PROMOTED,
   ZOMBIE_AWAKE,
   ZOMBIE_DORMANT,
+  ZOMBIE_INTACT,
   type EventNote,
   type FrameSnapshot,
   type FromWorker,
@@ -159,7 +160,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     if (z.state === 'occupying' || z.state === 'destroyed') continue;
     zombieXY[z.id * 2] = z.x;
     zombieXY[z.id * 2 + 1] = z.y;
-    zombieKind[z.id] = z.state === 'dormant' ? ZOMBIE_DORMANT : ZOMBIE_AWAKE;
+    zombieKind[z.id] = z.state === 'dormant' ? ZOMBIE_DORMANT : z.intact ? ZOMBIE_INTACT : ZOMBIE_AWAKE;
   }
   const fill = new Uint16Array(w.buildings.length);
   const buildingFlags = new Uint8Array(w.buildings.length);

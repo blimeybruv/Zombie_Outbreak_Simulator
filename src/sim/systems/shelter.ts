@@ -18,6 +18,7 @@ import { remember } from '../memory';
 import { chance, nextFloat, nextInt } from '../rng';
 import { spawnSim } from '../spawn';
 import type { Building, BuildingBelief, BuildingId, Sim, Weapon, World } from '../state';
+import { recognisedWithin } from './perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from './common';
 import { modeOf } from './panic';
 
@@ -38,7 +39,7 @@ export function doorThreat(world: World, ctx: Context, b: Building): number {
     for (const zid of ctx.ids2) {
       const z = zombies[zid]!;
       const d = Math.hypot(z.x - e.x, z.y - e.y);
-      if (d <= r && d < (nearest.get(zid) ?? Infinity)) nearest.set(zid, d);
+      if (d <= recognisedWithin(config, r, z) && d < (nearest.get(zid) ?? Infinity)) nearest.set(zid, d);
     }
   }
   let threat = 0;

@@ -25,4 +25,6 @@ export const LABEL = 'rgba(235, 240, 245, 0.8)';
 export const ZOMBIE = '#c03a43';
 export const ZOMBIE_RGB = [192, 58, 67] as const;
 export const ZOMBIE_DORMANT = '#6a2328';
+/** Turned from one bite, at near zoom: the zombie red washed toward the living. */
+export const ZOMBIE_INTACT = '#d49a9e';
 export const CORPSE = [70, 72, 76] as const;
