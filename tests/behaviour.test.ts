@@ -21,8 +21,8 @@ import { convertDue } from '../src/sim/systems/infection';
 import { carProcesses, decideCars } from '../src/sim/systems/cars';
 import { step } from '../src/sim/tick';
 
-function fresh(cfg: Config = baseConfig) {
 // Pinned to one zombie in one building: these tests set their own scenes, and were written against it.
+function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, cfg);
 }
 
