@@ -7,7 +7,7 @@ import type { Building, SimEvent, World } from '../sim/state';
 import type { EventNote } from './protocol';
 
 /** Tags that read badly as nouns get one; the rest are split: "hardwareStore" → "hardware store". */
-export const NOUNS: Record<string, string> = { residential: 'house', firearmsStore: 'gun shop', office: 'office block' };
+export const NOUNS: Record<string, string> = { residential: 'house', firearmsStore: 'gun shop', office: 'office block', mall: 'shopping mall' };
 export function words(tag: string): string {
   return NOUNS[tag] ?? tag.replace(/([A-Z])/g, ' $1').toLowerCase();
 }

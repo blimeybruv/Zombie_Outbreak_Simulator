@@ -58,6 +58,7 @@ describe('awareness', () => {
     expect(b.awareAt).not.toBeNull();
 
     b.archetype = 'prepper'; // goes home from anywhere in the city
+    b.church = null; // the faithful go to church instead
     expect(b.home).not.toBeNull();
     decide(world, ctx);
     expect(b.destinationKind).toBe('shelter');

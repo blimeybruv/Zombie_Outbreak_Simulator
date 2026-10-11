@@ -11,7 +11,7 @@ import type { RngState } from '../rng';
 import type { Building } from './building';
 import type { Counters } from './counters';
 import type { SimEvent } from './events';
-import type { District, River, Street, StreetNode } from './map';
+import type { District, Lot, River, Street, StreetNode } from './map';
 import type { Archetype, Sim } from './sim';
 import type { Stimulus } from './stimulus';
 import type { Count, SimId, Tick, Unit01 } from './units';
@@ -69,6 +69,8 @@ export interface World {
   districts: District[];
   /** The river; bridges are streets with terrain `bridge`. @range one polygon @unit — @readBy steering, render */
   river: River;
+  /** A mall's grounds; empty when the map has no mall. @range 0–1 lots @unit — @readBy render */
+  lots: Lot[];
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

@@ -44,6 +44,24 @@ export const config = {
     sizeClasses: { medium: 250, large: 1200 }, // m² of footprint at which a building counts as medium, large
     parkShare: 0.04, // fraction of blocks left empty with `open` streets — guess
     offStreetLookup: 40, // m; perception reads the nearest street within this, else `standard`
+    // One mall per map: the street between two neighbouring blocks is cut back to a
+    // driveway, and the merged block becomes grounds — parking in front, one large
+    // building behind. The pair chosen is the largest within maxArea whose blocks are
+    // each at least minBlock, across a standard street at least minLength long, in one
+    // of these district kinds. driveway is its length from the junction; the building
+    // stands apron beyond its end, at most maxWidth × maxDepth, sideYard clear of the
+    // grounds' sides. No mall if no pair qualifies.
+    mall: {
+      districts: ['suburb', 'industrial'] as readonly string[],
+      minBlock: 8000, // m²
+      maxArea: 50000, // m²
+      minLength: 90, // m
+      driveway: 45, // m
+      apron: 8, // m
+      maxWidth: 170, // m
+      maxDepth: 80, // m
+      sideYard: 8, // m
+    },
   },
 
   districtKinds: {
@@ -484,6 +502,9 @@ export const config = {
     office: { integrity: 0.4, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 5, bandMultiplier: [0.02, 1, 0.9, 0.1], materials: [0, 2], loot: {} },
     school: { integrity: 0.35, entrances: 4, sizes: ['large'], occupancyWeight: 8, bandMultiplier: [0, 1, 0.8, 0.05], materials: [0, 2], loot: {} },
     hospital: { integrity: 0.4, entrances: 4, sizes: ['large'], occupancyWeight: 10, bandMultiplier: [0.9, 1, 1, 0.9], materials: [0, 2], loot: {} },
+    // Placed by the generator, never drawn by weight (map.mall). Glass-fronted but big:
+    // reinforcible, never fortifiable. Stock for a whole district of builders.
+    mall: { integrity: 0.5, entrances: 3, sizes: ['large'], occupancyWeight: 3, bandMultiplier: [0.01, 0.8, 1, 0.7], materials: [80, 150], loot: { knife: 2, club: 2, shotgun: 1, ammo: 2, materials: 8 } },
   },
   flavourSizes: ['small', 'medium'], // footprint classes a flavour tag may occupy
   // Relative odds of each flavour tag (1 if absent), and the least footprint (m²) some
@@ -513,6 +534,7 @@ export const config = {
     office: ['officeWorker', 'receptionist', 'accountant', 'cleaner', 'securityGuard'],
     school: ['teacher', 'student', 'caretaker', 'librarian', 'groundskeeper'],
     hospital: ['nurse', 'paramedic', 'cleaner', 'receptionist', 'firefighter'],
+    mall: ['retailAssistant', 'securityGuard', 'cleaner', 'barista', 'chef', 'parent', 'student', 'tourist', 'reseller'],
   },
 
   // The archetype each profession leans toward. A sim's archetype is drawn from the

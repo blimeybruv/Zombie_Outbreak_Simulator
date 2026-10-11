@@ -12,7 +12,7 @@ import type { BuildingId, Count, DistrictId, Polygon, SimId, StreetId, Tick, Uni
 /** Functional tags change the simulation. */
 export const FUNCTIONAL_TAGS = [
   'residential', 'firearmsStore', 'policeStation', 'hardwareStore', 'workshop',
-  'warehouse', 'supermarket', 'office', 'school', 'hospital',
+  'warehouse', 'supermarket', 'office', 'school', 'hospital', 'mall',
 ] as const;
 export type FunctionalTag = (typeof FUNCTIONAL_TAGS)[number];
 
@@ -29,7 +29,7 @@ export type BuildingTag = FunctionalTag | FlavourTag;
 export interface Building {
   /** @range 0–buildings @unit id @readBy everything */
   id: BuildingId;
-  /** @range 30 values @unit enum @readBy integrity, loot, scent, shelter choice, professions, inspector */
+  /** @range 31 values @unit enum @readBy integrity, loot, scent, shelter choice, professions, inspector */
   tag: BuildingTag;
   /** @range district id @unit id @readBy release, ticker */
   district: DistrictId;
@@ -49,7 +49,7 @@ export interface Building {
   /** When the current occupation began; null when unoccupied. @range tick | null @unit tick @readBy ticker, inspector */
   occupiedAt: Tick | null;
 
-  /** Stock available to builders. @range 0–60 @unit materials @readBy builders, scavenger choice, inspector */
+  /** Stock available to builders. @range 0–150 @unit materials @readBy builders, scavenger choice, inspector */
   materials: Count;
   /** @range 0–1 @unit scalar @readBy breach probability, exit cost, migration damping, desirability */
   fortification: Unit01;

@@ -164,6 +164,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     nodes: map.nodes,
     districts: map.districts,
     river: map.river,
+    lots: map.lots,
     stimuli: [],
     events: [],
     repathQueue: [],

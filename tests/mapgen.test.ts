@@ -128,6 +128,33 @@ describe('map generator', () => {
     }
   });
 
+  it.each([1, 2, 3])('builds one mall on grounds reached by a driveway (map seed %i)', (seed) => {
+    const m = generateMap(config, seed, true);
+    const malls = m.buildings.filter((b) => b.tag === 'mall');
+    expect(malls).toHaveLength(1);
+    expect(m.lots).toHaveLength(1);
+    const mall = malls[0]!;
+    const [lo, hi] = config.tags.mall.materials;
+    expect(mall.materials).toBeGreaterThanOrEqual(lo!);
+    expect(mall.materials).toBeLessThanOrEqual(hi!);
+    expect(footprintArea(mall.outline)).toBeGreaterThan(5000);
+    // It fronts the driveway: a dead end, open ground, whose far end stops short of the building.
+    const drive = m.streets[mall.street]!;
+    expect(drive.terrain).toBe('open');
+    const degree = (n: number) => m.streets.filter((s) => s.a === n || s.b === n).length;
+    expect(Math.min(degree(drive.a), degree(drive.b))).toBe(1);
+    // Every corner of the building lies on the grounds.
+    const g = m.lots[0]!.outline;
+    const inside = (p: { x: number; y: number }) => g.every((q, i) => {
+      const r = g[(i + 1) % 4]!;
+      return (r.x - q.x) * (p.y - q.y) - (r.y - q.y) * (p.x - q.x) >= -1e-6;
+    }) || g.every((q, i) => {
+      const r = g[(i + 1) % 4]!;
+      return (r.x - q.x) * (p.y - q.y) - (r.y - q.y) * (p.x - q.x) <= 1e-6;
+    });
+    expect(mall.outline.every(inside)).toBe(true);
+  });
+
   it('gives no power, no light', () => {
     const dark = generateMap(config, 1, false);
     expect(dark.streets.some((s) => s.lit)).toBe(false);

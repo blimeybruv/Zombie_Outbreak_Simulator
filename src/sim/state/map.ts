@@ -66,6 +66,20 @@ export interface District {
   releaseAt: Tick;
 }
 
+/**
+ * A mall's grounds: open, walkable ground around one large building, reached by a
+ * driveway cut from a street. Nothing in the simulation reads it — sims cross it like
+ * any open ground — it is there to be drawn.
+ */
+export interface Lot {
+  /** A rectangle, front edge first (corners 0→1 run along the street side). @range 0–3200 each vertex @unit m @readBy render */
+  outline: readonly Vec2[];
+  /** How far the parking reaches back from the front edge. @range 0–100 @unit m @readBy render */
+  parkingDepth: Metres;
+  /** Where the driveway enters, along the front edge from corner 0. @range 0–300 @unit m @readBy render */
+  entry: Metres;
+}
+
 /** The river: a band of constant width around a centreline. Bridges are the streets that cross it. */
 export interface River {
   /** Runs edge to edge across the map, diagonally, with gentle bends. @range a few points, may extend past the map edge @unit m @readBy walkability, render */

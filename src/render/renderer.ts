@@ -37,6 +37,11 @@ const ORIGIN_PING_MS = 1500;
 const ORIGIN_R_MAX = 70; // px, the mark's radius as each ping starts
 const ORIGIN_R_MIN = 22; // px, as it settles
 const FLASH_MS = 160;
+// A mall's parking: double rows of stalls, nose to nose, between drive aisles.
+const STALL_W = 2.7; // m
+const STALL_D = 5; // m
+const AISLE = 7; // m
+const DRIVE_GAP = 4.5; // m either side of the driveway kept clear
 const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
@@ -102,6 +107,8 @@ export class Renderer {
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
   private readonly litPath: Path2D;
+  private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
+  private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
   private readonly corpses: CorpseLayer;
   private readonly simTrails = new Trails();
@@ -204,6 +211,38 @@ export class Renderer {
       const f = churchFrame(map.outlines, i);
       step(f.cx - f.ax * f.half, f.cy - f.ay * f.half, -f.ax, -f.ay, DOOR_W * 1.6, i);
     }
+    // Malls: the grounds' edge, broken where the driveway enters, and rows of stalls
+    // either side of it.
+    this.groundsPath = new Path2D();
+    this.stallPath = new Path2D();
+    for (let i = 0; i < map.lots.length; i += 10) {
+      const l = map.lots;
+      const x0 = l[i]!, y0 = l[i + 1]!;
+      const w = Math.hypot(l[i + 2]! - x0, l[i + 3]! - y0) || 1;
+      const dx = (l[i + 2]! - x0) / w, dy = (l[i + 3]! - y0) / w; // along the front
+      const depth = Math.hypot(l[i + 6]! - x0, l[i + 7]! - y0) || 1;
+      const ix = (l[i + 6]! - x0) / depth, iy = (l[i + 7]! - y0) / depth; // inward
+      const parking = l[i + 8]!, entry = l[i + 9]!;
+      const at = (u: number, v: number): [number, number] => [x0 + dx * u + ix * v, y0 + dy * u + iy * v];
+      this.groundsPath.moveTo(...at(entry - DRIVE_GAP, 0));
+      this.groundsPath.lineTo(...at(0, 0));
+      this.groundsPath.lineTo(...at(0, depth));
+      this.groundsPath.lineTo(...at(w, depth));
+      this.groundsPath.lineTo(...at(w, 0));
+      this.groundsPath.lineTo(...at(entry + DRIVE_GAP, 0));
+      const spans: [number, number][] = [[AISLE / 2, entry - DRIVE_GAP], [entry + DRIVE_GAP, w - AISLE / 2]];
+      for (let v = AISLE / 2; v + 2 * STALL_D <= parking - AISLE / 2; v += 2 * STALL_D + AISLE) {
+        for (const [u0, u1] of spans) {
+          if (u1 - u0 < STALL_W) continue;
+          this.stallPath.moveTo(...at(u0, v + STALL_D));
+          this.stallPath.lineTo(...at(u1, v + STALL_D));
+          for (let u = u0; u <= u1 + 0.01; u += STALL_W) {
+            this.stallPath.moveTo(...at(u, v));
+            this.stallPath.lineTo(...at(u, v + 2 * STALL_D));
+          }
+        }
+      }
+    }
     this.density = new DensityField(map.size);
     for (const id of map.origins) this.origins.push(this.buildingCentre(id));
     this.corpses = new CorpseLayer(map.size);
@@ -273,6 +312,9 @@ export class Renderer {
     g.stroke(this.outlinePath);
     g.stroke(this.bridgeRails);
     if (cam.mode === 'near') g.stroke(this.doorPath);
+    g.globalAlpha = far ? 0.25 : 0.6;
+    g.stroke(this.groundsPath);
+    if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
     return c;
   }

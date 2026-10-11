@@ -24,6 +24,8 @@ export interface MapSnapshot {
   /** Per building: 1 for a church, drawn in plan (nave, apse, tower). */
   buildingChurch: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
+  /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
+  lots: Float32Array;
   districts: { name: string; x: number; y: number; w: number; h: number }[];
   streetNames: string[];
 }

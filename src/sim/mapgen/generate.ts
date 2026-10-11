@@ -12,6 +12,8 @@
 //      the rest are subdivided into footprints along their street frontages —
 //      terraces in the suburbs, a few large footprints downtown, long sheds in
 //      industrial districts.
+//   6. One mall: two neighbouring blocks become one compound, the street between them
+//      cut back to a driveway; parking in front, one large building behind.
 
 import type { Config } from '../../config';
 import { chance, createRng, nextFloat, nextInt, type RngState } from '../rng';
@@ -21,6 +23,7 @@ import {
   type BuildingId,
   type BuildingTag,
   type District,
+  type Lot,
   type DistrictId,
   type DistrictKind,
   type FunctionalTag,
@@ -60,6 +63,7 @@ export interface GeneratedMap {
   buildings: Building[];
   districts: District[];
   river: River;
+  lots: Lot[];
 }
 
 type LineKind = 'main' | 'standard' | 'alley';
@@ -366,6 +370,43 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   });
   const graph: PlanarGraph = planarise(segs, mc.snap);
 
+  // 6. The mall site: of the standard streets between two blocks, the one whose blocks
+  // together make the largest compound within bounds. It is cut back to a driveway from
+  // its lower-id end, so the two blocks become one face with the driveway reaching in.
+  const mm = mc.mall;
+  let drive: { edge: number; from: Pt; inward: Pt; end: Pt } | null = null;
+  {
+    const fs = faces(graph);
+    const faceOf: number[][] = graph.edges.map(() => []);
+    fs.forEach((f, fi) => f.edges.forEach((e) => faceOf[e]!.includes(fi) || faceOf[e]!.push(fi)));
+    let best = -1;
+    let bestArea = 0;
+    graph.edges.forEach((e, id) => {
+      const l = lines[e.line]!;
+      const pair = faceOf[id]!;
+      if (l.bridge || l.kind !== 'standard' || pair.length !== 2) return;
+      const [f1, f2] = [fs[pair[0]!]!, fs[pair[1]!]!];
+      const area = f1.area + f2.area;
+      if (f1.area < mm.minBlock || f2.area < mm.minBlock || area > mm.maxArea || area <= bestArea) return;
+      const a = graph.nodes[e.a]!, b = graph.nodes[e.b]!;
+      if (dist(a, b) < mm.minLength) return;
+      if (!mm.districts.includes(districts[districtAt(scale(add(a, b), 0.5))]!.kind)) return;
+      if (![...f1.nodes, ...f2.nodes].every((n) => riverDist(graph.nodes[n]!) > rc.width / 2 + 2)) return;
+      best = id;
+      bestArea = area;
+    });
+    if (best >= 0) {
+      const e = graph.edges[best]!;
+      const [from, to] = e.a < e.b ? [e.a, e.b] : [e.b, e.a];
+      const p = graph.nodes[from]!;
+      const inward = unit(sub(graph.nodes[to]!, p));
+      const end = add(p, scale(inward, mm.driveway));
+      graph.nodes.push(end);
+      graph.edges[best] = { a: from, b: graph.nodes.length - 1, line: e.line };
+      drive = { edge: best, from: p, inward, end };
+    }
+  }
+
   const nodes: StreetNode[] = graph.nodes.map((p, id) => ({ id: id as NodeId, x: p.x, y: p.y }));
   const streets: Street[] = graph.edges.map((e, id) => {
     const l = lines[e.line]!;
@@ -386,7 +427,10 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     };
   });
 
-  // 6. Blocks → plazas, parks or footprints.
+  // The driveway is open ground: perception in the grounds reads it.
+  if (drive) streets[drive.edge]!.terrain = 'open';
+
+  // 7. Blocks → the mall, plazas, parks or footprints.
   const buildings: Building[] = [];
   const sizeClass = (area: number) => (area >= mc.sizeClasses.large ? 'large' : area >= mc.sizeClasses.medium ? 'medium' : 'small');
   const openUp = (edgeIds: number[]) => {
@@ -394,7 +438,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   };
   const dryAt = (p: Pt) => riverDist(p) > rc.width / 2 + 2;
 
-  const makeBuilding = (rect: Pt[], dir: Pt, w: number, depth: number, street: Street, district: number) => {
+  const lots: Lot[] = [];
+  const makeBuilding = (rect: Pt[], dir: Pt, w: number, depth: number, street: Street, district: number, forced?: FunctionalTag) => {
     const k = kindOf(district);
     const cls = sizeClass(w * depth);
     const weights: Partial<Record<string, number>> = {};
@@ -402,7 +447,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       const sizes: readonly string[] = tag === 'flavour' ? config.flavourSizes : config.tags[tag as FunctionalTag].sizes;
       if (sizes.includes(cls)) weights[tag] = weight;
     }
-    const tagKey = pickWeighted(rng, weights) ?? 'residential';
+    const tagKey = forced ?? pickWeighted(rng, weights) ?? 'residential';
     let tag: BuildingTag;
     if (tagKey === 'flavour') {
       const odds: Partial<Record<string, number>> = {};
@@ -445,10 +490,49 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     });
   };
 
+  /**
+   * The compound: grounds filling the merged block inside its streets; parking from the
+   * front to the driveway's end; the building beyond, as wide as the grounds allow
+   * (centred on the driveway where it can be) and at most maxDepth deep. False if it
+   * does not fit, and the block is built up as usual.
+   */
+  const placeMall = (edgeIds: number[], face: Pt[], centre: Pt): boolean => {
+    const { from, inward, end } = drive!;
+    // The block's outline without the driveway, which reaches in and back out.
+    const poly = face.filter((p) => p !== end).filter((p, i, all) => p !== all[(i + 1) % all.length]);
+    const dir = perp(inward);
+    const us = poly.map((p) => dot2(sub(p, from), dir));
+    const vs = poly.map((p) => dot2(sub(p, from), inward));
+    const margin = Math.max(...edgeIds.map((e) => streets[e]!.width)) / 2 + mc.setback;
+    let u0 = Math.min(...us) + margin, u1 = Math.max(...us) - margin;
+    const v0 = margin;
+    let v1 = Math.max(...vs) - margin;
+    const at = (u: number, v: number) => add(add(from, scale(dir, u)), scale(inward, v));
+    let grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
+    for (let k = 0; k < 20 && !polygonInside(grounds, poly); k++) {
+      u0 += 2;
+      u1 -= 2;
+      v1 -= 2;
+      grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
+    }
+    if (!polygonInside(grounds, poly)) return false;
+    const bv0 = mm.driveway + mm.apron;
+    const depth = Math.min(mm.maxDepth, v1 - bv0);
+    const w = Math.min(mm.maxWidth, u1 - u0 - 2 * mm.sideYard);
+    if (depth < 30 || w < 40) return false;
+    const uc = Math.min(Math.max(0, u0 + mm.sideYard + w / 2), u1 - mm.sideYard - w / 2);
+    const rect = rectFromFront(at(uc - w / 2, bv0), dir, w, inward, depth);
+    if (!polygonInside(rect, poly) || ![...rect, centre].every(dryAt)) return false;
+    makeBuilding(rect, dir, w, depth, streets[drive!.edge]!, districtAt(centre), 'mall');
+    lots.push({ outline: grounds, parkingDepth: bv0 - mm.apron / 2 - v0, entry: -u0 });
+    return true;
+  };
+
   for (const face of faces(graph)) {
     if (face.area < mc.minBlockArea) continue;
     const poly = face.nodes.map((id) => graph.nodes[id]!);
     const centre = poly.reduce((acc, p) => add(acc, scale(p, 1 / poly.length)), { x: 0, y: 0 });
+    if (drive && face.edges.includes(drive.edge) && placeMall(face.edges, poly, centre)) continue;
     if (face.area < mc.plazaArea) {
       if (dryAt(centre)) openUp(face.edges);
       continue;
@@ -532,7 +616,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     }
   }
 
-  return { nodes, streets, buildings, districts, river: { centreline, width: rc.width } };
+  return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots };
 }
 
 /** Footprint area of a building outline (a convex quad). */
