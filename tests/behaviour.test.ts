@@ -178,6 +178,69 @@ describe('sociality', () => {
   });
 });
 
+describe('conversations', () => {
+  /** Two walkers side by side, cooldowns spent, `a` knowing one street's danger. */
+  function pair(sa: number, sb: number) {
+    const { world, ctx } = fresh();
+    const p = streetPoint(world);
+    // Nobody else close enough to join or be met.
+    for (const o of world.sims) if (o.insideBuilding === null && Math.hypot(o.x - p.x, o.y - p.y) < 60) o.insideBuilding = 0 as never;
+    const a = walker(world, p.x, p.y);
+    const b = walker(world, p.x + 1, p.y);
+    a.sociality = sa;
+    b.sociality = sb;
+    a.awareAt = 0;
+    a.lastMergeAt = b.lastMergeAt = -1000;
+    a.streetMemory.set(0 as never, { danger: 0.9, observedAt: 0, visited: true });
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    resolveEncounters(world, ctx);
+    return { world, ctx, a, b, p };
+  }
+
+  it('the sociable stop, trade what they know, and stand facing each other', () => {
+    const { world, ctx, a, b } = pair(1, 1);
+    expect(a.gathering).toBe(a.id);
+    expect(b.gathering).toBe(a.id);
+    expect(b.streetMemory.get(0 as never)?.danger).toBe(0.9);
+    decide(world, ctx);
+    expect([a.gait, b.gait]).toEqual(['still', 'still']);
+    expect(Math.cos(b.heading)).toBeLessThan(-0.99); // b, east of a, faces west
+  });
+
+  it('the solitary pass by: the outbreak passes on, the details do not', () => {
+    const { a, b } = pair(0, 0);
+    expect(a.gathering).toBeNull();
+    expect(b.awareAt).not.toBeNull();
+    expect(b.streetMemory.has(0 as never)).toBe(false);
+  });
+
+  it('breaks up when anyone in it sees danger', () => {
+    const { world, ctx, a, b, p } = pair(1, 1);
+    spawnZombie(world, p.x - p.ux * 12, p.y - p.uy * 12, 'active', null, null); // up the street, in sight
+    decide(world, ctx);
+    expect(a.gathering).toBeNull();
+    expect(b.gathering).toBeNull();
+  });
+
+  it('draws in a sociable passer, and each leaves when its time is up', () => {
+    const { world, ctx, a, b, p } = pair(1, 0.4); // 1.5 × 0.7: sure to stop
+    expect(a.talkUntil! - world.tick).toBeGreaterThan(b.talkUntil! - world.tick); // the least sociable leaves first
+    const c = walker(world, p.x, p.y + 8); // beyond meeting range, within joinRadius
+    c.sociality = 1;
+    c.lastMergeAt = -1000;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    resolveEncounters(world, ctx);
+    expect(c.gathering).toBe(a.id);
+    world.tick = b.talkUntil!;
+    resolveEncounters(world, ctx);
+    expect(b.gathering).toBeNull();
+    expect(a.gathering).toBe(a.id);
+  });
+});
+
 describe('the dead', () => {
   it('a zombie that sights someone wakes the dormant dead near it', () => {
     const { world, ctx } = fresh();

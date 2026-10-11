@@ -245,7 +245,7 @@ is a triangle; positions are interpolated between ticks. A third round: police d
 as a unit, are cops by profession and age, churches are larger and fewer and drawn in
 plan, and every door has a step. Police run toward gunfire; fight, flight and freeze show
 as an outline, a streak and a slow pulse. Sheltered armed sims fire from the door.
-Fortification has stages — open, barricaded, reinforced, fortified — each needing a bigger
+Sociality is per sim, like caution; only stopping to talk trades what people know, and sociable passers join conversations into gatherings, drawn as a faint line or ring (reference, "Fourth round"). Fortification has stages — open, barricaded, reinforced, fortified — each needing a bigger
 crowd to break, with integrity capping the stage (`common.ts stageOf`).
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the

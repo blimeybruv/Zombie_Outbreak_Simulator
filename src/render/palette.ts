@@ -10,6 +10,8 @@ export const CONTESTED = [255, 255, 255] as const; // pulsing outline
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.045)'; // night only
 export const LIVING = '#dfe7ef';
 export const LIVING_RGB = [223, 231, 239] as const;
+/** A conversation: the faint line joining the people in it. */
+export const TALK = 'rgba(223, 231, 239, 0.4)';
 export const PROMOTED = '#ffffff';
 export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a triangle, whatever its colour
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring

@@ -135,8 +135,10 @@ function frameSnapshot(w: World): FrameSnapshot {
   const simKind = new Uint8Array(w.sims.length);
   const simFlags = new Uint8Array(w.sims.length);
   const simHeading = new Float32Array(w.sims.length);
+  const talk: number[] = [];
   for (const s of w.sims) {
     if ((s.condition !== 'healthy' && s.condition !== 'infected') || s.insideBuilding !== null) continue;
+    if (s.gathering !== null) talk.push(s.id, s.gathering);
     simXY[s.id * 2] = s.x;
     simXY[s.id * 2 + 1] = s.y;
     simKind[s.id] = s.name !== null ? SIM_PROMOTED : SIM_LIVING;
@@ -177,6 +179,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     simKind,
     simFlags,
     simHeading,
+    talk: new Int32Array(talk),
     zombieXY,
     zombieKind,
     fill,
@@ -261,7 +264,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.fill.buffer, f.buildingFlags.buffer]);
   }
 };
 

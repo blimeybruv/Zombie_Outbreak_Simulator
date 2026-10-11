@@ -42,6 +42,10 @@ const STALL_W = 2.7; // m
 const STALL_D = 5; // m
 const AISLE = 7; // m
 const DRIVE_GAP = 4.5; // m either side of the driveway kept clear
+// A gathering of three or more: a faint ring round it.
+const TALK_RING_M = 2.5; // m
+const TALK_RING_PER = 0.4; // m per person
+const TALK_RING_PX = 5; // device px at least
 const GUNS = new Set(['pistol', 'smg', 'shotgun']);
 
 const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill call
@@ -385,6 +389,7 @@ export class Renderer {
     const fleeing: number[] = [];
     for (let i = 0; i < frame.simFlags.length; i++) if (frame.simFlags[i]! & SIM_FLEEING) fleeing.push(i);
     if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
+    this.drawTalk(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
     this.drawPulses(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
@@ -396,6 +401,44 @@ export class Renderer {
    * Where it began: a red ☣ in a ring over patient zero's building, shrinking onto it
    * like a ping, from the start (the run opens paused) until ORIGIN_TICKS have run.
    */
+  /**
+   * Conversations: a faint line from each person in one to its middle, so a pair reads
+   * as a link and a gathering as a hub. Mid and near zoom; at far zoom it is two pixels.
+   */
+  private drawTalk(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+    const t = frame.talk;
+    if (t.length === 0) return;
+    const sum = new Map<number, { x: number; y: number; n: number }>();
+    for (let i = 0; i < t.length; i += 2) {
+      const p = this.simAt(t[i]!);
+      const c = sum.get(t[i + 1]!) ?? { x: 0, y: 0, n: 0 };
+      c.x += p.x;
+      c.y += p.y;
+      c.n++;
+      sum.set(t[i + 1]!, c);
+    }
+    const path = new Path2D();
+    for (let i = 0; i < t.length; i += 2) {
+      const c = sum.get(t[i + 1]!)!;
+      if (c.n < 2) continue;
+      const p = this.simAt(t[i]!);
+      path.moveTo(p.x, p.y);
+      path.lineTo(c.x / c.n, c.y / c.n);
+    }
+    // Three or more: a ring round the knot, never smaller than TALK_RING_PX, so a
+    // gathering still reads at mid zoom where it is a pixel or two across.
+    const minR = TALK_RING_PX / (cam.scale * dpr);
+    for (const c of sum.values()) {
+      if (c.n < 3) continue;
+      const r = Math.max(minR, TALK_RING_M + TALK_RING_PER * c.n);
+      path.moveTo(c.x / c.n + r, c.y / c.n);
+      path.arc(c.x / c.n, c.y / c.n, r, 0, Math.PI * 2);
+    }
+    g.strokeStyle = P.TALK;
+    g.lineWidth = Math.max(1 / (cam.scale * dpr), 0.35);
+    g.stroke(path);
+  }
+
   private drawOrigin(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     if (this.origins.length === 0 || frame.tick >= ORIGIN_TICKS) return;
     const t = (wallMs % ORIGIN_PING_MS) / ORIGIN_PING_MS; // 0 wide, 1 settled

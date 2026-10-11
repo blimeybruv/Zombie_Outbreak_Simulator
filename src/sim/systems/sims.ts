@@ -30,7 +30,7 @@ import { nextFloat, nextInt } from '../rng';
 import type { Building, Sim, Stand, StreetId, World } from '../state';
 import { chooseObjective, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
-import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, setDestination } from './common';
+import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
@@ -398,6 +398,20 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     sim.sightedAt = tick;
   }
 
+  // Talking: closing in on the others, then standing still facing them, until the
+  // conversation ends (encounters) or anyone in it sees danger, or this one panics.
+  if (sim.gathering !== null) {
+    const g = sim.gathering;
+    if (ctx.talkAlarm[g] || mode === 'flight' || sim.stand !== null) leaveTalk(sim, tick);
+    else {
+      const cx = ctx.talkX[g]!, cy = ctx.talkY[g]!;
+      steerToward(sim, cx, cy);
+      const tc = config.talk;
+      sim.gait = Math.hypot(cx - sim.x, cy - sim.y) > tc.closeIn + tc.closeInPer * ctx.talkSize[g]! ? 'walk' : 'still';
+      return;
+    }
+  }
+
   // Holding ground until the stand is reconsidered (a fight ends sooner if nothing is in sight).
   if (sim.stand !== null) {
     if (tick < sim.standUntil! && (threat > 0 || sim.stand === 'freeze')) return holdStand(world, ctx, sim);
@@ -666,7 +680,31 @@ function drainRepathQueue(world: World, ctx: Context): void {
   }
 }
 
+/** Where each conversation stands (the middle of those in it) and whether anyone in it sees danger, from the perception snapshot. */
+function locateTalks(world: World, ctx: Context): void {
+  const { sims } = world;
+  ctx.talkX.fill(0, 0, sims.length);
+  ctx.talkY.fill(0, 0, sims.length);
+  ctx.talkSize.fill(0, 0, sims.length);
+  ctx.talkAlarm.fill(0, 0, sims.length);
+  for (const s of sims) {
+    if (s.gathering === null || !isOutdoorLiving(s)) continue;
+    const g = s.gathering;
+    ctx.talkX[g]! += s.x;
+    ctx.talkY[g]! += s.y;
+    ctx.talkSize[g]!++;
+    if (ctx.threat[s.id]! > 0) ctx.talkAlarm[g] = 1;
+  }
+  for (const s of sims) {
+    const n = ctx.talkSize[s.id]!;
+    if (n === 0) continue;
+    ctx.talkX[s.id]! /= n;
+    ctx.talkY[s.id]! /= n;
+  }
+}
+
 export function simDecisions(world: World, ctx: Context): void {
+  locateTalks(world, ctx);
   for (const sim of world.sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     decideBitten(world, ctx, sim);
@@ -677,7 +715,7 @@ export function simDecisions(world: World, ctx: Context): void {
     observe(world, ctx, sim);
     const mode = modeOf(sim, world.config);
     decideOutdoor(world, ctx, sim, mode);
-    if (mode !== 'informed' || sim.avoidUntil !== null) followCrowd(world, ctx, sim);
+    if (sim.gathering === null && (mode !== 'informed' || sim.avoidUntil !== null)) followCrowd(world, ctx, sim);
   }
   drainRepathQueue(world, ctx);
 }

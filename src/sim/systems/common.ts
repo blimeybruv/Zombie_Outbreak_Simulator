@@ -35,6 +35,13 @@ export function setDestination(sim: Sim, b: Building, kind: Sim['destinationKind
   sim.routeIndex = 0;
 }
 
+/** Leaves a conversation; not stopping to talk again until the encounter cooldown has passed. */
+export function leaveTalk(sim: Sim, tick: number): void {
+  sim.gathering = null;
+  sim.talkUntil = null;
+  sim.lastMergeAt = tick;
+}
+
 export function clearDestination(sim: Sim): void {
   sim.destination = null;
   sim.destinationBuilding = null;

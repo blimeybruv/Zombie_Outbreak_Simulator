@@ -309,6 +309,28 @@ export const config = {
     warnRadius: 30, // m; a survivor who sights a zombie shouts a warning about its street to everyone outdoors this close — guess
   },
 
+  // Conversations. Two who meet outdoors pass on panic and that there is an outbreak
+  // whatever happens; they stop to talk at `chance` × their mean sociality (up to 1),
+  // and only talking trades what they know — streets, buildings, who is bitten. A sim
+  // stays from ticks[0] (least sociable) to ticks[1] (most); a passer within joinRadius
+  // joins one already going at joinChance × its sociality, up to `cap` people (a passer
+  // had to come within the 4 m encounter radius of a pair standing still, and almost
+  // none did); what the conversation knows
+  // is pooled every poolInterval ticks. Nobody stops with danger in sight, in flight,
+  // or on a call, and a conversation breaks up when anyone in it sees danger — guess
+  talk: {
+    chance: 1.5,
+    ticks: [4, 20],
+    joinChance: 1,
+    joinRadius: 12, // m
+    // Those in a conversation walk in until within closeIn + closeInPer × its size of
+    // its middle: joiners came from up to joinRadius away, and stood where they were.
+    closeIn: 1.5, // m
+    closeInPer: 0.4, // m per person
+    cap: 10,
+    poolInterval: 5,
+  },
+
   pathfinding: {
     dangerWeight: 400, // m of detour one unit of believed danger is worth — guess
     // Multiplier on dangerWeight at caution 0 and 1, linear between: cautious sims pay

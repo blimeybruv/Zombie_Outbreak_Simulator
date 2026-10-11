@@ -74,6 +74,7 @@ function doing(s: Sim): string | null {
   if (s.stand === 'freeze') return 'frozen, hiding';
   if (s.sortieUntil !== null) return 'on a sortie';
   if (s.avoidUntil !== null) return 'backing off';
+  if (s.gathering !== null) return 'stopped to talk';
   switch (s.destinationKind) {
     case 'isolate':
       return 'going off alone to turn';

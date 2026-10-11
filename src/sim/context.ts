@@ -60,6 +60,11 @@ export interface Context {
   scent: { cols: number; strength: Float32Array; x: Float32Array; y: Float32Array; builtAt: number };
   /** Sims already waiting in the repath queue. */
   queued: Uint8Array;
+  /** Per conversation, by the id that names it: people in it (encounters), and where it stands and whether anyone in it sees danger (decisions). */
+  talkSize: Int32Array;
+  talkX: Float64Array;
+  talkY: Float64Array;
+  talkAlarm: Uint8Array;
   events: SimEvent[];
   ids: number[];
   ids2: number[];
@@ -97,6 +102,10 @@ export function createContext(world: World): Context {
       return { cols, strength: new Float32Array(cols * cols), x: new Float32Array(cols * cols), y: new Float32Array(cols * cols), builtAt: -1 };
     })(),
     queued: new Uint8Array(0),
+    talkSize: new Int32Array(0),
+    talkX: new Float64Array(0),
+    talkY: new Float64Array(0),
+    talkAlarm: new Uint8Array(0),
     events: [],
     ids: [],
     ids2: [],
@@ -122,6 +131,10 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.nearestZombie = new Int32Array(cap);
     ctx.contacts = new Int32Array(cap);
     ctx.dark = new Uint8Array(cap);
+    ctx.talkSize = new Int32Array(cap);
+    ctx.talkX = new Float64Array(cap);
+    ctx.talkY = new Float64Array(cap);
+    ctx.talkAlarm = new Uint8Array(cap);
     const queued = new Uint8Array(cap);
     queued.set(ctx.queued);
     ctx.queued = queued;

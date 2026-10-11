@@ -209,6 +209,14 @@ export interface Sim {
   knownInfected: Set<SimId>;
   /** Rate-limits proximity merges. @range tick @unit tick @readBy encounters */
   lastMergeAt: Tick;
+  /**
+   * The conversation this sim has stopped for, named by the sim that started it (its
+   * own id if it did); null when not talking. Only talking trades what sims know.
+   * @range sim id | null @unit id @readBy encounters (pooling, joining), decisions (holding still), render
+   */
+  gathering: SimId | null;
+  /** When it leaves the conversation: sooner the less sociable. @range tick | null @unit tick @readBy encounters */
+  talkUntil: Tick | null;
 
   // Movement intent
 

@@ -189,6 +189,8 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     buildingMemory: new Map(),
     knownInfected: new Set(),
     lastMergeAt: tick - config.encounters.cooldown,
+    gathering: null,
+    talkUntil: null,
     destination: null,
     destinationKind: spec.destinationKind,
     destinationBuilding: null,

@@ -150,6 +150,8 @@ export interface FrameSnapshot {
   simFlags: Uint8Array;
   /** Per sim: heading in radians (which way a triangle points). */
   simHeading: Float32Array;
+  /** Everyone outdoors in a conversation, as pairs: sim id, and the id that names the conversation. */
+  talk: Int32Array;
   /** Per zombie (indexed by id): x, y. */
   zombieXY: Float32Array;
   zombieKind: Uint8Array;
