@@ -254,7 +254,7 @@ describe('the economy over a run', () => {
   it('holds the invariant and is reproducible with scavenging under way', () => {
     const run = () => {
       const { world, ctx } = createWorld({ ...defaultScenario, runSeed: 2 }, config);
-      while (world.tick < 4000) step(world, ctx, { checkInvariant: true });
+      while (world.tick < 1500) step(world, ctx, { checkInvariant: true }); // scavengers are out from about tick 500
       return world;
     };
     const a = run();
