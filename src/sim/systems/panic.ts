@@ -10,6 +10,7 @@
 import type { Config } from '../../config';
 import { isOutdoorLiving, type Context } from '../context';
 import { clamp01 } from '../geometry';
+import { noteStreet } from '../memory';
 import type { Sim, World } from '../state';
 import { intensityAt } from './stimuli';
 
@@ -49,6 +50,9 @@ export function updatePanic(world: World, ctx: Context): void {
       sim.panic = clamp01(sim.panic + pc.risePerEvent);
       sim.history.conversionsWitnessed++;
       sim.awareAt ??= tick;
+      // Someone turned there: the street remembers it, whatever walks it next.
+      const street = ctx.map.nearestStreet(e.x, e.y, config.map.offStreetLookup);
+      if (street !== null) noteStreet(sim.streetMemory, street, config.memory.witnessedDanger, tick, config.memory);
     }
     // Contagion: a crowd running this way frightens, toward how many and how close.
     const target = Math.min(1, ctx.fleeingSeen[sim.id]! * config.crowd.fleeingGain);

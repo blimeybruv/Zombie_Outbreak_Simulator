@@ -21,20 +21,28 @@
 // One of three files allowed to read `panic`.
 
 import { isOutdoorLiving, type Context } from '../context';
-import { remember, trim } from '../memory';
+import { noteStreet, settleDanger, trim } from '../memory';
 import { chance } from '../rng';
 import type { Sim, World } from '../state';
 import { entranceNearest, leaveTalk, setDestination } from './common';
 import { modeOf } from './panic';
 import { rebuildSimHash } from './perception';
 
-/** Takes what `from` knows that is newer, as the listener hears it: `shift` ticks older than it is. */
-function mergeNewer<K, V extends { observedAt: number; visited: boolean }>(into: Map<K, V>, from: Map<K, V>, shift: number): void {
+/**
+ * Takes what `from` knows that is newer, as the listener hears it: `shift` ticks older
+ * than it is. With `quietLook`, danger is settled rather than replaced (memory.ts
+ * settleDanger): newer news of a quiet street lowers a warning only part of the way.
+ */
+function mergeNewer<K, V extends { observedAt: number; visited: boolean; danger?: number }>(into: Map<K, V>, from: Map<K, V>, shift: number, quietLook?: number): void {
   for (const [key, theirs] of from) {
     const mine = into.get(key);
     const heard = theirs.observedAt - shift;
     if (mine === undefined) into.set(key, { ...theirs, observedAt: heard, visited: false });
-    else if (heard > mine.observedAt) Object.assign(mine, theirs, { observedAt: heard, visited: mine.visited });
+    else if (heard > mine.observedAt) {
+      const believed = mine.danger;
+      Object.assign(mine, theirs, { observedAt: heard, visited: mine.visited });
+      if (quietLook !== undefined && believed !== undefined) mine.danger = settleDanger(believed, theirs.danger!, quietLook);
+    }
   }
 }
 
@@ -42,9 +50,9 @@ function mergeNewer<K, V extends { observedAt: number; visited: boolean }>(into:
  * Both ways, newer (as heard) wins. The second pass cannot undo the first: a copied
  * entry is no newer than the original it came from.
  */
-function mergeBoth<K, V extends { observedAt: number; visited: boolean }>(a: Map<K, V>, b: Map<K, V>, shiftA: number, shiftB: number): void {
-  mergeNewer(a, b, shiftA);
-  mergeNewer(b, a, shiftB);
+function mergeBoth<K, V extends { observedAt: number; visited: boolean; danger?: number }>(a: Map<K, V>, b: Map<K, V>, shiftA: number, shiftB: number, quietLook?: number): void {
+  mergeNewer(a, b, shiftA, quietLook);
+  mergeNewer(b, a, shiftB, quietLook);
 }
 
 /** How much older hearsay seems to this listener. */
@@ -103,7 +111,7 @@ export function merge(world: World, a: Sim, b: Sim): void {
   if (aWasAware) told(world, b, a);
   const { streetCap, buildingCap } = world.config.memory;
   const shiftA = hearsayAge(world, a), shiftB = hearsayAge(world, b);
-  mergeBoth(a.streetMemory, b.streetMemory, shiftA, shiftB);
+  mergeBoth(a.streetMemory, b.streetMemory, shiftA, shiftB, world.config.memory.quietLook);
   mergeBoth(a.buildingMemory, b.buildingMemory, shiftA, shiftB);
   trim(a.streetMemory, streetCap);
   trim(b.streetMemory, streetCap);
@@ -198,14 +206,8 @@ function hearWarnings(world: World, ctx: Context): void {
         else told(world, s, shouter);
       }
       if (s.destinationBuilding !== null && world.buildings[s.destinationBuilding]!.street === w.street) s.reconsider = true;
-      const belief = s.streetMemory.get(w.street);
-      if (belief) {
-        if (belief.observedAt >= tick) continue;
-        belief.danger = w.danger;
-        belief.observedAt = tick;
-      } else {
-        remember(s.streetMemory, w.street, { danger: w.danger, observedAt: tick, visited: false }, config.memory.streetCap);
-      }
+      if ((s.streetMemory.get(w.street)?.observedAt ?? -Infinity) >= tick) continue;
+      noteStreet(s.streetMemory, w.street, w.danger, tick, config.memory);
       if (s.destination !== null && !ctx.queued[id] && tick >= s.nextRepathAt && s.route.includes(w.street)) {
         ctx.queued[id] = 1;
         world.repathQueue.push(s.id);

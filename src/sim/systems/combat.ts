@@ -3,6 +3,7 @@
 // kills, misses, or infects. No health on either side.
 
 import { isOutdoorLiving, type Context } from '../context';
+import { noteStreet } from '../memory';
 import { isLiving } from './common';
 import { transfer, simLeaf } from '../counters';
 import { chance, nextInt } from '../rng';
@@ -46,6 +47,10 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
     }
     return;
   }
+  // Out in the open: the street it happened on is dangerous, to the bitten and to
+  // whoever saw it.
+  const street = ctx.map.nearestStreet(victim.x, victim.y, config.map.offStreetLookup);
+  if (street !== null) noteStreet(victim.streetMemory, street, config.memory.witnessedDanger, tick, config.memory);
   ctx.simHash.query(victim.x, victim.y, config.perception.dayRadius.open, ctx.ids2);
   for (const wid of ctx.ids2) {
     if (wid === victim.id) continue;
@@ -55,6 +60,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
     if (!ctx.map.lineOfSight(w.x, w.y, victim.x, victim.y)) continue;
     w.knownInfected.add(victim.id);
     w.awareAt ??= tick;
+    if (street !== null) noteStreet(w.streetMemory, street, config.memory.witnessedDanger, tick, config.memory);
   }
 }
 

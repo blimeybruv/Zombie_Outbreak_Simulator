@@ -245,6 +245,15 @@ export const config = {
     // quiet, and news of a quiet street is worth something to them — guess
     unknownStreetDanger: 0.15,
     unknownDangerFrom: 0.66,
+    // Street danger rises at once and falls slowly (memory.ts settleDanger): a quiet
+    // look moves a belief quietLook of the way toward what was seen, never to zero in
+    // one pass. Some things are written where they happened, at a fixed danger: a
+    // zombie sighted (and shouted) on a street, a bite or a turning seen there, a
+    // shelter fallen — what happened, not the seer's distance from it — guesses
+    quietLook: 0.5,
+    sightedDanger: 0.8,
+    witnessedDanger: 1,
+    fellDanger: 1,
     streetCap: 150, // entries; beyond this the oldest observation is forgotten
     buildingCap: 30, // entries; terraces put hundreds of buildings within a close pass
   },

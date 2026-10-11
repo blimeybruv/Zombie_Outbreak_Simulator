@@ -6,7 +6,7 @@
 import { breachChance } from '../breach';
 import type { Context } from '../context';
 import { transfer, simLeaf } from '../counters';
-import { remember } from '../memory';
+import { noteStreet, remember } from '../memory';
 import { functionalProfile } from '../mapgen/generate';
 import { chance, nextInt } from '../rng';
 import { spawnSim, spawnZombie } from '../spawn';
@@ -66,6 +66,8 @@ function expel(world: World, ctx: Context, sim: Sim, b: Building): void {
   sim.role = null;
   sim.sortieUntil = null;
   if (fell) {
+    // A shelter fallen: its street is where it happened, and they carry that away.
+    noteStreet(sim.streetMemory, b.street, world.config.memory.fellDanger, world.tick, world.config.memory);
     if (sim.shelter === b.id) sim.shelter = null;
     sim.refusedBy = b.id;
   }
@@ -166,7 +168,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     } else {
       b.pendingSpill = Math.max(b.pendingSpill, b.zombiesInside);
       occupierStrike(world, ctx, b, sim);
-      remember(sim.streetMemory, b.street, { danger: 1, observedAt: tick, visited: sim.streetMemory.get(b.street)?.visited ?? false }, config.memory.streetCap);
+      noteStreet(sim.streetMemory, b.street, config.memory.fellDanger, tick, config.memory);
       turnAway(world, sim, b);
       return;
     }

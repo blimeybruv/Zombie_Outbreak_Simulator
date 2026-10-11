@@ -24,7 +24,7 @@
 
 import { isOutdoorLiving, type Context } from '../context';
 import { functionalProfile } from '../mapgen/generate';
-import { remember } from '../memory';
+import { noteStreet, remember } from '../memory';
 import { sharedNode } from '../pathfinding';
 import { nextFloat, nextInt } from '../rng';
 import type { Building, Sim, Stand, StreetId, World } from '../state';
@@ -46,13 +46,7 @@ function observe(world: World, ctx: Context, sim: Sim): void {
   if (street >= 0 && street !== sim.street) {
     const prev = sim.streetMemory.get(street as StreetId);
     if (!prev?.visited) sim.history.streetsVisited++;
-    if (prev) {
-      prev.danger = ctx.threat[sim.id]!;
-      prev.observedAt = tick;
-      prev.visited = true;
-    } else {
-      remember(sim.streetMemory, street as StreetId, { danger: ctx.threat[sim.id]!, observedAt: tick, visited: true }, config.memory.streetCap);
-    }
+    noteStreet(sim.streetMemory, street as StreetId, ctx.threat[sim.id]!, tick, config.memory, true);
   }
   sim.street = street >= 0 ? (street as StreetId) : null;
 
@@ -186,18 +180,13 @@ function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const z = zombies[zid]!;
   const street = ctx.map.nearestStreet(z.x, z.y, config.map.offStreetLookup);
   if (street !== null) {
-    const danger = ctx.threat[sim.id]!;
+    // The zombie's street, at what a sighting means, not at the seer's distance from it.
+    const danger = config.memory.sightedDanger;
     // ...and shouts it to whoever is near (heard in the encounters step). The shout is
     // a noise like any other: the dead hear it too.
     ctx.warnings.push({ from: sim.id, x: sim.x, y: sim.y, street, danger });
     emitStimulus(world, sim.x, sim.y, 'shout', config.encounters.warnRadius, false, config.behaviour.shoutIntensity);
-    const belief = sim.streetMemory.get(street);
-    if (belief) {
-      belief.danger = danger;
-      belief.observedAt = tick;
-    } else {
-      remember(sim.streetMemory, street, { danger, observedAt: tick, visited: false }, config.memory.streetCap);
-    }
+    noteStreet(sim.streetMemory, street, danger, tick, config.memory);
   }
   replan(world, ctx, sim, mode);
 }
@@ -603,7 +592,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       return;
     }
     const street = dest === null ? null : ctx.map.nearestStreet(dest.x, dest.y, config.map.offStreetLookup);
-    if (street !== null) remember(sim.streetMemory, street, { danger: threat, observedAt: tick, visited: sim.streetMemory.get(street)?.visited ?? false }, config.memory.streetCap);
+    if (street !== null) noteStreet(sim.streetMemory, street, threat, tick, config.memory);
     clearDestination(sim);
     sim.destinationKind = null;
     // A first responder on the scene: the call is answered; back to the station.
