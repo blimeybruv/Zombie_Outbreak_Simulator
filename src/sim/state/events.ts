@@ -3,7 +3,7 @@
 // simulation state. `world.events` holds only the current tick's events; the
 // ticker keeps its own history for salience rarity.
 
-import type { BuildingId, Count, DistrictId, Metres, SimId, Tick, ZombieId } from './units';
+import type { BuildingId, CarId, Count, DistrictId, Metres, SimId, Tick, ZombieId } from './units';
 import type { Weapon } from './sim';
 
 interface EventBase {
@@ -109,7 +109,17 @@ export interface PoliceDispatchedEvent extends EventBase {
   sim: null;
 }
 
+export interface CarAbandonedEvent extends EventBase, Located {
+  /** A car stopped behind something too long, left where it stands for good. @range literal @unit — @readBy event consumers */
+  type: 'carAbandoned';
+  /** @range car id @unit id @readBy ticker */
+  car: CarId;
+  /** Always null: the line is about the road. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export type SimEvent =
+  | CarAbandonedEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent

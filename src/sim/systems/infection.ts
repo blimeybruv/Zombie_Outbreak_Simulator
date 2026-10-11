@@ -4,6 +4,7 @@
 import type { Context } from '../context';
 import { transfer } from '../counters';
 import { spawnZombie } from '../spawn';
+import { turnedInCar } from './cars';
 import type { World } from '../state';
 import { occupierAppeared } from './buildings';
 
@@ -19,6 +20,10 @@ export function convertDue(world: World, ctx: Context): void {
     world.lastConversionAt = tick;
 
     const inside = sim.insideBuilding;
+    if (sim.car !== null) {
+      // Turned in a car: out of it, among whoever is still inside (cars.ts turnedInCar).
+      turnedInCar(world, ctx, sim);
+    }
     if (inside === null) {
       const z = spawnZombie(world, sim.x, sim.y, 'active', null, sim.id);
       z.intact = sim.bites <= 1; // one bite, no worse: nothing to see

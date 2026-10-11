@@ -17,6 +17,8 @@ import { bite, resolveCombat } from '../src/sim/systems/combat';
 import { updatePanic } from '../src/sim/systems/panic';
 import { reconsider } from '../src/sim/systems/awareness';
 import { convertDue } from '../src/sim/systems/infection';
+import { carProcesses, decideCars } from '../src/sim/systems/cars';
+import { step } from '../src/sim/tick';
 
 function fresh(cfg: Config = baseConfig) {
   return createWorld({ ...defaultScenario, runSeed: 7 }, cfg);
@@ -427,6 +429,58 @@ describe('cars', () => {
     const c = world.cars[0]!;
     expect(ctx.cars.blocks(c.x, c.y)).toBe(true);
     expect(ctx.cars.blocks(c.x + Math.cos(c.heading) * 3, c.y + Math.sin(c.heading) * 3)).toBe(false);
+  });
+
+  /** An aware survivor beside a parked kerb car, bound for a house far off; the dead gone. */
+  function driver() {
+    const { world, ctx } = fresh();
+    for (const z of world.zombies) z.state = 'destroyed';
+    const car = world.cars.find((c) => world.lots.every((l) => Math.hypot(l.outline[0]!.x - c.x, l.outline[0]!.y - c.y) > 300))!;
+    const s = walker(world, car.x + 3 * -Math.sin(car.heading), car.y + 3 * Math.cos(car.heading));
+    s.awareAt = 0;
+    s.trust = 1;
+    s.archetype = 'civilian';
+    const far = world.buildings.find((b) => b.tag === 'residential' && Math.hypot(b.entrances[0]!.x - car.x, b.entrances[0]!.y - car.y) > 900 && Math.hypot(b.entrances[0]!.x - car.x, b.entrances[0]!.y - car.y) < 1100)!;
+    s.home = far.id;
+    setDestination(s, far, 'shelter');
+    return { world, ctx, s, car, far };
+  }
+
+  it('someone bound far off takes a car, drives, and gets out by the door', () => {
+    const { world, ctx, s, car, far } = driver();
+    let drove = false;
+    for (let t = 0; t < 1200 && !(drove && s.car === null); t++) {
+      step(world, ctx, { checkInvariant: false }); // the dead were cleared by hand, so the counters are off
+      if (s.car !== null) drove = true;
+    }
+    expect(drove).toBe(true);
+    expect(s.car).toBeNull();
+    expect(car.state).toBe('parked');
+    const e = far.entrances[0]!;
+    expect(Math.hypot(e.x - s.x, e.y - s.y)).toBeLessThan(60);
+  });
+
+  it('a car stopped behind something for jamTicks is abandoned where it stands', () => {
+    const { world, ctx, s, car } = driver();
+    for (let t = 0; t < 200 && s.car === null; t++) step(world, ctx, { checkInvariant: false });
+    expect(s.car).toBe(car.id);
+    world.tick++;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    decideCars(world, ctx); // facing the way it will go
+    // Someone standing in the road in front of it, who will not move.
+    const blocker = walker(world, car.x + Math.cos(car.heading) * 4, car.y + Math.sin(car.heading) * 4);
+    blocker.stand = 'freeze';
+    blocker.standUntil = 1e9;
+    for (let t = 0; t <= baseConfig.cars.jamTicks + 1; t++) {
+      world.tick++;
+      sizeContext(ctx, world);
+      rebuildHashes(world, ctx);
+      decideCars(world, ctx);
+      carProcesses(world, ctx);
+    }
+    expect(car.state).toBe('abandoned');
+    expect(s.car).toBeNull();
   });
 });
 

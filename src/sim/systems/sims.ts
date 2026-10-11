@@ -31,6 +31,7 @@ import type { Building, Sim, Stand, StreetId, World } from '../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
 import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, setDestination } from './common';
+import { carStillMine, considerDriving, decideCars, giveUpCar } from './cars';
 import { modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
@@ -538,6 +539,17 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     }
   }
 
+  // Walking to a car to drive away in: on to it while it is still free, running if
+  // anything is in sight (cars.ts boards it on arrival).
+  if (sim.destinationKind === 'car') {
+    if (!carStillMine(world, sim)) giveUpCar(world, sim);
+    else {
+      sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
+      travel(world, ctx, sim, mode);
+      return;
+    }
+  }
+
   // Those who engage fall back when the danger their unit sees passes what they will
   // stand, or their own shelter threshold, whichever comes first.
   const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve) : threat >= arch.shelterSeekThreshold + nerve;
@@ -562,6 +574,11 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       setDestination(sim, b, 'shelter');
     } else if (sim.awareAt !== null) {
       reconsider(world, ctx, sim);
+      if (considerDriving(world, ctx, sim, mode)) {
+        sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
+        travel(world, ctx, sim, mode);
+        return;
+      }
     }
     sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
     travel(world, ctx, sim, mode);
@@ -730,4 +747,5 @@ export function simDecisions(world: World, ctx: Context): void {
     if (sim.gathering === null && (mode !== 'informed' || sim.avoidUntil !== null)) followCrowd(world, ctx, sim);
   }
   drainRepathQueue(world, ctx);
+  decideCars(world, ctx);
 }

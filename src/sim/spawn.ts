@@ -190,6 +190,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     buildingMemory: new Map(),
     knownInfected: new Set(),
     car: null,
+    boarding: null,
     lastMergeAt: tick - config.encounters.cooldown,
     toldBy: new Set(),
     unease: 0,

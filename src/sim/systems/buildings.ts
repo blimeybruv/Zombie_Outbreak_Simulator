@@ -16,6 +16,7 @@ import { capacity, entranceNearest, exitTicks, isLiving, openDoor, stageOf } fro
 import { merge } from './encounters';
 import { modeOf } from './panic';
 import { updateRelease } from './release';
+import { carProcesses } from './cars';
 import { dispatchCalls, placeCall } from './dispatch';
 import { alert, deliver, scavenge, shelterWork, visibleFill } from './shelter';
 import { emitStimulus } from './stimuli';
@@ -481,6 +482,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   noiseExpulsion(world, ctx);
   probe('buildings.noise');
   dispatchCalls(world, ctx);
+  carProcesses(world, ctx);
   for (const bid of breachCandidates(world)) breachRolls(world, ctx, world.buildings[bid]!);
   probe('buildings.breach');
   for (const b of world.buildings) {

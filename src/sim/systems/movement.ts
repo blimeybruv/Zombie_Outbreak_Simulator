@@ -2,6 +2,7 @@
 // change (besides entering and leaving buildings).
 
 import { isOutdoorLiving, type Context } from '../context';
+import { moveCars } from './cars';
 import type { Gait, World } from '../state';
 
 /** Age's toll on speed: mild for walking, steep for running and sprinting. */
@@ -87,4 +88,5 @@ export function integrateMovement(world: World, ctx: Context): void {
     if (z.state === 'destroyed' || z.state === 'occupying') continue;
     step(ctx, z, z.heading, ctx.zombieSpeed[z.id] ?? 0, mv.slideSpeed);
   }
+  moveCars(world);
 }

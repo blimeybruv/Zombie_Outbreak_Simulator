@@ -220,6 +220,8 @@ export interface Sim {
    * @range car id | null @unit id @readBy every outdoor system (excludes it), car processes, counters, render
    */
   car: CarId | null;
+  /** The parked car it is walking to, to drive away in (it has claimed it). @range car id | null @unit id @readBy car processes (boarding), sim decisions */
+  boarding: CarId | null;
   /** Rate-limits proximity merges. @range tick @unit tick @readBy encounters */
   lastMergeAt: Tick;
   /** Who has told this sim, still unaware, that there is an outbreak (each counts once); emptied once it believes. @range a few sim ids @unit — @readBy encounters */
