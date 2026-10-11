@@ -16,6 +16,7 @@ import { zombieDecisions } from '../src/sim/systems/zombies';
 import { bite, resolveCombat } from '../src/sim/systems/combat';
 import { updatePanic } from '../src/sim/systems/panic';
 import { reconsider } from '../src/sim/systems/awareness';
+import { believedDanger } from '../src/sim/pathfinding';
 import { convertDue } from '../src/sim/systems/infection';
 import { carProcesses, decideCars } from '../src/sim/systems/cars';
 import { step } from '../src/sim/tick';
@@ -537,6 +538,29 @@ describe('cars', () => {
     expect(car.state).toBe('abandoned');
     expect(car.occupants).toHaveLength(0);
     expect(passenger.car).toBeNull();
+  });
+});
+
+describe('the especially cautious', () => {
+  it('do not take an unknown street, or an old quiet report, for safe; everyone else does', () => {
+    const { world } = fresh();
+    const p = streetPoint(world);
+    const bold = walker(world, p.x, p.y);
+    const wary = walker(world, p.x, p.y);
+    bold.caution = 0.5;
+    wary.caution = 1;
+    const m = baseConfig.memory;
+    const unknown = 1 as never, quietNow = 2 as never, quietLongAgo = 3 as never;
+    world.tick = 10_000;
+    for (const s of [bold, wary]) {
+      s.streetMemory.set(quietNow, { danger: 0, observedAt: world.tick, visited: true });
+      s.streetMemory.set(quietLongAgo, { danger: 0, observedAt: world.tick - m.halfLife, visited: true });
+    }
+    const d = (s: Sim, st: never) => believedDanger(s, st, world.tick, baseConfig);
+    expect([d(bold, unknown), d(bold, quietNow), d(bold, quietLongAgo)]).toEqual([0, 0, 0]);
+    expect(d(wary, unknown)).toBeCloseTo(m.unknownStreetDanger);
+    expect(d(wary, quietNow)).toBe(0);
+    expect(d(wary, quietLongAgo)).toBeCloseTo(m.unknownStreetDanger / 2); // a half-life old: halfway back
   });
 });
 

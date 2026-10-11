@@ -208,7 +208,15 @@ export const config = {
 
   memory: {
     halfLife: 1800, // ticks; confidence = exp(-ln2 * age / halfLife)
-    unknownStreetDanger: 0, // 0 = ignorance reads as safety; >0 = baseline pessimism (sweep both)
+    // The especially cautious do not take ignorance for safety: a street they know
+    // nothing of reads as unknownStreetDanger, ramping in from caution
+    // unknownDangerFrom (0 below it) to the full value at caution 1, and what they were
+    // told or saw drifts back toward it as it ages (believed danger = confidence × seen +
+    // (1 − confidence) × that prior). Everyone else reads an unknown street as safe and
+    // an old report as fading to safe. So the cautious keep to streets known to be
+    // quiet, and news of a quiet street is worth something to them — guess
+    unknownStreetDanger: 0.15,
+    unknownDangerFrom: 0.66,
     streetCap: 150, // entries; beyond this the oldest observation is forgotten
     buildingCap: 30, // entries; terraces put hundreds of buildings within a close pass
   },

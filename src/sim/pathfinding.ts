@@ -1,11 +1,31 @@
 // A* over the shared street graph with a per-sim cost function:
-//   cost(street) = length + dangerWeight * cautionFactor * danger * confidence
-// Unknown streets cost pure distance (plus `unknownStreetDanger`, 0 by default),
-// so ignorance reads as safety. In direct mode memory is ignored entirely.
+//   cost(street) = length + dangerWeight * cautionFactor * believedDanger
+// For most, believed danger is danger × confidence and an unknown street costs pure
+// distance: ignorance reads as safety. For the especially cautious it drifts toward a
+// prior instead (believedDanger, below), so they keep to streets known to be quiet.
+// In direct mode memory is ignored entirely.
 
+import type { Config } from '../config';
 import { confidence } from './derived';
 import type { MapIndex } from './runtime';
 import type { NodeId, Sim, StreetId, World } from './state';
+
+/**
+ * How dangerous a sim believes a street is, for routing: what it saw or was told,
+ * weighted by confidence, and for the rest the prior — 0 for most (ignorance reads as
+ * safety), up to `memory.unknownStreetDanger` for the especially cautious (from
+ * `memory.unknownDangerFrom`, full at caution 1). Old news fades toward the prior, so
+ * bad news never turns good and, for the cautious, good news does not stay good.
+ */
+export function believedDanger(sim: Sim, street: StreetId, tick: number, config: Config): number {
+  const m = config.memory;
+  const ramp = Math.max(0, (sim.caution - m.unknownDangerFrom) / (1 - m.unknownDangerFrom));
+  const prior = m.unknownStreetDanger * ramp;
+  const belief = sim.streetMemory.get(street);
+  if (!belief) return prior;
+  const c = confidence(belief.observedAt, tick, config);
+  return c * belief.danger + (1 - c) * prior;
+}
 
 class MinHeap {
   private keys: number[] = [];
@@ -92,8 +112,7 @@ export class Pathfinder {
     if (s.blocked >= 1) return Infinity;
     const length = this.map.streetLength[street]!;
     if (!useMemory) return length;
-    const belief = sim.streetMemory.get(street);
-    const danger = belief ? belief.danger * confidence(belief.observedAt, tick, config) : config.memory.unknownStreetDanger;
+    const danger = believedDanger(sim, street, tick, config);
     const [lo, hi] = config.pathfinding.cautionDanger;
     return length + config.pathfinding.dangerWeight * (lo! + (hi! - lo!) * sim.caution) * danger;
   }
