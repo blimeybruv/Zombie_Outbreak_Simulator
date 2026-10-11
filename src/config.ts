@@ -111,8 +111,8 @@ export const config = {
   },
 
   time: {
-    dayLength: 7200, // ticks per day/night cycle; compressed, 6⅔ cycles per run
-    runLength: 48000, // ticks; the demo's one terminal condition: 13⅓ simulated hours, 6⅔ day/night cycles, ending at night (from 09:00, about 01:00) — the late rise of dormant hordes needed room (it was 36,000)
+    dayLength: 7200, // ticks per day/night cycle; compressed, 7 cycles per run
+    runLength: 50400, // ticks; the demo's one terminal condition: 14 simulated hours, seven whole day/night cycles, ending at the hour it began — the late rise of dormant hordes needed room (it was 36,000)
     sunrise: 0.25, // fraction of day (06:00)
     sunset: 0.75, // fraction of day (18:00)
     twilight: 0.04, // fraction of day over which perception interpolates (~1 h)

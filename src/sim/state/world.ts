@@ -47,7 +47,7 @@ export interface Scenario {
 }
 
 export interface World {
-  /** Simulated seconds elapsed. @range 0–48,000 @unit tick @readBy everything */
+  /** Simulated seconds elapsed. @range 0–50,400 @unit tick @readBy everything */
   tick: Tick;
   /** The run RNG (from runSeed); its state is part of the snapshot. @range 4 × uint32 @unit — @readBy every random draw in sim/ */
   rng: RngState;
