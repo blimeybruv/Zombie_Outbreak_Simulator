@@ -96,9 +96,10 @@ function sims(world: World, ctx: Context): void {
     const w = sim.weapon;
     const ranged = isFirearm(w) ? cc.ranged[w] : null;
     const usable = ranged !== null && sim.ammo >= ranged.ammoPerAttack;
-    const engages = config.archetypes[sim.archetype].engageThreshold > 0 || sim.stand === 'fight';
-    // Engagers, and anyone standing to fight, pick targets at range on a staggered
-    // cycle; everyone else defends in contact.
+    const engages = config.archetypes[sim.archetype].engageThreshold > 0 || sim.stand === 'fight' || sim.squadLeader !== null;
+    // Engagers, anyone standing to fight, and every member of a squad (reservists keep
+    // a civilian's engageThreshold, but a squad is armed to fight at range) pick targets
+    // at range on a staggered cycle; everyone else defends in contact.
     const atRange = usable && engages && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger;
     const reach = atRange ? ranged.range : cc.contactRange;
 

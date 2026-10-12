@@ -1,6 +1,6 @@
 // Leaving the city. A sim making for a way off the map (`destinationKind` leave) walks
 // or drives to its exit — the nearest, by the signposts: the highways out are common
-// knowledge — and on reaching it is out of play, counted as rescued. A car reaching an
+// knowledge — and on reaching it is out of play, counted as evacuated. A car reaching an
 // exit takes everyone in it out, and is gone. Nobody at the exit looks for a bite: the
 // bitten get out too, and are counted as they leave (World.escapedInfected). Once the
 // cordon has closed an exit, only those who get round its barrier leave by it.
@@ -38,16 +38,16 @@ export function headForExit(world: World, sim: Sim): boolean {
   return true;
 }
 
-/** Out of play: through the exit, counted as rescued (bitten or not). */
+/** Out of play: through the exit, counted as evacuated (bitten or not). */
 export function leaveMap(world: World, ctx: Context, sim: Sim): void {
   const from = simLeaf(sim);
   if (from === null) return;
   if (sim.condition === 'infected') world.escapedInfected++;
-  sim.condition = 'rescued';
+  sim.condition = 'evacuated';
   sim.turnsAt = null;
   sim.car = null;
   sim.history.endedAt = world.tick;
-  transfer(world, from, 'unturned.rescued');
+  transfer(world, from, 'unturned.evacuated');
   ctx.events.push({ type: 'simLeft', tick: world.tick, sim: sim.id, x: sim.x, y: sim.y });
 }
 

@@ -39,7 +39,7 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 import { callAmbulance, decideEmt, decidePatient } from './emt';
 import { rideToCall } from './dispatch';
-import { flank, pastBarrier, queueAt } from './cordon';
+import { atClosedExit, flank, pastBarrier, queueAt } from './cordon';
 import { headForExit, nearestExit } from './exits';
 
 /**
@@ -730,6 +730,22 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     }
   }
 
+  // At a closed exit, whatever brought it there: a way out, shut, with people waiting
+  // at it. It joins them — and may try the flank, like anyone who set out to leave —
+  // unless it has already given this one up. Not those on duty or in someone's care.
+  if (sim.destinationKind !== 'leave' && sim.archetype !== 'police' && sim.crew === null && sim.carriedBy === null && !sim.outsider) {
+    const i = atClosedExit(world, sim);
+    if (i !== null) {
+      const e = world.exits[i]!;
+      sim.destinationKind = 'leave';
+      sim.destinationBuilding = null;
+      sim.destination = { x: e.x, y: e.y };
+      sim.crossing = null;
+      sim.route = [];
+      sim.routeIndex = 0;
+    }
+  }
+
   // Leaving the city (exits.ts): on to the way off the map, in a car if one is at hand,
   // running only with danger in sight. Nowhere to shelter on the way.
   if (sim.destinationKind === 'leave' && sim.destination !== null) {
@@ -749,7 +765,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       const q = queueAt(world, e);
       if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
         sim.queuedSince ??= tick;
-        if (tick - sim.queuedSince < config.cordon.patience * (0.5 + sim.trust)) {
+        // The dead in sight end the wait at once: nobody stands in a queue to be caught.
+        if (threat === 0 && tick - sim.queuedSince < config.cordon.patience * (0.5 + sim.trust)) {
           sim.gait = 'still';
           steerToward(sim, e.x, e.y);
           return;

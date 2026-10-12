@@ -7,7 +7,7 @@ export type Leaf =
   | 'unturned.outdoors'
   | 'unturned.indoors'
   | 'unturned.dead'
-  | 'unturned.rescued'
+  | 'unturned.evacuated'
   | 'turned.symptomatic'
   | 'turned.outdoors'
   | 'turned.occupying'
@@ -44,8 +44,8 @@ export function simLeaf(sim: Sim): Leaf | null {
       return 'unturned.dead';
     case 'turned':
       return null; // counted through the zombie it became
-    case 'rescued':
-      return 'unturned.rescued'; // left the map by an exit (exits.ts), bitten or not
+    case 'evacuated':
+      return 'unturned.evacuated'; // left the map by an exit (exits.ts), bitten or not
   }
 }
 

@@ -8,7 +8,7 @@ import { assertInvariant, step } from '../src/sim/tick';
 import { flank, queueAt, updateCordon } from '../src/sim/systems/cordon';
 
 describe('leaving the city', () => {
-  it('one on foot who reaches a way off the map is out of play, counted as rescued', () => {
+  it('one on foot who reaches a way off the map is out of play, counted as evacuated', () => {
     const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
     const e = world.exits[0]!;
     const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null)!;
@@ -16,14 +16,14 @@ describe('leaving the city', () => {
     s.y = e.y - e.dy * 20;
     expect(headForExit(world, s)).toBe(true);
     expect(s.destinationKind).toBe('leave');
-    const before = world.counters.unturned.rescued;
+    const before = world.counters.unturned.evacuated;
     exitArrivals(world, ctx);
-    expect(s.condition).not.toBe('rescued'); // not there yet
+    expect(s.condition).not.toBe('evacuated'); // not there yet
     s.x = e.x;
     s.y = e.y;
     exitArrivals(world, ctx);
-    expect(s.condition).toBe('rescued');
-    expect(world.counters.unturned.rescued).toBe(before + 1);
+    expect(s.condition).toBe('evacuated');
+    expect(world.counters.unturned.evacuated).toBe(before + 1);
     assertInvariant(world);
   });
 
@@ -41,7 +41,7 @@ describe('leaving the city', () => {
     car.exit = 0;
     carLeaves(world, ctx, car);
     expect(car.state).toBe('gone');
-    expect([a.condition, b.condition]).toEqual(['rescued', 'rescued']);
+    expect([a.condition, b.condition]).toEqual(['evacuated', 'evacuated']);
     expect(world.escapedInfected).toBe(1);
     assertInvariant(world);
   });
@@ -96,7 +96,7 @@ describe('the cordon', () => {
     s.x = out.x;
     s.y = out.y;
     exitArrivals(world, ctx);
-    expect(s.condition).toBe('rescued');
+    expect(s.condition).toBe('evacuated');
     assertInvariant(world);
   });
 
@@ -111,14 +111,14 @@ describe('the cordon', () => {
       for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
       const e = world.exits[0]!;
       expect(e.closedAt).not.toBeNull();
-      const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && !x.outsider)!;
+      const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian')!;
       const q = queueAt(world, e);
       s.x = q.x;
       s.y = q.y;
       headForExit(world, s);
       s.crossing = 1;
       for (let k = 0; k < 120 && (s.condition === 'healthy' || s.condition === 'infected'); k++) step(world, ctx, { checkInvariant: true });
-      expect(s.condition).toBe(fires ? 'dead' : 'rescued');
+      expect(s.condition).toBe(fires ? 'dead' : 'evacuated');
     }, 60_000);
   }
 });

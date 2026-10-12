@@ -39,7 +39,7 @@ export type Profession = (typeof PROFESSIONS)[number];
  * Nothing may read another sim's condition to learn whether it is infected —
  * that knowledge travels only through `knownInfected`.
  */
-export const CONDITIONS = ['healthy', 'infected', 'dead', 'turned', 'rescued'] as const;
+export const CONDITIONS = ['healthy', 'infected', 'dead', 'turned', 'evacuated'] as const;
 export type Condition = (typeof CONDITIONS)[number];
 
 export const GAITS = ['still', 'sneak', 'walk', 'run', 'sprint'] as const;
@@ -356,7 +356,7 @@ export interface Sim {
   muster: Muster | null;
   /** A reservist's depot: the armoury nearest home, known from the start; null for everyone else, or with no armoury on the map. @range building id | null @unit id @readBy sim decisions (depot run), squads, building entry */
   depot: BuildingId | null;
-  /** The squad this sim is in, named by its leader's id (its own, for the leader); null outside a squad. @range sim id | null @unit id @readBy squads, sim decisions, building entry, snapshot (render) */
+  /** The squad this sim is in, named by its leader's id (its own, for the leader); null outside a squad. @range sim id | null @unit id @readBy squads, sim decisions, combat (fires at range), building entry, snapshot (render) */
   squadLeader: SimId | null;
   /** Its place in the squad: 0 the leader, then 1, 2… in id order. @range 0–squads.size-1 @unit slot @readBy squads (formation) */
   squadSlot: Count;

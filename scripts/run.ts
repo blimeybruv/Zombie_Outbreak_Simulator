@@ -21,7 +21,7 @@ console.log(cols.map((c) => c.padStart(7)).join(''));
 const row = (ms: number) => {
   const { unturned: u, turned: t } = world.counters;
   const dormant = world.zombies.filter((z) => z.state === 'dormant').length;
-  const values = [world.tick, u.outdoors, u.indoors, u.dead, u.rescued, t.symptomatic, t.outdoors, t.occupying, t.destroyed, dormant, u.outdoors + t.outdoors];
+  const values = [world.tick, u.outdoors, u.indoors, u.dead, u.evacuated, t.symptomatic, t.outdoors, t.occupying, t.destroyed, dormant, u.outdoors + t.outdoors];
   console.log([...values.map(String), ms.toFixed(2)].map((v) => v.padStart(7)).join(''));
 };
 row(0);

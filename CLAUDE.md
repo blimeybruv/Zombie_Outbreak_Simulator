@@ -25,7 +25,7 @@ Never break these. If a change would break one, stop and raise it.
 
 1. **The population invariant holds every tick:**
    ```
-   unturned.outdoors + unturned.indoors + unturned.dead + unturned.rescued
+   unturned.outdoors + unturned.indoors + unturned.dead + unturned.evacuated
      + turned.symptomatic + turned.outdoors + turned.occupying + turned.destroyed
      === scenario.population
    ```

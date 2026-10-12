@@ -12,8 +12,8 @@ export interface UnturnedCounters {
   indoors: Count;
   /** Died without converting. @range 0–population @unit people @readBy invariant, end stats */
   dead: Count;
-  /** Removed from the map by the v2 rescue; always 0 in the demo. @range 0–population @unit people @readBy invariant, end stats */
-  rescued: Count;
+  /** Left the map by an exit, bitten or not (exits.ts). @range 0–population @unit people @readBy invariant, end stats, cordon (notice) */
+  evacuated: Count;
 }
 
 export interface TurnedCounters {
@@ -39,7 +39,7 @@ export interface Counters {
 }
 
 export function unturnedTotal(c: Counters): Count {
-  return c.unturned.outdoors + c.unturned.indoors + c.unturned.dead + c.unturned.rescued;
+  return c.unturned.outdoors + c.unturned.indoors + c.unturned.dead + c.unturned.evacuated;
 }
 
 export function turnedTotal(c: Counters): Count {
@@ -53,7 +53,7 @@ export function populationTotal(c: Counters): Count {
 
 export function emptyCounters(): Counters {
   return {
-    unturned: { outdoors: 0, indoors: 0, dead: 0, rescued: 0 },
+    unturned: { outdoors: 0, indoors: 0, dead: 0, evacuated: 0 },
     turned: { symptomatic: 0, outdoors: 0, occupying: 0, destroyed: 0 },
   };
 }

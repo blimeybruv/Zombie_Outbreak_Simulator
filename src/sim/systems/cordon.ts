@@ -1,9 +1,10 @@
 // The cordon: the world outside sealing the city. Not the city containing itself —
 // an outside authority, arriving late, from off the map.
 //
-//   notice    the first officer to radio for SWAT is the city asking for help; the
-//             world outside notices (radioForSwat sets World.noticedAt)
-//   arrival   cordon.delay ticks later, a squad of soldiers comes in at every exit
+//   notice    the world outside notices the people arriving at its edge: once
+//             cordon.noticeAfter have left the city by its exits (World.noticedAt)
+//   arrival   cordon.delay ticks later — enough for the first wave to get out, not
+//             the rest: the barrier closes while the evacuation is still arriving —, a squad of soldiers comes in at every exit
 //             (outsiders: the invariant counts them on top of the population)
 //   barrier   each squad walks to its post; when its leader is there, the barrier
 //             closes — the highway's last segment is impassable for good, whether or
@@ -20,7 +21,7 @@ import type { Context } from '../context';
 import { admit } from '../counters';
 import { chance } from '../rng';
 import { spawnSim } from '../spawn';
-import type { Exit, Vec2, World } from '../state';
+import type { Exit, Sim, Vec2, World } from '../state';
 
 /** The barrier's middle: setback metres in from the edge, across the highway. */
 export function barrierAt(world: World, e: Exit): { x: number; y: number } {
@@ -52,11 +53,24 @@ export function pastBarrier(world: World, e: Exit, x: number, y: number): number
   return (x - b.x) * e.dx + (y - b.y) * e.dy;
 }
 
+/** The closed exit whose queue a sim is standing in (within cordon.queueRadius), and has not given up on; or null. */
+export function atClosedExit(world: World, sim: Sim): number | null {
+  for (let i = 0; i < world.exits.length; i++) {
+    const e = world.exits[i]!;
+    if (e.closedAt === null || sim.knownClosed & (1 << i)) continue;
+    const q = queueAt(world, e);
+    if (Math.hypot(q.x - sim.x, q.y - sim.y) <= world.config.cordon.queueRadius) return i;
+  }
+  return null;
+}
+
 /** Soldiers arrive at every exit, once; barriers close as squads reach their posts. Building processes. */
 export function updateCordon(world: World, ctx: Context): void {
   const { config, tick, exits, sims } = world;
   const cc = config.cordon;
-  if (!config.features.cordon || !config.features.exits || world.noticedAt === null) return;
+  if (!config.features.cordon || !config.features.exits) return;
+  if (world.noticedAt === null && world.counters.unturned.evacuated >= cc.noticeAfter) world.noticedAt = tick;
+  if (world.noticedAt === null) return;
   if (tick === world.noticedAt + cc.delay) {
     for (const e of exits) {
       const b = barrierAt(world, e);

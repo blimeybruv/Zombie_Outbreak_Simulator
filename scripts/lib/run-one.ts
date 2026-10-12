@@ -235,7 +235,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       const c = world.counters;
       if (c.unturned.outdoors + c.unturned.indoors > 0) longestQuiet = Math.max(longestQuiet, world.tick - lastActivity);
       const active = c.turned.symptomatic + c.turned.outdoors + c.turned.occupying;
-      if (resolvedAt === null && (active === 0 || unturnedTotal(c) - c.unturned.dead - c.unturned.rescued === 0)) {
+      if (resolvedAt === null && (active === 0 || unturnedTotal(c) - c.unturned.dead - c.unturned.evacuated === 0)) {
         resolvedAt = world.tick;
       }
       if (world.tick % sampleEvery === 0) {
