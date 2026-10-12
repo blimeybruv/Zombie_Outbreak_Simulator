@@ -14,7 +14,6 @@ import { recognisedWithin } from './perception';
 import { emitStimulus } from './stimuli';
 import { pastBarrier } from './cordon';
 import { nearestExit } from './exits';
-import { mobilise } from './squads';
 
 /** Kills a zombie: it stays in the array, destroyed. */
 export function destroyZombie(world: World, z: Zombie, by: Sim): void {
@@ -64,7 +63,6 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
     if (!ctx.map.lineOfSight(w.x, w.y, victim.x, victim.y)) continue;
     w.knownInfected.add(victim.id);
     w.awareAt ??= tick;
-    mobilise(world, w); // a reservist who sees someone bitten is called up
     if (street !== null) noteStreet(world, w, street, config.memory.witnessedDanger);
   }
 }

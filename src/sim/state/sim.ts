@@ -49,8 +49,8 @@ export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', '
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
 
 /**
- * A reservist's place in the call-up. reserve: a civilian in every way, until called
- * up. mobilised: on the way to its depot. waiting: armed at the depot, for a squad.
+ * A reservist's place in the call-up. reserve: only for the moment of the muster, between
+ * stepping out and being called up (squads.ts muster). mobilised: on the way to its depot. waiting: armed at the depot, for a squad.
  * deployed: in a squad. stoodDown: its squad dissolved, or the depot had no weapon
  * left — an ordinary sim again, keeping whatever it carries.
  */

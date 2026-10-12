@@ -16,7 +16,7 @@ import { bite, destroyZombie, killSim } from './combat';
 import { capacity, entranceNearest, exitTicks, isLiving, openDoor, setDestination, stageOf } from './common';
 import { merge } from './encounters';
 import { modeOf } from './panic';
-import { armAtDepot, mobilise } from './squads';
+import { armAtDepot } from './squads';
 import { dispatchAmbulances, emtEnter } from './emt';
 import { exitArrivals, headForExit } from './exits';
 import { updateCordon } from './cordon';
@@ -73,7 +73,6 @@ function expel(world: World, ctx: Context, sim: Sim, b: Building): void {
   if (fell) {
     // A shelter fallen: its street is where it happened, and they carry that away.
     noteStreet(world, sim, b.street, world.config.memory.fellDanger);
-    mobilise(world, sim); // a reservist driven out of a fallen shelter is called up
     if (sim.shelter === b.id) sim.shelter = null;
     sim.refusedBy = b.id;
   }

@@ -21,7 +21,6 @@ import type { Building, BuildingBelief, BuildingId, Sim, Weapon, World } from '.
 import { recognisedWithin } from './perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from './common';
 import { modeOf } from './panic';
-import { witnessFall } from './squads';
 
 // Door watch
 
@@ -412,7 +411,6 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
     if (b.garrisonedAt !== null) {
       if (b.zombiesInside > 0) {
         ctx.events.push({ type: 'shelterFell', tick, building: b.id, sim: null });
-        witnessFall(world, ctx, b);
       }
       b.garrisonedAt = null;
       b.cascadeAt = null;
@@ -463,7 +461,6 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
     }
   } else if (b.zombiesInside > 0) {
     ctx.events.push({ type: 'shelterFell', tick, building: b.id, sim: null });
-    witnessFall(world, ctx, b);
     b.garrisonedAt = null;
     b.cascadeAt = null;
   } else if (holders === 0) {

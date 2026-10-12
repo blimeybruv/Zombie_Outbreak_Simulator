@@ -5,7 +5,6 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { spawnSim, spawnZombie } from '../src/sim/spawn';
 import type { Building, Sim, World } from '../src/sim/state';
-import { bite } from '../src/sim/systems/combat';
 import { computePerception, rebuildHashes } from '../src/sim/systems/perception';
 import { simDecisions } from '../src/sim/systems/sims';
 import { armAtDepot, mobilise, squadPass } from '../src/sim/systems/squads';
@@ -54,56 +53,38 @@ function pass(world: World, ctx: ReturnType<typeof fresh>['ctx']): void {
 }
 
 describe('reservists', () => {
-  it('have armouries to go to, spread across the map, and are drawn like anyone when instantiated', () => {
+  it('have armouries to go to, spread across the map, and none exist before the order', () => {
     const { world } = fresh();
     const arms = world.buildings.filter((b) => b.weaponStock !== null);
     expect(arms).toHaveLength(config.reservists.armouries);
     for (const b of arms) expect(b.tag).toBe('depot');
-    // In proportion among the tracked: about reservists.share of them, not placed ahead of everyone.
-    const r = world.sims.filter((s) => s.archetype === 'reservist');
-    expect(r.length).toBeGreaterThan(0);
-    expect(r.length / world.sims.length).toBeLessThan(3 * config.reservists.share);
-    for (const s of r) {
-      expect(s.muster).toBe('reserve');
-      expect(arms.map((b) => b.id)).toContain(s.depot);
-    }
+    expect(world.sims.some((s) => s.archetype === 'reservist')).toBe(false);
   });
 
-  it('are called up by a bite they see, not by knowing of the outbreak', () => {
-    const { world, ctx } = fresh();
-    const b = armoury(world);
-    const victim = reservist(world, 1600, 1600, b);
-    victim.archetype = 'civilian';
-    victim.muster = null;
-    const seer = reservist(world, 1605, 1600, b);
-    const elsewhere = reservist(world, 2400, 2400, b);
-    elsewhere.awareAt = 0;
-    pass(world, ctx);
-    bite(world, ctx, victim);
-    expect(seer.muster).toBe('mobilised');
-    expect(elsewhere.muster).toBe('reserve');
-  });
-
-  it('are civilians whatever they see until the reserve is called up, once enough 911 calls have come in', () => {
+  it('muster at the order, once enough 911 calls have come in, from the buildings the living still hold', () => {
     const { world, ctx } = fresh();
     world.calledUpAt = null;
-    const b = armoury(world);
-    const victim = reservist(world, 1600, 1600, b);
-    victim.archetype = 'civilian';
-    victim.muster = null;
-    const seer = reservist(world, 1605, 1600, b);
+    const arms = world.buildings.filter((b) => b.weaponStock !== null).map((b) => b.id);
+    // A building the dead hold: none of its residents muster.
+    const lost = world.buildings.filter((b) => b.residents > 20 && b.weaponStock === null).sort((a, b) => b.residents - a.residents)[0]!;
+    lost.zombiesInside = 5;
+    world.callsTaken = config.reservists.callUpCalls - 1;
     pass(world, ctx);
-    bite(world, ctx, victim);
-    expect(seer.muster).toBe('reserve');
-    world.callsTaken = config.reservists.callUpCalls;
+    expect(world.calledUpAt).toBeNull();
+    expect(world.sims.some((s) => s.archetype === 'reservist')).toBe(false);
+    world.callsTaken++;
+    const residents = world.buildings.reduce((a, b) => a + (b.zombiesInside === 0 ? b.residents : 0), 0);
     pass(world, ctx);
     expect(world.calledUpAt).toBe(world.tick);
-    const second = reservist(world, 1600, 1595, b);
-    second.archetype = 'civilian';
-    second.muster = null;
-    pass(world, ctx);
-    bite(world, ctx, second);
-    expect(seer.muster).toBe('mobilised');
+    const r = world.sims.filter((s) => s.archetype === 'reservist');
+    expect(r.length).toBeGreaterThan(0.6 * config.reservists.share * residents);
+    expect(r.length).toBeLessThan(1.4 * config.reservists.share * residents);
+    for (const s of r) {
+      expect(s.muster).toBe('mobilised');
+      expect(arms).toContain(s.depot);
+      expect(s.insideBuilding).not.toBe(lost.id);
+    }
+    expect(r.filter((s) => s.weapon === 'pistol').length).toBeLessThan(r.length * 3 * config.reservists.pistolShare + 2);
   });
 
   it('draw a rifle at the depot while any are left, then stand down', () => {

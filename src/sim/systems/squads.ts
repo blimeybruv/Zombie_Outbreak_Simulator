@@ -21,6 +21,7 @@
 
 import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
+import { chance, nextFloat } from '../rng';
 import { makePolice, spawnSim, takeStaff } from '../spawn';
 import { isFirearm } from '../state';
 import { capacity, isLiving, leaveTalk } from './common';
@@ -155,9 +156,9 @@ export function mobilise(world: World, sim: Sim): void {
 /**
  * The call-up order: the authorities activate the reserve once reservists.callUpCalls
  * 911 calls have come in — what they know of the outbreak's size, not the outbreak
- * itself. Until then a reservist is a civilian whatever it sees; after it, what it sees
- * calls it up (mobilise), one by one. Reservists at the current strength cannot hold a
- * city already lost, and are not meant to put the outbreak down before it has a shape.
+ * itself — and the reserve musters (muster). Until then reservists are anonymous
+ * residents like anyone; reservists at their strength cannot hold a city already lost,
+ * and are not meant to put the outbreak down before it has a shape.
  */
 function callUp(world: World, ctx: Context): void {
   if (world.calledUpAt !== null || !world.config.features.reservists || world.callsTaken < world.config.reservists.callUpCalls) return;
@@ -165,17 +166,59 @@ function callUp(world: World, ctx: Context): void {
   const depot = world.buildings.find((b) => b.weaponStock !== null);
   const at = depot?.entrances[0] ?? { x: 0, y: 0 };
   ctx.events.push({ type: 'reservistsCalledUp', tick: world.tick, sim: null, x: at.x, y: at.y });
+  muster(world);
 }
 
-/** A shelter fell: reservists outdoors who could see its door are called up (those inside are, on the way out: buildings.ts expel). */
-export function witnessFall(world: World, ctx: Context, b: Building): void {
-  const e = b.entrances[0]!;
-  ctx.simHash.query(e.x, e.y, world.config.perception.dayRadius.open, ctx.ids2);
-  for (const id of ctx.ids2) {
-    const s = world.sims[id]!;
-    if (s.muster !== 'reserve' || s.insideBuilding !== null) continue;
-    if (Math.hypot(e.x - s.x, e.y - s.y) > ctx.radius[id]! || !ctx.map.lineOfSight(s.x, s.y, e.x, e.y)) continue;
-    mobilise(world, s);
+/**
+ * The muster: reservists.share of the residents still in the buildings the living
+ * hold at the moment of the order — a district already gone produces none — step out
+ * as tracked reservists and make for their depots, never stopping to shelter, and not
+ * all arrive. Weighted toward buildings near an armoury (exp(−d / depotScale),
+ * normalised so the share overall is unchanged): the lever for how many arrive,
+ * without changing what the journey costs. A tenth (pistolShare) carry a pistol of
+ * their own. A cop stays police.
+ */
+function muster(world: World): void {
+  const { config, buildings, rng } = world;
+  const rc = config.reservists;
+  const weight: number[] = [];
+  let weighted = 0, residents = 0;
+  for (const b of buildings) {
+    let w = 0;
+    if (b.residents > 0 && b.zombiesInside === 0) {
+      const a = nearestArmoury(world, b.entrances[0]!.x, b.entrances[0]!.y);
+      if (a !== null) {
+        const e = b.entrances[0]!, d = buildings[a]!.entrances[0]!;
+        w = Math.exp(-Math.hypot(d.x - e.x, d.y - e.y) / rc.depotScale);
+        weighted += w * b.residents;
+        residents += b.residents;
+      }
+    }
+    weight.push(w);
+  }
+  if (weighted === 0) return;
+  const k = (rc.share * residents) / weighted;
+  for (const b of buildings) {
+    const expect = b.residents * weight[b.id]! * k;
+    if (expect === 0) continue;
+    let n = Math.min(b.residents, Math.floor(expect) + (nextFloat(rng) < expect - Math.floor(expect) ? 1 : 0));
+    for (; n > 0; n--) {
+      // A resident becomes tracked: indoors either way, so the counters do not move.
+      b.residents--;
+      const e = b.entrances[0]!;
+      const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
+      b.sheltered.push(sim.id);
+      if (sim.archetype === 'police') continue;
+      sim.archetype = 'reservist';
+      sim.muster = 'reserve';
+      const home = sim.home === null ? e : buildings[sim.home]!.entrances[0]!;
+      sim.depot = nearestArmoury(world, home.x, home.y);
+      if (chance(rng, rc.pistolShare)) {
+        sim.weapon = 'pistol';
+        sim.ammo = rc.pistolAmmo;
+      }
+      mobilise(world, sim);
+    }
   }
 }
 
