@@ -168,6 +168,14 @@ export interface Sim {
    * @range 0–1 @unit scalar @readBy encounters (hearsay), inspector, end stats (trust band)
    */
   trust: Unit01;
+  /**
+   * Composure under terror: a uniform draw, independent of archetype (those trained to
+   * it are held up to config.nerve.floor). Its nerve breaks when panic passes it
+   * (panic.ts breaks): cornered, it freezes in shock whatever it carries; with the way
+   * blocked, it will not stand to fight; exhausted, with danger in sight, it gives up.
+   * @range 0–1 @unit scalar @readBy panic (breaks), inspector, end stats (nerve band)
+   */
+  nerve: Unit01;
   /** @range 4 values @unit enum @readBy counters, every system that skips the dead, render */
   condition: Condition;
   /** Assigned at promotion; null until then. @range wordlist | null @unit — @readBy roster, ticker, labels */

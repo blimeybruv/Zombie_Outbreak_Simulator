@@ -130,6 +130,7 @@ export interface SimDetail {
   caution: number;
   sociality: number;
   trust: number;
+  nerve: number;
   unease: number;
   /** Ground truth, including the infection nobody else may know about. */
   condition: string;

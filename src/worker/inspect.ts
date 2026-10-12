@@ -52,6 +52,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     caution: s.caution,
     sociality: s.sociality,
     trust: s.trust,
+    nerve: s.nerve,
     unease: s.unease,
     condition: s.condition,
     bites: s.bites,

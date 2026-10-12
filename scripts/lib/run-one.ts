@@ -127,6 +127,8 @@ export interface RunSummary {
   sociality: { alive: number[]; total: number[] };
   /** The same by trust band, every tracked sim. */
   trust: { alive: number[]; total: number[] };
+  /** The same by nerve band, every tracked sim. */
+  nerve: { alive: number[]; total: number[] };
   /** By caution band among the asocial (sociality below the lowest band edge): whether caution still matters for those who seldom talk or join. */
   cautionAsocial: { alive: number[]; total: number[] };
   /** Everyone promoted, in promotion order, as scored when named. */
@@ -298,6 +300,12 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     cautionAsocial.total[band]!++;
     if (s.condition === 'healthy') cautionAsocial.alive[band]!++;
   }
+  const nerve = { alive: [0, 0, 0], total: [0, 0, 0] };
+  for (const s of world.sims) {
+    const band = s.nerve < bands[0]! ? 0 : s.nerve < bands[1]! ? 1 : 2;
+    nerve.total[band]!++;
+    if (s.condition === 'healthy') nerve.alive[band]!++;
+  }
   const trust = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     const band = s.trust < bands[0]! ? 0 : s.trust < bands[1]! ? 1 : 2;
@@ -327,6 +335,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     caution,
     timeline,
     sociality,
+    nerve,
     trust,
     cautionAsocial,
     roster,

@@ -218,6 +218,8 @@ if (process.argv[2] === '--worker') {
   console.log(`survival by sociality low/mid/high ${social.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${social.z.toFixed(1)}; joiners only, not gated)`);
   const asocial = bandSurvival(results.map((r) => r.cautionAsocial));
   console.log(`survival by caution among the asocial (sociality < ${bandsEdge()}) low/mid/high ${asocial.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${asocial.z.toFixed(1)}; not gated)`);
+  const nerved = bandSurvival(results.map((r) => r.nerve).filter((x) => x !== undefined));
+  if (nerved.rate.length) console.log(`survival by nerve low/mid/high ${nerved.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${nerved.z.toFixed(1)}; not gated)`);
   const trusting = bandSurvival(results.map((r) => r.trust));
   console.log(`survival by trust low/mid/high ${trusting.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${trusting.z.toFixed(1)}; not gated)`);
   rosterSummary(results, rosterOut);

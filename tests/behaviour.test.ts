@@ -86,12 +86,14 @@ describe('awareness', () => {
 
 describe('fight, flight or freeze', () => {
   /** A sim on a street with zombies close on both sides of it, and no door in reach. */
-  function cornered(armed: boolean, at = 5) {
+  function cornered(armed: boolean, at = 5, nerve = 1, panic = 0) {
     const cfg = structuredClone(baseConfig);
     cfg.behaviour.doorSearchRadius = 0;
     const { world, ctx } = fresh(cfg);
     const p = streetPoint(world);
     const s = walker(world, p.x, p.y);
+    s.nerve = nerve;
+    s.panic = panic;
     if (armed) s.weapon = 'club';
     for (const side of [1, -1]) spawnZombie(world, p.x + p.ux * at * side, p.y + p.uy * at * side, 'active', null, null);
     decide(world, ctx);
@@ -107,6 +109,10 @@ describe('fight, flight or freeze', () => {
 
   it('an armed one stands and fights', () => {
     expect(cornered(true).stand).toBe('fight');
+  });
+
+  it('an armed one whose nerve has gone freezes in shock instead', () => {
+    expect(cornered(true, 5, 0.2, 0.5).stand).toBe('freeze');
   });
 
   it('is not cornered by danger further off than cornered.near, whatever side it is on', () => {

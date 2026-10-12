@@ -175,6 +175,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     caution: nextFloat(rng),
     sociality: Math.min(1, Math.max(0, nextFloat(rng) + (config.spawn.professionSociality[profession] ?? 0))),
     trust: nextFloat(rng),
+    nerve: nextFloat(rng),
     condition: 'healthy',
     name: null,
     namedAt: null,

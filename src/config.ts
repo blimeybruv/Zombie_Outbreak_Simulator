@@ -235,6 +235,17 @@ export const config = {
     professionStopWeight: 3, // multiplier on tags matching the sim's profession — guess
   },
 
+  // Nerve (Sim.nerve, a uniform draw): composure under terror. It breaks when panic
+  // passes it (panic.ts breaks). Cornered, a sim whose nerve has gone freezes in shock,
+  // armed or not; with the way blocked it will not stand to fight; exhausted (stamina
+  // at most collapseStamina) with danger in sight, it gives up and stays down
+  // collapseTicks. Those trained to it are held up to `floor` — guesses
+  nerve: {
+    floor: { police: 0.8, reservist: 0.6 } as Partial<Record<string, number>>,
+    collapseStamina: 0.05,
+    collapseTicks: 120,
+  },
+
   panic: {
     risePerEvent: 0.25, // added (clamped) per witnessed conversion or nearby noise
     decayRate: 0.004, // /tick toward 0

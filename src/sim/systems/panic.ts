@@ -24,6 +24,15 @@ export function modeOf(sim: Sim, config: Config): Mode {
 }
 
 /** Panic rises from conversions witnessed last tick, from new noise and from people running this way; it decays every tick. */
+/**
+ * Has its nerve gone? Panic past its nerve (held up to nerve.floor for those trained
+ * to it). The one question about panic that cornered, blocked and exhausted sims ask.
+ */
+export function breaks(sim: Sim, config: Config): boolean {
+  if (config.archetypes[sim.archetype].panicImmune) return false;
+  return sim.panic > Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0);
+}
+
 export function updatePanic(world: World, ctx: Context): void {
   const { config, tick, sims } = world;
   const pc = config.panic;
