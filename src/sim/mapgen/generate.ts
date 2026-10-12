@@ -502,6 +502,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       doorOpenedAt: null,
       callAt: null,
       weaponStock: null,
+      ambulanceAt: null,
+      ambulancePatient: null,
       pendingEvacuate: 0,
       dispatchedAt: null,
       cascadeAt: null,

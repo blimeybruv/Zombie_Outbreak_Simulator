@@ -39,6 +39,7 @@ import {
   CAR_DRIVING,
   CAR_PARKED,
   CAR_VAN,
+  CAR_AMBULANCE,
   type EventNote,
   type FrameSnapshot,
   type FromWorker,
@@ -175,7 +176,7 @@ function frameSnapshot(w: World): FrameSnapshot {
   const carState = new Uint8Array(w.cars.length);
   for (const c of w.cars) {
     carXYH.set([c.x, c.y, c.heading], c.id * 3);
-    carState[c.id] = (c.state === 'driving' ? CAR_DRIVING : c.state === 'abandoned' ? CAR_ABANDONED : CAR_PARKED) | (c.kind === 'van' ? CAR_VAN : 0);
+    carState[c.id] = (c.state === 'driving' ? CAR_DRIVING : c.state === 'abandoned' ? CAR_ABANDONED : CAR_PARKED) | (c.kind === 'van' ? CAR_VAN : c.kind === 'ambulance' ? CAR_AMBULANCE : 0);
   }
   const fill = new Uint16Array(w.buildings.length);
   const buildingFlags = new Uint8Array(w.buildings.length);

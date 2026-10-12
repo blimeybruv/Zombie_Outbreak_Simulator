@@ -133,10 +133,12 @@ export const config = {
   //   cautiousRouting the cautious take an unknown street for safe
   //   evacuation      districts never evacuate: the release at the start is the only one
   //   swat            no SWAT squads or vans
+  //   emt             no ambulances: nobody calls one
   //   reservists      no armouries, so reservists are never called up: civilians
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    emt: true,
     swat: true,
     evacuation: false, // off by default: as built it starves the outbreak (reference, "Evacuation")
     reservists: true,
@@ -413,6 +415,18 @@ export const config = {
   // the van is transport, not a base; where it stops it stays, for anyone to take —
   // guesses
   swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 15, vanBeyond: 250, radioRatio: 1, radioMin: 4, radioCooldown: 600 },
+
+  // EMTs (emt.ts): a crew of `crew` with an ambulance at each hospital, from the start,
+  // taken from its residents; finite, like SWAT. A bitten sim indoors that believes
+  // itself only hurt — it has seen nobody bitten and nobody turn — calls an ambulance,
+  // once. The call gets through at answer × ½^(tick / answerHalfLife), decided as it is
+  // made: early calls are answered, late ones do not connect. The nearest idle crew within `radius` goes:
+  // out to the ambulance, in together, there; in to fetch the patient; back out; and
+  // home to the hospital, where the patient is admitted. EMTs never screen: they come
+  // for an injury. A call nobody takes lapses after dispatch.timeout. Members within
+  // `gather` of the ambulance board together; it counts as arrived when parked within
+  // `arriveNear` of the job's door — guesses
+  emt: { crew: 2, answer: 0.9, answerHalfLife: 9000, radius: 2500, gather: 10, arriveNear: 40 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

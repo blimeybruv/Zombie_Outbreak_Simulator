@@ -234,6 +234,9 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     diamondUntil: null,
     answeringSince: null,
     radioedAt: null,
+    crew: null,
+    carriedBy: null,
+    ambulanceCalledAt: null,
     lastMigratedAt: null,
     reconsider: false,
     history: {

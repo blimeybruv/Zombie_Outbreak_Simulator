@@ -24,10 +24,14 @@ export interface Car {
   id: CarId;
   /** @range 3 values @unit enum @readBy car decisions, obstacles, render */
   state: CarState;
-  /** A car, or a SWAT van: the same in every way, but only its squad sets out in it from the station. @range 2 values @unit enum @readBy squads (SWAT), render */
-  kind: 'car' | 'van';
-  /** A van's station; null for a car. @range building id | null @unit id @readBy squads (SWAT) */
+  /** A car, a SWAT van or an ambulance: the same in every way, but only its crew sets out in it from home. @range 3 values @unit enum @readBy squads (SWAT), EMTs, render */
+  kind: 'car' | 'van' | 'ambulance';
+  /** A van's station or an ambulance's hospital; null for a car. @range building id | null @unit id @readBy squads (SWAT), EMTs */
   home: BuildingId | null;
+  /** An ambulance on a job: the building it is going to (the call, then home); null when idle. @range building id | null @unit id @readBy EMTs */
+  job: BuildingId | null;
+  /** The patient an ambulance has collected; null before, or with none found. @range sim id | null @unit id @readBy EMTs */
+  patient: SimId | null;
   /** Centre. @range 0–3200 @unit m @readBy obstacles, car decisions, render */
   x: Metres;
   /** @range 0–3200 @unit m @readBy obstacles, car decisions, render */

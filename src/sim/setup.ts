@@ -13,6 +13,7 @@ import { emptyCounters, type Building, type Scenario, type World } from './state
 import { occupierAppeared } from './systems/buildings';
 import { placeFirstResponders } from './systems/dispatch';
 import { designateArmouries, placeReservists, placeSwat } from './systems/squads';
+import { placeEmts } from './systems/emt';
 import { scheduleRelease } from './systems/release';
 
 const MAX_RESIDENTS = 200;
@@ -218,6 +219,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   placeFirstResponders(world);
   placeReservists(world);
   placeSwat(world, ctx);
+  placeEmts(world, ctx);
   placeStreetPopulation(world, outdoors);
   seedOutbreak(world, ctx);
   world.events = ctx.events;

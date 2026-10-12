@@ -17,6 +17,7 @@ import { capacity, entranceNearest, exitTicks, isLiving, openDoor, setDestinatio
 import { merge } from './encounters';
 import { modeOf } from './panic';
 import { armAtDepot, mobilise } from './squads';
+import { dispatchAmbulances, emtEnter } from './emt';
 import { updateEvacuation, updateRelease } from './release';
 import { carProcesses } from './cars';
 import { dispatchCalls, placeCall } from './dispatch';
@@ -153,7 +154,7 @@ function turnAway(world: World, sim: Sim, b: Building): void {
  */
 function refusedAsStranger(world: World, sim: Sim, b: Building): boolean {
   const sc = world.config.shelter;
-  if (!world.config.features.strangerVeto || b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id || sim.depot === b.id) return false;
+  if (!world.config.features.strangerVeto || b.alertedAt === null || sim.home === b.id || sim.church === b.id || sim.station === b.id || sim.depot === b.id || sim.crew !== null || sim.carriedBy !== null) return false;
   let admit = 1;
   for (const id of b.sheltered) {
     const o = world.sims[id]!;
@@ -229,6 +230,8 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     scavenge(world, ctx, sim, b);
   } else if (sim.destinationKind === 'isolate') {
     // Alone, to wait for it: no shelter taken, nobody told.
+  } else if (sim.crew !== null) {
+    emtEnter(world, ctx, sim, b); // an EMT, on a job or coming home
   } else if (sim.squadLeader !== null) {
     // In with its squad: no shelter taken; the leader decides when they leave.
     sim.destinationKind = null;
@@ -565,6 +568,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   noiseExpulsion(world, ctx);
   probe('buildings.noise');
   dispatchCalls(world, ctx);
+  dispatchAmbulances(world, ctx);
   carProcesses(world, ctx);
   for (const bid of breachCandidates(world)) breachRolls(world, ctx, world.buildings[bid]!);
   probe('buildings.breach');

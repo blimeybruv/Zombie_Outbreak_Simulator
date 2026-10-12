@@ -97,6 +97,15 @@ export interface Building {
   /** When officers were sent to the call; null until then. @range tick | null @unit tick @readBy police dispatch, render (alert ring) */
   dispatchedAt: Tick | null;
   /**
+   * An ambulance call from here: someone inside, bitten and believing itself only
+   * hurt, phoned for help. Null when there is none, when it was taken, or when it did
+   * not get through.
+   * @range tick | null @unit tick @readBy EMT dispatch
+   */
+  ambulanceAt: Tick | null;
+  /** Who the call is for. @range sim id | null @unit id @readBy EMTs (retrieval) */
+  ambulancePatient: SimId | null;
+  /**
    * An armoury's weapons left for reservists to draw (reservists.weaponStock at the
    * start, spent one per reservist armed). Null for every other building.
    * @range 0–reservists.weaponStock | null @unit weapons @readBy depot (arming), snapshot (inspector)

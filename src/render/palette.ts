@@ -21,6 +21,7 @@ export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a t
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring
 export const SIREN_RED = '#ff3b3b'; // a SWAT van's light bar, taking turns with blue
 export const SIREN_BLUE = '#3b7bff';
+export const AMBULANCE = '#f2f2ee'; // white
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(191, 232, 180, 0.45)';

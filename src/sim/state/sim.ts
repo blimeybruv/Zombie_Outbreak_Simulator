@@ -372,6 +372,12 @@ export interface Sim {
   answeringSince: Tick | null;
   /** When this officer last radioed for SWAT; null if never. @range tick | null @unit tick @readBy sim decisions (radio cooldown) */
   radioedAt: Tick | null;
+  /** An EMT's ambulance; null for everyone else. @range car id | null @unit id @readBy EMTs, alighting */
+  crew: CarId | null;
+  /** A patient in an ambulance crew's care: its driver's id; null otherwise. @range sim id | null @unit id @readBy EMTs, alighting */
+  carriedBy: SimId | null;
+  /** When this sim, bitten and believing itself only hurt, called an ambulance; null if never. One call each. @range tick | null @unit tick @readBy EMTs (calls) */
+  ambulanceCalledAt: Tick | null;
   /** Building this sim has committed to; re-evaluated only on breach, fall, decay or migration. @range building id | null @unit id @readBy shelter return, roles, migration */
   shelter: BuildingId | null;
   /** @range 3 values | null @unit enum @readBy building processes, role re-evaluation */

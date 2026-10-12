@@ -37,6 +37,7 @@ import { modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
+import { callAmbulance, decideEmt, decidePatient } from './emt';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -906,6 +907,16 @@ export function simDecisions(world: World, ctx: Context): void {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     if (sim.car !== null) continue; // in a car: the car decides (cars.ts)
     decideBitten(world, ctx, sim);
+    callAmbulance(world, sim);
+    // An EMT on a job, or its patient: where the job takes them (emt.ts).
+    if (decideEmt(world, ctx, sim) || decidePatient(world, sim)) {
+      if (sim.insideBuilding === null && sim.destination !== null) {
+        const d = Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y);
+        if (d < 1) sim.gait = 'still';
+        else headFor(world, ctx, sim, sim.destination.x, sim.destination.y);
+      }
+      continue;
+    }
     if (sim.insideBuilding !== null) {
       decideIndoor(world, ctx, sim);
       continue;

@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -429,17 +429,18 @@ export class Renderer {
     if (st.length === 0) return;
     const near = cam.mode === 'near';
     const hw = CAR_W / 2;
-    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D();
+    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), ambulances = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
       const state = st[i]! & CAR_STATE_MASK;
-      const van = (st[i]! & CAR_VAN) !== 0;
+      const amb = (st[i]! & CAR_AMBULANCE) !== 0;
+      const van = (st[i]! & CAR_VAN) !== 0 || amb;
       const hl = van ? VAN_L / 2 : CAR_L / 2;
       const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
       // A van shows at mid zoom too, parked or not: it is a squad's way out, or its box.
       if ((state === CAR_DRIVING) !== moving || (state !== CAR_DRIVING && state !== CAR_ABANDONED && !near && !van)) continue;
-      const path = van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
+      const path = amb && state !== CAR_ABANDONED ? ambulances : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
       path.lineTo(...pt(-hl, -hw));
@@ -461,6 +462,8 @@ export class Renderer {
     g.fill(abandoned);
     g.fillStyle = P.POLICE;
     g.fill(vans);
+    g.fillStyle = P.AMBULANCE;
+    g.fill(ambulances);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);
@@ -504,19 +507,21 @@ export class Renderer {
     g.stroke(path);
   }
 
-  /** A SWAT van on the move: a light bar on the roof, red and blue taking turns. */
+  /** A SWAT van on the move: a light bar on the roof, red and blue taking turns; an ambulance's, red, on and off. */
   private drawVanLights(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     const xyh = frame.carXYH, st = frame.carState;
     const r = Math.max(0.55, 2.2 / (cam.scale * dpr));
     const swap = Math.floor(wallMs / VAN_FLASH_MS) % 2 === 1;
     for (let i = 0; i < st.length; i++) {
-      if ((st[i]! & CAR_VAN) === 0 || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING) continue;
+      const amb = (st[i]! & CAR_AMBULANCE) !== 0;
+      if (((st[i]! & CAR_VAN) === 0 && !amb) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING) continue;
+      if (amb && swap) continue; // off half the time
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
       // Across the cab, a little forward of the middle.
       for (const side of [1, -1]) {
         const u = VAN_L * 0.15, v = side * CAR_W * 0.28;
-        g.fillStyle = (side === 1) !== swap ? P.SIREN_RED : P.SIREN_BLUE;
+        g.fillStyle = amb || (side === 1) !== swap ? P.SIREN_RED : P.SIREN_BLUE;
         g.beginPath();
         g.arc(x + c * u - s * v, y + s * u + c * v, r, 0, Math.PI * 2);
         g.fill();

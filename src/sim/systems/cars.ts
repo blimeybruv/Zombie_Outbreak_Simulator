@@ -138,15 +138,17 @@ function kerbBy(world: World, b: Building, x: number, y: number): { x: number; y
   return { x: a.x + ux * t - uy * off * side, y: a.y + uy * t + ux * off * side, heading: Math.atan2(uy, ux) };
 }
 
-function addCar(world: World, ctx: Context, x: number, y: number, heading: number, spaced: boolean, home: BuildingId | null = null): Car | null {
+function addCar(world: World, ctx: Context, x: number, y: number, heading: number, spaced: boolean, home: BuildingId | null = null, kind: Car['kind'] = 'car'): Car | null {
   const cc = world.config.cars;
   if (!ctx.map.walkable(x, y)) return null;
   if (spaced) for (const c of world.cars) if (Math.hypot(c.x - x, c.y - y) < cc.spacing) return null;
   const car: Car = {
     id: world.cars.length as CarId,
     state: 'parked',
-    kind: home === null ? 'car' : 'van',
+    kind,
     home,
+    job: null,
+    patient: null,
     x,
     y,
     heading,
@@ -163,8 +165,8 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
   return car;
 }
 
-/** A SWAT van at the kerb by its station's door, or the nearest clear spot along the street; null if there is none. */
-export function parkVan(world: World, ctx: Context, b: Building): Car | null {
+/** A SWAT van (or an ambulance) at the kerb by its home's door, or the nearest clear spot along the street; null if there is none. */
+export function parkVan(world: World, ctx: Context, b: Building, kind: Car['kind'] = 'van'): Car | null {
   const e = b.entrances[0]!;
   const s = world.streets[b.street]!;
   const a = world.nodes[s.a]!, n = world.nodes[s.b]!;
@@ -174,7 +176,7 @@ export function parkVan(world: World, ctx: Context, b: Building): Car | null {
   for (const d of [0, step, -step, 2 * step, -2 * step, 3 * step, -3 * step]) {
     const k = kerbBy(world, b, e.x + ux * d, e.y + uy * d);
     if (k === null) continue;
-    const van = addCar(world, ctx, k.x, k.y, k.heading, true, b.id);
+    const van = addCar(world, ctx, k.x, k.y, k.heading, true, b.id, kind);
     if (van !== null) return van;
   }
   return null;
@@ -308,7 +310,7 @@ function alight(world: World, ctx: Context, car: Car): void {
     }
     s.gait = 'walk';
     if (s.condition !== 'healthy' && s.condition !== 'infected') continue;
-    if (b !== null && s.squadLeader === null) setDestination(s, b, 'shelter'); // a squad goes where its leader takes it
+    if (b !== null && s.squadLeader === null && s.crew === null && s.carriedBy === null) setDestination(s, b, 'shelter'); // a squad, a crew and its patient go where they are taken
   }
   car.occupants = [];
   car.speed = 0;
