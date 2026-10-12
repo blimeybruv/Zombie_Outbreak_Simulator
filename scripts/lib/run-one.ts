@@ -140,6 +140,8 @@ export interface RunSummary {
   kills: { hour: number[]; run: number[] };
   /** Sims turned in the first hour: what the kills there are set against. */
   turnedHour: number;
+  /** By daylight (perception's, under 0.5 is night): ticks, conversions (turnings and risings) and zombies destroyed. */
+  byLight: { day: { ticks: number; turned: number; killed: number }; night: { ticks: number; turned: number; killed: number } };
   /** One entry per sample window: zombie states, awareness outdoors, talk, noise, events, ticker lines. */
   timeline: TimelineEntry[];
   runLength: number;
@@ -224,11 +226,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   let win = { shots: 0, shouts: 0, events: {} as Record<string, number>, lines: 0, majorLines: 0 };
   const kills = { hour: KILLERS.map(() => 0), run: KILLERS.map(() => 0) };
   let turnedHour = 0;
+  const byLight = { day: { ticks: 0, turned: 0, killed: 0 }, night: { ticks: 0, turned: 0, killed: 0 } };
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
       const named = world.roster.length;
       step(world, ctx, { checkInvariant: true });
+      (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
       if (world.promotedAt === world.tick) recordStage(world, 'provisional', world.roster.slice(named), roster, stages);
       else if (world.rescoredAt === world.tick) recordStage(world, 'final', world.roster.slice(named), roster, stages);
       for (const s of world.stimuli) {
@@ -253,6 +257,9 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
           if (world.tick <= 3600) kills.hour[k]!++;
         }
         if (e.type === 'simTurned' && world.tick <= 3600) turnedHour++;
+        const part = ctx.daylight < 0.5 ? byLight.night : byLight.day;
+        if (e.type === 'simTurned' || e.type === 'bodyRose') part.turned++;
+        if (e.type === 'zombieDestroyed') part.killed++;
         if (e.type === 'shelterFell') shelters.fell++;
         if (e.type === 'shelterEstablished') {
           shelters.established++;
@@ -329,6 +336,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     msPerTick: (performance.now() - t0) / Math.max(1, world.tick),
     invariantError,
     shelters,
+    byLight,
     turnedHour,
     kills,
     longestQuiet,

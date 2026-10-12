@@ -184,6 +184,13 @@ if (process.argv[2] === '--worker') {
     pairs.push([shots, walking]);
     console.log(`${String(r.runSeed).padStart(4)}  ${String(r.turnedHour).padStart(9)}  ${String(killed).padStart(9)}  ${(killed / Math.max(1, r.turnedHour)).toFixed(2).padStart(5)}  ${String(shots).padStart(8)}  ${String(walking).padStart(15)}  ${`${Math.round(r.infection * 100)}%`.padStart(10)}   ${r.kills.hour.join('/')}   ${r.kills.run.join('/')}`);
   }
+  // By daylight: does the outbreak step forward at each nightfall?
+  const L = { dt: 0, nt: 0, dc: 0, nc: 0, dk: 0, nk: 0 };
+  for (const r of results) {
+    if (!r.byLight) continue;
+    L.dt += r.byLight.day.ticks; L.nt += r.byLight.night.ticks; L.dc += r.byLight.day.turned; L.nc += r.byLight.night.turned; L.dk += r.byLight.day.killed; L.nk += r.byLight.night.killed;
+  }
+  if (L.dt > 0 && L.nt > 0) console.log(`  per hour, day / night: turned ${((3600 * L.dc) / L.dt).toFixed(0)} / ${((3600 * L.nc) / L.nt).toFixed(0)}, zombies destroyed ${((3600 * L.dk) / L.dt).toFixed(0)} / ${((3600 * L.nk) / L.nt).toFixed(0)}`);
   const tot = (f: 'hour' | 'run') => KILLERS.map((_, i) => results.reduce((a, r) => a + (r.kills?.[f][i] ?? 0), 0));
   console.log(`  all  kills 1h ${tot('hour').join('/')}; over the run ${tot('run').join('/')}`);
   if (pairs.length > 2) {
