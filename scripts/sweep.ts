@@ -169,13 +169,29 @@ if (process.argv[2] === '--worker') {
   }
 
   // Who kills the dead: a single kind of unit putting the outbreak down early shows here.
-  console.log(`\nseed  kills in the first hour, then over the run (${KILLERS.join('/')})`);
+  // Set against those turned in the same hour: a seed that stalls is one where the dead
+  // were removed faster than bites made them. And gunfire against the dead an hour on:
+  // if firing draws more than it kills, more shots should mean more dead later, not fewer.
+  console.log(`\nseed  turned 1h  killed 1h  ratio  shots 1h  dead walking 2h  turned end   kills 1h, then run (${KILLERS.join('/')})`);
+  const pairs: [number, number][] = [];
   for (const r of results) {
-    if (!r.kills) continue;
-    console.log(`${String(r.runSeed).padStart(4)}  ${r.kills.hour.join('/').padStart(22)}   ${r.kills.run.join('/')}`);
+    if (!r.kills || !r.timeline?.length) continue;
+    const t = r.timeline;
+    const killed = r.kills.hour.reduce((a, b) => a + b, 0);
+    const shots = t.filter((e) => e.tick <= 3600).reduce((a, e) => a + e.shots, 0);
+    const z2 = t.find((e) => e.tick >= 7200) ?? t[t.length - 1]!;
+    const walking = z2.zombies.awake + z2.zombies.dormant + z2.zombies.occupying;
+    pairs.push([shots, walking]);
+    console.log(`${String(r.runSeed).padStart(4)}  ${String(r.turnedHour).padStart(9)}  ${String(killed).padStart(9)}  ${(killed / Math.max(1, r.turnedHour)).toFixed(2).padStart(5)}  ${String(shots).padStart(8)}  ${String(walking).padStart(15)}  ${`${Math.round(r.infection * 100)}%`.padStart(10)}   ${r.kills.hour.join('/')}   ${r.kills.run.join('/')}`);
   }
   const tot = (f: 'hour' | 'run') => KILLERS.map((_, i) => results.reduce((a, r) => a + (r.kills?.[f][i] ?? 0), 0));
-  console.log(`  all  ${tot('hour').join('/').padStart(22)}   ${tot('run').join('/')}`);
+  console.log(`  all  kills 1h ${tot('hour').join('/')}; over the run ${tot('run').join('/')}`);
+  if (pairs.length > 2) {
+    const n = pairs.length, mx = pairs.reduce((a, p) => a + p[0], 0) / n, my = pairs.reduce((a, p) => a + p[1], 0) / n;
+    const cov = pairs.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0);
+    const vx = pairs.reduce((a, p) => a + (p[0] - mx) ** 2, 0), vy = pairs.reduce((a, p) => a + (p[1] - my) ** 2, 0);
+    console.log(`  corr(shots in the first hour, dead walking at 2h) ${(cov / Math.sqrt(vx * vy || 1)).toFixed(2)} over ${n} seeds`);
+  }
 
   const invariantOk = results.every((r) => r.invariantError === null);
   // Total human loss — dead plus turned — not the turned share alone: with feeding, most
