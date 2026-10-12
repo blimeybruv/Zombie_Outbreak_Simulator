@@ -107,6 +107,10 @@ export interface World {
   escapedInfected: Count;
   /** When the world outside noticed (once cordon.noticeAfter have come out by the exits); null until then. @range tick | null @unit tick @readBy cordon */
   noticedAt: Tick | null;
+  /** 911 calls made so far (dispatch.ts placeCall): all the authorities know of the outbreak's size. @range 0–thousands @unit calls @readBy squads (the call-up order) */
+  callsTaken: Count;
+  /** When the reservists were called up, once reservists.callUpCalls calls had come in; null until then. @range tick | null @unit tick @readBy squads (mobilise) */
+  calledUpAt: Tick | null;
   /** Soldiers who came in from outside to hold the cordon: counted in the leaves like anyone, so the invariant is population + outsiders. @range 0–exits × squads.size @unit people @readBy invariant, cordon, end stats */
   outsiders: Count;
 

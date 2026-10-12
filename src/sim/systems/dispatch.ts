@@ -55,6 +55,7 @@ export function placeCall(world: World, sim: Sim, b: Building): void {
   if (sim.sightedAt === null || tick - sim.sightedAt > config.dispatch.callWindow) return;
   b.callAt = tick;
   b.dispatchedAt = null;
+  world.callsTaken++;
 }
 
 function free(world: World, s: Sim, station: BuildingId): boolean {

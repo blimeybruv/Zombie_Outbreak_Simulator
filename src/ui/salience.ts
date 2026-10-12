@@ -36,6 +36,7 @@ export const BASE = {
   patientAdmitted: 45, // not in the reference: the vector delivered
   policeRadio: 35, // not in the reference: an officer outmatched
   districtEvacuating: 70, // not in the reference: a whole neighbourhood leaving at once
+  reservistsCalledUp: 85, // not in the reference: the institution admitting the scale of it — drops playback to 1×
   squadFormed: 50, // not in the reference: an armed group, mid-run — rare
   squadDissolved: 40, // not in the reference
   squadEngaged: 30, // not in the reference: file to diamond

@@ -60,6 +60,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `An officer on ${n.place} is outnumbered — ${e.count} of them — and radios for SWAT.`;
     case 'districtEvacuating':
       return `${n.district} is leaving: its people are out on the roads.`;
+    case 'reservistsCalledUp':
+      return 'The National Guard reserve has been called up. Reservists are to report to their armouries.';
     case 'squadFormed':
       return `${e.members} reservists, armed at the depot on ${n.place}, have formed a squad.`;
     case 'squadEngaged':

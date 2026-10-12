@@ -199,6 +199,8 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     exits: map.exits,
     escapedInfected: 0,
     noticedAt: null,
+    callsTaken: 0,
+    calledUpAt: null,
     outsiders: 0,
     cars: [],
     stimuli: [],

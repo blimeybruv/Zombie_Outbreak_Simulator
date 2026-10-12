@@ -13,6 +13,7 @@ import { armAtDepot, mobilise, squadPass } from '../src/sim/systems/squads';
 function fresh() {
   const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
   for (const z of world.zombies) if (z.state !== 'occupying') z.state = 'destroyed';
+  world.calledUpAt = 0; // the reserve already activated, unless a test says otherwise
   return { world, ctx };
 }
 
@@ -79,6 +80,28 @@ describe('reservists', () => {
     bite(world, ctx, victim);
     expect(seer.muster).toBe('mobilised');
     expect(elsewhere.muster).toBe('reserve');
+  });
+
+  it('are civilians whatever they see until the reserve is called up, once enough 911 calls have come in', () => {
+    const { world, ctx } = fresh();
+    world.calledUpAt = null;
+    const b = armoury(world);
+    const victim = reservist(world, 1600, 1600, b);
+    victim.archetype = 'civilian';
+    victim.muster = null;
+    const seer = reservist(world, 1605, 1600, b);
+    pass(world, ctx);
+    bite(world, ctx, victim);
+    expect(seer.muster).toBe('reserve');
+    world.callsTaken = config.reservists.callUpCalls;
+    pass(world, ctx);
+    expect(world.calledUpAt).toBe(world.tick);
+    const second = reservist(world, 1600, 1595, b);
+    second.archetype = 'civilian';
+    second.muster = null;
+    pass(world, ctx);
+    bite(world, ctx, second);
+    expect(seer.muster).toBe('mobilised');
   });
 
   it('draw a rifle at the depot while any are left, then stand down', () => {

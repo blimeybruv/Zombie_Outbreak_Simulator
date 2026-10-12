@@ -139,7 +139,7 @@ export function nearestArmoury(world: World, x: number, y: number): BuildingId |
 
 /** Calls a reservist in reserve up: it drops what it is doing for the depot (sims.ts decideMuster). */
 export function mobilise(world: World, sim: Sim): void {
-  if (sim.muster !== 'reserve' || sim.depot === null || !isLiving(sim)) return;
+  if (world.calledUpAt === null || sim.muster !== 'reserve' || sim.depot === null || !isLiving(sim)) return;
   sim.muster = 'mobilised';
   sim.awareAt ??= world.tick;
   if (sim.gathering !== null) leaveTalk(sim, world.tick);
@@ -151,6 +151,21 @@ export function mobilise(world: World, sim: Sim): void {
   sim.destinationBuilding = null;
   sim.destination = null;
   sim.route = [];
+}
+
+/**
+ * The call-up order: the authorities activate the reserve once reservists.callUpCalls
+ * 911 calls have come in — what they know of the outbreak's size, not the outbreak
+ * itself. Until then a reservist is a civilian whatever it sees; after it, what it sees
+ * calls it up (mobilise), one by one. Reservists at the current strength cannot hold a
+ * city already lost, and are not meant to put the outbreak down before it has a shape.
+ */
+function callUp(world: World, ctx: Context): void {
+  if (world.calledUpAt !== null || !world.config.features.reservists || world.callsTaken < world.config.reservists.callUpCalls) return;
+  world.calledUpAt = world.tick;
+  const depot = world.buildings.find((b) => b.weaponStock !== null);
+  const at = depot?.entrances[0] ?? { x: 0, y: 0 };
+  ctx.events.push({ type: 'reservistsCalledUp', tick: world.tick, sim: null, x: at.x, y: at.y });
 }
 
 /** A shelter fell: reservists outdoors who could see its door are called up (those inside are, on the way out: buildings.ts expel). */
@@ -241,6 +256,7 @@ function rangeOf(world: World, s: Sim): number {
 export function squadPass(world: World, ctx: Context): void {
   const { config, tick, sims, zombies } = world;
   const sq = config.squads;
+  callUp(world, ctx);
   formSquads(world, ctx);
   pruneRadios(world);
   const groups: Sim[][] = [];
