@@ -10,7 +10,8 @@ import { backstory } from '../../src/worker/backstory';
 import { noteFor } from '../../src/worker/notes';
 import { line } from '../../src/ui/copy';
 import { BASE, MAJOR, Salience } from '../../src/ui/salience';
-import type { World } from '../../src/sim/state';
+import type { Sim, World } from '../../src/sim/state';
+import { isSwat } from '../../src/sim/systems/squads';
 
 /**
  * What a sample window looked like beyond the counters: why a run smoulders or takes
@@ -133,6 +134,8 @@ export interface RunSummary {
   stages: StageStats[];
   /** How everyone scored at a promotion stage ended: condition at the end, and when. */
   fates: Record<number, { condition: string; endedAt: number | null }>;
+  /** Zombies destroyed by whom (KILLERS order), in the first hour and over the run: whether one kind of unit decides the outbreak. */
+  kills: { hour: number[]; run: number[] };
   /** One entry per sample window: zombie states, awareness outdoors, talk, noise, events, ticker lines. */
   timeline: TimelineEntry[];
   runLength: number;
@@ -169,6 +172,16 @@ function snapshot(world: World): Pick<TimelineEntry, 'zombies' | 'outdoors' | 't
   return { zombies, outdoors, talking, gatherings: sizes.filter((n) => n >= 3).length, cars };
 }
 
+/** Who destroyed a zombie, as the sweep reports it. */
+export const KILLERS = ['swat', 'squad', 'cordon', 'police', 'other'] as const;
+function killer(s: Sim): number {
+  if (s.outsider) return 2;
+  if (isSwat(s)) return 0;
+  if (s.squadLeader !== null) return 1;
+  if (s.archetype === 'police') return 3;
+  return 4;
+}
+
 /** Events that count as something happening, for the stasis check. */
 const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'materialsDelivered', 'buildingBreached']);
 
@@ -203,6 +216,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const timeline: TimelineEntry[] = [];
   const salience = new Salience();
   let win = { shots: 0, shouts: 0, events: {} as Record<string, number>, lines: 0, majorLines: 0 };
+  const kills = { hour: KILLERS.map(() => 0), run: KILLERS.map(() => 0) };
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
@@ -226,6 +240,11 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
           }
         }
         if (ACTIVITY.has(e.type)) lastActivity = world.tick;
+        if (e.type === 'zombieDestroyed') {
+          const k = killer(world.sims[e.by]!);
+          kills.run[k]!++;
+          if (world.tick <= 3600) kills.hour[k]!++;
+        }
         if (e.type === 'shelterFell') shelters.fell++;
         if (e.type === 'shelterEstablished') {
           shelters.established++;
@@ -296,6 +315,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     msPerTick: (performance.now() - t0) / Math.max(1, world.tick),
     invariantError,
     shelters,
+    kills,
     longestQuiet,
     caution,
     timeline,

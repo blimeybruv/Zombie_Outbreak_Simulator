@@ -28,7 +28,7 @@ import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { runOne, type RunSummary } from './lib/run-one';
+import { KILLERS, runOne, type RunSummary } from './lib/run-one';
 import { config as baseConfig } from '../src/config';
 
 /** Who got named, and why: does scoring find different characters, or one character many times? */
@@ -167,6 +167,15 @@ if (process.argv[2] === '--worker') {
       `${String(r.runSeed).padStart(4)}  ${`${peak.zombies.awake}@${peak.tick}`.padStart(15)}  ${`${at(3600).zombies.awake}/${at(7200).zombies.awake}/${t[t.length - 1]!.zombies.awake}`.padStart(15)}  ${String(t[t.length - 1]!.zombies.dormant).padStart(11)}  ${`${out(at(1800))} ${out(at(3600))}`.padStart(18)}  ${`${at(3600).talking}/${at(3600).gatherings}`.padStart(12)}  ${`${sum((e) => e.shots)}/${sum((e) => e.shouts)}`.padStart(12)}  ${String(lines[Math.floor(lines.length / 2)]).padStart(18)}  ${`${dead}/${later.length}`.padStart(8)}  ${ev('simTurned')}/${ev('buildingBreached')}/${ev('policeDispatched')}  ${Math.max(...t.map((e) => e.cars?.driving ?? 0))}/${t[t.length - 1]!.cars?.abandoned ?? 0}`,
     );
   }
+
+  // Who kills the dead: a single kind of unit putting the outbreak down early shows here.
+  console.log(`\nseed  kills in the first hour, then over the run (${KILLERS.join('/')})`);
+  for (const r of results) {
+    if (!r.kills) continue;
+    console.log(`${String(r.runSeed).padStart(4)}  ${r.kills.hour.join('/').padStart(22)}   ${r.kills.run.join('/')}`);
+  }
+  const tot = (f: 'hour' | 'run') => KILLERS.map((_, i) => results.reduce((a, r) => a + (r.kills?.[f][i] ?? 0), 0));
+  console.log(`  all  ${tot('hour').join('/').padStart(22)}   ${tot('run').join('/')}`);
 
   const invariantOk = results.every((r) => r.invariantError === null);
   // Total human loss — dead plus turned — not the turned share alone: with feeding, most
