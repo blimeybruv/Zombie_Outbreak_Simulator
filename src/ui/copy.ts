@@ -44,7 +44,9 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'carAbandoned':
       return `A car was abandoned on ${n.place}.`;
     case 'swatDeployed':
-      return `A SWAT team is on its way to ${n.place}.`;
+      return `A SWAT team is on its way to ${n.place}, where an officer counted ${e.count}.`;
+    case 'policeRadio':
+      return `An officer on ${n.place} is outnumbered — ${e.count} of them — and radios for SWAT.`;
     case 'districtEvacuating':
       return `${n.district} is leaving: its people are out on the roads.`;
     case 'squadFormed':

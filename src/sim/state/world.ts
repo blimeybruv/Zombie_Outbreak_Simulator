@@ -15,7 +15,7 @@ import type { SimEvent } from './events';
 import type { District, Lot, River, Street, StreetNode } from './map';
 import type { Archetype, Sim } from './sim';
 import type { Stimulus } from './stimulus';
-import type { Count, SimId, Tick, Unit01 } from './units';
+import type { Count, Metres, SimId, Tick, Unit01 } from './units';
 import type { Zombie } from './zombie';
 
 /**
@@ -30,6 +30,26 @@ export const ZOMBIE_GAITS = ['shambler', 'runner'] as const;
 export type ZombieGait = (typeof ZOMBIE_GAITS)[number];
 
 /** Settings in front of the viewer (plus the sweep's stalemate switch). Fixed for the run. */
+/**
+ * An officer on a call who found more than its unit could handle, radioing for SWAT:
+ * where, how many it counted, and when. What SWAT acts on is this report — by the time
+ * they arrive, it may have grown.
+ */
+export interface Radio {
+  /** @range 0–3200 @unit m @readBy squads (SWAT targets) */
+  x: Metres;
+  /** @range 0–3200 @unit m @readBy squads (SWAT targets) */
+  y: Metres;
+  /** Zombies the officer counted. @range 1–hundreds @unit zombies @readBy squads (SWAT sizing), ticker copy */
+  count: Count;
+  /** @range tick @unit tick @readBy squads (staleness) */
+  at: Tick;
+  /** @range sim id @unit id @readBy ticker */
+  from: SimId;
+  /** The SWAT leader answering it; null while nobody is. @range sim id | null @unit id @readBy squads (one squad to a call) */
+  claimedBy: SimId | null;
+}
+
 export interface Scenario {
   /** Starting population; the invariant's right-hand side. @range 100–10,000 @unit people @readBy setup, invariant, promotion trigger */
   population: Count;
@@ -88,6 +108,8 @@ export interface World {
   events: SimEvent[];
   /** Sims awaiting a repath, drained in id order under a per-tick cap. @range sim ids @unit — @readBy sim decisions */
   repathQueue: SimId[];
+  /** Officers' calls for SWAT, oldest first; dropped once stale. @range 0–dozens @unit — @readBy squads (SWAT targets) */
+  radios: Radio[];
   /** Promoted survivors in promotion order; append-only, never shrinks. @range 0–promotion.rosterCap sim ids @unit — @readBy roster UI, ticker, salience */
   roster: SimId[];
   /** @range see Counters @unit people @readBy invariant, promotion trigger, stalemate, end stats */

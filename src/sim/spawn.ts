@@ -233,6 +233,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     trail: [],
     diamondUntil: null,
     answeringSince: null,
+    radioedAt: null,
     lastMigratedAt: null,
     reconsider: false,
     history: {

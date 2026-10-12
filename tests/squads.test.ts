@@ -198,21 +198,21 @@ describe('SWAT', () => {
     expect(world.cars.filter((c) => c.kind === 'van').every((c) => c.home !== null && stations.has(c.home))).toBe(true);
   });
 
-  it('sets out for a shelter that fell, in its van when it is far', () => {
+  it('sets out for an officer\'s radio call, in its van when it is far', () => {
     const { world, ctx } = fresh();
     const leader = world.sims.find((s) => s.station !== null && s.squadLeader === s.id && world.cars.some((c) => c.kind === 'van' && c.home === s.station))!;
     const station = world.buildings[leader.station!]!;
     const door = station.entrances[0]!;
     const far = world.buildings.find((b) => {
       const d = Math.hypot(b.entrances[0]!.x - door.x, b.entrances[0]!.y - door.y);
-      return d > config.cars.driveBeyond + 100 && d < config.swat.radius - 100;
+      return d > config.swat.vanBeyond + 100 && d < config.swat.radius - 100;
     })!;
-    world.events = [{ type: 'shelterFell', tick: world.tick, building: far.id, sim: null }];
+    const at = far.entrances[0]!;
+    world.radios.push({ x: at.x, y: at.y, count: 4, at: world.tick, from: 0 as never, claimedBy: null });
     for (let t = 0; t < 400 && leader.car === null; t++) {
       world.tick++;
       pass(world, ctx);
       simDecisions(world, ctx);
-      world.events = [];
       // Out of the door and on: the building and movement steps, by hand.
       for (const s of world.sims) {
         if (s.squadLeader !== leader.id) continue;
@@ -230,11 +230,28 @@ describe('SWAT', () => {
         s.y += (v.y - s.y) * 0.5;
       }
     }
-    expect(leader.answering).toBe(far.id);
+    expect(world.radios[0]!.claimedBy).toBe(leader.id);
     expect(leader.car).not.toBeNull();
     const van = world.cars[leader.car!]!;
     expect(van.kind).toBe('van');
     expect(van.occupants).toHaveLength(config.squads.size);
     expect(van.state).toBe('driving');
+  });
+});
+
+describe('officer radio', () => {
+  it('an officer on a call who sees more than its unit can handle radios for SWAT, with what it counted', () => {
+    const { world, ctx } = fresh();
+    const cop = world.sims.find((s) => s.archetype === 'police' && s.squadLeader === null && s.insideBuilding === null)!;
+    cop.answering = world.buildings[0]!.id;
+    cop.destinationKind = 'respond';
+    cop.destination = { x: cop.x + 200, y: cop.y };
+    cop.ammo = 2;
+    for (let k = 0; k < 6; k++) spawnZombie(world, cop.x + 8 + k, cop.y + 3, 'active', null, null);
+    pass(world, ctx);
+    simDecisions(world, ctx);
+    expect(world.radios).toHaveLength(1);
+    expect(world.radios[0]!.count).toBeGreaterThanOrEqual(6);
+    expect(ctx.events.some((e) => e.type === 'policeRadio')).toBe(true);
   });
 });

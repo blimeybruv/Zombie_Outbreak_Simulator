@@ -370,6 +370,8 @@ export interface Sim {
   diamondUntil: Tick | null;
   /** When a squad leader claimed what it is answering; null with nothing claimed. @range tick | null @unit tick @readBy squads (staleness) */
   answeringSince: Tick | null;
+  /** When this officer last radioed for SWAT; null if never. @range tick | null @unit tick @readBy sim decisions (radio cooldown) */
+  radioedAt: Tick | null;
   /** Building this sim has committed to; re-evaluated only on breach, fall, decay or migration. @range building id | null @unit id @readBy shelter return, roles, migration */
   shelter: BuildingId | null;
   /** @range 3 values | null @unit enum @readBy building processes, role re-evaluation */

@@ -400,14 +400,19 @@ export const config = {
   // `stations` police stations (the one nearest the middle, then each next the farthest
   // from those chosen) a squad of squads.size is garrisoned from the start, armed with
   // `weapon` and `ammo` rounds each, a van at the kerb. Finite: once spent, that
-  // station has no more. They do not answer 911 calls; they set out for something
-  // larger — a shelter falling, or a horde massing at a garrison (cascade) — within
-  // `radius` of where the squad is, held like any squad's target. From the station, with
-  // the van there and the target beyond cars.driveBeyond, they drive: the leader walks
-  // to the van, waits while any member is more than vanGather from it, and all board
-  // together. One way: the van is transport, not a base; where it stops it stays, for
-  // anyone to take — guesses
-  swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 8 },
+  // station has no more. They answer no 911 call: an officer on a call who finds more
+  // zombies in sight than its unit's capacity (× radioRatio), and at least radioMin,
+  // radios for them, with what
+  // it counted, at most once each radioCooldown ticks. A SWAT squad takes the nearest
+  // unanswered radio within `radius`, if its own capacity, summed, is equal to the
+  // count it was given — and acts on that report, however it has grown; a radio nobody
+  // takes lapses after squads.staleAfter. From the station, with the van there and the
+  // target beyond vanBeyond (shorter than anyone else drives: radios mostly come from
+  // near the station whose officers took the call), they drive: the leader walks to the van, waits
+  // while any member is more than vanGather from it, and all board together. One way:
+  // the van is transport, not a base; where it stops it stays, for anyone to take —
+  // guesses
+  swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 15, vanBeyond: 250, radioRatio: 1, radioMin: 4, radioCooldown: 600 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

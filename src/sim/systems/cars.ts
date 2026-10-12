@@ -362,13 +362,14 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
 }
 
 /**
- * A squad gets into its van together, the leader driving, for `target`. False, and
+ * A squad gets into its van together, the leader driving, for a building's door or a
+ * point on a street. False, and
  * nobody aboard, if there is no way there by road.
  */
-export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[], target: Building): boolean {
+export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[], to: { x: number; y: number; building: Building | null }): boolean {
   const leader = members[0]!;
-  const e = entranceNearest(target, car.x, car.y);
-  const dest = pullUpBy(world, target, e.x, e.y);
+  const target = to.building;
+  const dest = target === null ? { x: to.x, y: to.y } : pullUpBy(world, target, entranceNearest(target, car.x, car.y).x, entranceNearest(target, car.x, car.y).y);
   const route = ctx.paths.route(leader, dest.x, dest.y, true);
   if (route === null) return false;
   for (const s of members) {
@@ -381,7 +382,7 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
     car.occupants.push(s.id);
   }
   car.claimedBy = null;
-  car.destinationBuilding = target.id;
+  car.destinationBuilding = target?.id ?? null;
   car.destination = dest;
   car.state = 'driving';
   car.route = route;

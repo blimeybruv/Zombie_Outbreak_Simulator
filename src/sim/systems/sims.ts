@@ -36,7 +36,7 @@ import { carStillMine, considerDriving, decideCars, giveUpCar } from './cars';
 import { modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
-import { resolveTarget, squadPass, squadTarget, swatVan } from './squads';
+import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -107,20 +107,22 @@ function pickRoutineStop(world: World, sim: Sim): Building | null {
  * so every officer in the unit decides on the same numbers this tick), and whether
  * any of them is responding (to a call, to shots, to trouble).
  */
-function unitOf(world: World, ctx: Context, sim: Sim): { threat: number; size: number; onCall: boolean } {
+function unitOf(world: World, ctx: Context, sim: Sim): { threat: number; size: number; onCall: boolean; cap: number } {
   ctx.simHash.query(sim.x, sim.y, world.config.police.unitRadius, ctx.ids2);
   let threat = ctx.threat[sim.id]!;
   let size = 1;
   let onCall = responding(sim);
+  let cap = capacity(world, sim);
   for (const id of ctx.ids2) {
     if (id === sim.id) continue;
     const o = world.sims[id]!;
     if (o.archetype !== 'police' || capacity(world, o) <= 0) continue;
     size++;
+    cap += capacity(world, o);
     if (ctx.threat[id]! > threat) threat = ctx.threat[id]!;
     if (responding(o)) onCall = true;
   }
-  return { threat, size, onCall };
+  return { threat, size, onCall, cap };
 }
 
 /** Police responding: to a 911 call, to shots, or to trouble they believe in. */
@@ -618,7 +620,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // Police decide as a unit: the danger the most exposed officer nearby sees, and a
   // threshold that rises with numbers. Deciding alone, the officer in front fell back
   // while those behind, not yet seeing it, walked on past.
-  const unit = engages && sim.archetype === 'police' ? unitOf(world, ctx, sim) : { threat, size: 1, onCall: responding(sim) };
+  const unit = engages && sim.archetype === 'police' ? unitOf(world, ctx, sim) : { threat, size: 1, onCall: responding(sim), cap: 0 };
   // Police responding — to a call, to shots, to trouble — hold their ground longer than a
   // patrol officer would, and a patrol officer alongside them holds with them.
   const base = unit.onCall ? Math.max(arch.engageThreshold, config.dispatch.engageThreshold) : arch.engageThreshold;
@@ -626,6 +628,15 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const engageBelow = unit.size > 1 ? Math.max(base, Math.min(pc.unitMaxThreshold, base * (1 + pc.unitStrength * (unit.size - 1)))) : base;
   const seen = unit.threat;
   const nearest = ctx.nearestZombie[sim.id]!;
+  // On a call and outmatched: more zombies in sight than the unit can handle. It radios
+  // for SWAT, with what it counted (squads.ts radioForSwat).
+  if (unit.onCall && nearest >= 0 && sim.archetype === 'police' && sim.squadLeader === null) {
+    const sc = config.swat;
+    if (sim.radioedAt === null || tick - sim.radioedAt >= sc.radioCooldown) {
+      ctx.zombieHash.query(sim.x, sim.y, ctx.radius[sim.id]!, ctx.ids2);
+      if (ctx.ids2.length >= sc.radioMin && ctx.ids2.length > unit.cap * sc.radioRatio) radioForSwat(world, ctx, sim, ctx.ids2.length);
+    }
+  }
   // Falling back is a decision: on the way to shelter it does not turn to engage again
   // when the danger dips (that dithered at the threshold); it still fights if blocked
   // or cornered, and engages again from the door as a dispatcher.

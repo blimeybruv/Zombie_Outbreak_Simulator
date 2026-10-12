@@ -53,6 +53,12 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
       x = e.x;
       y = e.y;
       break;
+    case 'swatDeployed':
+    case 'policeRadio':
+      sim = e.sim;
+      x = e.x;
+      y = e.y;
+      break;
     case 'districtEvacuating':
       x = e.x;
       y = e.y;

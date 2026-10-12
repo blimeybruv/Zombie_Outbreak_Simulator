@@ -140,18 +140,28 @@ export interface DistrictEvacuatingEvent extends EventBase, Located {
   sim: null;
 }
 
-export interface SwatDeployedEvent extends EventBase {
-  /** A SWAT squad sets out from its station for something larger than a call. @range literal @unit — @readBy event consumers */
+export interface SwatDeployedEvent extends EventBase, Located {
+  /** A SWAT squad sets out for an officer's radio call: where the officer was. @range literal @unit — @readBy event consumers */
   type: 'swatDeployed';
-  /** Where it is going: a fallen shelter, or a garrison with a horde at its door. @range building id @unit id @readBy ticker */
-  building: BuildingId;
   /** @range building id @unit id @readBy ticker copy */
   station: BuildingId;
   /** Its leader. @range sim id @unit id @readBy ticker */
   sim: SimId;
+  /** What the officer counted: what SWAT believes it is going to. @range 1–hundreds @unit zombies @readBy ticker copy */
+  count: Count;
+}
+
+export interface PoliceRadioEvent extends EventBase, Located {
+  /** An officer on a call, outmatched, radios for SWAT. @range literal @unit — @readBy event consumers */
+  type: 'policeRadio';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+  /** @range 1–hundreds @unit zombies @readBy ticker copy */
+  count: Count;
 }
 
 export type SimEvent =
+  | PoliceRadioEvent
   | SwatDeployedEvent
   | DistrictEvacuatingEvent
   | SquadEvent

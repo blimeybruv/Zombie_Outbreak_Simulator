@@ -199,6 +199,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     stimuli: [],
     events: [],
     repathQueue: [],
+    radios: [],
     roster: [],
     counters: emptyCounters(),
     residentDeaths: 0,

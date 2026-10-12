@@ -239,6 +239,7 @@ export function squadPass(world: World, ctx: Context): void {
   const { config, tick, sims, zombies } = world;
   const sq = config.squads;
   formSquads(world, ctx);
+  pruneRadios(world);
   const groups: Sim[][] = [];
   const order: number[] = [];
   for (const s of sims) {
@@ -321,53 +322,96 @@ export function squadPass(world: World, ctx: Context): void {
 /** Diamond slots, as turns from the danger's bearing: ahead, either side, behind. */
 const DIAMOND = [0, Math.PI / 2, -Math.PI / 2, Math.PI];
 
-/**
- * SWAT answers only something larger than a call: a shelter that fell, or a horde massed
- * at a garrison (last tick's events), within swat.radius, nearest first, that no other
- * squad holds. Held until resolved, judged too strong at the door, or stale.
- */
-function swatTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
-  const { config, tick, buildings, sims } = world;
-  if (sim.answering !== null) {
-    const b = buildings[sim.answering]!;
-    if (tick - sim.answeringSince! <= config.squads.staleAfter && b.id !== sim.refusedBy) return { x: b.entrances[0]!.x, y: b.entrances[0]!.y, building: b };
-    release(sim);
-  }
-  let best: Building | null = null;
-  let bestD = Infinity;
-  for (const e of world.events) {
-    if (e.type !== 'shelterFell' && e.type !== 'cascadeCrossed') continue;
-    const b = buildings[e.building]!;
-    if (b.id === sim.refusedBy || sims.some((o) => o.squadLeader === o.id && o !== sim && o.answering === b.id)) continue;
-    const d = Math.hypot(b.entrances[0]!.x - sim.x, b.entrances[0]!.y - sim.y);
-    if (d <= config.swat.radius && (d < bestD || (d === bestD && b.id < best!.id))) {
-      bestD = d;
-      best = b;
-    }
-  }
-  if (best === null) return null;
-  sim.answering = best.id;
-  sim.answeringSince = tick;
-  const e = best.entrances[0]!;
-  ctx.events.push({ type: 'swatDeployed', tick, building: best.id, station: sim.station!, sim: sim.id });
-  return { x: e.x, y: e.y, building: best };
+/** The point on the nearest street to (x, y): where a van can pull up. */
+function onStreet(world: World, ctx: Context, x: number, y: number): { x: number; y: number } {
+  const sid = ctx.map.nearestStreet(x, y, world.config.map.offStreetLookup);
+  if (sid === null) return { x, y };
+  const st = world.streets[sid]!;
+  const a = world.nodes[st.a]!, b = world.nodes[st.b]!;
+  const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1;
+  const t = Math.max(0, Math.min(1, ((x - a.x) * (b.x - a.x) + (y - a.y) * (b.y - a.y)) / len2));
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
 /**
- * SWAT setting out from the station with its van there and a long way to go: to the
+ * An officer on a call, outmatched, radios for SWAT: where it is and how many it
+ * counted. A radio still unanswered within squads.sceneRadius is brought up to date
+ * instead of doubled.
+ */
+export function radioForSwat(world: World, ctx: Context, sim: Sim, count: number): void {
+  const { tick, config } = world;
+  sim.radioedAt = tick;
+  const near = world.radios.find((r) => r.claimedBy === null && Math.hypot(r.x - sim.x, r.y - sim.y) <= config.squads.sceneRadius);
+  if (near !== undefined) {
+    near.count = count;
+    near.at = tick;
+    near.from = sim.id;
+    return;
+  }
+  world.radios.push({ x: sim.x, y: sim.y, count, at: tick, from: sim.id, claimedBy: null });
+  ctx.events.push({ type: 'policeRadio', tick, sim: sim.id, count, x: sim.x, y: sim.y });
+}
+
+/** Radios nobody took lapse; one SWAT answered goes with its answer. */
+function pruneRadios(world: World): void {
+  const stale = world.config.squads.staleAfter;
+  world.radios = world.radios.filter((r) => r.claimedBy !== null || world.tick - r.at <= stale);
+}
+
+/**
+ * SWAT answers no 911 call, only an officer's radio: the nearest unanswered one within
+ * swat.radius whose count its own capacity, summed, can take on — sized by the report,
+ * not by what is there now. Held until resolved (at the scene, nothing left in reach)
+ * or stale.
+ */
+function swatTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
+  const { config, tick } = world;
+  if (sim.answeringSince !== null) {
+    const held = world.radios.find((r) => r.claimedBy === sim.id);
+    if (held !== undefined && tick - sim.answeringSince <= config.squads.staleAfter) return { x: held.x, y: held.y, building: null };
+    resolveTarget(world, sim);
+  }
+  let best: (typeof world.radios)[number] | null = null;
+  let bestD = Infinity;
+  for (const r of world.radios) {
+    if (r.claimedBy !== null || ctx.squadCap[sim.id]! < r.count * config.squads.contestRatio) continue;
+    const d = Math.hypot(r.x - sim.x, r.y - sim.y);
+    if (d <= config.swat.radius && d < bestD) {
+      bestD = d;
+      best = r;
+    }
+  }
+  if (best === null) return null;
+  best.claimedBy = sim.id;
+  // Where the van can pull up: the radio's point, on the street, from here on.
+  const p = onStreet(world, ctx, best.x, best.y);
+  best.x = p.x;
+  best.y = p.y;
+  sim.answering = null;
+  sim.answeringSince = tick;
+  sim.destination = p;
+  sim.destinationBuilding = null;
+  sim.destinationKind = 'respond';
+  ctx.events.push({ type: 'swatDeployed', tick, station: sim.station!, sim: sim.id, count: best.count, x: p.x, y: p.y });
+  return { x: p.x, y: p.y, building: null };
+}
+
+/**
+ * SWAT setting out from the station with its van there and the target beyond
+ * swat.vanBeyond: to the
  * van, and in together once every member is within swat.vanGather of it. True while
  * this is what the leader is doing.
  */
 export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): boolean {
   const { config, cars, sims, buildings } = world;
-  if (sim.station === null || t.building === null) return false;
+  if (sim.station === null) return false;
   const door = buildings[sim.station]!.entrances[0]!;
   const van = cars.find((c) => c.kind === 'van' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0);
   if (van === undefined || Math.hypot(van.x - door.x, van.y - door.y) > config.swat.radius / 10) return false;
-  if (Math.hypot(t.x - van.x, t.y - van.y) <= config.cars.driveBeyond) return false;
+  if (Math.hypot(t.x - van.x, t.y - van.y) <= config.swat.vanBeyond) return false;
   const members = sims.filter((s) => s.squadLeader === sim.id && isLiving(s));
   const gathered = members.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - van.x, s.y - van.y) <= config.swat.vanGather);
-  if (gathered && boardSquad(world, ctx, van, members, t.building)) return true;
+  if (gathered && boardSquad(world, ctx, van, members, t)) return true;
   sim.destination = { x: van.x, y: van.y };
   sim.destinationBuilding = null;
   sim.destinationKind = 'respond';
@@ -391,6 +435,7 @@ function release(sim: Sim): void {
 
 /** A target dealt with: a call answered (whatever was there is gone), the leader free to look again. */
 export function resolveTarget(world: World, sim: Sim): void {
+  if (world.radios.some((r) => r.claimedBy === sim.id)) world.radios = world.radios.filter((r) => r.claimedBy !== sim.id);
   if (sim.answering !== null) {
     const b = world.buildings[sim.answering]!;
     b.callAt = null;
