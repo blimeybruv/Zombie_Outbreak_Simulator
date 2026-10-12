@@ -313,13 +313,19 @@ function nearestDoor(world: World, ctx: Context, sim: Sim, toward: 'any' | 'pena
 }
 
 /**
- * No way out: danger enough, and either on several sides (threatFocus under
- * `cornered.spread`) or with no walkable ground a few metres along the way away
- * from it — a wall, the river, a building.
+ * No way out: a zombie within `cornered.near` — close enough that running is worse
+ * than swinging — danger enough, and either on several sides (threatFocus under
+ * `cornered.spread`) or with no walkable ground a few metres along the way away from
+ * it — a wall, the river, a building. Without the distance gate, danger seen 60 m off
+ * with an open street behind had a sim with a kitchen knife plant its feet.
  */
-function cornered(world: World, ctx: Context, sim: Sim): boolean {
+export function cornered(world: World, ctx: Context, sim: Sim): boolean {
   const cc = world.config.cornered;
   if (ctx.threat[sim.id]! < cc.threat) return false;
+  const zid = ctx.nearestZombie[sim.id]!;
+  if (zid < 0) return false;
+  const z = world.zombies[zid]!;
+  if (Math.hypot(z.x - sim.x, z.y - sim.y) > cc.near) return false;
   if (ctx.threatFocus[sim.id]! < cc.spread) return true;
   const tx = ctx.threatX[sim.id]!, ty = ctx.threatY[sim.id]!;
   const tl = Math.hypot(tx, ty);

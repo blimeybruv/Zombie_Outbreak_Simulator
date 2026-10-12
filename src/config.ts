@@ -331,17 +331,19 @@ export const config = {
     doorTowardThreatCos: 0.7,
   },
 
-  // Fight, flight or freeze. Cornered — perceived threat at least `threat`, and either
+  // Fight, flight or freeze. Cornered — a zombie within `near`, perceived threat at least `threat`, and either
   // danger on several sides (|threat vector| / threat under `spread`) or no walkable
   // ground `probe` metres along the way out — a sim fights if armed, else takes any door
   // within doorSearchRadius, else freezes. With the way merely blocked (danger squarely
   // ahead: avoidWeight × threat × aheadness at least `blockedAt`), it fights if what it
   // carries can deal with the zombies within `fightRadius`, else takes a door that does
-  // not lie toward them, else backs off for avoidHold ticks.
+  // not lie toward them, else backs off for avoidHold ticks. Zombie attacks on a
+  // cornered sim roll at combat.zombieAttack.corneredFactor.
   cornered: {
     threat: 0.4, // — guess
     spread: 0.5, // — guess
     probe: 6, // m
+    near: 6, // m: cornered only with a zombie this close — about four times contact range
     blockedAt: 0.8, // — guess
     fightRadius: 15, // m
     fightTicks: 10, // a stand is reconsidered after this long
@@ -717,7 +719,7 @@ export const config = {
       cooldown: 10, // ticks, staggered by id
       baseInfection: 0.35, // against a stationary target
       movingFactor: 0.6, // target moving away at speed
-      corneredFactor: 1.4, // no escape vector
+      corneredFactor: 1.4, // against a victim cornered (sims.ts cornered): no escape vector
     },
     // Outcome of a successful zombie attack by zombies in contact (index 0 = one zombie,
     // last = that many or more): chance the victim is infected and released, else fed on.

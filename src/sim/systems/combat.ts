@@ -10,6 +10,7 @@ import { chance, nextInt } from '../rng';
 import type { Sim, World, Zombie } from '../state';
 import { isFirearm } from '../state';
 import { dropWeapon } from './arms';
+import { cornered } from './sims';
 import { modeOf } from './panic';
 import { recognisedWithin } from './perception';
 import { emitStimulus } from './stimuli';
@@ -259,7 +260,9 @@ function zombiesAttack(world: World, ctx: Context): void {
     const awayY = victim.y - z.y;
     const fleeing =
       (victim.gait === 'run' || victim.gait === 'sprint') && Math.cos(victim.heading) * awayX + Math.sin(victim.heading) * awayY > 0;
-    if (!chance(world.rng, za.baseInfection * (fleeing ? za.movingFactor : 1))) {
+    // Trapped is worse than caught in the open: no way to give ground.
+    const trapped = !fleeing && cornered(world, ctx, victim);
+    if (!chance(world.rng, za.baseInfection * (fleeing ? za.movingFactor : trapped ? za.corneredFactor : 1))) {
       victim.history.nearMisses++;
       continue;
     }
