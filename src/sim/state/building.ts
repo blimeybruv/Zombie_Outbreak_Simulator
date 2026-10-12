@@ -7,7 +7,16 @@
 // fill (residents + sheltered.length + zombiesInside), and the work crew
 // (tracked builders inside plus up to `residentBuilders` residents).
 
+import type { Weapon } from './sim';
 import type { BuildingId, Count, DistrictId, Polygon, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
+
+/** One thing to be found: a weapon (with its rounds, for a firearm) or a box of ammunition. */
+export interface Arms {
+  /** @range weapon or ammo @unit enum @readBy loot */
+  item: Weapon | 'ammo';
+  /** Rounds with it: a firearm's magazine, or the box. 0 for a melee weapon. @range 0–combat.ammoCap @unit rounds @readBy loot */
+  ammo: Count;
+}
 
 /** Functional tags change the simulation. */
 export const FUNCTIONAL_TAGS = [
@@ -111,6 +120,13 @@ export interface Building {
    * @range 0–reservists.weaponStock | null @unit weapons @readBy depot (arming), snapshot (inspector)
    */
   weaponStock: Count | null;
+  /**
+   * What is still here to be found (systems/arms.ts): drawn at setup from the tag's loot
+   * table, buildings.lootStock items; each taken is gone; a weapon given up for a better
+   * one, or carried by someone who dies or turns here, is left here.
+   * @range 0–dozens items @unit — @readBy loot, arms (drops)
+   */
+  stock: Arms[];
   /**
    * When the crowd outside a garrison crossed cascade density; null below it.
    * @range tick | null @unit tick @readBy cascade event, siege

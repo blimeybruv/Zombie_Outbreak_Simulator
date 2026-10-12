@@ -797,6 +797,12 @@ export const config = {
     },
     lootChance: 0.3, // per entry into a tag that holds anything — guess
     lootAmmo: [4, 12], // rounds in one find of ammo, or with a found firearm — guess
+    // Items each building holds at the start, drawn from its tag's loot table (weights,
+    // materials aside): a house has one knife block, not an endless one. What is taken
+    // is gone; a weapon given up for a better one, or carried by someone who dies or
+    // turns, is left where it was (systems/arms.ts) — guesses
+    lootStock: { residential: 1, firearmsStore: 8, policeStation: 5, hardwareStore: 6, workshop: 3, supermarket: 2, mall: 6 } as Record<string, number>,
+    pickupRadius: 2, // m: a weapon on the ground is taken by someone passing this close who is better off with it
     // Residents never get positions, but fortification is addition: up to this many
     // of an alerted building's residents work as builders alongside tracked ones — guess
     residentBuilders: 2,

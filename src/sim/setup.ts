@@ -13,6 +13,7 @@ import { emptyCounters, type Building, type Scenario, type World } from './state
 import { occupierAppeared } from './systems/buildings';
 import { placeFirstResponders } from './systems/dispatch';
 import { designateArmouries, placeSwat } from './systems/squads';
+import { stockBuildings } from './systems/arms';
 import { placeEmts } from './systems/emt';
 import { scheduleRelease } from './systems/release';
 
@@ -202,6 +203,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     callsTaken: 0,
     calledUpAt: null,
     outsiders: 0,
+    drops: [],
     cars: [],
     stimuli: [],
     events: [],
@@ -221,6 +223,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   const band = bandForHour(scenario.startHour, config);
   const outdoors = Math.round(scenario.population * config.spawn.outdoorShareByBand[band]!);
   designateArmouries(world);
+  stockBuildings(world);
   placeResidents(world, scenario.population - outdoors, band);
   placeFirstResponders(world, ctx);
   placeSwat(world, ctx);

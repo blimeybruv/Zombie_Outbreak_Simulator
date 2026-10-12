@@ -7,6 +7,7 @@ import { spawnZombie } from '../spawn';
 import { turnedInCar } from './cars';
 import type { World } from '../state';
 import { occupierAppeared } from './buildings';
+import { dropWeapon } from './arms';
 
 export function convertDue(world: World, ctx: Context): void {
   const { tick } = world;
@@ -24,6 +25,7 @@ export function convertDue(world: World, ctx: Context): void {
       // Turned in a car: out of it, among whoever is still inside (cars.ts turnedInCar).
       turnedInCar(world, ctx, sim);
     }
+    dropWeapon(world, sim); // left where it turned
     if (inside === null) {
       const z = spawnZombie(world, sim.x, sim.y, 'active', null, sim.id);
       z.intact = world.config.features.intactZombies && sim.bites <= 1; // one bite, no worse: nothing to see

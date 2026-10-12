@@ -230,6 +230,7 @@ export function armAtDepot(world: World, sim: Sim, b: Building): void {
   sim.destination = null;
   if (b.weaponStock !== null && b.weaponStock > 0) {
     b.weaponStock--;
+    if (sim.weapon !== null) b.stock.push({ item: sim.weapon, ammo: sim.ammo }); // its own, left at the depot
     sim.weapon = rc.weapon;
     sim.ammo = rc.ammo;
     sim.muster = 'waiting';

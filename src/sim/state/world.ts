@@ -13,7 +13,7 @@ import type { Car } from './car';
 import type { Counters } from './counters';
 import type { SimEvent } from './events';
 import type { District, Exit, Lot, River, Street, StreetNode } from './map';
-import type { Archetype, Sim } from './sim';
+import type { Archetype, Sim, Weapon } from './sim';
 import type { Stimulus } from './stimulus';
 import type { Count, Metres, SimId, Tick, Unit01 } from './units';
 import type { Zombie } from './zombie';
@@ -113,6 +113,8 @@ export interface World {
   calledUpAt: Tick | null;
   /** Soldiers who came in from outside to hold the cordon: counted in the leaves like anyone, so the invariant is population + outsiders. @range 0–exits × squads.size @unit people @readBy invariant, cordon, end stats */
   outsiders: Count;
+  /** Weapons lying where someone fell outdoors, or was dropped for a better one (systems/arms.ts), until picked up. @range 0–hundreds @unit — @readBy arms (pickup) */
+  drops: { x: Metres; y: Metres; weapon: Weapon; ammo: Count }[];
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

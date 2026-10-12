@@ -15,9 +15,9 @@ import type { Context } from '../context';
 import { confidence } from '../derived';
 import { functionalProfile } from '../mapgen/generate';
 import { remember } from '../memory';
-import { chance, nextFloat, nextInt } from '../rng';
 import { spawnSim } from '../spawn';
-import type { Building, BuildingBelief, BuildingId, Sim, Weapon, World } from '../state';
+import type { Building, BuildingBelief, BuildingId, Sim, World } from '../state';
+import { loot } from './arms';
 import { recognisedWithin } from './perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from './common';
 import { modeOf } from './panic';
@@ -196,43 +196,6 @@ export function deliver(world: World, ctx: Context, sim: Sim, b: Building): void
     sim.role = null;
     sim.roleSince = tick;
     sim.sortieUntil = null;
-  }
-}
-
-// Loot
-
-const RANGED = new Set<Weapon>(['pistol', 'smg', 'shotgun']);
-
-/** One roll per entry into a tag that holds anything. Materials come from the building's stock, not here. */
-export function loot(world: World, ctx: Context, sim: Sim, b: Building): void {
-  const { config, rng, tick } = world;
-  if (!(b.tag in config.tags)) return; // flavour tags hold nothing useful
-  const table = config.tags[functionalProfile(b.tag, config)].loot as Partial<Record<Weapon | 'ammo' | 'materials', number>>;
-  const keys = (Object.keys(table) as (keyof typeof table)[]).filter((k) => k !== 'materials');
-  if (keys.length === 0 || !chance(rng, config.buildings.lootChance)) return;
-  let total = 0;
-  for (const k of keys) total += table[k]!;
-  let r = nextFloat(rng) * total;
-  let found = keys[keys.length - 1]!;
-  for (const k of keys) {
-    r -= table[k]!;
-    if (r < 0) {
-      found = k;
-      break;
-    }
-  }
-  const rounds = nextInt(rng, config.buildings.lootAmmo[0]!, config.buildings.lootAmmo[1]!);
-  if (found === 'ammo') {
-    if (sim.weapon !== null && RANGED.has(sim.weapon)) sim.ammo = Math.min(config.combat.ammoCap, sim.ammo + rounds);
-    return;
-  }
-  const weapon = found as Weapon;
-  const ammo = RANGED.has(weapon) ? (weapon === sim.weapon ? Math.min(config.combat.ammoCap, sim.ammo + rounds) : rounds) : 0;
-  const better = capacity(world, { ...sim, weapon, ammo }) > capacity(world, sim);
-  if (weapon === sim.weapon || better) {
-    sim.weapon = weapon;
-    sim.ammo = ammo;
-    if (better) ctx.events.push({ type: 'weaponFound', tick, sim: sim.id, building: b.id, weapon });
   }
 }
 

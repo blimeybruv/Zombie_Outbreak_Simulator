@@ -9,6 +9,7 @@ import { transfer, simLeaf } from '../counters';
 import { chance, nextInt } from '../rng';
 import type { Sim, World, Zombie } from '../state';
 import { isFirearm } from '../state';
+import { dropWeapon } from './arms';
 import { modeOf } from './panic';
 import { recognisedWithin } from './perception';
 import { emitStimulus } from './stimuli';
@@ -70,6 +71,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
 export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot'): void {
   const from = simLeaf(victim);
   if (from === null || victim.condition === 'dead') return;
+  dropWeapon(world, victim); // left where it fell
   victim.condition = 'dead';
   victim.turnsAt = null;
   victim.history.endedAt = world.tick;
