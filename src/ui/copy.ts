@@ -15,6 +15,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'simTurned':
       return n.name ? `${n.name} turned on ${n.place}.` : `A survivor turned on ${n.place}.`;
     case 'simDied':
+      if (e.cause === 'shot') return `Soldiers shot ${n.name ?? 'a survivor'} trying to get round the cordon on ${n.place}.`;
       if (!n.name) return `A survivor died on ${n.place}.`;
       return e.cause === 'breach' ? `${n.name} died when ${n.place} was overrun.` : `${n.name} was pulled down on ${n.place}.`;
     case 'cascadeCrossed':
@@ -45,6 +46,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `A car was abandoned on ${n.place}.`;
     case 'cordonClosed':
       return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
+    case 'cordonEvaded':
+      return `${n.name ?? 'Someone'} got round the soldiers on ${n.place} and out of the city.`;
     case 'simLeft':
       return n.name ? `${n.name} got out of the city on ${n.place}.` : null;
     case 'ambulanceDispatched':

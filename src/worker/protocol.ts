@@ -27,7 +27,7 @@ export interface MapSnapshot {
   river: { centreline: { x: number; y: number }[]; width: number };
   /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
   lots: Float32Array;
-  /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand (x, y, dx, dy, bx, by). */
+  /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand, and the road's width there (x, y, dx, dy, bx, by, width). */
   exits: Float32Array;
   districts: { name: string; x: number; y: number; w: number; h: number }[];
   streetNames: string[];

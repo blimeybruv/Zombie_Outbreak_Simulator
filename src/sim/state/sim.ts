@@ -380,6 +380,10 @@ export interface Sim {
   queuedSince: Tick | null;
   /** Exits this sim has found closed, as bits (1 << exit index). @range 0–7 @unit bits @readBy leaving (choice of exit) */
   knownClosed: number;
+  /** Getting round a closed exit's barrier along the kerb, on this side of the road (1 or -1, across it from the exit's outward direction); null otherwise. @range 1 | -1 | null @unit side @readBy leaving (crossing), combat (cordon fire) */
+  crossing: 1 | -1 | null;
+  /** A cordon soldier whose unit fires on those getting round its barrier (drawn once per unit, cordon.fireShare); false for everyone else, and never shown. @range true/false @unit — @readBy combat (cordon fire) */
+  firesOnCrossers: boolean;
   /** An EMT's ambulance; null for everyone else. @range car id | null @unit id @readBy EMTs, alighting */
   crew: CarId | null;
   /** A patient in an ambulance crew's care: its driver's id; null otherwise. @range sim id | null @unit id @readBy EMTs, alighting */

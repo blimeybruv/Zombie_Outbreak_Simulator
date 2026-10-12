@@ -174,7 +174,7 @@ If one seems necessary, raise it rather than adding it.
 
 - Fire, explosions, petrol stations — wants to be the star; produces spectacle, not decisions
 - Z-levels, rooftop movement — a second map, not a building attribute
-- Survivor-on-survivor combat, psychopath archetype — a second hostility relation
+- Survivor-on-survivor combat, psychopath archetype — a second hostility relation (one exception, the user's: a cordon unit may fire on those getting round its barrier; reference, "The cordon")
 - Health pools, wounds, bandages, healer archetype — replaced by one infection flag
 - Heavy weapons, grenades — changes capability rather than decisions
 - Multi-slot inventory — one weapon, one ammo count, one materials count

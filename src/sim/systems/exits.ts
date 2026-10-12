@@ -1,8 +1,9 @@
 // Leaving the city. A sim making for a way off the map (`destinationKind` leave) walks
 // or drives to its exit — the nearest, by the signposts: the highways out are common
 // knowledge — and on reaching it is out of play, counted as rescued. A car reaching an
-// exit takes everyone in it out, and is gone. Nobody at the exit looks for a bite (no
-// cordon yet): the bitten get out too, and are counted as they leave (World.escapedInfected).
+// exit takes everyone in it out, and is gone. Nobody at the exit looks for a bite: the
+// bitten get out too, and are counted as they leave (World.escapedInfected). Once the
+// cordon has closed an exit, only those who get round its barrier leave by it.
 
 import type { Context } from '../context';
 import { simLeaf, transfer } from '../counters';
@@ -31,6 +32,7 @@ export function headForExit(world: World, sim: Sim): boolean {
   sim.destinationKind = 'leave';
   sim.destinationBuilding = null;
   sim.destination = { x: e.x, y: e.y };
+  sim.crossing = null;
   sim.route = [];
   sim.routeIndex = 0;
   return true;
@@ -56,7 +58,13 @@ export function exitArrivals(world: World, ctx: Context): void {
     if (sim.destinationKind !== 'leave' || sim.insideBuilding !== null || sim.car !== null || sim.destination === null) continue;
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
-    if (e.closedAt !== null) continue; // the cordon: nobody passes
+    if (e.closedAt !== null) {
+      // The cordon: nobody passes the barrier — but someone round its flank, at the edge, is out.
+      if (sim.crossing === null || (e.x - sim.x) * e.dx + (e.y - sim.y) * e.dy > reach) continue;
+      ctx.events.push({ type: 'cordonEvaded', tick: world.tick, sim: sim.id, x: sim.x, y: sim.y });
+      leaveMap(world, ctx, sim);
+      continue;
+    }
     if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= reach) leaveMap(world, ctx, sim);
   }
 }

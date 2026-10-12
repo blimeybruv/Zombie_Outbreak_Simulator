@@ -4,8 +4,8 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { transfer } from '../src/sim/counters';
 import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/exits';
-import { assertInvariant } from '../src/sim/tick';
-import { updateCordon } from '../src/sim/systems/cordon';
+import { assertInvariant, step } from '../src/sim/tick';
+import { flank, queueAt, updateCordon } from '../src/sim/systems/cordon';
 
 describe('leaving the city', () => {
   it('one on foot who reaches a way off the map is out of play, counted as rescued', () => {
@@ -81,4 +81,44 @@ describe('the cordon', () => {
     exitArrivals(world, ctx);
     expect(s.condition).toBe('healthy');
   });
+
+  it('one getting round a closed barrier along the kerb is out at the edge', () => {
+    const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+    const e = world.exits[0]!;
+    e.closedAt = world.tick;
+    const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null)!;
+    const q = queueAt(world, e);
+    s.x = q.x;
+    s.y = q.y;
+    headForExit(world, s);
+    s.crossing = 1;
+    const out = flank(world, e, 1).out;
+    s.x = out.x;
+    s.y = out.y;
+    exitArrivals(world, ctx);
+    expect(s.condition).toBe('rescued');
+    assertInvariant(world);
+  });
+
+  // A unit that fires shoots someone trying to pass its barrier; one that holds its fire lets them by.
+  for (const fires of [true, false]) {
+    it(`a cordon unit that ${fires ? 'fires' : 'holds its fire'} on those getting round it`, () => {
+      const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+      world.noticedAt = world.tick;
+      world.tick += config.cordon.delay - 1;
+      step(world, ctx, { checkInvariant: true });
+      for (const x of world.sims) if (x.outsider) x.firesOnCrossers = fires;
+      for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
+      const e = world.exits[0]!;
+      expect(e.closedAt).not.toBeNull();
+      const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && !x.outsider)!;
+      const q = queueAt(world, e);
+      s.x = q.x;
+      s.y = q.y;
+      headForExit(world, s);
+      s.crossing = 1;
+      for (let k = 0; k < 120 && (s.condition === 'healthy' || s.condition === 'infected'); k++) step(world, ctx, { checkInvariant: true });
+      expect(s.condition).toBe(fires ? 'dead' : 'rescued');
+    }, 60_000);
+  }
 });

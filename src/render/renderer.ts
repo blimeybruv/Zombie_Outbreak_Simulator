@@ -50,10 +50,12 @@ const CAR_L = 4.5; // m
 const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
-const EXIT_ARROW_PX = 26; // css px: the exit arrow's reach, big enough to hold the word
-const EXIT_NEAR_ALPHA = 0.18; // faint at near zoom, over whoever is at the exit
+const EXIT_STRIDE = 7; // values per exit in the map snapshot
+const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
+const EXIT_ALPHA = 0.4;
+const EXIT_LABEL_ALPHA = 0.6;
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
-const BARRIER_HALF_M = 18; // m: half its length, across a 28 m highway
+const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
@@ -550,42 +552,39 @@ export class Renderer {
   }
 
   /**
-   * Ways off the map: an arrow at the edge pointing out along the highway, the word cut
-   * out of it as negative space, at every zoom — faint at near zoom, where it would
-   * otherwise sit over whoever is at the exit.
+   * Ways off the map: an arrow at the edge pointing out along the highway, and the word
+   * clear of it further in, at every zoom — kept faint and small: signage, not the
+   * thing to look at. The barrier, once there is one, is.
    */
   private drawExits(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
     const e = this.map.exits;
     const px = 1 / (cam.scale * dpr); // one device pixel in metres
-    const R = Math.round(EXIT_ARROW_PX * dpr); // the arrow's reach from its middle, device px
-    for (let i = 0; i < e.length; i += 6) {
+    const r = Math.max(14, 16 * px);
+    const a = r * EXIT_ARROW_SCALE;
+    g.fillStyle = P.EXIT;
+    g.font = `${Math.round(10 * dpr)}px system-ui, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (let i = 0; i < e.length; i += EXIT_STRIDE) {
       const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!;
-      // The arrow, drawn upright in its own little canvas so the word reads level.
-      const c = document.createElement('canvas');
-      c.width = c.height = 2 * R;
-      const a = c.getContext('2d')!;
       const nx = -dy, ny = dx;
-      a.fillStyle = P.EXIT;
-      a.beginPath();
-      a.moveTo(R + dx * R, R + dy * R);
-      a.lineTo(R - dx * R * 0.5 + nx * R * 0.9, R - dy * R * 0.5 + ny * R * 0.9);
-      a.lineTo(R - dx * R * 0.5 - nx * R * 0.9, R - dy * R * 0.5 - ny * R * 0.9);
-      a.closePath();
-      a.fill();
-      a.globalCompositeOperation = 'destination-out';
-      a.font = `bold ${Math.round(R * 0.32)}px system-ui, sans-serif`;
-      a.textAlign = 'center';
-      a.textBaseline = 'middle';
-      a.fillText('EXIT', R - dx * R * 0.1, R - dy * R * 0.1);
-      // Placed just inside the edge, in world units.
-      const back = R * px * 1.1;
+      const tx = x - dx * r * 1.2, ty = y - dy * r * 1.2; // just inside the edge
+      g.globalAlpha = EXIT_ALPHA;
+      g.beginPath();
+      g.moveTo(tx + dx * a, ty + dy * a);
+      g.lineTo(tx - dx * a * 0.4 + nx * a * 0.8, ty - dy * a * 0.4 + ny * a * 0.8);
+      g.lineTo(tx - dx * a * 0.4 - nx * a * 0.8, ty - dy * a * 0.4 - ny * a * 0.8);
+      g.closePath();
+      g.fill();
+      // The label, in screen pixels, further in.
+      g.globalAlpha = EXIT_LABEL_ALPHA;
       g.save();
-      g.globalAlpha = cam.mode === 'near' ? EXIT_NEAR_ALPHA : 0.9;
-      g.translate(x - dx * back, y - dy * back);
+      g.translate(tx - dx * r * 2.2, ty - dy * r * 2.2);
       g.scale(px, px);
-      g.drawImage(c, -R, -R);
+      g.fillText('EXIT', 0, 0);
       g.restore();
     }
+    g.globalAlpha = 1;
   }
 
   /**
@@ -598,20 +597,18 @@ export class Renderer {
     const e = this.map.exits;
     const px = 1 / (cam.scale * dpr);
     g.strokeStyle = P.POLICE;
-    g.lineWidth = Math.max(2.5, 4 * px);
-    g.lineCap = 'round';
-    for (let i = 0, k = 0; i < e.length; i += 6, k++) {
+    g.lineWidth = Math.max(3, 5 * px); // square ends: it stops where it stops, at the kerbs
+    for (let i = 0, k = 0; i < e.length; i += EXIT_STRIDE, k++) {
       if (!(frame.closedExits & (1 << k))) continue;
       this.barrierSeen[k] ??= wallMs;
       const grow = Math.min(1, (wallMs - this.barrierSeen[k]!) / BARRIER_DRAW_MS);
       const nx = -e[i + 3]!, ny = e[i + 2]!, bx = e[i + 4]!, by = e[i + 5]!;
-      const half = (BARRIER_HALF_M * grow);
+      const half = (e[i + 6]! / 2 + BARRIER_KERB_M) * grow; // kerb to kerb, and a little past
       g.beginPath();
       g.moveTo(bx - nx * half, by - ny * half);
       g.lineTo(bx + nx * half, by + ny * half);
       g.stroke();
     }
-    g.lineCap = 'butt';
   }
 
   /** Squads: a thin line from each follower to its leader, so the unit reads as one. Near zoom. */

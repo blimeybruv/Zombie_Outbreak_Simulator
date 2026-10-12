@@ -26,7 +26,7 @@ import { isOutdoorLiving, type Context } from '../context';
 import { functionalProfile } from '../mapgen/generate';
 import { noteStreet, remember } from '../memory';
 import { sharedNode } from '../pathfinding';
-import { nextFloat, nextInt } from '../rng';
+import { chance, nextFloat, nextInt } from '../rng';
 import type { Building, Sim, Stand, StreetId, World } from '../state';
 import { isFirearm } from '../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
@@ -39,7 +39,7 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 import { callAmbulance, decideEmt, decidePatient } from './emt';
 import { rideToCall } from './dispatch';
-import { queueAt } from './cordon';
+import { flank, pastBarrier, queueAt } from './cordon';
 import { headForExit, nearestExit } from './exits';
 
 /**
@@ -738,6 +738,14 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // Closed by the cordon: stop short of the barrier and wait to be let through, until
     // patience gives out — the trusting wait longest — then try another way, or none.
     if (e.closedAt !== null) {
+      // Getting round it: along the kerb to beside the barrier's end, then out (exits.ts).
+      if (sim.crossing !== null) {
+        const f = flank(world, e, sim.crossing);
+        const to = pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
+        sim.gait = threat > 0 ? 'run' : 'walk';
+        steerToward(sim, to.x, to.y);
+        return;
+      }
       const q = queueAt(world, e);
       if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
         sim.queuedSince ??= tick;
@@ -746,8 +754,13 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
           steerToward(sim, e.x, e.y);
           return;
         }
-        sim.knownClosed |= 1 << i;
         sim.queuedSince = null;
+        // Patience out: the less trusting try to get round it; the rest give it up.
+        if (chance(world.rng, config.cordon.cross * (1 - sim.trust))) {
+          sim.crossing = (q.x - sim.x) * -e.dy + (q.y - sim.y) * e.dx > 0 ? -1 : 1; // the side it is already on
+          return;
+        }
+        sim.knownClosed |= 1 << i;
         if (!headForExit(world, sim)) clearDestination(sim);
         return;
       }

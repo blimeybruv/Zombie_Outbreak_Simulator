@@ -23,8 +23,8 @@ export interface SimDiedEvent extends EventBase, Located {
   type: 'simDied';
   /** Null for an anonymous resident who died in a breach. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
-  /** @range 2 values @unit enum @readBy ticker copy */
-  cause: 'fedOn' | 'breach';
+  /** Shot: by cordon soldiers, getting round their barrier. @range 3 values @unit enum @readBy ticker copy, salience */
+  cause: 'fedOn' | 'breach' | 'shot';
 }
 
 export interface SimTurnedEvent extends EventBase, Located {
@@ -167,6 +167,13 @@ export interface SimLeftEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface CordonEvadedEvent extends EventBase, Located {
+  /** A sim got round a closed exit's barrier, along the kerb, and out (a simLeft follows). @range literal @unit — @readBy event consumers */
+  type: 'cordonEvaded';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export interface CordonClosedEvent extends EventBase, Located {
   /** Soldiers from outside close an exit: a barrier across the highway, for good. @range literal @unit — @readBy event consumers */
   type: 'cordonClosed';
@@ -176,6 +183,7 @@ export interface CordonClosedEvent extends EventBase, Located {
 
 export type SimEvent =
   | CordonClosedEvent
+  | CordonEvadedEvent
   | SimLeftEvent
   | PoliceRadioEvent
   | SwatDeployedEvent

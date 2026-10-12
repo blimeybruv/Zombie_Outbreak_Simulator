@@ -683,7 +683,13 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     });
     const street = graph.edges.findIndex((g) => g.line === e.line && (g.a === node || g.b === node));
     if (node < 0 || street < 0) continue;
-    exits.push({ node: node as NodeId, street: street as StreetId, x: nodes[node]!.x, y: nodes[node]!.y, dx: -e.inward.x, dy: -e.inward.y, closedAt: null });
+    // Outward along the highway itself, which need not meet the edge square: the
+    // barrier goes across the road, and the soldiers' line with it.
+    const g = graph.edges[street]!;
+    const other = nodes[g.a === node ? g.b : g.a]!;
+    const len = dist(nodes[node]!, other) || 1;
+    const dx = (nodes[node]!.x - other.x) / len, dy = (nodes[node]!.y - other.y) / len;
+    exits.push({ node: node as NodeId, street: street as StreetId, x: nodes[node]!.x, y: nodes[node]!.y, dx, dy, closedAt: null });
   }
 
   return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots, exits };

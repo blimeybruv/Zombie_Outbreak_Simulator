@@ -11,11 +11,16 @@
 //   the queue those making for it stop short of it and wait, believing they will be
 //             screened and let through (nobody is: there is no screening); they give
 //             it up one by one, as their patience runs out (exits.ts, sims.ts)
+//   the flank some, the less trusting, try to get round instead, along the kerb past
+//             the barrier's end and out at the edge. Whether the unit there fires on
+//             them is its own, drawn when it arrives and never shown: you find out
+//             when someone tries (combat.ts cordonFire)
 
 import type { Context } from '../context';
 import { admit } from '../counters';
+import { chance } from '../rng';
 import { spawnSim } from '../spawn';
-import type { Exit, World } from '../state';
+import type { Exit, Vec2, World } from '../state';
 
 /** The barrier's middle: setback metres in from the edge, across the highway. */
 export function barrierAt(world: World, e: Exit): { x: number; y: number } {
@@ -30,6 +35,23 @@ export function queueAt(world: World, e: Exit): { x: number; y: number } {
   return { x: b.x - e.dx * g, y: b.y - e.dy * g };
 }
 
+/**
+ * Getting round a closed barrier on one side of the road: `beside`, on the kerb level
+ * with the barrier's end, then `out`, on the same kerb at the edge of the map.
+ */
+export function flank(world: World, e: Exit, side: 1 | -1): { beside: Vec2; out: Vec2 } {
+  const w = world.streets[e.street]!.width / 2 + world.config.cordon.kerb;
+  const nx = -e.dy * side * w, ny = e.dx * side * w;
+  const b = barrierAt(world, e);
+  return { beside: { x: b.x + nx, y: b.y + ny }, out: { x: e.x + nx, y: e.y + ny } };
+}
+
+/** How far past the barrier, outward along the road, a point is (negative inside it). */
+export function pastBarrier(world: World, e: Exit, x: number, y: number): number {
+  const b = barrierAt(world, e);
+  return (x - b.x) * e.dx + (y - b.y) * e.dy;
+}
+
 /** Soldiers arrive at every exit, once; barriers close as squads reach their posts. Building processes. */
 export function updateCordon(world: World, ctx: Context): void {
   const { config, tick, exits, sims } = world;
@@ -40,6 +62,7 @@ export function updateCordon(world: World, ctx: Context): void {
       const b = barrierAt(world, e);
       const post = { x: b.x + e.dx * cc.post, y: b.y + e.dy * cc.post };
       let leader = -1;
+      const fires = chance(world.rng, cc.fireShare); // the unit's, not the soldier's
       for (let i = 0; i < config.squads.size; i++) {
         const s = spawnSim(world, { x: e.x, y: e.y, insideBuilding: null, sourceTag: 'policeStation', initialPanic: 0, destinationKind: null, aware: true });
         admit(world, 'unturned.outdoors');
@@ -54,6 +77,7 @@ export function updateCordon(world: World, ctx: Context): void {
         if (leader < 0) leader = s.id;
         s.squadLeader = leader as typeof s.id;
         s.squadSlot = i;
+        s.firesOnCrossers = fires;
         if (i === 0) s.post = post;
       }
     }

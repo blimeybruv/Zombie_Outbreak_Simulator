@@ -12,6 +12,8 @@ import { isFirearm } from '../state';
 import { modeOf } from './panic';
 import { recognisedWithin } from './perception';
 import { emitStimulus } from './stimuli';
+import { pastBarrier } from './cordon';
+import { nearestExit } from './exits';
 import { mobilise } from './squads';
 
 /** Kills a zombie: it stays in the array, destroyed. */
@@ -67,7 +69,7 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
   }
 }
 
-export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach'): void {
+export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot'): void {
   const from = simLeaf(victim);
   if (from === null || victim.condition === 'dead') return;
   victim.condition = 'dead';
@@ -113,7 +115,10 @@ function sims(world: World, ctx: Context): void {
       target = z;
       targetD = d;
     }
-    if (target === null) continue;
+    if (target === null) {
+      if (sim.firesOnCrossers && usable && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger) cordonFire(world, ctx, sim, ranged);
+      continue;
+    }
 
     if (usable) {
       const hits: Zombie[] = [target];
@@ -153,6 +158,35 @@ function sims(world: World, ctx: Context): void {
       bite(world, ctx, sim);
     }
   }
+}
+
+/**
+ * A cordon soldier whose unit fires on those getting round its barrier, with no dead
+ * in reach: at the nearest come within fireLine of the barrier — trying to pass it,
+ * not just stepping out of the queue — in range and in sight; the ordinary ranged
+ * roll, and the ordinary noise, which the dead come to. The one place a survivor is
+ * shot at by anyone, and only here.
+ */
+type RangedProfile = World['config']['combat']['ranged']['rifle'];
+
+function cordonFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile): void {
+  const { config, tick } = world;
+  let target: Sim | null = null;
+  let targetD = Infinity;
+  for (const s of world.sims) {
+    if (s.crossing === null || s.destinationKind !== 'leave' || !isOutdoorLiving(s) || s.car !== null) continue;
+    const e = world.exits[nearestExit(world, s.destination!.x, s.destination!.y)!]!;
+    if (pastBarrier(world, e, s.x, s.y) < -config.cordon.fireLine) continue; // not yet trying to pass
+    const d = Math.hypot(s.x - sim.x, s.y - sim.y);
+    if (d > ranged.range || d >= targetD || !ctx.map.lineOfSight(sim.x, sim.y, s.x, s.y)) continue;
+    target = s;
+    targetD = d;
+  }
+  if (target === null) return;
+  if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range))) killSim(world, ctx, target, 'shot');
+  sim.ammo -= ranged.ammoPerAttack;
+  sim.nextAttackAt = tick + ranged.cooldown;
+  emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);
 }
 
 /**

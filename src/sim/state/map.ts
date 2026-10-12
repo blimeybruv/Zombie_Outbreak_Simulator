@@ -36,7 +36,7 @@ export interface Exit {
   x: Metres;
   /** @range 0–3200 @unit m @readBy render */
   y: Metres;
-  /** Outward, along the highway: off the map. @range unit vector @unit — @readBy render */
+  /** Outward along the highway's last segment: off the map. @range unit vector @unit — @readBy render */
   dx: number;
   /** @range unit vector @unit — @readBy render */
   dy: number;

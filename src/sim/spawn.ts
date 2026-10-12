@@ -239,6 +239,8 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     post: null,
     queuedSince: null,
     knownClosed: 0,
+    crossing: null,
+    firesOnCrossers: false,
     crew: null,
     carriedBy: null,
     ambulanceCalledAt: null,

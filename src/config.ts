@@ -465,9 +465,16 @@ export const config = {
   // segment is impassable, and nobody passes. Those making for it queue `queueGap`
   // metres inside it, believing they will be screened and let through, and wait —
   // patience × (½ + their trust) ticks — before giving the exit up for another, or for
-  // shelter. A car reaching a closed barrier is left there; the cars behind it stop.
-  // Soldiers are outsiders: the invariant counts them on top of the population — guesses
-  cordon: { delay: 1800, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15 },
+  // shelter — or, at `cross` × (1 − trust), try to get round it instead: along the
+  // kerb, `kerb` metres outside the road's edge, past the barrier and out at the edge.
+  // Whether a unit fires on them is its own (fireShare of units do, drawn once each,
+  // never shown): those that do shoot at anyone getting round, once within fireLine
+  // metres of the barrier, in rifle range —
+  // gunfire, which the dead come to; those that do not let them bleed out round the
+  // flanks, bitten or not. A car reaching a closed barrier is left there; the cars
+  // behind it stop. Soldiers are outsiders: the invariant counts them on top of the
+  // population — guesses
+  cordon: { delay: 1800, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not
