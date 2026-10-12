@@ -16,7 +16,7 @@
 //      cut back to a driveway; parking in front, one large building behind.
 
 import type { Config } from '../../config';
-import { chance, createRng, nextFloat, nextInt, type RngState } from '../rng';
+import { chance, cloneRng, createRng, nextFloat, nextInt, type RngState } from '../rng';
 import {
   FLAVOUR_TAGS,
   type Building,
@@ -124,6 +124,7 @@ function offAxis(h: number): number {
 
 export function generateMap(config: Config, mapSeed: number, power: boolean): GeneratedMap {
   const rng = createRng(mapSeed);
+  const mapRng = rng;
   const mc = config.map;
   const size = mc.size;
   const n = mc.districtGrid;
@@ -316,6 +317,9 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   // a highway, bridged where it crosses the river.
   const exitEnds: { line: number; at: Pt; inward: Pt }[] = [];
   if (config.features.exits) {
+    // Drawn from a copy of the stream, so the rest of the city is the same with exits or
+    // without: switching them off then removes the highways and nothing else.
+    const rng = cloneRng(mapRng);
     const ends: { line: number; at: Pt; inward: Pt }[] = [];
     lines.forEach((l, i) => {
       if (l.kind !== 'main' || i >= 2 * (n + 1)) return; // the boundary lines come first, two per k

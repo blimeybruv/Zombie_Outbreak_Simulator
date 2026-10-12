@@ -218,8 +218,8 @@ export const config = {
   // `share` of the residents still in each of its buildings out together, aware and
   // leaving, `perBuildingPerTick` at a time, each for a building between minDistance
   // and maxDistance away (the most robust of `sample` drawn at random; failing any in
-  // range, the farthest): far enough to drive. Driven by the district's own state, not
-  // the clock, so it happens where and when the outbreak arrives, and a neighbourhood
+  // range, the farthest) — with exits, the nearest exit instead (exits.ts). Driven by
+  // the district's own state, not the clock, so it happens where and when the outbreak arrives, and a neighbourhood
   // empties onto the roads while the next is calm — guesses; threshold is for sweeping
   evacuation: { threshold: 0.07, interval: 30, share: 0.5, perBuildingPerTick: 1, minDistance: 800, maxDistance: 2000, sample: 8 },
 

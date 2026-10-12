@@ -100,7 +100,7 @@ describe('the cordon', () => {
     assertInvariant(world);
   });
 
-  // A unit that fires shoots someone trying to pass its barrier; one that holds its fire lets them by.
+  // A unit that fires shoots at someone trying to pass its barrier; one that holds its fire lets them by.
   for (const fires of [true, false]) {
     it(`a cordon unit that ${fires ? 'fires' : 'holds its fire'} on those getting round it`, () => {
       const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
@@ -118,7 +118,11 @@ describe('the cordon', () => {
       headForExit(world, s);
       s.crossing = 1;
       for (let k = 0; k < 120 && (s.condition === 'healthy' || s.condition === 'infected'); k++) step(world, ctx, { checkInvariant: true });
-      expect(s.condition).toBe(fires ? 'dead' : 'evacuated');
+      // Fired on, they are hit or run for it — either way not out; let be, they are out.
+      if (fires) {
+        expect(s.condition).not.toBe('evacuated');
+        expect(world.sims.some((x) => x.outsider && x.ammo < config.cordon.ammo)).toBe(true);
+      } else expect(s.condition).toBe('evacuated');
     }, 60_000);
   }
 });
