@@ -52,7 +52,6 @@ const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const EXIT_ARROW_PX = 26; // css px: the exit arrow's reach, big enough to hold the word
 const EXIT_NEAR_ALPHA = 0.18; // faint at near zoom, over whoever is at the exit
-const EXIT_LABEL_M = 47; // near zoom: the written word's distance in from the edge, just past the barrier
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const BARRIER_HALF_M = 18; // m: half its length, across a 28 m highway
 // A gathering of three or more: a faint ring round it.
@@ -552,9 +551,8 @@ export class Renderer {
 
   /**
    * Ways off the map: an arrow at the edge pointing out along the highway, the word cut
-   * out of it as negative space. At near zoom the arrow is faint, as it sits over whoever
-   * is at the exit, and the word is written out instead, further in: over the barrier
-   * once there is one.
+   * out of it as negative space, at every zoom — faint at near zoom, where it would
+   * otherwise sit over whoever is at the exit.
    */
   private drawExits(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
     const e = this.map.exits;
@@ -586,16 +584,6 @@ export class Renderer {
       g.translate(x - dx * back, y - dy * back);
       g.scale(px, px);
       g.drawImage(c, -R, -R);
-      g.restore();
-      if (cam.mode !== 'near') continue;
-      g.save();
-      g.fillStyle = P.EXIT;
-      g.font = `${Math.round(11 * dpr)}px system-ui, sans-serif`;
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.translate(x - dx * EXIT_LABEL_M, y - dy * EXIT_LABEL_M);
-      g.scale(px, px);
-      g.fillText('EXIT', 0, 0);
       g.restore();
     }
   }
