@@ -1217,6 +1217,14 @@ A vector dressed as a rescue (`systems/emt.ts`, `config.emt`). A bitten sim call
 - **Drawn** white and as long as a SWAT van; moving, a red light flashing on and off (US practice: the city dials 911).
 - **Measured** (seeds 1–3, to tick 15,000): 4 hospitals with a crew each; 26–45 calls a run, 5 sent, 0–1 patients admitted (each that was, turned there); nearly every crew dead by the end, most on its first job. A trickle, as the belief rule intends; one crew a hospital is spent quickly. Off with `features.emt`.
 
+### Exits
+
+The map had none: its edge is a ring road, and nothing left. Evacuation therefore sent people to buildings far across the city, scattering in every direction (measured: with evacuation at 10%, never more than three cars stopped on any one street at once, the same as without it; abandoned cars piled up one at a time, up to ten on a street, not in a queue). What a jam, and a cordon, need is scarcity: a few ways out, each fed by an arterial that converges on it.
+
+So the generator marks `map.exits.count` (3) of the district-boundary arterials — which already run straight from edge to edge — as highways (28 m, always lit), each leaving the map at one end (`World.exits`: the edge node, the last segment, the outward direction). The first end is drawn at random, each next at random among ends at least half the map from those chosen (one a line); ends where the river meets the edge are passed over. A highway that crosses the river is bridged there — the natural chokepoint, where a cordon would stand and abandoned cars could close the way out (two of three highways cross it on maps 1–5). Exits differ by map seed, not by run. Drawn as an amber arrow at the edge, pointing out, with the word, at every zoom.
+
+Nothing uses them yet: evacuees still go to far buildings. Sending them to the exits — and what happens to someone who leaves (`unturned.rescued`) — comes next, with the cordon. Off with `features.exits`.
+
 ### Evacuation
 
 The release at tick 600 was a cold-start fix — people onto the streets so the map is not dead — and it stays exactly as it was. But at tick 600 only 77 of 8,592 buildings know of the outbreak (seed 1), so release and awareness are two unrelated things at the same moment by accident: 674 of 883 released walked out unaware. Traffic was sparse (at most about 30 cars driving) because people learned in a trickle and left one at a time; a jam needs simultaneity.

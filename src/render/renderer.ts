@@ -333,6 +333,7 @@ export class Renderer {
     g.stroke(this.groundsPath);
     if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
+    this.drawExits(g, cam, dpr);
     if (!far) this.drawCars(g, frame, cam, dpr, false);
     return c;
   }
@@ -538,6 +539,34 @@ export class Renderer {
         g.arc(lx, ly, r, 0, Math.PI * 2);
         g.fill();
       }
+    }
+  }
+
+  /** Ways off the map: an arrow at the edge pointing out along the highway, and the word, at every zoom. */
+  private drawExits(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
+    const e = this.map.exits;
+    const px = 1 / (cam.scale * dpr); // one device pixel in metres
+    const r = Math.max(14, 16 * px);
+    g.fillStyle = P.EXIT;
+    g.font = `${Math.round(11 * dpr)}px system-ui, sans-serif`;
+    for (let i = 0; i < e.length; i += 4) {
+      const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!;
+      const nx = -dy, ny = dx;
+      const tx = x - dx * r * 1.2, ty = y - dy * r * 1.2; // just inside the edge
+      g.beginPath();
+      g.moveTo(tx + dx * r, ty + dy * r);
+      g.lineTo(tx - dx * r * 0.4 + nx * r * 0.8, ty - dy * r * 0.4 + ny * r * 0.8);
+      g.lineTo(tx - dx * r * 0.4 - nx * r * 0.8, ty - dy * r * 0.4 - ny * r * 0.8);
+      g.closePath();
+      g.fill();
+      // The label, in screen pixels, further in.
+      g.save();
+      g.translate(tx - dx * r * 2.2, ty - dy * r * 2.2);
+      g.scale(px, px);
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('EXIT', 0, 0);
+      g.restore();
     }
   }
 

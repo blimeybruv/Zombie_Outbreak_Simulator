@@ -133,6 +133,7 @@ function mapSnapshot(w: World): MapSnapshot {
     origins,
     doors: new Float32Array(doors),
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
+    exits: new Float32Array(w.exits.flatMap((e) => [e.x, e.y, e.dx, e.dy])),
     lots: new Float32Array(w.lots.flatMap((l) => [...l.outline.flatMap((p) => [p.x, p.y]), l.parkingDepth, l.entry])),
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),
     streetNames: w.streets.map((s) => s.name),

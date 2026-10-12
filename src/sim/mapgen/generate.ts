@@ -23,6 +23,7 @@ import {
   type BuildingId,
   type BuildingTag,
   type District,
+  type Exit,
   type Lot,
   type DistrictId,
   type DistrictKind,
@@ -64,9 +65,10 @@ export interface GeneratedMap {
   districts: District[];
   river: River;
   lots: Lot[];
+  exits: Exit[];
 }
 
-type LineKind = 'main' | 'standard' | 'alley';
+type LineKind = 'highway' | 'main' | 'standard' | 'alley';
 
 interface Line {
   a: Pt;
@@ -238,7 +240,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   for (const e of grid.edges) {
     degree[e.a]!++;
     degree[e.b]!++;
-    if (lines[e.line]!.kind === 'main') onMain[e.a] = onMain[e.b] = 1;
+    if ((lines[e.line]!.kind === 'main' || lines[e.line]!.kind === 'highway')) onMain[e.a] = onMain[e.b] = 1;
   }
   const inner = (p: Pt) => p.x > size * 0.12 && p.x < size * 0.88 && p.y > size * 0.12 && p.y < size * 0.88;
   const nearestNode = (p: Pt, ok: (id: number) => boolean): number => {
@@ -308,6 +310,37 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     lines[lines.length - 1]!.bridge = dgl.bridge;
   }
 
+  const lerpTo = (p: Pt, q: Pt, d: number) => add(p, scale(unit(sub(q, p)), d));
+  // Ways off the map: of the district-boundary arterials' ends on the map edge, the
+  // first at random, each next the farthest from those chosen. Each chosen line becomes
+  // a highway, bridged where it crosses the river.
+  const exitEnds: { line: number; at: Pt; inward: Pt }[] = [];
+  if (config.features.exits) {
+    const ends: { line: number; at: Pt; inward: Pt }[] = [];
+    lines.forEach((l, i) => {
+      if (l.kind !== 'main' || i >= 2 * (n + 1)) return; // the boundary lines come first, two per k
+      // On the edge, and dry: where the river meets the edge, the street is cut out of it.
+      const onEdge = (p: Pt) => (p.x <= 0 || p.y <= 0 || p.x >= size || p.y >= size) && !wet(p) && !wet(lerpTo(p, l.a === p ? l.b : l.a, 40));
+      if (onEdge(l.a)) ends.push({ line: i, at: l.a, inward: unit(sub(l.b, l.a)) });
+      if (onEdge(l.b)) ends.push({ line: i, at: l.b, inward: unit(sub(l.a, l.b)) });
+    });
+    if (ends.length > 0) exitEnds.push(ends[nextInt(rng, 0, ends.length - 1)]!);
+    // Each next: at random among those at least spreadFrom × the map from every one
+    // chosen (so runs differ), failing any, the farthest; one exit a line.
+    while (exitEnds.length < mc.exits.count) {
+      const free = ends.filter((e) => !exitEnds.some((x) => x.line === e.line));
+      if (free.length === 0) break;
+      const gap = (e: (typeof ends)[number]) => Math.min(...exitEnds.map((x) => dist(x.at, e.at)));
+      const apart = free.filter((e) => gap(e) >= mc.exits.spreadFrom * size);
+      exitEnds.push(apart.length > 0 ? apart[nextInt(rng, 0, apart.length - 1)]! : free.reduce((p, q) => (gap(q) > gap(p) ? q : p)));
+    }
+    for (const e of exitEnds) {
+      const l = lines[e.line]!;
+      l.kind = 'highway';
+      if (crossesRiver(l.a, l.b)) l.bridge = true;
+    }
+  }
+
   // Bridges: the crossing diagonal plus lines spread along the river, mains preferred.
   const along = (p: Pt) => (p.x + 50) / (size + 100); // river position, 0–1, by x
   const crossing = (l: Line): Pt | null => {
@@ -326,7 +359,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       return p !== null && !l.bridge && Math.floor(along(p) * parts) === part && l.kind !== 'alley';
     });
     if (candidates.length === 0) continue;
-    const weights = Object.fromEntries(candidates.map((l, i) => [String(i), l.kind === 'main' ? 3 : 1])) as Record<string, number>;
+    const weights = Object.fromEntries(candidates.map((l, i) => [String(i), l.kind === 'main' || l.kind === 'highway' ? 3 : 1])) as Record<string, number>;
     const chosen = candidates[Number(pickWeighted(rng, weights))]!;
     chosen.bridge = true;
     bridged.push(along(crossing(chosen)!));
@@ -343,7 +376,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     while (usedNames.has(name)) name = `${name} North`;
     usedNames.add(name);
     line.name = name;
-    line.lit = power && (line.kind === 'main' || chance(rng, kindOf(line.district).lightingCoverage));
+    line.lit = power && (line.kind === 'main' || line.kind === 'highway' || chance(rng, kindOf(line.district).lightingCoverage));
   }
 
   // 5. Cut lines out of the river (bridges excepted), then planarise everything.
@@ -384,7 +417,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     const faceOf: number[][] = graph.edges.map(() => []);
     fs.forEach((f, fi) => f.edges.forEach((e) => faceOf[e]!.includes(fi) || faceOf[e]!.push(fi)));
     const onMain = new Uint8Array(graph.nodes.length);
-    for (const e of graph.edges) if (lines[e.line]!.kind === 'main') onMain[e.a] = onMain[e.b] = 1;
+    for (const e of graph.edges) if ((lines[e.line]!.kind === 'main' || lines[e.line]!.kind === 'highway')) onMain[e.a] = onMain[e.b] = 1;
     const sites: { id: number; score: number }[] = [];
     graph.edges.forEach((e, id) => {
       const l = lines[e.line]!;
@@ -637,7 +670,23 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     }
   }
 
-  return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots };
+  // Each exit: the edge node at the highway's end, and its last segment.
+  const exits: Exit[] = [];
+  for (const e of exitEnds) {
+    let node = -1, nodeD = Infinity;
+    nodes.forEach((p, id) => {
+      const d = dist(p, e.at);
+      if (d < nodeD) {
+        nodeD = d;
+        node = id;
+      }
+    });
+    const street = graph.edges.findIndex((g) => g.line === e.line && (g.a === node || g.b === node));
+    if (node < 0 || street < 0) continue;
+    exits.push({ node: node as NodeId, street: street as StreetId, x: nodes[node]!.x, y: nodes[node]!.y, dx: -e.inward.x, dy: -e.inward.y });
+  }
+
+  return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots, exits };
 }
 
 interface MallLayout {

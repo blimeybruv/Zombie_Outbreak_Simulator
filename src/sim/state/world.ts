@@ -12,7 +12,7 @@ import type { Building } from './building';
 import type { Car } from './car';
 import type { Counters } from './counters';
 import type { SimEvent } from './events';
-import type { District, Lot, River, Street, StreetNode } from './map';
+import type { District, Exit, Lot, River, Street, StreetNode } from './map';
 import type { Archetype, Sim } from './sim';
 import type { Stimulus } from './stimulus';
 import type { Count, Metres, SimId, Tick, Unit01 } from './units';
@@ -101,6 +101,8 @@ export interface World {
   river: River;
   /** A mall's grounds; empty when the map has no mall. @range 0–1 lots @unit — @readBy render */
   lots: Lot[];
+  /** Ways off the map (map generation). @range 0–exits.count @unit — @readBy render */
+  exits: Exit[];
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

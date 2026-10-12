@@ -13,7 +13,14 @@ export const config = {
   map: {
     size: 3200, // m, square
     blockPitch: 80, // m, map default; a district kind's blockPitch overrides it
-    streetWidth: { alley: 6, standard: 12, main: 20 }, // m
+    streetWidth: { alley: 6, standard: 12, main: 20, highway: 28 }, // m
+    // Ways off the map: `count` of the district-boundary arterials (which already run
+    // edge to edge) become highways, each leaving the map at one end — the first end
+    // drawn at random, each next at random among ends at least spreadFrom × the map from
+    // those chosen (the farthest, failing any); ends in the river are passed over. A highway that
+    // crosses the river is bridged there: the natural chokepoint. Everywhere else the
+    // edge is a closed ring road — guess
+    exits: { count: 3, spreadFrom: 0.5 },
     spatialHashCell: 32, // m; the reference's 16 m is below every perception radius, and the per-rebuild cell scan dominated
     districtGrid: 3, // 3×3 districts of ~1067 m
     // Row-major from the top-left. Downtown centre, industrial in one corner, suburbs around.
@@ -137,6 +144,7 @@ export const config = {
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
   //   evacuation      districts never evacuate: the release at the start is the only one
+  //   exits           no highways out: the map is closed
   //   yards           no service yards: stations and hospitals park one vehicle at the kerb
   //   swat            no SWAT squads or vans
   //   emt             no ambulances: nobody calls one
@@ -144,6 +152,7 @@ export const config = {
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    exits: true,
     yards: true,
     emt: true,
     swat: true,

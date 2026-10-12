@@ -22,6 +22,26 @@ export interface StreetNode {
   y: Metres;
 }
 
+/**
+ * A way off the map: where a highway meets the map edge. Two or three per map, each
+ * fed by an arterial that runs toward it across the city, so traffic for it converges
+ * before it arrives.
+ */
+export interface Exit {
+  /** The edge node it leaves from. @range node id @unit id @readBy render */
+  node: NodeId;
+  /** The highway's last segment before the edge. @range street id @unit id @readBy render */
+  street: StreetId;
+  /** @range 0–3200 @unit m @readBy render */
+  x: Metres;
+  /** @range 0–3200 @unit m @readBy render */
+  y: Metres;
+  /** Outward, along the highway: off the map. @range unit vector @unit — @readBy render */
+  dx: number;
+  /** @range unit vector @unit — @readBy render */
+  dy: number;
+}
+
 /** A street segment: a straight edge between two nodes. Length is derived from them. */
 export interface Street {
   /** Memory table key. @range 0–streets @unit id @readBy everything */
@@ -32,7 +52,7 @@ export interface Street {
   a: NodeId;
   /** @range node id @unit id @readBy pathfinding, steering, render */
   b: NodeId;
-  /** Alley 6, standard 12, main 20; a sim is on the street within width/2 of the centreline. @range 6–20 @unit m @readBy street membership, spawn weighting, render */
+  /** Alley 6, standard 12, main 20, highway 28; a sim is on the street within width/2 of the centreline. @range 6–28 @unit m @readBy street membership, spawn weighting, render */
   width: Metres;
   /** @range 4 values @unit enum @readBy perception radius */
   terrain: Terrain;

@@ -24,6 +24,7 @@ export const SIREN_BLUE = '#3b7bff';
 export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
 export const SIREN_BLUE_GLOW = 'rgba(59, 123, 255, 0.28)';
 export const AMBULANCE = '#f2f2ee'; // white
+export const EXIT = '#e8c35a'; // a way off the map: amber, like a road sign
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike

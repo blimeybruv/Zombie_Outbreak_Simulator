@@ -15,6 +15,7 @@ export const STREET_ROOTS = [
 
 export const SUFFIXES = {
   main: ['Road', 'Avenue', 'High Street', 'Parade'],
+  highway: ['Highway', 'Expressway', 'Bypass'],
   standard: ['Street', 'Road', 'Way', 'Row', 'Place', 'Close', 'Terrace', 'Gardens'],
   alley: ['Lane', 'Alley', 'Passage', 'Mews', 'Yard'],
 };

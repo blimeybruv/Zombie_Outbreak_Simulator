@@ -128,6 +128,23 @@ describe('map generator', () => {
     }
   });
 
+  it.each([1, 2, 3, 4])('leaves by a few highways, each meeting the map edge (map seed %i)', (seed) => {
+    const m = generateMap(config, seed, true);
+    expect(m.exits).toHaveLength(config.map.exits.count);
+    const size = config.map.size;
+    for (const e of m.exits) {
+      const s = m.streets[e.street]!;
+      expect(s.width).toBe(config.map.streetWidth.highway);
+      expect(e.x <= 1 || e.y <= 1 || e.x >= size - 1 || e.y >= size - 1).toBe(true);
+      expect(s.a === e.node || s.b === e.node).toBe(true);
+      // Outward: a step along it leaves the map.
+      const out = { x: e.x + e.dx * 10, y: e.y + e.dy * 10 };
+      expect(out.x < 0 || out.y < 0 || out.x > size || out.y > size).toBe(true);
+    }
+    // Spread out: no two at the same corner of the map.
+    for (let i = 0; i < m.exits.length; i++) for (let j = i + 1; j < m.exits.length; j++) expect(Math.hypot(m.exits[i]!.x - m.exits[j]!.x, m.exits[i]!.y - m.exits[j]!.y)).toBeGreaterThan(size / 4);
+  });
+
   it.each([1, 2, 3])('builds one mall on grounds reached by a driveway (map seed %i)', (seed) => {
     const m = generateMap(config, seed, true);
     const malls = m.buildings.filter((b) => b.tag === 'mall');
