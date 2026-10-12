@@ -60,6 +60,17 @@ export function makePolice(world: World, sim: Sim): void {
   }
   sim.weapon = 'pistol';
   sim.ammo = config.startingKit.policeAmmo;
+  sim.muster = null;
+  sim.depot = null;
+}
+
+/** A reservist off duty: pistolShare of them carry a pistol of their own (its muster and depot are set with the rest). */
+function armReservist(world: World, sim: Sim): void {
+  const { config, rng } = world;
+  if (chance(rng, config.reservists.pistolShare)) {
+    sim.weapon = 'pistol';
+    sim.ammo = config.reservists.pistolAmmo;
+  }
 }
 
 /** The scenario mix, with the profession's archetype weighted up: labels bias, they do not override. */
@@ -67,6 +78,10 @@ function archetypeFor(rng: RngState, profession: Profession, world: World): Arch
   const { config } = world;
   const leaning = config.professionArchetype[profession];
   const weights = { ...world.scenario.archetypeMix };
+  // Reservists are drawn like anyone, at instantiation: civilians until the call-up, they
+  // need no identity before it, and placing them from the start made them an eighth of
+  // everyone tracked at tick zero, against a fiftieth of the city.
+  weights.reservist = config.features.reservists && nearestArmoury(world, 0, 0) !== null ? config.reservists.share : 0;
   weights[leaning as Archetype] *= config.professionBias;
   return weighted(rng, weights, ARCHETYPES);
 }
@@ -263,6 +278,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     sim.buildingMemory.set(church, { believedOccupants: b.residents, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false });
   }
   if (archetype === 'police') makePolice(world, sim);
+  if (archetype === 'reservist') armReservist(world, sim);
   world.sims.push(sim);
   return sim;
 }

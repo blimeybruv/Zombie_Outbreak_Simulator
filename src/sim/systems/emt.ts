@@ -43,6 +43,10 @@ function placeCrew(world: World, ctx: Context, b: Building): void {
     if (!takeStaff(world, b)) break;
     const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
     sim.archetype = 'civilian';
+    sim.muster = null; // not a reservist on duty, whatever it was drawn as; and no firearm
+    sim.depot = null;
+    sim.weapon = null;
+    sim.ammo = 0;
     sim.crew = car.id;
     sim.shelter = b.id;
     sim.destinationKind = 'shelter';

@@ -54,13 +54,15 @@ function pass(world: World, ctx: ReturnType<typeof fresh>['ctx']): void {
 }
 
 describe('reservists', () => {
-  it('have armouries to go to, spread across the map, and are placed from the residents', () => {
+  it('have armouries to go to, spread across the map, and are drawn like anyone when instantiated', () => {
     const { world } = fresh();
     const arms = world.buildings.filter((b) => b.weaponStock !== null);
     expect(arms).toHaveLength(config.reservists.armouries);
     for (const b of arms) expect(b.tag).toBe('depot');
+    // In proportion among the tracked: about reservists.share of them, not placed ahead of everyone.
     const r = world.sims.filter((s) => s.archetype === 'reservist');
-    expect(r.length).toBeGreaterThan(0.8 * config.reservists.share * defaultScenario.population);
+    expect(r.length).toBeGreaterThan(0);
+    expect(r.length / world.sims.length).toBeLessThan(3 * config.reservists.share);
     for (const s of r) {
       expect(s.muster).toBe('reserve');
       expect(arms.map((b) => b.id)).toContain(s.depot);

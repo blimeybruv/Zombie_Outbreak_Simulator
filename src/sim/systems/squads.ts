@@ -21,7 +21,6 @@
 
 import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
-import { chance, nextInt } from '../rng';
 import { makePolice, spawnSim, takeStaff } from '../spawn';
 import { isFirearm } from '../state';
 import { capacity, isLiving, leaveTalk } from './common';
@@ -536,41 +535,3 @@ export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget |
   return { x: shot.x, y: shot.y, building: null };
 }
 
-/**
- * Reservists, `reservists.share` of the population, are taken from the residents of
- * buildings across the city (weighted by residents) and tracked from the start: each
- * an ordinary civilian part-way through a routine stop where it stands. Called once
- * at setup, after the residents are placed; with no armoury, nobody is called up, so
- * none are placed.
- */
-export function placeReservists(world: World): void {
-  const { config, buildings, rng, tick } = world;
-  if (nearestArmoury(world, 0, 0) === null) return;
-  let left = Math.round(world.scenario.population * config.reservists.share);
-  while (left > 0) {
-    let total = 0;
-    for (const b of buildings) total += b.residents;
-    if (total === 0) return;
-    let r = nextInt(rng, 0, total - 1);
-    const b = buildings.find((x) => (r -= x.residents) < 0)!;
-    // A resident becomes tracked: indoors either way, so the counters do not move.
-    b.residents--;
-    const e = b.entrances[0]!;
-    const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'routine' });
-    b.sheltered.push(sim.id);
-    if (sim.archetype === 'police') continue; // a cop is police, whatever else: tracked, and not counted
-    sim.archetype = 'reservist';
-    sim.muster = 'reserve';
-    const home = sim.home === null ? e : buildings[sim.home]!.entrances[0]!;
-    sim.depot = nearestArmoury(world, home.x, home.y);
-    if (chance(rng, config.reservists.pistolShare)) {
-      sim.weapon = 'pistol';
-      sim.ammo = config.reservists.pistolAmmo;
-    }
-    sim.destinationBuilding = b.id;
-    sim.destination = { x: e.x, y: e.y };
-    sim.idleUntil = tick + nextInt(rng, 0, config.routine.idleTicks[1]!);
-    sim.gait = 'still';
-    left--;
-  }
-}

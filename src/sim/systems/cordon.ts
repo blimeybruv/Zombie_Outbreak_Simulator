@@ -84,6 +84,7 @@ export function updateCordon(world: World, ctx: Context): void {
         s.outsider = true;
         s.archetype = 'reservist';
         s.muster = 'deployed';
+        s.depot = null;
         s.weapon = config.reservists.weapon;
         s.ammo = cc.ammo;
         s.home = null;

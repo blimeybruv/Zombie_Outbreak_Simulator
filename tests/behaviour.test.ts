@@ -413,8 +413,9 @@ describe('the intact dead', () => {
   });
 
   it('loses it on its first grab, bite or miss', () => {
-    const { world, ctx, z } = lookAt(0.5, true);
+    const { world, ctx, s, z } = lookAt(0.5, true);
     z.nextAttackAt = world.tick;
+    s.nextAttackAt = world.tick + 100; // the walker does not strike first (bare hands kill at 0.1)
     resolveCombat(world, ctx);
     expect(z.intact).toBe(false);
   });

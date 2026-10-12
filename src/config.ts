@@ -371,8 +371,8 @@ export const config = {
   // in together once all sent are within carGather. One way, like the SWAT van — guesses
   police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10 },
 
-  // Reservists (archetype 'reservist'; squads.ts): `share` of the population, taken
-  // from residents at the start and tracked from then on — civilians in every way until
+  // Reservists (archetype 'reservist'; squads.ts): `share` of those instantiated, drawn
+  // like any archetype when a resident becomes tracked — civilians in every way until
   // the reserve is activated, once callUpCalls 911 calls have come in (0: at once), and
   // then until called up by something local — a bite or a turning seen, or a shelter falling within sight — never
   // by general awareness, which would call everyone up at once. Then each makes for
@@ -381,7 +381,7 @@ export const config = {
   // weapon if any are left, and waits. `armouries` depots, spread across the map (the one nearest
   // the middle, then each next the farthest from those chosen), hold `weaponStock`
   // weapons each. Off duty, pistolShare of them carry a pistol of their own — guesses
-  reservists: { callUpCalls: 300, share: 0.02, armouries: 2, weaponStock: 12, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.5, pistolAmmo: 12 },
+  reservists: { callUpCalls: 300, share: 0.02, armouries: 2, weaponStock: 12, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.1, pistolAmmo: 12 },
 
   // Squads: reservists waiting armed at a depot deploy as a squad once there are
   // `size` of them, the lowest id leading. Only the leader plans a route; the others

@@ -12,7 +12,7 @@ import { spawnSim, spawnZombie } from './spawn';
 import { emptyCounters, type Building, type Scenario, type World } from './state';
 import { occupierAppeared } from './systems/buildings';
 import { placeFirstResponders } from './systems/dispatch';
-import { designateArmouries, placeReservists, placeSwat } from './systems/squads';
+import { designateArmouries, placeSwat } from './systems/squads';
 import { placeEmts } from './systems/emt';
 import { scheduleRelease } from './systems/release';
 
@@ -223,7 +223,6 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   designateArmouries(world);
   placeResidents(world, scenario.population - outdoors, band);
   placeFirstResponders(world, ctx);
-  placeReservists(world);
   placeSwat(world, ctx);
   placeEmts(world, ctx);
   placeStreetPopulation(world, outdoors);
