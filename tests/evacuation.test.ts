@@ -6,7 +6,7 @@ import { buildingProcesses } from '../src/sim/systems/buildings';
 import { assertInvariant } from '../src/sim/tick';
 
 describe('evacuation', () => {
-  it('a district that comes to know sends people out together, aware and for somewhere far off; its neighbour stays calm', () => {
+  it('a district that comes to know sends people out together, aware and for a way off the map; its neighbour stays calm', () => {
     const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, { ...config, features: { ...config.features, evacuation: true } });
     for (const b of world.buildings) b.alertedAt = null;
     const inD = world.buildings.filter((b) => b.district === 0);
@@ -17,14 +17,13 @@ describe('evacuation', () => {
     expect(ctx.events.some((e) => e.type === 'districtEvacuating' && e.district === 0)).toBe(true);
     expect(world.buildings.filter((b) => b.district !== 0).every((b) => b.pendingEvacuate === 0)).toBe(true);
     // (The first release goes out too, by now, unaware and on routines: not these.)
-    const out = world.sims.slice(before).filter((s) => s.destinationKind === 'shelter');
+    const out = world.sims.slice(before).filter((s) => s.destinationKind === 'leave');
     expect(out.length).toBeGreaterThan(0);
     for (const s of out) {
       expect(s.awareAt).not.toBeNull();
-      expect(s.destinationKind).toBe('shelter');
+      // For an exit: the nearest way off the map.
+      expect(world.exits.some((e) => e.x === s.destination!.x && e.y === s.destination!.y)).toBe(true);
     }
-    const far = out.filter((s) => s.destination !== null && Math.hypot(s.destination.x - s.x, s.destination.y - s.y) >= config.evacuation.minDistance);
-    expect(far.length).toBeGreaterThan(out.length / 2);
     assertInvariant(world);
   });
 });

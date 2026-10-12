@@ -14,9 +14,9 @@ import type { BuildingId, CarId, Metres, Radians, SimId, StreetId, Tick, Vec2 } 
 /**
  * parked: empty, or waiting for the one who claimed it. driving: moving, or stopped
  * in traffic with someone at the wheel. abandoned: left where it stopped; never moves
- * again.
+ * again. gone: driven off the map by an exit; out of play.
  */
-export const CAR_STATES = ['parked', 'driving', 'abandoned'] as const;
+export const CAR_STATES = ['parked', 'driving', 'abandoned', 'gone'] as const;
 export type CarState = (typeof CAR_STATES)[number];
 
 export interface Car {
@@ -32,6 +32,8 @@ export interface Car {
   job: BuildingId | null;
   /** The patient an ambulance has collected; null before, or with none found. @range sim id | null @unit id @readBy EMTs */
   patient: SimId | null;
+  /** Driving for a way off the map: which exit (World.exits); null otherwise. @range exit index | null @unit index @readBy car processes (leaving) */
+  exit: number | null;
   /** Centre. @range 0–3200 @unit m @readBy obstacles, car decisions, render */
   x: Metres;
   /** @range 0–3200 @unit m @readBy obstacles, car decisions, render */

@@ -39,13 +39,13 @@ export type Profession = (typeof PROFESSIONS)[number];
  * Nothing may read another sim's condition to learn whether it is infected —
  * that knowledge travels only through `knownInfected`.
  */
-export const CONDITIONS = ['healthy', 'infected', 'dead', 'turned'] as const;
+export const CONDITIONS = ['healthy', 'infected', 'dead', 'turned', 'rescued'] as const;
 export type Condition = (typeof CONDITIONS)[number];
 
 export const GAITS = ['still', 'sneak', 'walk', 'run', 'sprint'] as const;
 export type Gait = (typeof GAITS)[number];
 
-export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car', 'muster'] as const;
+export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car', 'muster', 'leave'] as const;
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
 
 /**

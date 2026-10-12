@@ -713,6 +713,14 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     }
   }
 
+  // Leaving the city (exits.ts): on to the way off the map, in a car if one is at hand,
+  // running only with danger in sight. Nowhere to shelter on the way.
+  if (sim.destinationKind === 'leave') {
+    sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
+    if (!considerDriving(world, ctx, sim, mode)) travel(world, ctx, sim, mode);
+    return;
+  }
+
   // Those who engage fall back when the danger their unit sees passes what they will
   // stand, or their own shelter threshold, whichever comes first.
   const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve) : threat >= arch.shelterSeekThreshold + nerve;

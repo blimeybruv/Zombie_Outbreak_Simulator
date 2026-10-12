@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -435,6 +435,7 @@ export class Renderer {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
       const state = st[i]! & CAR_STATE_MASK;
+      if (state === CAR_GONE) continue; // off the map
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
       const cruiser = (st[i]! & CAR_CRUISER) !== 0;
       const long = (st[i]! & CAR_VAN) !== 0 || amb;

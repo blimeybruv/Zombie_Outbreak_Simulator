@@ -160,7 +160,15 @@ export interface PoliceRadioEvent extends EventBase, Located {
   count: Count;
 }
 
+export interface SimLeftEvent extends EventBase, Located {
+  /** A sim got off the map by an exit, on foot or driven: rescued. @range literal @unit — @readBy event consumers */
+  type: 'simLeft';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export type SimEvent =
+  | SimLeftEvent
   | PoliceRadioEvent
   | SwatDeployedEvent
   | DistrictEvacuatingEvent

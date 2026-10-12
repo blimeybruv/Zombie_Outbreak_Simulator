@@ -101,8 +101,10 @@ export interface World {
   river: River;
   /** A mall's grounds; empty when the map has no mall. @range 0–1 lots @unit — @readBy render */
   lots: Lot[];
-  /** Ways off the map (map generation). @range 0–exits.count @unit — @readBy render */
+  /** Ways off the map (map generation). @range 0–exits.count @unit — @readBy render, leaving (exits.ts), evacuation */
   exits: Exit[];
+  /** The bitten who got off the map before turning: counted as rescued, carrying it out. @range 0–population @unit people @readBy end stats, sweep */
+  escapedInfected: Count;
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

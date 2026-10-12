@@ -39,6 +39,8 @@ export function simLeaf(sim: Sim): Leaf | null {
       return 'unturned.dead';
     case 'turned':
       return null; // counted through the zombie it became
+    case 'rescued':
+      return 'unturned.rescued'; // left the map by an exit (exits.ts), bitten or not
   }
 }
 

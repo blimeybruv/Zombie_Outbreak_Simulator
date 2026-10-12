@@ -26,6 +26,7 @@ import type { Building, BuildingId, Car, CarId, Sim, World } from '../state';
 import { bite } from './combat';
 import { entranceNearest, leaveTalk, setDestination } from './common';
 import type { Mode } from './panic';
+import { carLeaves, headForExit, nearestExit } from './exits';
 import { emitStimulus } from './stimuli';
 
 const CELL = 10; // m
@@ -66,7 +67,7 @@ export class CarIndex {
     this.halfL = world.config.cars.length / 2;
     this.halfW = world.config.cars.width / 2;
     for (const car of world.cars) {
-      if (car.state === 'driving') continue;
+      if (car.state === 'driving' || car.state === 'gone') continue;
       const r = this.halfL;
       const c0x = this.col(car.x - r), c1x = this.col(car.x + r), c0y = this.col(car.y - r), c1y = this.col(car.y + r);
       for (let cy = c0y; cy <= c1y; cy++) {
@@ -149,6 +150,7 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
     home,
     job: null,
     patient: null,
+    exit: null,
     x,
     y,
     heading,
@@ -251,7 +253,8 @@ export function considerDriving(world: World, ctx: Context, sim: Sim, mode: Mode
   const { config, tick, cars } = world;
   const cc = config.cars;
   if (mode === 'flight' || sim.awareAt === null || sim.car !== null || sim.station !== null) return false;
-  if (sim.destinationKind !== 'shelter' || sim.destinationBuilding === null || sim.destination === null) return false;
+  const leaving = sim.destinationKind === 'leave';
+  if (sim.destination === null || (!leaving && (sim.destinationKind !== 'shelter' || sim.destinationBuilding === null))) return false;
   if ((sim.id + tick) % config.roles.interval !== 0) return false;
   if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= cc.driveBeyond) return false;
   let best: Car | null = null;
@@ -267,6 +270,7 @@ export function considerDriving(world: World, ctx: Context, sim: Sim, mode: Mode
   if (best === null) return false;
   best.claimedBy = sim.id;
   best.destinationBuilding = sim.destinationBuilding;
+  best.exit = leaving ? nearestExit(world, sim.destination.x, sim.destination.y) : null;
   sim.boarding = best.id;
   sim.destinationKind = 'car';
   sim.destinationBuilding = null;
@@ -288,7 +292,8 @@ export function giveUpCar(world: World, sim: Sim): void {
   sim.boarding = null;
   if (c !== null && c.claimedBy === sim.id) c.claimedBy = null;
   const b = c?.destinationBuilding ?? null;
-  if (b !== null) setDestination(sim, world.buildings[b]!, 'shelter');
+  if (c !== null && c.exit !== null) headForExit(world, sim);
+  else if (b !== null) setDestination(sim, world.buildings[b]!, 'shelter');
   else {
     sim.destinationKind = null;
     sim.destination = null;
@@ -342,6 +347,7 @@ function alight(world: World, ctx: Context, car: Car): void {
   car.routeIndex = 0;
   car.destination = null;
   car.destinationBuilding = null;
+  car.exit = null; // anyone making for an exit goes on, on foot
   car.blockedSince = null;
 }
 
@@ -349,6 +355,7 @@ function alight(world: World, ctx: Context, car: Car): void {
 function board(world: World, ctx: Context, sim: Sim, car: Car): void {
   const { config, buildings, sims } = world;
   const cc = config.cars;
+  if (car.exit !== null) return boardForExit(world, ctx, sim, car);
   const b = buildings[car.destinationBuilding!]!;
   const takeIn = (s: Sim) => {
     if (s.gathering !== null) leaveTalk(s, world.tick);
@@ -417,6 +424,31 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
   return true;
 }
 
+/** Gets in to drive off the map, with any on foot beside it making for the same exit, up to capacity. */
+function boardForExit(world: World, ctx: Context, sim: Sim, car: Car): void {
+  const cc = world.config.cars;
+  const e = world.exits[car.exit!]!;
+  const others: Sim[] = [];
+  ctx.simHash.query(car.x, car.y, cc.boardRadius * 2, ctx.ids2);
+  for (const id of ctx.ids2) {
+    const o = world.sims[id]!;
+    if (others.length + 1 >= cc.capacity) break;
+    if (o.id === sim.id || !isOutdoorLiving(o) || o.destinationKind !== 'leave' || o.destination === null) continue;
+    if (Math.hypot(o.destination.x - e.x, o.destination.y - e.y) > 1) continue;
+    others.push(o);
+  }
+  const exit = car.exit;
+  if (!boardSquad(world, ctx, car, [sim, ...others], { x: e.x, y: e.y, building: null })) {
+    car.exit = null;
+    return;
+  }
+  car.exit = exit;
+  for (const s of car.occupants.map((id) => world.sims[id]!)) {
+    s.destinationKind = 'leave';
+    s.destination = { x: e.x, y: e.y };
+  }
+}
+
 /** Car processes, in building processes (step 10): stale claims, boarding, arriving, abandoning. */
 export function carProcesses(world: World, ctx: Context): void {
   const { config, tick, cars, sims } = world;
@@ -443,6 +475,11 @@ export function carProcesses(world: World, ctx: Context): void {
     }
     const last = car.routeIndex >= car.route.length - 1;
     if (last && car.destination !== null && Math.hypot(car.destination.x - car.x, car.destination.y - car.y) <= cc.arriveRadius) {
+      // At a way off the map: everyone in it, and the car, out of play (exits.ts).
+      if (car.exit !== null) {
+        carLeaves(world, ctx, car);
+        continue;
+      }
       car.state = 'parked';
       alight(world, ctx, car);
       continue;

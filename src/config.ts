@@ -20,7 +20,7 @@ export const config = {
     // those chosen (the farthest, failing any); ends in the river are passed over. A highway that
     // crosses the river is bridged there: the natural chokepoint. Everywhere else the
     // edge is a closed ring road — guess
-    exits: { count: 3, spreadFrom: 0.5 },
+    exits: { count: 3, spreadFrom: 0.5, reach: 8 }, // reach: m from the exit's node at which one on foot is through it
     spatialHashCell: 32, // m; the reference's 16 m is below every perception radius, and the per-rebuild cell scan dominated
     districtGrid: 3, // 3×3 districts of ~1067 m
     // Row-major from the top-left. Downtown centre, industrial in one corner, suburbs around.

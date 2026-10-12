@@ -18,6 +18,7 @@ import { merge } from './encounters';
 import { modeOf } from './panic';
 import { armAtDepot, mobilise } from './squads';
 import { dispatchAmbulances, emtEnter } from './emt';
+import { exitArrivals, headForExit } from './exits';
 import { updateEvacuation, updateRelease } from './release';
 import { carProcesses } from './cars';
 import { dispatchCalls, placeCall } from './dispatch';
@@ -397,16 +398,20 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 
-  // Evacuation: out together, knowing, for somewhere far off (release.ts). Calm, not
-  // fleeing: they are leaving before it reaches them.
+  // Evacuation: out together, knowing, for a way off the map (release.ts, exits.ts).
+  // Calm, not fleeing: they are leaving before it reaches them.
   for (let n = 0; n < config.evacuation.perBuildingPerTick && b.pendingEvacuate > 0; n++) {
     b.pendingEvacuate--;
     b.residents--;
     const p = door();
     openDoor(world, b);
     const sim = spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'shelter', aware: true });
-    const to = evacuateTo(world, b);
-    if (to !== null) setDestination(sim, to, 'shelter');
+    // Out of the city by the nearest way off the map (exits.ts); on a map without one,
+    // to somewhere far off.
+    if (!headForExit(world, sim)) {
+      const to = evacuateTo(world, b);
+      if (to !== null) setDestination(sim, to, 'shelter');
+    }
     transfer(world, 'unturned.indoors', 'unturned.outdoors');
   }
 
@@ -562,6 +567,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   updateRelease(world);
   updateEvacuation(world, ctx);
   arrivals(world, ctx);
+  exitArrivals(world, ctx);
   probe('buildings.arrivals');
   exits(world, ctx);
   probe('buildings.exits');

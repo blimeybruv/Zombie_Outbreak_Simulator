@@ -197,6 +197,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     river: map.river,
     lots: map.lots,
     exits: map.exits,
+    escapedInfected: 0,
     cars: [],
     stimuli: [],
     events: [],
