@@ -20,6 +20,7 @@ import { armAtDepot } from './squads';
 import { dispatchAmbulances, emtEnter } from './emt';
 import { exitArrivals, headForExit } from './exits';
 import { pickUpDrops } from './arms';
+import { markResidentRising } from './rising';
 import { updateCordon } from './cordon';
 import { updateEvacuation, updateRelease } from './release';
 import { carProcesses } from './cars';
@@ -386,6 +387,7 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
       b.pendingDie--;
       world.residentDeaths++;
       transfer(world, 'unturned.indoors', 'unturned.dead');
+      markResidentRising(world, b);
       ctx.events.push({ type: 'simDied', tick, sim: null, cause: 'breach', x: centre.x, y: centre.y });
     }
   }

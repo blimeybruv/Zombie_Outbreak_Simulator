@@ -10,6 +10,7 @@ import { chance, nextInt } from '../rng';
 import type { Sim, World, Zombie } from '../state';
 import { isFirearm } from '../state';
 import { dropWeapon } from './arms';
+import { markRising } from './rising';
 import { cornered } from './sims';
 import { modeOf } from './panic';
 import { recognisedWithin } from './perception';
@@ -77,6 +78,7 @@ export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' 
   victim.turnsAt = null;
   victim.history.endedAt = world.tick;
   transfer(world, from, 'unturned.dead');
+  if (cause === 'fedOn') markRising(world, victim); // only the dead's own kills get up
   ctx.events.push({ type: 'simDied', tick: world.tick, sim: victim.id, cause, x: victim.x, y: victim.y });
 }
 

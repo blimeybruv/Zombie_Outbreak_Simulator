@@ -174,6 +174,13 @@ export interface SimLeftEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface BodyRoseEvent extends EventBase, Located {
+  /** Someone the dead killed gets up again (systems/rising.ts). Null for an anonymous resident, inside. @range literal @unit — @readBy event consumers */
+  type: 'bodyRose';
+  /** @range sim id | null @unit id @readBy ticker */
+  sim: SimId | null;
+}
+
 export interface CordonEvadedEvent extends EventBase, Located {
   /** A sim got round a closed exit's barrier, along the kerb, and out (a simLeft follows). @range literal @unit — @readBy event consumers */
   type: 'cordonEvaded';
@@ -189,6 +196,7 @@ export interface CordonClosedEvent extends EventBase, Located {
 }
 
 export type SimEvent =
+  | BodyRoseEvent
   | ReservistsCalledUpEvent
   | CordonClosedEvent
   | CordonEvadedEvent

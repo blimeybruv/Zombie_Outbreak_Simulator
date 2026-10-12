@@ -235,6 +235,13 @@ export const config = {
     professionStopWeight: 3, // multiplier on tags matching the sim's profession — guess
   },
 
+  // Rising (systems/rising.ts): of those the dead kill — fed on in the street or
+  // indoors, or killed in a breach — `chance` get up again `delay` ticks later, where
+  // they fell. A zombie destroyed stays destroyed, and so does anyone shot. The eaten
+  // still rarely spread anything: bites stay the vector, but no place where people
+  // died is safe for good — guesses (the user's: low and late, to avoid a late surge)
+  rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
+
   // Nerve (Sim.nerve, a uniform draw): composure under terror. It breaks when panic
   // passes it (panic.ts breaks). Cornered, a sim whose nerve has gone freezes in shock,
   // armed or not; with the way blocked it will not stand to fight; exhausted (stamina

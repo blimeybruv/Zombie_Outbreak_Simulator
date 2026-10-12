@@ -143,6 +143,8 @@ export interface Building {
   pendingTurn: Count;
   /** Residents queued to die after a breach. @range 0–residents @unit people @readBy building processes */
   pendingDie: Count;
+  /** Residents killed here in a breach who will get up again, by tick (systems/rising.ts), soonest first. @range 0–residents entries @unit tick @readBy rising */
+  risings: Tick[];
   /** Occupiers queued to re-instantiate onto the street, drained under a per-tick cap. @range 0–zombiesInside @unit zombies @readBy building processes */
   pendingSpill: Count;
 }

@@ -549,6 +549,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       pendingExpel: 0,
       pendingTurn: 0,
       pendingDie: 0,
+      risings: [],
       pendingSpill: 0,
     });
   };

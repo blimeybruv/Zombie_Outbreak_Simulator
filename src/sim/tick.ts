@@ -10,6 +10,7 @@ import { buildingProcesses } from './systems/buildings';
 import { resolveCombat } from './systems/combat';
 import { resolveEncounters } from './systems/encounters';
 import { convertDue } from './systems/infection';
+import { riseDue } from './systems/rising';
 import { integrateMovement } from './systems/movement';
 import { updatePanic } from './systems/panic';
 import { computePerception, rebuildHashes } from './systems/perception';
@@ -67,6 +68,7 @@ export function step(world: World, ctx: Context, options: StepOptions): void {
   resolveCombat(world, ctx); //                            7
   probe('combat');
   convertDue(world, ctx); //                               8
+  riseDue(world, ctx); //                                     the dead the dead killed, getting up
   integrateMovement(world, ctx); //                        9
   probe('movement');
   buildingProcesses(world, ctx, probe); //                 10

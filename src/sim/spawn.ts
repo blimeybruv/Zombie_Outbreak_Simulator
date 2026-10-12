@@ -217,6 +217,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     materials: 0,
     nextAttackAt: tick,
     turnsAt: null,
+    risesAt: null,
     infectedChoice: null,
     bites: 0,
     home,
