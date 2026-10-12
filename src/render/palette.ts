@@ -21,10 +21,12 @@ export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a t
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring
 export const SIREN_RED = '#ff3b3b'; // a SWAT van's light bar, taking turns with blue
 export const SIREN_BLUE = '#3b7bff';
+export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
+export const SIREN_BLUE_GLOW = 'rgba(59, 123, 255, 0.28)';
 export const AMBULANCE = '#f2f2ee'; // white
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
 /** A squad: the thin line from each follower to its leader (near zoom). */
-export const SQUAD = 'rgba(191, 232, 180, 0.45)';
+export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only
 export const INFECTED_PALE = '#e9cf9c';
 export const FIGHT = '#fff1b8'; // a bright warm outline: standing and fighting

@@ -510,7 +510,9 @@ export class Renderer {
   /** A SWAT van on the move: a light bar on the roof, red and blue taking turns; an ambulance's, red, on and off. */
   private drawVanLights(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     const xyh = frame.carXYH, st = frame.carState;
-    const r = Math.max(0.55, 2.2 / (cam.scale * dpr));
+    // At least a few pixels, with a soft glow round each light, so a moving van or
+    // ambulance can be picked out at mid zoom, where the vehicle itself is a speck.
+    const r = Math.max(0.6, 3 / (cam.scale * dpr));
     const swap = Math.floor(wallMs / VAN_FLASH_MS) % 2 === 1;
     for (let i = 0; i < st.length; i++) {
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
@@ -521,9 +523,15 @@ export class Renderer {
       // Across the cab, a little forward of the middle.
       for (const side of [1, -1]) {
         const u = VAN_L * 0.15, v = side * CAR_W * 0.28;
-        g.fillStyle = amb || (side === 1) !== swap ? P.SIREN_RED : P.SIREN_BLUE;
+        const red = amb || (side === 1) !== swap;
+        const lx = x + c * u - s * v, ly = y + s * u + c * v;
+        g.fillStyle = red ? P.SIREN_RED_GLOW : P.SIREN_BLUE_GLOW;
         g.beginPath();
-        g.arc(x + c * u - s * v, y + s * u + c * v, r, 0, Math.PI * 2);
+        g.arc(lx, ly, r * 3, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = red ? P.SIREN_RED : P.SIREN_BLUE;
+        g.beginPath();
+        g.arc(lx, ly, r, 0, Math.PI * 2);
         g.fill();
       }
     }
