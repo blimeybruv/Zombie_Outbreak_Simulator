@@ -58,7 +58,7 @@ export interface Street {
   width: Metres;
   /** @range 4 values @unit enum @readBy perception radius */
   terrain: Terrain;
-  /** @range true/false @unit — @readBy perception radius, detectability, render */
+  /** @range true/false @unit — @readBy perception radius, detectability, combat (a shot in the dark), render */
   lit: boolean;
   /** Permanent obstruction; 1 is impassable (a severed bridge). @range 0–1 @unit scalar @readBy pathfinding, steering */
   blocked: Unit01;

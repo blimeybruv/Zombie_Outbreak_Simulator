@@ -70,6 +70,20 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
   }
 }
 
+/**
+ * How well a target can be made out to be shot at: fully in daylight or under a
+ * streetlight; in the dark, down to combat.darkHit, through each twilight. On the
+ * ranged roll only — perception already has its own day and night radii, and melee is
+ * at arm's length.
+ */
+function seen(world: World, ctx: Context, x: number, y: number): number {
+  const sid = ctx.map.nearestStreet(x, y, world.config.map.offStreetLookup);
+  const lit = sid !== null && world.streets[sid]!.lit;
+  const vis = lit ? 1 : ctx.daylight;
+  const floor = world.config.combat.darkHit;
+  return floor + (1 - floor) * vis;
+}
+
 export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot'): void {
   const from = simLeaf(victim);
   if (from === null || victim.condition === 'dead') return;
@@ -140,7 +154,7 @@ function sims(world: World, ctx: Context): void {
       }
       for (const z of hits) {
         const d = Math.hypot(z.x - sim.x, z.y - sim.y);
-        if (chance(world.rng, ranged.baseKill * (1 - (cc.rangedFalloff * d) / ranged.range))) {
+        if (chance(world.rng, ranged.baseKill * (1 - (cc.rangedFalloff * d) / ranged.range) * seen(world, ctx, z.x, z.y))) {
           destroyZombie(world, z, sim);
           ctx.events.push({ type: 'zombieDestroyed', tick, zombie: z.id, by: sim.id, x: z.x, y: z.y });
         }
@@ -187,7 +201,7 @@ function cordonFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile)
     targetD = d;
   }
   if (target === null) return;
-  if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range))) killSim(world, ctx, target, 'shot');
+  if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) killSim(world, ctx, target, 'shot');
   sim.ammo -= ranged.ammoPerAttack;
   sim.nextAttackAt = tick + ranged.cooldown;
   emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);
@@ -232,7 +246,7 @@ function fromInside(world: World, ctx: Context, sim: Sim): void {
   sim.ammo -= ranged.ammoPerAttack;
   sim.nextAttackAt = tick + ranged.cooldown;
   emitStimulus(world, door.x, door.y, w, ranged.noise, true, undefined, b.id);
-  if (chance(world.rng, ranged.baseKill * (1 - (cc.rangedFalloff * targetD) / ranged.range))) {
+  if (chance(world.rng, ranged.baseKill * (1 - (cc.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) {
     destroyZombie(world, target, sim);
     ctx.events.push({ type: 'zombieDestroyed', tick, zombie: target.id, by: sim.id, x: target.x, y: target.y });
   }

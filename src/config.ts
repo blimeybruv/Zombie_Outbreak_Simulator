@@ -711,6 +711,7 @@ export const config = {
     contactRange: 1.5, // m, for melee and zombie attacks
     armedTargetStagger: 5, // armed sims pick targets when id % 5 === tick % 5
     rangedFalloff: 0.4, // kill = base * (1 - falloff * d / range)
+    darkHit: 0.5, // a shot at a target in the dark (night, no streetlight) kills at this fraction — guess
     indoorNoiseFactor: 0.5, // walls muffle
     // Firing from inside: an armed sim sheltering in an alerted building fires on the dead
     // within this many metres of one of its doors, with the ordinary ranged roll from the
