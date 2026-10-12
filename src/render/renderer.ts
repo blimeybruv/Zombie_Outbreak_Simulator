@@ -50,6 +50,9 @@ const CAR_L = 4.5; // m
 const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
+const EXIT_ARROW_PX = 26; // css px: the exit arrow's reach, big enough to hold the word
+const EXIT_NEAR_ALPHA = 0.18; // faint at near zoom, over whoever is at the exit
+const EXIT_LABEL_M = 47; // near zoom: the written word's distance in from the edge, just past the barrier
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const BARRIER_HALF_M = 18; // m: half its length, across a 28 m highway
 // A gathering of three or more: a faint ring round it.
@@ -547,29 +550,51 @@ export class Renderer {
     }
   }
 
-  /** Ways off the map: an arrow at the edge pointing out along the highway, and the word, at every zoom. */
+  /**
+   * Ways off the map: an arrow at the edge pointing out along the highway, the word cut
+   * out of it as negative space. At near zoom the arrow is faint, as it sits over whoever
+   * is at the exit, and the word is written out instead, further in: over the barrier
+   * once there is one.
+   */
   private drawExits(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
     const e = this.map.exits;
     const px = 1 / (cam.scale * dpr); // one device pixel in metres
-    const r = Math.max(14, 16 * px);
-    g.fillStyle = P.EXIT;
-    g.font = `${Math.round(11 * dpr)}px system-ui, sans-serif`;
+    const R = Math.round(EXIT_ARROW_PX * dpr); // the arrow's reach from its middle, device px
     for (let i = 0; i < e.length; i += 6) {
       const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!;
+      // The arrow, drawn upright in its own little canvas so the word reads level.
+      const c = document.createElement('canvas');
+      c.width = c.height = 2 * R;
+      const a = c.getContext('2d')!;
       const nx = -dy, ny = dx;
-      const tx = x - dx * r * 1.2, ty = y - dy * r * 1.2; // just inside the edge
-      g.beginPath();
-      g.moveTo(tx + dx * r, ty + dy * r);
-      g.lineTo(tx - dx * r * 0.4 + nx * r * 0.8, ty - dy * r * 0.4 + ny * r * 0.8);
-      g.lineTo(tx - dx * r * 0.4 - nx * r * 0.8, ty - dy * r * 0.4 - ny * r * 0.8);
-      g.closePath();
-      g.fill();
-      // The label, in screen pixels, further in.
+      a.fillStyle = P.EXIT;
+      a.beginPath();
+      a.moveTo(R + dx * R, R + dy * R);
+      a.lineTo(R - dx * R * 0.5 + nx * R * 0.9, R - dy * R * 0.5 + ny * R * 0.9);
+      a.lineTo(R - dx * R * 0.5 - nx * R * 0.9, R - dy * R * 0.5 - ny * R * 0.9);
+      a.closePath();
+      a.fill();
+      a.globalCompositeOperation = 'destination-out';
+      a.font = `bold ${Math.round(R * 0.32)}px system-ui, sans-serif`;
+      a.textAlign = 'center';
+      a.textBaseline = 'middle';
+      a.fillText('EXIT', R - dx * R * 0.1, R - dy * R * 0.1);
+      // Placed just inside the edge, in world units.
+      const back = R * px * 1.1;
       g.save();
-      g.translate(tx - dx * r * 2.2, ty - dy * r * 2.2);
+      g.globalAlpha = cam.mode === 'near' ? EXIT_NEAR_ALPHA : 0.9;
+      g.translate(x - dx * back, y - dy * back);
       g.scale(px, px);
+      g.drawImage(c, -R, -R);
+      g.restore();
+      if (cam.mode !== 'near') continue;
+      g.save();
+      g.fillStyle = P.EXIT;
+      g.font = `${Math.round(11 * dpr)}px system-ui, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
+      g.translate(x - dx * EXIT_LABEL_M, y - dy * EXIT_LABEL_M);
+      g.scale(px, px);
       g.fillText('EXIT', 0, 0);
       g.restore();
     }

@@ -387,9 +387,10 @@ export const config = {
   // steer for their slots: in file behind it along its path (a point every
   // fileSpacing metres) while travelling, and in a diamond around it (diamondRadius,
   // turned toward the danger) while any member has a zombie within engageRange of its
-  // weapon's range, holding the diamond diamondHold ticks after. A follower more than
-  // slotLost from its slot for slotPatience ticks heads straight for the leader for
-  // directHold ticks, or until within rejoinRadius of it: without that, squads
+  // weapon's range, holding the diamond diamondHold ticks after. A cordon squad stands
+  // in line abreast across its highway instead, lineSpacing metres apart, the leader in
+  // the middle. A follower more than slotLost from its slot for slotPatience ticks
+  // heads straight for the leader for directHold ticks, or until within rejoinRadius of it: without that, squads
   // deadlocked on corners. The leader waits while any follower is more than lagRadius
   // from its slot. A leader claims a 911 call within targetRadius (failing that, an
   // occupied building it knows of), nearest first, one squad to a target, and holds
@@ -408,6 +409,7 @@ export const config = {
     sceneRadius: 30,
     fileSpacing: 3,
     diamondRadius: 3,
+    lineSpacing: 3,
     engageRange: 0.8,
     diamondHold: 30,
     slotLost: 8,

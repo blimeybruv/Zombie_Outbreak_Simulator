@@ -27,6 +27,7 @@ import { isFirearm } from '../state';
 import { capacity, isLiving, leaveTalk } from './common';
 import { boardSquad, parkVan } from './cars';
 import { intensityAt } from './stimuli';
+import { nearestExit } from './exits';
 
 const armouryCache = new WeakMap<readonly unknown[], BuildingId[]>();
 
@@ -233,7 +234,8 @@ function rangeOf(world: World, s: Sim): number {
  * Before anyone decides: squads form at depots; each squad's members are found (in id
  * order), a fallen leader replaced by the lowest surviving id, squads of one dissolved;
  * and for each squad its summed capacity, its formation (diamond while any member has a
- * zombie within reach, held diamondHold ticks; file otherwise), its leader's trail, each
+ * zombie within reach, held diamondHold ticks; file otherwise; a line for a cordon
+ * squad), its leader's trail, each
  * follower's slot, and whether the leader should wait for a straggler.
  */
 export function squadPass(world: World, ctx: Context): void {
@@ -299,13 +301,21 @@ export function squadPass(world: World, ctx: Context): void {
       if (t.length > g.length + 1) t.shift();
     }
 
-    // Slots: in the diamond, around the leader, turned toward the danger it sees (or
-    // the way it faces); in file, back along its trail.
+    // Slots: a cordon squad stands in line abreast across its exit's highway, engaged or
+    // not; others in the diamond, around the leader, turned toward the danger it sees
+    // (or the way it faces), and in file, back along its trail.
+    const ex = leader.post === null ? null : world.exits[nearestExit(world, leader.post.x, leader.post.y)!]!;
+    const line = ex === null ? null : { x: -ex.dy, y: ex.dx };
     const tx = ctx.threatX[leader.id]!, ty = ctx.threatY[leader.id]!;
     const bearing = tx !== 0 || ty !== 0 ? Math.atan2(ty, tx) : leader.heading;
     for (let i = 1; i < g.length; i++) {
       const m = g[i]!;
-      if (leader.diamondUntil !== null) {
+      if (line !== null) {
+        // Alternately either side of the leader, across the road.
+        const k = (i % 2 === 1 ? 1 : -1) * Math.ceil(i / 2) * sq.lineSpacing;
+        ctx.slotX[m.id] = leader.x + line.x * k;
+        ctx.slotY[m.id] = leader.y + line.y * k;
+      } else if (leader.diamondUntil !== null) {
         const ring = Math.floor((i - 1) / 4);
         const a = bearing + DIAMOND[(i - 1) % 4]! + (ring * Math.PI) / 4;
         const r = sq.diamondRadius * (1 + ring);
