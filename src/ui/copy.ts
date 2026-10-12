@@ -43,6 +43,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${who(n)} was turned away from ${n.place}.`;
     case 'carAbandoned':
       return `A car was abandoned on ${n.place}.`;
+    case 'cordonClosed':
+      return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
     case 'simLeft':
       return n.name ? `${n.name} got out of the city on ${n.place}.` : null;
     case 'ambulanceDispatched':

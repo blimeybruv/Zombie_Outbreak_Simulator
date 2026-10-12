@@ -40,6 +40,8 @@ export interface Exit {
   dx: number;
   /** @range unit vector @unit — @readBy render */
   dy: number;
+  /** When the cordon closed it (cordon.ts); null while open. @range tick | null @unit tick @readBy leaving, car processes, snapshot (render) */
+  closedAt: Tick | null;
 }
 
 /** A street segment: a straight edge between two nodes. Length is derived from them. */

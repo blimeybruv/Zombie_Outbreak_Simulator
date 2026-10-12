@@ -29,6 +29,8 @@ Never break these. If a change would break one, stop and raise it.
      + turned.symptomatic + turned.outdoors + turned.occupying + turned.destroyed
      === scenario.population
    ```
+   (plus `World.outsiders`: soldiers who came in from outside to hold the cordon are
+   counted in the leaves like anyone — the user's amendment, reference "The cordon".)
    Leaves are updated incrementally; the headless harness recounts them from entity
    state every tick and asserts the recount matches and the sum holds (harness only,
    not the browser). Most simulation bugs either lose a person or create one, so this

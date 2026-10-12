@@ -51,6 +51,7 @@ import {
 import { inspect } from './inspect';
 import { noteFor, centreOf } from './notes';
 import { isFirearm } from '../sim/state';
+import { barrierAt } from '../sim/systems/cordon';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept
@@ -134,7 +135,7 @@ function mapSnapshot(w: World): MapSnapshot {
     origins,
     doors: new Float32Array(doors),
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
-    exits: new Float32Array(w.exits.flatMap((e) => [e.x, e.y, e.dx, e.dy])),
+    exits: new Float32Array(w.exits.flatMap((e) => { const b = barrierAt(w, e); return [e.x, e.y, e.dx, e.dy, b.x, b.y]; })),
     lots: new Float32Array(w.lots.flatMap((l) => [...l.outline.flatMap((p) => [p.x, p.y]), l.parkingDepth, l.entry])),
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),
     streetNames: w.streets.map((s) => s.name),
@@ -195,6 +196,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     tick: w.tick,
     daylight: daylight(tod, w.config),
     hour: tod * 24,
+    closedExits: w.exits.reduce((bits, e, i) => (e.closedAt !== null ? bits | (1 << i) : bits), 0),
     weekday: (w.config.time.startWeekday + Math.floor(w.scenario.startHour / 24 + w.tick / w.config.time.dayLength)) % 7,
     sinceOutbreak: (w.tick * 86400) / w.config.time.dayLength,
     simXY,

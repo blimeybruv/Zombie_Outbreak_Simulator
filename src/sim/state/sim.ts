@@ -372,6 +372,14 @@ export interface Sim {
   answeringSince: Tick | null;
   /** When this officer last radioed for SWAT; null if never. @range tick | null @unit tick @readBy sim decisions (radio cooldown) */
   radioedAt: Tick | null;
+  /** A soldier from outside, come to hold the cordon (cordon.ts): not one of the city's people. @range true/false @unit — @readBy snapshot (inspector), end stats */
+  outsider: boolean;
+  /** Where a cordon squad's leader stands, by its barrier; null for everyone else. @range 0–3200 each axis | null @unit m @readBy sim decisions (squad leader), cordon */
+  post: Vec2 | null;
+  /** Waiting at a closed exit since this tick, believing it will be let through; null otherwise. @range tick | null @unit tick @readBy leaving (patience) */
+  queuedSince: Tick | null;
+  /** Exits this sim has found closed, as bits (1 << exit index). @range 0–7 @unit bits @readBy leaving (choice of exit) */
+  knownClosed: number;
   /** An EMT's ambulance; null for everyone else. @range car id | null @unit id @readBy EMTs, alighting */
   crew: CarId | null;
   /** A patient in an ambulance crew's care: its driver's id; null otherwise. @range sim id | null @unit id @readBy EMTs, alighting */

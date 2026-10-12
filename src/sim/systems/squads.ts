@@ -264,6 +264,7 @@ export function squadPass(world: World, ctx: Context): void {
     if (leader.id !== lid) {
       for (const m of g) m.squadLeader = leader.id;
       leader.trail = [];
+      leader.post ??= sims[lid]!.post; // a cordon squad holds the same post under its new leader
     }
     let cap = 0;
     for (let i = 0; i < g.length; i++) {
@@ -342,6 +343,7 @@ function onStreet(world: World, ctx: Context, x: number, y: number): { x: number
 export function radioForSwat(world: World, ctx: Context, sim: Sim, count: number): void {
   const { tick, config } = world;
   sim.radioedAt = tick;
+  world.noticedAt ??= tick; // the city asking for help: the world outside notices (cordon.ts)
   const near = world.radios.find((r) => r.claimedBy === null && Math.hypot(r.x - sim.x, r.y - sim.y) <= config.squads.sceneRadius);
   if (near !== undefined) {
     near.count = count;

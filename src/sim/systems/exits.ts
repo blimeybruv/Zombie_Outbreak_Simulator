@@ -8,11 +8,12 @@ import type { Context } from '../context';
 import { simLeaf, transfer } from '../counters';
 import type { Car, Sim, World } from '../state';
 
-/** The nearest way off the map from a point, or null on a map without one. */
-export function nearestExit(world: World, x: number, y: number): number | null {
+/** The nearest way off the map from a point, of those not in `skip` (bits), or null. */
+export function nearestExit(world: World, x: number, y: number, skip = 0): number | null {
   let best: number | null = null;
   let bestD = Infinity;
   world.exits.forEach((e, i) => {
+    if (skip & (1 << i)) return;
     const d = Math.hypot(e.x - x, e.y - y);
     if (d < bestD) {
       bestD = d;
@@ -22,9 +23,9 @@ export function nearestExit(world: World, x: number, y: number): number | null {
   return best;
 }
 
-/** Sets a sim making for the nearest way off the map. False if there is none. */
+/** Sets a sim making for the nearest way off the map it has not found closed. False if there is none. */
 export function headForExit(world: World, sim: Sim): boolean {
-  const i = nearestExit(world, sim.x, sim.y);
+  const i = nearestExit(world, sim.x, sim.y, sim.knownClosed);
   if (i === null) return false;
   const e = world.exits[i]!;
   sim.destinationKind = 'leave';
@@ -54,6 +55,8 @@ export function exitArrivals(world: World, ctx: Context): void {
   for (const sim of world.sims) {
     if (sim.destinationKind !== 'leave' || sim.insideBuilding !== null || sim.car !== null || sim.destination === null) continue;
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
+    const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
+    if (e.closedAt !== null) continue; // the cordon: nobody passes
     if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= reach) leaveMap(world, ctx, sim);
   }
 }

@@ -167,7 +167,15 @@ export interface SimLeftEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface CordonClosedEvent extends EventBase, Located {
+  /** Soldiers from outside close an exit: a barrier across the highway, for good. @range literal @unit — @readBy event consumers */
+  type: 'cordonClosed';
+  /** Always null: the line is about the road. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export type SimEvent =
+  | CordonClosedEvent
   | SimLeftEvent
   | PoliceRadioEvent
   | SwatDeployedEvent

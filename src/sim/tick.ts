@@ -41,9 +41,10 @@ export function assertInvariant(world: World): void {
       `tick ${world.tick}: counters drifted from entity state\n  counters ${JSON.stringify(world.counters)}\n  recount  ${JSON.stringify(actual)}`,
     );
   }
+  // The city's people, and the soldiers who came in from outside to hold the cordon.
   const total = populationTotal(world.counters);
-  if (total !== world.scenario.population) {
-    throw new InvariantError(`tick ${world.tick}: population ${total} !== ${world.scenario.population}`);
+  if (total !== world.scenario.population + world.outsiders) {
+    throw new InvariantError(`tick ${world.tick}: population ${total} !== ${world.scenario.population} + ${world.outsiders} outsiders`);
   }
 }
 

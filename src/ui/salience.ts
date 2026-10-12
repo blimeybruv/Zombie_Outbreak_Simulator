@@ -28,6 +28,7 @@ export const BASE = {
   simIsolating: 30, // not in the reference: a decision only the viewer sees
   carAbandoned: 25, // not in the reference: a road closing for good
   swatDeployed: 60, // not in the reference: the institution answering something large
+  cordonClosed: 90, // not in the reference: the city sealed — drops playback to 1×
   simLeft: 30, // not in the reference: a named survivor out of the city (only they make a line)
   ambulanceDispatched: 20, // not in the reference: help on the way
   patientAdmitted: 45, // not in the reference: the vector delivered

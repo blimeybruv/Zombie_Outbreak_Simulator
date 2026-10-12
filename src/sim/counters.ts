@@ -18,6 +18,11 @@ function bump(c: Counters, leaf: Leaf, delta: number): void {
   (c[group] as unknown as Record<string, number>)[key]! += delta;
 }
 
+/** Someone from outside the city comes into it (cordon.ts): a leaf grows, and World.outsiders with it. */
+export function admit(world: World, leaf: Leaf): void {
+  bump(world.counters, leaf, 1);
+}
+
 /** Moves n people from one leaf to another. Every state transition goes through here. */
 export function transfer(world: World, from: Leaf, to: Leaf, n = 1): void {
   bump(world.counters, from, -n);

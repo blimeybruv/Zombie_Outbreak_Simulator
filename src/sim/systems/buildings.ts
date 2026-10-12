@@ -19,6 +19,7 @@ import { modeOf } from './panic';
 import { armAtDepot, mobilise } from './squads';
 import { dispatchAmbulances, emtEnter } from './emt';
 import { exitArrivals, headForExit } from './exits';
+import { updateCordon } from './cordon';
 import { updateEvacuation, updateRelease } from './release';
 import { carProcesses } from './cars';
 import { dispatchCalls, placeCall } from './dispatch';
@@ -568,6 +569,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   updateEvacuation(world, ctx);
   arrivals(world, ctx);
   exitArrivals(world, ctx);
+  updateCordon(world, ctx);
   probe('buildings.arrivals');
   exits(world, ctx);
   probe('buildings.exits');

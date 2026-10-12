@@ -50,6 +50,8 @@ const CAR_L = 4.5; // m
 const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
+const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
+const BARRIER_HALF_M = 18; // m: half its length, across a 28 m highway
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
@@ -124,6 +126,7 @@ export class Renderer {
   private readonly density: DensityField;
   private readonly corpses: CorpseLayer;
   private readonly simTrails = new Trails();
+  private readonly barrierSeen: number[] = []; // per exit: when its barrier was first drawn (wall ms)
   private readonly zombieTrails = new Trails();
   private pulses: { x: number; y: number; start: number }[] = [];
   private sounds: { x: number; y: number; radius: number; shout: boolean; start: number }[] = [];
@@ -406,6 +409,7 @@ export class Renderer {
     if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
     this.drawCars(g, frame, cam, dpr, true);
     this.drawVanLights(g, frame, cam, dpr, wallMs);
+    this.drawBarriers(g, frame, cam, dpr, wallMs);
     this.drawTalk(g, frame, cam, dpr);
     if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
@@ -550,7 +554,7 @@ export class Renderer {
     const r = Math.max(14, 16 * px);
     g.fillStyle = P.EXIT;
     g.font = `${Math.round(11 * dpr)}px system-ui, sans-serif`;
-    for (let i = 0; i < e.length; i += 4) {
+    for (let i = 0; i < e.length; i += 6) {
       const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!;
       const nx = -dy, ny = dx;
       const tx = x - dx * r * 1.2, ty = y - dy * r * 1.2; // just inside the edge
@@ -569,6 +573,32 @@ export class Renderer {
       g.fillText('EXIT', 0, 0);
       g.restore();
     }
+  }
+
+  /**
+   * The cordon's barriers: a hard bright bar across the highway in the institutional
+   * blue — the one thing in the city an outside authority put there. It draws itself
+   * across the road from the middle out when it first appears, so it reads as an event.
+   */
+  private drawBarriers(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
+    if (frame.closedExits === 0) return;
+    const e = this.map.exits;
+    const px = 1 / (cam.scale * dpr);
+    g.strokeStyle = P.POLICE;
+    g.lineWidth = Math.max(2.5, 4 * px);
+    g.lineCap = 'round';
+    for (let i = 0, k = 0; i < e.length; i += 6, k++) {
+      if (!(frame.closedExits & (1 << k))) continue;
+      this.barrierSeen[k] ??= wallMs;
+      const grow = Math.min(1, (wallMs - this.barrierSeen[k]!) / BARRIER_DRAW_MS);
+      const nx = -e[i + 3]!, ny = e[i + 2]!, bx = e[i + 4]!, by = e[i + 5]!;
+      const half = (BARRIER_HALF_M * grow);
+      g.beginPath();
+      g.moveTo(bx - nx * half, by - ny * half);
+      g.lineTo(bx + nx * half, by + ny * half);
+      g.stroke();
+    }
+    g.lineCap = 'butt';
   }
 
   /** Squads: a thin line from each follower to its leader, so the unit reads as one. Near zoom. */

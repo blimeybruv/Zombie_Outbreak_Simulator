@@ -145,6 +145,7 @@ export const config = {
   //   cautiousRouting the cautious take an unknown street for safe
   //   evacuation      districts never evacuate: the release at the start is the only one
   //   exits           no highways out: the map is closed
+  //   cordon          nobody outside notices: the exits stay open
   //   yards           no service yards: stations and hospitals park one vehicle at the kerb
   //   swat            no SWAT squads or vans
   //   emt             no ambulances: nobody calls one
@@ -152,6 +153,7 @@ export const config = {
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    cordon: true,
     exits: true,
     yards: true,
     emt: true,
@@ -452,6 +454,18 @@ export const config = {
   // `gather` of the ambulance board together; it counts as arrived when parked within
   // `arriveNear` of the job's door — guesses
   emt: { crew: 2, answer: 0.9, answerHalfLife: 9000, radius: 2500, gather: 10, arriveNear: 40 },
+
+  // The cordon (cordon.ts): the world outside sealing the city. It notices when an
+  // officer first radios for SWAT, and `delay` ticks later a squad of squads.size
+  // soldiers comes in at every exit, armed with the rifle and `ammo` rounds. Each walks
+  // to its post `post` metres outside a barrier `setback` metres in from the edge; once
+  // the leader is within postReach of it, the barrier closes: the highway's last
+  // segment is impassable, and nobody passes. Those making for it queue `queueGap`
+  // metres inside it, believing they will be screened and let through, and wait —
+  // patience × (½ + their trust) ticks — before giving the exit up for another, or for
+  // shelter. A car reaching a closed barrier is left there; the cars behind it stop.
+  // Soldiers are outsiders: the invariant counts them on top of the population — guesses
+  cordon: { delay: 1800, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

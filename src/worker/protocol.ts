@@ -27,7 +27,7 @@ export interface MapSnapshot {
   river: { centreline: { x: number; y: number }[]; width: number };
   /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
   lots: Float32Array;
-  /** Per way off the map: where the highway meets the edge, and outward (x, y, dx, dy). */
+  /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand (x, y, dx, dy, bx, by). */
   exits: Float32Array;
   districts: { name: string; x: number; y: number; w: number; h: number }[];
   streetNames: string[];
@@ -162,6 +162,8 @@ export interface FrameSnapshot {
   daylight: number;
   /** Hour of day, 0–24. */
   hour: number;
+  /** Exits the cordon has closed, as bits (1 << exit index). */
+  closedExits: number;
   /** Day of the week, 0 Monday … 6 Sunday (time.startWeekday, then a day each dayLength ticks past midnight). */
   weekday: number;
   /** Game seconds since the outbreak began (tick 0): the clock's own rate, not wall time. */

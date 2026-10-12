@@ -39,6 +39,8 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 import { callAmbulance, decideEmt, decidePatient } from './emt';
 import { rideToCall } from './dispatch';
+import { queueAt } from './cordon';
+import { headForExit, nearestExit } from './exits';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -443,6 +445,17 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     faceDanger(world, ctx, sim, sim.heading);
     return;
   }
+  // A cordon squad (cordon.ts): to its post by the barrier, and there it stays.
+  if (sim.post !== null) {
+    if (Math.hypot(sim.post.x - sim.x, sim.post.y - sim.y) > world.config.cordon.postReach / 2) {
+      sim.gait = 'walk';
+      headFor(world, ctx, sim, sim.post.x, sim.post.y);
+    } else {
+      sim.gait = 'still';
+      faceDanger(world, ctx, sim, sim.heading);
+    }
+    return;
+  }
   const t = squadTarget(world, ctx, sim);
   if (t !== null && Math.hypot(t.x - sim.x, t.y - sim.y) <= sq.sceneRadius) {
     if (t.building !== null && t.building.zombiesInside > 0) {
@@ -461,6 +474,10 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
       sim.gait = ctx.squadLag[sim.id] ? 'still' : 'walk';
       if (sim.gait === 'walk') headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
     }
+    return;
+  }
+  if (t === null && sim.depot === null) {
+    sim.gait = 'still'; // nowhere it belongs (a cordon squad that lost its post): it holds
     return;
   }
   if (t === null) {
@@ -715,7 +732,30 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 
   // Leaving the city (exits.ts): on to the way off the map, in a car if one is at hand,
   // running only with danger in sight. Nowhere to shelter on the way.
-  if (sim.destinationKind === 'leave') {
+  if (sim.destinationKind === 'leave' && sim.destination !== null) {
+    const i = nearestExit(world, sim.destination.x, sim.destination.y)!;
+    const e = world.exits[i]!;
+    // Closed by the cordon: stop short of the barrier and wait to be let through, until
+    // patience gives out — the trusting wait longest — then try another way, or none.
+    if (e.closedAt !== null) {
+      const q = queueAt(world, e);
+      if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
+        sim.queuedSince ??= tick;
+        if (tick - sim.queuedSince < config.cordon.patience * (0.5 + sim.trust)) {
+          sim.gait = 'still';
+          steerToward(sim, e.x, e.y);
+          return;
+        }
+        sim.knownClosed |= 1 << i;
+        sim.queuedSince = null;
+        if (!headForExit(world, sim)) clearDestination(sim);
+        return;
+      }
+      // Not there yet: on toward it (the road through is shut, so straight on).
+      sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
+      headFor(world, ctx, sim, q.x, q.y);
+      return;
+    }
     sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
     if (!considerDriving(world, ctx, sim, mode)) travel(world, ctx, sim, mode);
     return;

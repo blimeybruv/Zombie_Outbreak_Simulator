@@ -105,6 +105,10 @@ export interface World {
   exits: Exit[];
   /** The bitten who got off the map before turning: counted as rescued, carrying it out. @range 0–population @unit people @readBy end stats, sweep */
   escapedInfected: Count;
+  /** When the world outside noticed (the first officer to radio for SWAT); null until then. @range tick | null @unit tick @readBy cordon */
+  noticedAt: Tick | null;
+  /** Soldiers who came in from outside to hold the cordon: counted in the leaves like anyone, so the invariant is population + outsiders. @range 0–exits × squads.size @unit people @readBy invariant, cordon, end stats */
+  outsiders: Count;
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

@@ -27,6 +27,7 @@ import { bite } from './combat';
 import { entranceNearest, leaveTalk, setDestination } from './common';
 import type { Mode } from './panic';
 import { carLeaves, headForExit, nearestExit } from './exits';
+import { barrierAt } from './cordon';
 import { emitStimulus } from './stimuli';
 
 const CELL = 10; // m
@@ -472,6 +473,17 @@ export function carProcesses(world: World, ctx: Context): void {
       car.state = 'abandoned';
       alight(world, ctx, car);
       continue;
+    }
+    // At a closed barrier (cordon.ts): left where it stopped, and they go on on foot to
+    // wait at it. The cars behind stop behind it.
+    if (car.exit !== null && world.exits[car.exit]!.closedAt !== null) {
+      const b = barrierAt(world, world.exits[car.exit]!);
+      if (Math.hypot(b.x - car.x, b.y - car.y) <= config.cordon.barrierReach) {
+        car.state = 'abandoned';
+        ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });
+        alight(world, ctx, car);
+        continue;
+      }
     }
     const last = car.routeIndex >= car.route.length - 1;
     if (last && car.destination !== null && Math.hypot(car.destination.x - car.x, car.destination.y - car.y) <= cc.arriveRadius) {
