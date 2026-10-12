@@ -310,7 +310,7 @@ function alight(world: World, ctx: Context, car: Car): void {
     }
     s.gait = 'walk';
     if (s.condition !== 'healthy' && s.condition !== 'infected') continue;
-    if (b !== null && s.squadLeader === null && s.crew === null && s.carriedBy === null) setDestination(s, b, 'shelter'); // a squad, a crew and its patient go where they are taken
+    if (b !== null && s.squadLeader === null && s.crew === null && s.carriedBy === null && s.answering === null) setDestination(s, b, 'shelter'); // a squad, a crew, its patient and officers on a call go where they are taken
   }
   car.occupants = [];
   car.speed = 0;

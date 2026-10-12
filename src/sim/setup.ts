@@ -216,7 +216,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   const outdoors = Math.round(scenario.population * config.spawn.outdoorShareByBand[band]!);
   designateArmouries(world);
   placeResidents(world, scenario.population - outdoors, band);
-  placeFirstResponders(world);
+  placeFirstResponders(world, ctx);
   placeReservists(world);
   placeSwat(world, ctx);
   placeEmts(world, ctx);

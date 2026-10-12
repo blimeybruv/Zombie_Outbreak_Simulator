@@ -24,9 +24,9 @@ export interface Car {
   id: CarId;
   /** @range 3 values @unit enum @readBy car decisions, obstacles, render */
   state: CarState;
-  /** A car, a SWAT van or an ambulance: the same in every way, but only its crew sets out in it from home. @range 3 values @unit enum @readBy squads (SWAT), EMTs, render */
-  kind: 'car' | 'van' | 'ambulance';
-  /** A van's station or an ambulance's hospital; null for a car. @range building id | null @unit id @readBy squads (SWAT), EMTs */
+  /** A car, a SWAT van, a police car or an ambulance: the same in every way, but only its crew sets out in it from home. @range 4 values @unit enum @readBy squads (SWAT), police dispatch, EMTs, render */
+  kind: 'car' | 'van' | 'cruiser' | 'ambulance';
+  /** A van's or police car's station, or an ambulance's hospital; null for a car. @range building id | null @unit id @readBy squads (SWAT), police dispatch, EMTs */
   home: BuildingId | null;
   /** An ambulance on a job: the building it is going to (the call, then home); null when idle. @range building id | null @unit id @readBy EMTs */
   job: BuildingId | null;

@@ -17,9 +17,10 @@ import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
 import { capacity, exitTicks, isLiving } from './common';
 import { makePolice, spawnSim } from '../spawn';
+import { boardSquad, parkVan } from './cars';
 
 /** Garrisons each station with enough residents with first responders. Called once at setup. */
-export function placeFirstResponders(world: World): void {
+export function placeFirstResponders(world: World, ctx: Context): void {
   const { config, buildings } = world;
   const dc = config.dispatch;
   for (const b of buildings) {
@@ -37,6 +38,8 @@ export function placeFirstResponders(world: World): void {
       sim.history.buildingsEntered = 1;
       b.sheltered.push(sim.id);
     }
+    // A police car at the kerb for them (cars.ts): they drive out to calls.
+    if (config.features.cars) parkVan(world, ctx, b, 'cruiser');
   }
 }
 
@@ -111,4 +114,24 @@ export function dispatchCalls(world: World, ctx: Context): void {
     b.dispatchedAt = tick;
     ctx.events.push({ type: 'policeDispatched', tick, building: b.id, station: station.id, officers: sent, sim: null });
   }
+}
+
+/**
+ * First responders on their way to a call drive, when their station's police car is at
+ * the kerb and the call is beyond police.carBeyond: to the car, and in together once every
+ * officer sent is within police.carGather of it, the lowest id driving. One way, like a
+ * SWAT van: where it stops it stays. Returns 'aboard' once in, the point to walk to
+ * while gathering, or null to go on foot.
+ */
+export function rideToCall(world: World, ctx: Context, sim: Sim, dest: { x: number; y: number }): 'aboard' | { x: number; y: number } | null {
+  const { config, cars, sims, buildings } = world;
+  if (sim.station === null || sim.answering === null || sim.squadLeader !== null) return null;
+  const pc = config.police;
+  const door = buildings[sim.station]!.entrances[0]!;
+  const car = cars.find((c) => c.kind === 'cruiser' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= pc.carNear);
+  if (car === undefined || Math.hypot(dest.x - car.x, dest.y - car.y) <= pc.carBeyond) return null;
+  const sent = sims.filter((s) => s.answering === sim.answering && s.station === sim.station && s.squadLeader === null && isLiving(s));
+  const gathered = sent.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - car.x, s.y - car.y) <= pc.carGather);
+  if (gathered && sent[0] === sim && boardSquad(world, ctx, car, sent, { x: dest.x, y: dest.y, building: buildings[sim.answering]! })) return 'aboard';
+  return { x: car.x, y: car.y };
 }

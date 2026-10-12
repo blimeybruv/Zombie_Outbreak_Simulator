@@ -348,7 +348,10 @@ export const config = {
   // Shots fired: police outdoors with something to shoot, hearing gunfire more than
   // `shotIgnoreRadius` away (not their own, nor their neighbour's), drop their path and
   // run for the sound, standing like an officer on a call — guess
-  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15 },
+  // First responders drive to a call in their station's police car when it is at the
+  // kerb (within carNear of the door) and the call is beyond carBeyond: to the car, and
+  // in together once all sent are within carGather. One way, like the SWAT van — guesses
+  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10 },
 
   // Reservists (archetype 'reservist'; squads.ts): `share` of the population, taken
   // from residents at the start and tracked from then on — civilians in every way until called

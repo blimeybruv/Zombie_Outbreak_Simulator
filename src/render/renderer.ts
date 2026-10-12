@@ -10,7 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER } from '../worker/protocol';
 import type { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -435,8 +435,10 @@ export class Renderer {
       const c = Math.cos(h), s = Math.sin(h);
       const state = st[i]! & CAR_STATE_MASK;
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
-      const van = (st[i]! & CAR_VAN) !== 0 || amb;
-      const hl = van ? VAN_L / 2 : CAR_L / 2;
+      const cruiser = (st[i]! & CAR_CRUISER) !== 0;
+      const long = (st[i]! & CAR_VAN) !== 0 || amb;
+      const van = long || cruiser; // a service vehicle: drawn in its colour, at mid zoom too
+      const hl = long ? VAN_L / 2 : CAR_L / 2;
       const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
       // A van shows at mid zoom too, parked or not: it is a squad's way out, or its box.
       if ((state === CAR_DRIVING) !== moving || (state !== CAR_DRIVING && state !== CAR_ABANDONED && !near && !van)) continue;
@@ -507,7 +509,7 @@ export class Renderer {
     g.stroke(path);
   }
 
-  /** A SWAT van on the move: a light bar on the roof, red and blue taking turns; an ambulance's, red, on and off. */
+  /** A SWAT van or police car on the move: a light bar on the roof, red and blue taking turns; an ambulance's, red, on and off. */
   private drawVanLights(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     const xyh = frame.carXYH, st = frame.carState;
     // At least a few pixels, with a soft glow round each light, so a moving van or
@@ -516,13 +518,15 @@ export class Renderer {
     const swap = Math.floor(wallMs / VAN_FLASH_MS) % 2 === 1;
     for (let i = 0; i < st.length; i++) {
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
-      if (((st[i]! & CAR_VAN) === 0 && !amb) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING) continue;
+      const cruiser = (st[i]! & CAR_CRUISER) !== 0;
+      if (((st[i]! & CAR_VAN) === 0 && !amb && !cruiser) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING) continue;
+      const len = cruiser ? CAR_L : VAN_L;
       if (amb && swap) continue; // off half the time
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
       // Across the cab, a little forward of the middle.
       for (const side of [1, -1]) {
-        const u = VAN_L * 0.15, v = side * CAR_W * 0.28;
+        const u = len * 0.15, v = side * CAR_W * 0.28;
         const red = amb || (side === 1) !== swap;
         const lx = x + c * u - s * v, ly = y + s * u + c * v;
         g.fillStyle = red ? P.SIREN_RED_GLOW : P.SIREN_BLUE_GLOW;

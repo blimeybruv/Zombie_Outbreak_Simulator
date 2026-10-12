@@ -38,6 +38,7 @@ import { emitStimulus, intensityAt } from './stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 import { callAmbulance, decideEmt, decidePatient } from './emt';
+import { rideToCall } from './dispatch';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -759,6 +760,14 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     const dest = sim.destination;
     const arrival = sim.answering !== null ? config.dispatch.sceneRadius : config.awareness.respondArrival;
     if (dest !== null && Math.hypot(dest.x - sim.x, dest.y - sim.y) > arrival) {
+      // Their station's police car at the kerb: to it, and in together (dispatch.ts).
+      const ride = rideToCall(world, ctx, sim, dest);
+      if (ride === 'aboard') return;
+      if (ride !== null) {
+        sim.gait = 'run';
+        headFor(world, ctx, sim, ride.x, ride.y);
+        return;
+      }
       // Officers sent together arrive together: the one ahead waits for its partner.
       sim.gait = sim.answering === null ? 'run' : aheadOfPartner(world, sim, dest) ? 'still' : 'walk';
       if (sim.gait !== 'still') travel(world, ctx, sim, mode);
