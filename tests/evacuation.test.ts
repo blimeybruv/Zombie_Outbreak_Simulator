@@ -7,7 +7,7 @@ import { assertInvariant } from '../src/sim/tick';
 
 describe('evacuation', () => {
   it('a district that comes to know sends people out together, aware and for somewhere far off; its neighbour stays calm', () => {
-    const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+    const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, { ...config, features: { ...config.features, evacuation: true } });
     for (const b of world.buildings) b.alertedAt = null;
     const inD = world.buildings.filter((b) => b.district === 0);
     for (const b of inD.slice(0, Math.ceil(config.evacuation.threshold * inD.length))) b.alertedAt = 0;

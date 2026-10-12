@@ -138,7 +138,7 @@ export const config = {
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
     swat: true,
-    evacuation: true,
+    evacuation: false, // off by default: as built it starves the outbreak (reference, "Evacuation")
     reservists: true,
     relevanceTrim: true,
     dropQuietHearsay: true,
