@@ -159,6 +159,10 @@ export interface FrameSnapshot {
   daylight: number;
   /** Hour of day, 0–24. */
   hour: number;
+  /** Day of the week, 0 Monday … 6 Sunday (time.startWeekday, then a day each dayLength ticks past midnight). */
+  weekday: number;
+  /** Game seconds since the outbreak began (tick 0): the clock's own rate, not wall time. */
+  sinceOutbreak: number;
   /** Per sim (indexed by id): x, y. */
   simXY: Float32Array;
   simKind: Uint8Array;

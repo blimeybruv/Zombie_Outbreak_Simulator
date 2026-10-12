@@ -15,6 +15,15 @@ function clock(hour: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Game time since the outbreak began, as hours:minutes:seconds; the hours run past 24. */
+function elapsed(seconds: number): string {
+  const s = Math.floor(seconds);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+}
+
 export class Controls {
   private speed: number;
   private paused = true; // the scenario starts paused
@@ -84,6 +93,6 @@ export class Controls {
     const dead = c.turned.outdoors + c.turned.occupying;
     const target = this.paused ? 0 : this.speed * this.options.ticksPerSecondAt1x;
     const lag = target > 0 && frame.achievedRate < target * 0.9 ? `  ·  running at ${frame.achievedRate}/s of ${target}` : '';
-    this.status.textContent = `${clock(frame.hour)}  ·  tick ${frame.tick}  ·  living ${living} (${c.unturned.outdoors} out)  ·  dead walking ${dead}  ·  lost ${c.unturned.dead + c.turned.destroyed}${lag}`;
+    this.status.textContent = `${WEEKDAYS[frame.weekday]} ${clock(frame.hour)} (${elapsed(frame.sinceOutbreak)} since outbreak)  ·  tick ${frame.tick}  ·  living ${living} (${c.unturned.outdoors} out)  ·  dead walking ${dead}  ·  lost ${c.unturned.dead + c.turned.destroyed}${lag}`;
   }
 }

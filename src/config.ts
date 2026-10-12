@@ -116,6 +116,7 @@ export const config = {
 
   time: {
     dayLength: 7200, // ticks per day/night cycle; compressed, 7 cycles per run
+    startWeekday: 0, // the day a run starts on, for the status line: 0 Monday … 6 Sunday
     runLength: 50400, // ticks; the demo's one terminal condition: 14 simulated hours, seven whole day/night cycles, ending at the hour it began — the late rise of dormant hordes needed room (it was 36,000)
     sunrise: 0.25, // fraction of day (06:00)
     sunset: 0.75, // fraction of day (18:00)

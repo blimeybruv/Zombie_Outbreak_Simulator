@@ -193,6 +193,8 @@ function frameSnapshot(w: World): FrameSnapshot {
     tick: w.tick,
     daylight: daylight(tod, w.config),
     hour: tod * 24,
+    weekday: (w.config.time.startWeekday + Math.floor(w.scenario.startHour / 24 + w.tick / w.config.time.dayLength)) % 7,
+    sinceOutbreak: (w.tick * 86400) / w.config.time.dayLength,
     simXY,
     simKind,
     simFlags,
