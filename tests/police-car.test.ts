@@ -30,3 +30,26 @@ describe('police cars', () => {
     expect(car.occupants).toEqual(officers.map((o) => o.id));
   });
 });
+
+describe('service yards', () => {
+  it('police stations and hospitals with a yard keep their crews\' vehicles in its bays', () => {
+    const { world } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+    const yards = world.lots.filter((l) => l.home !== null);
+    expect(yards.length).toBeGreaterThan(0);
+    for (const l of yards) {
+      const home = world.buildings[l.home!]!;
+      expect(['policeStation', 'hospital']).toContain(home.tag);
+      const mine = world.cars.filter((c) => c.home === home.id && c.kind !== 'van');
+      const want = home.tag === 'policeStation' ? config.yards.policeCrews : config.yards.hospitalCrews;
+      expect(mine.length).toBe(want);
+    }
+    // Yards are for their own vehicles: no civilian car in one.
+    for (const l of yards) {
+      const o = l.outline;
+      const minX = Math.min(...o.map((p) => p.x)), maxX = Math.max(...o.map((p) => p.x));
+      const minY = Math.min(...o.map((p) => p.y)), maxY = Math.max(...o.map((p) => p.y));
+      const inside = world.cars.filter((c) => c.kind === 'car' && c.x > minX && c.x < maxX && c.y > minY && c.y < maxY);
+      expect(inside.length).toBeLessThanOrEqual(1); // an axis box over a turned yard can catch a kerb car
+    }
+  });
+});

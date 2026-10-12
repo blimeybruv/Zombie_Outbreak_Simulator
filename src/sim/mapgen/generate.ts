@@ -577,6 +577,22 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
           if (fits(rect, i)) {
             placed.push(rect);
             makeBuilding(rect, dir, u1 - u0, v1 - v0, street, district);
+            // A whole-block police station or hospital gives up the far end of its
+            // frontage to a yard for its vehicles, if it is wide enough to spare it.
+            const made = buildings[buildings.length - 1]!;
+            const y = mc.yard;
+            const w = u1 - u0 - y.width - mc.yard.gap;
+            if (config.features.yards && (made.tag === 'policeStation' || made.tag === 'hospital') && w >= mc.yard.minRest) {
+              const origin = rect[0]!;
+              const shrunk = rectFromFront(origin, dir, w, inward, v1 - v0);
+              const entrances = made.entrances.length;
+              made.outline = shrunk;
+              made.entrances = [0.5, 0.25, 0.75, 0.1].slice(0, entrances).map((f) => add(origin, scale(dir, w * f)));
+              placed[placed.length - 1] = shrunk;
+              const yard = rectFromFront(add(origin, scale(dir, w + mc.yard.gap)), dir, y.width, inward, Math.min(y.depth, v1 - v0));
+              placed.push(yard);
+              lots.push({ outline: yard, parkingDepth: Math.min(y.depth, v1 - v0), entry: y.width / 2, home: made.id });
+            }
             continue;
           }
         }
@@ -603,7 +619,20 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
         }
         placed.push(rect);
         s += w + k.plot.gap;
-        if (chance(rng, k.buildingDensity)) makeBuilding(rect, dir, w, depth, street, district);
+        if (!chance(rng, k.buildingDensity)) continue;
+        makeBuilding(rect, dir, w, depth, street, district);
+        // A police station or hospital: a yard beside it on the same frontage, for its
+        // vehicles, if one fits (cars.ts parks them there).
+        const made = buildings[buildings.length - 1]!;
+        const y = mc.yard;
+        if (config.features.yards && (made.tag === 'policeStation' || made.tag === 'hospital') && s + y.width <= edgeLen) {
+          const yard = rectFromFront(add(front, scale(dir, s)), dir, y.width, inward, y.depth);
+          if (fits(yard, i)) {
+            placed.push(yard);
+            lots.push({ outline: yard, parkingDepth: y.depth, entry: y.width / 2, home: made.id });
+            s += y.width + k.plot.gap;
+          }
+        }
       }
     }
   }
@@ -651,7 +680,7 @@ function mallLayout(face: Pt[], margin: number, from: Pt, inward: Pt, mm: Config
   const uc = Math.min(Math.max(0, u0 + mm.sideYard + width / 2), u1 - mm.sideYard - width / 2);
   const building = rectFromFront(at(uc - width / 2, bv0), dir, width, inward, depth);
   if (!polygonInside(building, poly)) return null;
-  return { building, dir, width, depth, lot: { outline: grounds, parkingDepth: bv0 - mm.apron / 2 - v0, entry: -u0 } };
+  return { building, dir, width, depth, lot: { outline: grounds, parkingDepth: bv0 - mm.apron / 2 - v0, entry: -u0, home: null } };
 }
 
 /** Footprint area of a building outline (a convex quad). */

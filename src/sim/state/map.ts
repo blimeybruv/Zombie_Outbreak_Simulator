@@ -4,7 +4,7 @@
 // Everything is edge-based. A park is a block with no building whose bounding and
 // crossing streets carry terrain `open`; there is no area primitive.
 
-import type { DistrictId, Metres, NodeId, StreetId, Tick, Unit01, Vec2 } from './units';
+import type { BuildingId, DistrictId, Metres, NodeId, StreetId, Tick, Unit01, Vec2 } from './units';
 
 export const TERRAINS = ['standard', 'alley', 'open', 'bridge'] as const;
 export type Terrain = (typeof TERRAINS)[number];
@@ -80,6 +80,8 @@ export interface Lot {
   parkingDepth: Metres;
   /** Where the driveway enters, along the front edge from corner 0. @range 0–300 @unit m @readBy render */
   entry: Metres;
+  /** A yard's police station or hospital, whose vehicles park in it; null for the mall's grounds. @range building id | null @unit id @readBy car placement */
+  home: BuildingId | null;
 }
 
 /** The river: a band of constant width around a centreline. Bridges are the streets that cross it. */

@@ -21,10 +21,10 @@ import { convertDue } from '../src/sim/systems/infection';
 import { carProcesses, decideCars } from '../src/sim/systems/cars';
 import { step } from '../src/sim/tick';
 
-// Pinned to one zombie in one building, with no SWAT and no EMTs: these tests set their
-// own scenes, and were written against that world (those have their own tests).
+// Pinned to one zombie in one building, with no SWAT, EMTs or yards: these tests set
+// their own scenes on that map, and were written against it (those have their own tests).
 function fresh(cfg: Config = baseConfig) {
-  return createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, { ...cfg, features: { ...cfg.features, swat: false, emt: false } });
+  return createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, { ...cfg, features: { ...cfg.features, swat: false, emt: false, yards: false } });
 }
 
 /** A point in the middle of a long street well inside the city, and the street's direction. */

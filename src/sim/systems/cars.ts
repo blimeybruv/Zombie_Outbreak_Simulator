@@ -165,8 +165,22 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
   return car;
 }
 
-/** A SWAT van (or an ambulance) at the kerb by its home's door, or the nearest clear spot along the street; null if there is none. */
+/** Whether a police station or hospital has a yard of its own (map generation, when it fit). */
+export function hasYard(world: World, b: Building): boolean {
+  return world.lots.some((l) => l.home === b.id);
+}
+
+/** A service vehicle in a bay of its home's yard; failing that, at the kerb by its door or the nearest clear spot along the street; null if there is none. */
 export function parkVan(world: World, ctx: Context, b: Building, kind: Car['kind'] = 'van'): Car | null {
+  // In its yard first, in the first free bay.
+  for (const lot of world.lots) {
+    if (lot.home !== b.id) continue;
+    for (const p of bays(world, lot)) {
+      if (world.cars.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < world.config.cars.stall.width * 0.9)) continue;
+      const v = addCar(world, ctx, p.x, p.y, p.heading, false, b.id, kind);
+      if (v !== null) return v;
+    }
+  }
   const e = b.entrances[0]!;
   const s = world.streets[b.street]!;
   const a = world.nodes[s.a]!, n = world.nodes[s.b]!;
@@ -193,9 +207,19 @@ export function placeParkedCars(world: World, ctx: Context): void {
     const k = kerbBy(world, b, e.x, e.y);
     if (k !== null) addCar(world, ctx, k.x, k.y, k.heading, true);
   }
-  // The mall's stalls: double rows nose to nose, either side of the driveway.
-  const st = cc.stall;
+  // The mall's stalls: double rows nose to nose, either side of the driveway. (A yard's
+  // bays are for its own vehicles: parkVan.)
   for (const lot of world.lots) {
+    if (lot.home !== null) continue;
+    for (const p of bays(world, lot)) if (chance(rng, cc.lotShare)) addCar(world, ctx, p.x, p.y, p.heading, false);
+  }
+}
+
+/** A lot's stalls, as drawn: double rows nose to nose either side of the driveway, front rows first. */
+function bays(world: World, lot: World['lots'][number]): { x: number; y: number; heading: number }[] {
+  const st = world.config.cars.stall;
+  const out: { x: number; y: number; heading: number }[] = [];
+  {
     const o = lot.outline;
     const w = Math.hypot(o[1]!.x - o[0]!.x, o[1]!.y - o[0]!.y) || 1;
     const dx = (o[1]!.x - o[0]!.x) / w, dy = (o[1]!.y - o[0]!.y) / w;
@@ -207,13 +231,13 @@ export function placeParkedCars(world: World, ctx: Context): void {
       for (let u = st.aisle / 2 + st.width / 2; u <= w - st.aisle / 2; u += st.width) {
         if (Math.abs(u - lot.entry) < st.driveGap + st.width / 2) continue;
         for (const row of [v + st.depth / 2, v + st.depth * 1.5]) {
-          if (!chance(rng, cc.lotShare)) continue;
           const p = at(u, row);
-          addCar(world, ctx, p.x, p.y, heading, false);
+          out.push({ x: p.x, y: p.y, heading });
         }
       }
     }
   }
+  return out;
 }
 
 // Choosing a car, and boarding

@@ -16,18 +16,23 @@
 import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
 import { capacity, exitTicks, isLiving } from './common';
-import { makePolice, spawnSim } from '../spawn';
-import { boardSquad, parkVan } from './cars';
+import { makePolice, spawnSim, takeStaff } from '../spawn';
+import { boardSquad, hasYard, parkVan } from './cars';
 
 /** Garrisons each station with enough residents with first responders. Called once at setup. */
 export function placeFirstResponders(world: World, ctx: Context): void {
   const { config, buildings } = world;
   const dc = config.dispatch;
   for (const b of buildings) {
-    if (b.tag !== 'policeStation' || b.residents < dc.minResidents) continue;
-    for (let n = 0; n < dc.perStation; n++) {
+    // With a yard: yards.policeCrews cars, each with dispatch.perCall officers, staffed
+    // from the district if the station is short; without, the street has room for one car.
+    const yard = config.features.cars && hasYard(world, b);
+    if (b.tag !== 'policeStation' || (!yard && b.residents < dc.minResidents)) continue;
+    const cars = yard ? config.yards.policeCrews : 1;
+    const officers = yard ? cars * dc.perCall : dc.perStation;
+    for (let n = 0; n < officers; n++) {
       // A resident becomes tracked: indoors either way, so the counters do not move.
-      b.residents--;
+      if (!takeStaff(world, b)) break;
       const e = b.entrances[0]!;
       const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
       makePolice(world, sim);
@@ -38,8 +43,8 @@ export function placeFirstResponders(world: World, ctx: Context): void {
       sim.history.buildingsEntered = 1;
       b.sheltered.push(sim.id);
     }
-    // A police car at the kerb for them (cars.ts): they drive out to calls.
-    if (config.features.cars) parkVan(world, ctx, b, 'cruiser');
+    // Police cars for them, in the yard or at the kerb (cars.ts): they drive out to calls.
+    if (config.features.cars) for (let n = 0; n < cars; n++) parkVan(world, ctx, b, 'cruiser');
   }
 }
 
@@ -128,6 +133,7 @@ export function rideToCall(world: World, ctx: Context, sim: Sim, dest: { x: numb
   if (sim.station === null || sim.answering === null || sim.squadLeader !== null) return null;
   const pc = config.police;
   const door = buildings[sim.station]!.entrances[0]!;
+  // The first of its station's cars still there: the same one for every officer sent.
   const car = cars.find((c) => c.kind === 'cruiser' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= pc.carNear);
   if (car === undefined || Math.hypot(dest.x - car.x, dest.y - car.y) <= pc.carBeyond) return null;
   const sent = sims.filter((s) => s.answering === sim.answering && s.station === sim.station && s.squadLeader === null && isLiving(s));

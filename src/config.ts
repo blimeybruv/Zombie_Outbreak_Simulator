@@ -53,6 +53,10 @@ export const config = {
     // from the junction; the building stands apron beyond its end, at most maxWidth ×
     // maxDepth (at least minWidth × minDepth), sideYard clear of the grounds' sides. No
     // mall if nothing fits.
+    // A yard beside each police station and hospital that has room on its frontage (a
+    // whole-block one gives up the far end of its own): open ground with a driveway and
+    // rows of bays, where its vehicles park — guess
+    yard: { width: 30, depth: 18, gap: 2, minRest: 25 }, // a whole-block one is cut from the building, leaving it at least minRest wide
     mall: {
       districts: ['suburb'] as readonly string[], // malls are suburban; industrial blocks are larger and won every time
       minBlock: 8000, // m²
@@ -132,12 +136,14 @@ export const config = {
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
   //   evacuation      districts never evacuate: the release at the start is the only one
+  //   yards           no service yards: stations and hospitals park one vehicle at the kerb
   //   swat            no SWAT squads or vans
   //   emt             no ambulances: nobody calls one
   //   reservists      no armouries, so reservists are never called up: civilians
   //   relevanceTrim   street memory forgets its oldest, not its least relevant
   //   dropQuietHearsay everyone takes news of quiet streets they knew nothing of
   features: {
+    yards: true,
     emt: true,
     swat: true,
     evacuation: false, // off by default: as built it starves the outbreak (reference, "Evacuation")
@@ -418,6 +424,12 @@ export const config = {
   // the van is transport, not a base; where it stops it stays, for anyone to take —
   // guesses
   swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 15, vanBeyond: 250, radioRatio: 1, radioMin: 4, radioCooldown: 600 },
+
+  // Service yards (map.yard): a police station with one has policeCrews cars, each with
+  // dispatch.perCall first responders; a hospital with one, hospitalCrews ambulances
+  // and crews. Without a yard, one at the kerb. Finite either way: what is spent is gone
+  // — guesses
+  yards: { policeCrews: 2, hospitalCrews: 3 },
 
   // EMTs (emt.ts): a crew of `crew` with an ambulance at each hospital, from the start,
   // taken from its residents; finite, like SWAT. A bitten sim indoors that believes

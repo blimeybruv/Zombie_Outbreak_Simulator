@@ -22,7 +22,7 @@
 import type { Context } from '../context';
 import type { Building, BuildingId, Sim, World } from '../state';
 import { chance, nextInt } from '../rng';
-import { makePolice, spawnSim } from '../spawn';
+import { makePolice, spawnSim, takeStaff } from '../spawn';
 import { isFirearm } from '../state';
 import { capacity, isLiving, leaveTalk } from './common';
 import { boardSquad, parkVan } from './cars';
@@ -84,13 +84,14 @@ export function placeSwat(world: World, ctx: Context): void {
   const { config, buildings } = world;
   if (!config.features.swat) return;
   const size = config.squads.size;
-  const stations = buildings.filter((b) => b.tag === 'policeStation' && b.residents >= size);
+  const stations = buildings.filter((b) => b.tag === 'policeStation');
   for (const b of spread(world, stations, config.swat.stations)) {
     const e = b.entrances[0]!;
     let leader: Sim | null = null;
     for (let i = 0; i < size; i++) {
-      // A resident becomes tracked: indoors either way, so the counters do not move.
-      b.residents--;
+      // A resident (of the station, or failing that its district) becomes tracked:
+      // indoors either way, so the counters do not move.
+      if (!takeStaff(world, b)) break;
       const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
       makePolice(world, sim);
       sim.weapon = config.swat.weapon;

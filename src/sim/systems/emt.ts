@@ -16,31 +16,38 @@
 
 import type { Context } from '../context';
 import { chance } from '../rng';
-import { spawnSim } from '../spawn';
+import { spawnSim, takeStaff } from '../spawn';
 import type { Building, Car, Sim, World } from '../state';
-import { boardSquad, parkVan } from './cars';
+import { boardSquad, hasYard, parkVan } from './cars';
 import { exitTicks, isLiving, setDestination } from './common';
 
-/** One crew and an ambulance at each hospital, from its residents. Called once at setup, after the parked cars. */
+/** Ambulance crews at each hospital, from its residents: yards.hospitalCrews with a yard, one without. Called once at setup, after the parked cars. */
 export function placeEmts(world: World, ctx: Context): void {
   const { config, buildings } = world;
   if (!config.features.emt || !config.features.cars) return;
   for (const b of buildings) {
-    if (b.tag !== 'hospital' || b.residents < config.emt.crew) continue;
-    const car = parkVan(world, ctx, b, 'ambulance');
-    if (car === null) continue;
-    const e = b.entrances[0]!;
-    for (let i = 0; i < config.emt.crew; i++) {
-      // A resident becomes tracked: indoors either way, so the counters do not move.
-      b.residents--;
-      const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
-      sim.archetype = 'civilian';
-      sim.crew = car.id;
-      sim.shelter = b.id;
-      sim.destinationKind = 'shelter';
-      sim.gait = 'still';
-      b.sheltered.push(sim.id);
-    }
+    if (b.tag !== 'hospital') continue;
+    // With a yard, yards.hospitalCrews; without, the street has room for one ambulance.
+    const crews = hasYard(world, b) ? config.yards.hospitalCrews : 1;
+    for (let c = 0; c < crews; c++) placeCrew(world, ctx, b);
+  }
+}
+
+/** One ambulance (in the yard, or at the kerb) and its crew, from the hospital's residents or its district's. */
+function placeCrew(world: World, ctx: Context, b: Building): void {
+  const car = parkVan(world, ctx, b, 'ambulance');
+  if (car === null) return;
+  const e = b.entrances[0]!;
+  for (let i = 0; i < world.config.emt.crew; i++) {
+    // A resident becomes tracked: indoors either way, so the counters do not move.
+    if (!takeStaff(world, b)) break;
+    const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null });
+    sim.archetype = 'civilian';
+    sim.crew = car.id;
+    sim.shelter = b.id;
+    sim.destinationKind = 'shelter';
+    sim.gait = 'still';
+    b.sheltered.push(sim.id);
   }
 }
 

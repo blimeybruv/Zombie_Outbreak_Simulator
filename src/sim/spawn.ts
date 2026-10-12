@@ -8,6 +8,7 @@ import { chance, nextFloat, nextInt, type RngState } from './rng';
 import {
   ARCHETYPES,
   type Archetype,
+  type Building,
   type BuildingId,
   type BuildingTag,
   type DestinationKind,
@@ -290,4 +291,17 @@ export function spawnZombie(
   };
   world.zombies.push(z);
   return z;
+}
+
+/**
+ * Where a crew member placed at `b` at setup comes from: one of its residents, or,
+ * with none left, one from the fullest building in its district (lower id on a tie) —
+ * indoors either way, so the counters do not move. False if the district is empty.
+ */
+export function takeStaff(world: World, b: Building): boolean {
+  let from: Building | null = b.residents > 0 ? b : null;
+  if (from === null) for (const o of world.buildings) if (o.district === b.district && o.residents > (from?.residents ?? 0)) from = o;
+  if (from === null) return false;
+  from.residents--;
+  return true;
 }

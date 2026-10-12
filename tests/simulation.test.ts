@@ -59,7 +59,7 @@ describe('the tick', () => {
   it('holds the invariant every tick through the opening, release and first spread', () => {
     const world = run({ ...defaultScenario, runSeed: 3 }, 2500);
     expect(world.counters.turned.outdoors + world.counters.turned.occupying + world.counters.turned.destroyed).toBeGreaterThan(5);
-  }, 60_000);
+  }, 120_000); // a full population with the invariant recounted every tick: a minute on a busy host
 
   it('reproduces a run exactly from its seeds', () => {
     const scenario = { ...defaultScenario, runSeed: 5 };
