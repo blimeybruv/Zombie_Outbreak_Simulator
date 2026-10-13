@@ -61,7 +61,9 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'policeRadio':
       return `An officer on ${n.place} is outnumbered — ${e.count} of them — and radios for SWAT.`;
     case 'districtEvacuating':
-      return `${n.district} is leaving: its people are out on the roads.`;
+      return e.first
+        ? `${n.district} is the first to leave: its people are out on the roads. The world outside will not leave the roads open long.`
+        : `${n.district} is leaving: its people are out on the roads.`;
     case 'reservistsCalledUp':
       return 'The National Guard reserve has been called up. Reservists are to report to their armouries.';
     case 'squadFormed':

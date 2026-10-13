@@ -105,7 +105,7 @@ export interface World {
   exits: Exit[];
   /** The bitten who got off the map before turning: counted as evacuated, carrying it out. @range 0–population @unit people @readBy end stats, sweep */
   escapedInfected: Count;
-  /** When the world outside noticed (once cordon.noticeAfter have come out by the exits); null until then. @range tick | null @unit tick @readBy cordon */
+  /** When the world outside noticed: the first district evacuation (release.ts); null until then. @range tick | null @unit tick @readBy cordon, evacuation (first) */
   noticedAt: Tick | null;
   /** 911 calls made so far (dispatch.ts placeCall): all the authorities know of the outbreak's size. @range 0–thousands @unit calls @readBy squads (the call-up order) */
   callsTaken: Count;

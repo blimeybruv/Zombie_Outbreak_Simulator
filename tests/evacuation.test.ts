@@ -14,7 +14,9 @@ describe('evacuation', () => {
     world.tick = config.evacuation.interval * 100;
     const before = world.sims.length;
     buildingProcesses(world, ctx);
-    expect(ctx.events.some((e) => e.type === 'districtEvacuating' && e.district === 0)).toBe(true);
+    expect(ctx.events.some((e) => e.type === 'districtEvacuating' && e.district === 0 && e.first)).toBe(true);
+    // The first district to go is what the world outside reacts to: the cordon's clock starts.
+    expect(world.noticedAt).toBe(world.tick);
     expect(world.buildings.filter((b) => b.district !== 0).every((b) => b.pendingEvacuate === 0)).toBe(true);
     // (The first release goes out too, by now, unaware and on routines: not these.)
     const out = world.sims.slice(before).filter((s) => s.destinationKind === 'leave');

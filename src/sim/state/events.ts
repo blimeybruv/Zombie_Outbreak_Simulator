@@ -143,6 +143,8 @@ export interface DistrictEvacuatingEvent extends EventBase, Located {
   type: 'districtEvacuating';
   /** @range district id @unit id @readBy ticker */
   district: DistrictId;
+  /** The first district to go: the one the world outside reacts to (cordon.ts). @range true/false @unit — @readBy ticker copy, salience */
+  first: boolean;
   /** Always null: the line is about the district. @range null @unit — @readBy ticker notes */
   sim: null;
 }

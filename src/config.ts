@@ -477,9 +477,9 @@ export const config = {
   // `arriveNear` of the job's door — guesses
   emt: { crew: 2, answer: 0.9, answerHalfLife: 9000, radius: 2500, gather: 10, arriveNear: 40 },
 
-  // The cordon (cordon.ts): the world outside sealing the city. It notices when
-  // noticeAfter people have come out of the city by its exits, and `delay` ticks
-  // later — the first wave through, the rest not — a squad of squads.size
+  // The cordon (cordon.ts): the world outside sealing the city. It notices when the
+  // first district evacuates, and `delay` ticks later — that district through, the
+  // next not — a squad of squads.size
   // soldiers comes in at every exit, armed with the rifle and `ammo` rounds. Each walks
   // to its post `post` metres outside a barrier `setback` metres in from the edge; once
   // the leader is within postReach of it, the barrier closes: the highway's last
@@ -495,7 +495,7 @@ export const config = {
   // flanks, bitten or not. A car reaching a closed barrier is left there; the cars
   // behind it stop. Soldiers are outsiders: the invariant counts them on top of the
   // population — guesses
-  cordon: { noticeAfter: 20, delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2 },
+  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2 },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

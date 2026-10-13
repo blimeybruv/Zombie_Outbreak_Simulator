@@ -61,6 +61,11 @@ export function updateEvacuation(world: World, ctx: Context): void {
         n++;
       }
     }
-    if (n > 0) ctx.events.push({ type: 'districtEvacuating', tick, district: d.id, sim: null, x: x / n, y: y / n });
+    if (n === 0) continue;
+    // The first district to go is the one the world outside reacts to: the cordon comes
+    // cordon.delay ticks later, and every district after this one meets a sealed road.
+    const first = world.noticedAt === null;
+    world.noticedAt ??= tick;
+    ctx.events.push({ type: 'districtEvacuating', tick, district: d.id, first, sim: null, x: x / n, y: y / n });
   }
 }
