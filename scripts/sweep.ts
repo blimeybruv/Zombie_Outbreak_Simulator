@@ -46,6 +46,18 @@ function rosterSummary(results: RunSummary[], file: string): void {
   const pct = (n: number) => `${((n / entries.length) * 100).toFixed(0)}%`;
   const fmt = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${pct(n)}`).join(', ');
   console.log(`\nroster: ${entries.length} named over ${results.length} seeds; alive at the end ${pct(entries.filter((e) => e.fate === 'alive').length)}`);
+  // The longest stretch, after the first naming, with none of the named alive in the city (the dead and the evacuated both gone).
+  const gaps = results.map((r) => {
+    if (r.roster.length === 0) return 0;
+    const spans = r.roster.map((e) => [e.tick, e.endedAt ?? r.runLength] as const).sort((x, y) => x[0] - y[0]);
+    let longest = 0, reach = spans[0]![1];
+    for (const [from, to] of spans.slice(1)) {
+      if (from > reach) longest = Math.max(longest, from - reach);
+      reach = Math.max(reach, to);
+    }
+    return Math.max(longest, r.runLength - reach);
+  });
+  console.log(`  longest stretch with no named person alive in the city, per seed: ${gaps.join(' / ')} ticks`);
   // How long the named live after naming (to the end of the run if they survive it).
   const runLength = results[0]!.samples.length > 0 ? (results[0]!.samples.length - 1) * 600 : 0;
   const lived = entries.map((e) => (e.endedAt ?? runLength) - e.tick).sort((a, b) => a - b);
