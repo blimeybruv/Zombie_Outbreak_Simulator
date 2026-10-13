@@ -189,7 +189,7 @@ export interface Sim {
   x: Metres;
   /** @range 0–3200 @unit m @readBy spatial hash, movement, perception, render */
   y: Metres;
-  /** Facing; decisions set it, movement integrates along it. @range 0–2π @unit rad @readBy movement, render (trails) */
+  /** Facing; decisions set it, movement integrates along it. @range 0–2π @unit rad @readBy movement, perception (the cone it sees in), combat (what it can aim at), render (trails) */
   heading: Radians;
   /**
    * Which way the sim is sliding along an obstacle: -1 or 1, or 0 when its way is

@@ -290,6 +290,11 @@ export const config = {
     nightRadiusLit: 25, // m
     nightRadiusUnlit: 15, // m
     dormantThreatWeight: 0.25, // dormant zombies count a quarter in perceivedThreat
+    // Survivors face somewhere: their full radius within the cone (cos of its half-angle,
+    // 0.34 ≈ ±70°) of their heading, `rear` of it outside — not blind behind, but what
+    // closes from behind gets much nearer before it registers. Contact is felt — guesses
+    coneCos: 0.34,
+    rear: 0.3,
   },
 
   memory: {

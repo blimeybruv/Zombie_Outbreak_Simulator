@@ -33,6 +33,18 @@ export function recognisedWithin(config: Config, r: number, z: Zombie): number {
   return Math.max(r * config.zombie.intactSight, Math.min(r, config.zombie.intactGiveaway));
 }
 
+/**
+ * How far a sim sees in the direction (dx, dy), at distance d: its full radius within
+ * perception.cone of the way it faces, a fraction of it (perception.rear) outside. People
+ * are not blind behind them, but something closing from behind while they look ahead
+ * gets much nearer before it registers — and two back to back cover each other.
+ */
+export function viewFactor(config: Config, sim: Sim, dx: number, dy: number, d: number): number {
+  if (d === 0) return 1;
+  const along = (Math.cos(sim.heading) * dx + Math.sin(sim.heading) * dy) / d;
+  return along >= config.perception.coneCos ? 1 : config.perception.rear;
+}
+
 /** How visible a sim is to zombie sight, from gait and concealment. */
 export function detectability(world: World, ctx: Context, sim: Sim): number {
   const base = world.config.movement.gait[sim.gait].detectability;
@@ -85,7 +97,7 @@ export function computePerception(world: World, ctx: Context): void {
       const dy = z.y - sim.y;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d <= contact) ctx.contacts[id]!++;
-      const seenAt = recognisedWithin(config, r, z); // an intact zombie registers only nearer
+      const seenAt = recognisedWithin(config, r, z) * viewFactor(config, sim, dx, dy, d); // an intact zombie, or one behind, registers only nearer
       if (d > seenAt) continue;
       if (d > contact && !ctx.map.lineOfSight(sim.x, sim.y, z.x, z.y)) continue;
       const w = (1 - d / seenAt) * (z.state === 'dormant' ? config.perception.dormantThreatWeight : 1);

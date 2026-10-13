@@ -13,7 +13,7 @@ import { dropWeapon } from './arms';
 import { markRising } from './rising';
 import { cornered } from './sims';
 import { modeOf } from './panic';
-import { recognisedWithin } from './perception';
+import { recognisedWithin, viewFactor } from './perception';
 import { emitStimulus } from './stimuli';
 import { pastBarrier } from './cordon';
 import { nearestExit } from './exits';
@@ -128,7 +128,7 @@ function sims(world: World, ctx: Context): void {
       if (z.state === 'destroyed' || z.state === 'occupying') continue;
       const d = Math.hypot(z.x - sim.x, z.y - sim.y);
       if (d >= targetD) continue;
-      if (d > cc.contactRange && d > recognisedWithin(config, ctx.radius[sim.id]!, z)) continue; // not seen for what it is
+      if (d > cc.contactRange && d > recognisedWithin(config, ctx.radius[sim.id]!, z) * viewFactor(config, sim, z.x - sim.x, z.y - sim.y, d)) continue; // not seen for what it is, or not seen at all
       if (d > cc.contactRange && !ctx.map.lineOfSight(sim.x, sim.y, z.x, z.y)) continue;
       target = z;
       targetD = d;

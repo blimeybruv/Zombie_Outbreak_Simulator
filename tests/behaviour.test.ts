@@ -92,6 +92,7 @@ describe('fight, flight or freeze', () => {
     const { world, ctx } = fresh(cfg);
     const p = streetPoint(world);
     const s = walker(world, p.x, p.y);
+    s.heading = Math.atan2(p.uy, p.ux); // facing one of them
     s.nerve = nerve;
     s.panic = panic;
     if (armed) s.weapon = 'club';
@@ -404,12 +405,13 @@ describe('the intact dead', () => {
   });
 
   /** A survivor on a street with one zombie `d` m up it. */
-  function lookAt(d: number, intact: boolean) {
+  function lookAt(d: number, intact: boolean, behind = false) {
     const { world, ctx } = fresh();
     const p = streetPoint(world);
     for (const z of world.zombies) if (z.state !== 'occupying') z.state = 'destroyed';
     for (const o of world.sims) o.weapon = null; // nobody to shoot it from a door first
     const s = walker(world, p.x, p.y);
+    s.heading = Math.atan2(p.uy, p.ux) + (behind ? Math.PI : 0); // facing it, or away
     const z = spawnZombie(world, p.x + p.ux * d, p.y + p.uy * d, 'active', null, null);
     z.intact = intact;
     sizeContext(ctx, world);
@@ -417,6 +419,11 @@ describe('the intact dead', () => {
     computePerception(world, ctx);
     return { world, ctx, s, z, seen: ctx.nearestZombie[s.id] === z.id };
   }
+
+  it('one behind registers only much nearer: survivors see in a cone ahead of them', () => {
+    expect(lookAt(25, false, true).seen).toBe(false);
+    expect(lookAt(baseConfig.perception.dayRadius.standard * baseConfig.perception.rear - 2, false, true).seen).toBe(true);
+  });
 
   it('is recognised only nearer, but never closer than its gait gives it away', () => {
     expect(lookAt(25, false).seen).toBe(true);
