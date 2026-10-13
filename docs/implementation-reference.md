@@ -1294,6 +1294,19 @@ The ending (`systems/rescue.ts`, `config.rescue`; the user's design, after B's o
   - **Alone,** it settles not to 0 but to 0.25 × sociality. The gregarious alone stay on edge and the solitary do not. The floor sits below `memoryCutoff`, so it changes no one's routing mode, only whether their nerve holds when cornered, blocked or exhausted (`breaks`).
   - **Only the baseline moves.** No rise is damped, so witnessed turnings, noise and people running this way frighten a calm crowd as before. A crowd settles; it does not become fearless, and it can still tip into a stampede.
   - **Things to watch.** Whether loners (who never join, so are alone more) collapse: the sweep now prints survival and the mean panic of the aware outdoors by archetype. Prediction before the sweep (the user's): sociality's z rises above zero for the first time, and nerve's effect may rise with it, since the two now interact.
+  - **Swept** (mapSeed 1, runSeeds 1–8, commit 7c21f48, on the new map that the name stream made; company on against `features.company=false`). Both gates pass either way. Company leaves survival where it was, and **the prediction fails**:
+
+    | | company on | company off |
+    |---|---|---|
+    | sociality z | −0.3 | 1.0 |
+    | nerve z | 0.7 | 1.1 |
+    | trust z | −9.3 | −10.0 |
+    | caution z | 22.8 | 23.4 |
+    | loners | 30.0% | 28.4% |
+    | civilians | 18.2% | 17.9% |
+
+    Mean panic of the aware outdoors rises (civilians 0.115 → 0.177): most of the time people are alone, and the lonely floor holds them up. Loners do not collapse; they survive best of any archetype either way. Why damping does not separate anyone: it acts on the calm between shocks, over minutes. But a break is decided seconds after a shock, when each witnessed turning or nearby noise has added 0.25 and the cornered moment has come before any settling can matter.
+- **Caution split at the broadcast, measured** (old map, commit 7796794): up to the broadcast 23.1% / 23.9% / 27.0% (z 6.8); after it, of those still in the city, 38.4% / 72.7% / 85.3% (z 34.9). Caution's large separation is the broadcast's choice — the careless answer it and die on the way — and its effect over the outbreak itself is the modest one earlier sweeps found. On the new map, z 7.7 before and 29.7 after with company, 7.5 and 29.9 without.
 - **The end screen says what trust did** (`EndSummary.trust`, `sim-worker.ts trustSplit`): of those still in the city when the broadcast went out (outsiders aside), how many doubted the radio (trust below `rescue.trustFloor`) and how many believed it, and the share of each who lived or got out. The sceptics' better survival is the broadcast's doing, and the viewer should not have to read it off a sweep.
 - **Caution split at the broadcast** (the sweep's `cautionSplit`, ungated): survival by caution band up to the broadcast (of those spawned by then, still in the city or already out at it), and after it (of those in the city at it, healthy or out at the end) — to say which phase caution's separation comes from.
 - Off with `features.rescue`.
