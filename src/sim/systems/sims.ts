@@ -642,6 +642,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       if (headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y)) wayBlocked(world, ctx, sim, mode);
     } else {
       clearDestination(sim);
+      sim.destinationKind = null;
       steerAway(ctx, sim);
     }
     return;
@@ -794,7 +795,11 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
           return;
         }
         sim.knownClosed |= 1 << i;
-        if (!headForExit(world, sim)) clearDestination(sim);
+        if (!headForExit(world, sim)) {
+          // Every way out it knows of is shut: no longer leaving.
+          clearDestination(sim);
+          sim.destinationKind = null;
+        }
         return;
       }
       // Not there yet: on toward it (the road through is shut, so straight on).
