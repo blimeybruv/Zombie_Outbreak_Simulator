@@ -5,7 +5,7 @@
 //   direct    memoryCutoff – routing   routes, ignores memory (shortest path)
 //   flight    above routingCutoff      no pathfinding; steers away, takes any door
 //
-// Police are immune: panic never gates their mode.
+// Police and soldiers from outside are immune: panic never gates their mode.
 
 import type { Config } from '../../config';
 import { isOutdoorLiving, type Context } from '../context';
@@ -17,7 +17,7 @@ import { intensityAt } from './stimuli';
 export type Mode = 'informed' | 'direct' | 'flight';
 
 export function modeOf(sim: Sim, config: Config): Mode {
-  if (config.archetypes[sim.archetype].panicImmune) return 'informed';
+  if (config.archetypes[sim.archetype].panicImmune || sim.outsider) return 'informed'; // police, and soldiers from outside
   if (sim.panic > config.panic.routingCutoff) return 'flight';
   if (sim.panic > config.panic.memoryCutoff) return 'direct';
   return 'informed';
@@ -29,7 +29,7 @@ export function modeOf(sim: Sim, config: Config): Mode {
  * to it). The one question about panic that cornered, blocked and exhausted sims ask.
  */
 export function breaks(sim: Sim, config: Config): boolean {
-  if (config.archetypes[sim.archetype].panicImmune) return false;
+  if (config.archetypes[sim.archetype].panicImmune || sim.outsider) return false; // trained soldiers from outside hold
   return sim.panic > Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0);
 }
 

@@ -109,18 +109,22 @@ export function updateRescue(world: World, ctx: Context): void {
   if (i === null) return;
   const e = world.exits[i]!;
   const a = axisOf(world, e);
-  const front = Math.min(rc.depth, rc.speed * (tick - rc.at));
+  // The front is where the company has got to, not where it was meant to: it advances
+  // ahead of the farthest living soldier at most, and with none left the sweep stops.
+  const soldiers = sims.filter((s) => s.sweep && isLiving(s) && s.insideBuilding === null);
+  const reached = soldiers.reduce((m, s) => Math.max(m, inCorridor(world, e, s.x, s.y).along), 0);
+  const front = soldiers.length === 0 ? 0 : Math.min(rc.depth, rc.speed * (tick - rc.at), reached + rc.lead);
 
   // The front: each squad's leader holds its lane of the corridor at the front line.
   if (tick % 30 === 0) {
     const leaders = sims.filter((s) => s.sweep && s.squadLeader === s.id && isLiving(s));
     leaders.forEach((s, k) => {
       const lane = ((k + 0.5) / leaders.length - 0.5) * 2 * rc.halfWidth * 0.8;
-      s.post = snap(world, ctx, e.x + a.x * front - a.y * lane, e.y + a.y * front + a.x * lane);
+      const goal = Math.min(rc.depth, rc.speed * (tick - rc.at)); // where it is meant to be by now
+      s.post = snap(world, ctx, e.x + a.x * goal - a.y * lane, e.y + a.y * goal + a.x * lane);
     });
 
     // Sending back: whoever a soldier meets, and buildings behind the front.
-    const soldiers = sims.filter((s) => s.sweep && isLiving(s) && s.insideBuilding === null);
     for (const s of soldiers) {
       ctx.simHash.query(s.x, s.y, rc.sendRadius, ctx.ids2);
       for (const id of ctx.ids2) {

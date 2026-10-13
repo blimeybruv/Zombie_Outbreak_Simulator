@@ -246,7 +246,8 @@ export const config = {
   // company of `squads` squads comes in at `at` by the exit whose corridor holds the most
   // people still sheltering, and pushes up it — a corridor `halfWidth` either side of the
   // line from the exit toward the middle of the map — its front advancing `speed` m a
-  // tick to at most `depth`. The soldiers shoot the dead, send back down the corridor
+  // tick to at most `depth`, and never more than `lead` m ahead of the farthest living
+  // soldier: with none left, the sweep stops. The soldiers shoot the dead, send back down the corridor
   // anyone who identifies itself (within `sendRadius`), and may shoot anyone who does
   // not — frozen, sprinting, or in the dark — at `misidentify` a look; buildings the
   // living hold behind the front give up `takeShare` of their residents. `broadcast`
@@ -254,7 +255,7 @@ export const config = {
   // that exit (`broadcastShare` of the residents of every building still held). Trucks
   // come every `truckEvery` ticks, load for `truckLoad` and take up to `truckCapacity`
   // of those waiting; nobody is screened — guesses
-  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
+  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
 
   rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
 

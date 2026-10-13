@@ -382,7 +382,7 @@ export interface Sim {
   answeringSince: Tick | null;
   /** When this officer last radioed for SWAT; null if never. @range tick | null @unit tick @readBy sim decisions (radio cooldown) */
   radioedAt: Tick | null;
-  /** A soldier from outside, come to hold the cordon (cordon.ts): not one of the city's people. @range true/false @unit — @readBy snapshot (inspector), end stats */
+  /** A soldier from outside, come to hold the cordon or to sweep for the rescue (cordon.ts, rescue.ts): not one of the city's people, trained, and never in a panic. @range true/false @unit — @readBy panic (immune), combat, rescue, snapshot (inspector), end stats */
   outsider: boolean;
   /** Where a cordon squad's leader stands, by its barrier; null for everyone else. @range 0–3200 each axis | null @unit m @readBy sim decisions (squad leader), cordon */
   post: Vec2 | null;
