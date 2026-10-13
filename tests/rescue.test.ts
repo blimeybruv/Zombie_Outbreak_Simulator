@@ -30,7 +30,7 @@ describe('the rescue', () => {
     assertInvariant(world);
   });
 
-  it('after the broadcast everyone free to makes for its exit, and trucks take those waiting, up to their capacity', () => {
+  it('after the broadcast those who believe it and dare make for its exit, and trucks take those waiting, up to their capacity', () => {
     const { world, ctx } = fresh();
     world.tick = soon.rescue.at;
     updateRescue(world, ctx);
@@ -39,7 +39,11 @@ describe('the rescue', () => {
     expect(ctx.events.some((e) => e.type === 'rescueBroadcast')).toBe(true);
     const e = world.exits[world.rescueExit!]!;
     const free = world.sims.filter((s) => s.condition === 'healthy' && !s.outsider && s.archetype !== 'police' && s.crew === null);
-    expect(free.filter((s) => s.destinationKind === 'leave').length).toBeGreaterThan(free.length * 0.9);
+    // Answering is a choice: some go, sceptics stay put, and the cautious far from the corridor stay hidden.
+    const went = free.filter((s) => s.destinationKind === 'leave');
+    expect(went.length).toBeGreaterThan(0);
+    expect(went.length).toBeLessThan(free.length);
+    expect(went.every((s) => s.trust >= soon.rescue.trustFloor)).toBe(true);
     for (const s of free) expect(s.destination === null || s.destinationKind !== 'leave' || (s.destination.x === e.x && s.destination.y === e.y)).toBe(true);
     // A queue at the barrier, and a truck.
     const q = queueAt(world, e);

@@ -90,7 +90,26 @@ export function identifies(world: World, sim: Sim): boolean {
 export function answersRescue(world: World, sim: Sim): boolean {
   const rc = world.config.rescue;
   if (world.rescueExit === null || world.tick < rc.at + rc.broadcast || sim.destinationKind === 'leave') return false;
-  return !sim.outsider && sim.archetype !== 'police' && sim.crew === null && sim.carriedBy === null && sim.squadLeader === null && sim.answering === null;
+  if (sim.outsider || sim.archetype === 'police' || sim.crew !== null || sim.carriedBy !== null || sim.squadLeader !== null || sim.answering !== null) return false;
+  return believesAndDares(world, sim);
+}
+
+/**
+ * Answering is a choice. A sceptic (trust under rescue.trustFloor) does not believe the
+ * broadcast and stays put; the cautious weigh the uncleared ground between them and the
+ * corridor the soldiers hold — caution × risk over rescue.riskTolerance and they stay
+ * hidden, where risk grows with that distance, full at rescue.farFrom. Asked again as
+ * things change: the front coming nearer can change a mind.
+ */
+function believesAndDares(world: World, sim: Sim): boolean {
+  const rc = world.config.rescue;
+  if (sim.trust < rc.trustFloor) return false;
+  const e = world.exits[world.rescueExit!]!;
+  const at = sim.insideBuilding === null ? sim : world.buildings[sim.insideBuilding]!.entrances[0]!;
+  const c = inCorridor(world, e, at.x, at.y);
+  const outside = Math.max(0, c.off - rc.halfWidth) + Math.max(0, c.along - world.rescueFront) + Math.max(0, -c.along);
+  const risk = Math.min(1, outside / rc.farFrom);
+  return sim.caution * risk <= rc.riskTolerance;
 }
 
 function sendBack(world: World, sim: Sim): void {
@@ -135,6 +154,7 @@ export function updateRescue(world: World, ctx: Context): void {
   const soldiers = sims.filter((s) => s.sweep && isLiving(s) && s.insideBuilding === null);
   const reached = soldiers.reduce((m, s) => Math.max(m, inCorridor(world, e, s.x, s.y).along), 0);
   const front = soldiers.length === 0 ? 0 : Math.min(rc.depth, rc.speed * (tick - rc.at), reached + rc.lead);
+  world.rescueFront = Math.max(world.rescueFront, front); // what has been cleared stays cleared, as far as anyone hiding knows
 
   // The front: each squad's leader holds its lane of the corridor at the front line.
   if (tick % 30 === 0) {
@@ -176,7 +196,7 @@ export function updateRescue(world: World, ctx: Context): void {
     for (const s of sims) {
       if (!isLiving(s)) continue;
       s.awareAt ??= tick;
-      sendBack(world, s);
+      if (answersRescue(world, s)) sendBack(world, s);
       if (s.insideBuilding !== null && s.destinationKind === 'leave') s.exitingUntil ??= tick + exitTicks(world, buildings[s.insideBuilding]!);
     }
     for (const b of buildings) {

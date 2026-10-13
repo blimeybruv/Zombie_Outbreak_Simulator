@@ -121,6 +121,8 @@ export interface World {
   rescueTruck: CarId | null;
   /** When the next truck comes, or the one loading leaves. @range tick @unit tick @readBy rescue */
   rescueTruckAt: Tick;
+  /** How far up its corridor the rescue company has cleared, at most: what those hiding weigh when deciding whether to answer the broadcast. @range 0–rescue.depth @unit m @readBy rescue (who answers) */
+  rescueFront: Metres;
   /** People the rescue's trucks have taken out. @range 0–population @unit people @readBy end stats */
   trucked: Count;
 

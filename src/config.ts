@@ -252,10 +252,13 @@ export const config = {
   // not — frozen, sprinting, or in the dark — at `misidentify` a look; buildings the
   // living hold behind the front give up `takeShare` of their residents. `broadcast`
   // ticks after the sweep began, a radio order tells everyone still hidden to make for
-  // that exit (`broadcastShare` of the residents of every building still held). Trucks
+  // that exit (`broadcastShare` of the residents of every building still held). Answering
+  // is a choice: a sceptic (trust under trustFloor) stays put, and so does anyone whose
+  // caution × risk passes riskTolerance, risk growing with the uncleared ground between
+  // it and the cleared corridor, full at farFrom. Trucks
   // come every `truckEvery` ticks, load for `truckLoad` and take up to `truckCapacity`
   // of those waiting; nobody is screened — guesses
-  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
+  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
 
   rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
 
