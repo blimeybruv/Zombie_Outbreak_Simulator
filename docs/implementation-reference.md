@@ -19,9 +19,9 @@ Open decisions are marked inline rather than collected at the end, so they are v
 Everything else marked open further down has since been decided, resolved or made moot, and says so where it stands ("Was open … Since …").
 
 - **Gate 3, by eye and on a real machine.** Whether the city is legible at a glance at mid zoom, including whether the occupancy fill is too faint for a block emptying to be seen. Whether 2,000 agents hold 30 fps at 8× (`scripts/fps.ts`).
-- **A 20-seed sweep of the final state.** Gate 2 is defined over 20 seeds; the last 20-seed run predates exits, the cordon, the rescue and the 64,800-tick run.
-- **The cost of the full run,** not timed since the rescue went in (`scripts/bench.ts`).
+- **The spread across seeds is narrow at the end.** It is wide early — turned in the first hour 159–651 — but every run ends at 44–48% turned. The sweep targets call low variance at the end "the outcome being determined". Here the rescue and the run's length shape the ending more than the outbreak does. Whether that matters is the user's judgement.
 - **Recorded sounds** in place of the synthesised ones. Optional.
+- **Done:** a 20-seed sweep of the final state and the cost of the full run ("Final state", under the rescue).
 - **Settled, not open:** this city punishes grouping ("Grouping is punished in this city", under the rescue); the roster is a record (re-score, under promotion); civilian squads stay out, which that finding makes moot.
 
 ### Field lists live in code
@@ -1353,6 +1353,15 @@ The ending (`systems/rescue.ts`, `config.rescue`; the user's design, after B's o
   - **Loners show it.** They avoid people and pay none of the continuous costs, and survive best of any archetype: about 29% against about 18% for civilians.
   - **It explains the sociality null.** Every sweep since sociality became per sim has found it predicts nothing: going along with others buys none of the moment-of-test benefits and avoids none of the costs. The null was an open question; this is its cause.
   - **What stays.** Company is left on, cheap and correct in the few cases it reaches. Mutual defence is not built: its reach was computed beforehand, and at 3–5% coverage it could not close a ten-point gap even at perfect efficacy.
+- **Final state, 20 seeds** (mapSeed 1, runSeeds 1–20, 64,800 ticks, commit 09a6cc4; 2,848 s wall). **Both gates pass 20 of 20:**
+  - **Gate 2:** the invariant holds every tick; loss is in range in 20 of 20, ending at 44–48% turned; no run resolves early.
+  - **Gate 4:** shelters form, fall and re-form in 20 of 20, with no stasis.
+  - **Survival by caution:** 13.7% / 20.0% / 25.7% (z 37.5). Split at the broadcast: up to it z 11.6, after it z 48.7.
+  - **Other traits:** trust z −16.1, the sceptics living; nerve z 5.2; sociality −1.2.
+  - **By archetype:** loners survive 28.9% against 20.3% for civilians.
+  - **The broadcast:** 469–769 answer it a run, 30–225 get out, and the trucks take 73–263.
+  - **The roster:** no seed had a stretch with no named person alive in the city. The gap seen once on seed 2 was an oddity of an earlier state; the re-score needs no change.
+  - **Cost** (`scripts/bench.ts --ticks 64800`, two fresh runs): 458 s for the full run, 7.06 ms a tick. The busiest stretch is at ticks 58,000–59,000, the rescue's last hours, at 13.1 ms a tick; elsewhere 6–9 ms. At 8× that is under a tenth of each second.
 - **Caution split at the broadcast, measured** (old map, commit 7796794): up to the broadcast 23.1% / 23.9% / 27.0% (z 6.8); after it, of those still in the city, 38.4% / 72.7% / 85.3% (z 34.9). Caution's large separation is the broadcast's choice — the careless answer it and die on the way — and its effect over the outbreak itself is the modest one earlier sweeps found. On the new map, z 7.7 before and 29.7 after with company, 7.5 and 29.9 without.
 - **The end screen says what trust did** (`EndSummary.trust`, `sim-worker.ts trustSplit`): of those still in the city when the broadcast went out (outsiders aside), how many doubted the radio (trust below `rescue.trustFloor`) and how many believed it, and the share of each who lived or got out. The sceptics' better survival is the broadcast's doing, and the viewer should not have to read it off a sweep.
 - **Caution split at the broadcast** (the sweep's `cautionSplit`, ungated): survival by caution band up to the broadcast (of those spawned by then, still in the city or already out at it), and after it (of those in the city at it, healthy or out at the end) — to say which phase caution's separation comes from.
