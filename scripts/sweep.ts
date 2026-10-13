@@ -11,7 +11,9 @@
 // reaches 40–90% of population in at least 15 of 20; no seed resolves under 3,000 ticks.
 // Milestone 4 gate: shelters form, fall and re-form (a garrison established after the
 // first one fell) in at least 15 of 20; no seed settles into stasis (an hour, 3,600
-// ticks, with nothing happening while anyone is alive); survival differs measurably by
+// ticks, with nothing happening while anyone is alive — mid-run, or at the end of a run
+// whose loss is still under the gate's 40%: a quiet end after the outbreak has done its
+// work is a run that finished early, not a stall); survival differs measurably by
 // caution band (lowest against highest band, pooled over seeds, |z| >= 2).
 // Also reported, per seed and not gated, from each run's timeline: awake zombies at
 // their peak and over time, dormant at the end, unaware people outdoors early on,
@@ -28,7 +30,7 @@ import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { KILLERS, runOne, type RunSummary } from './lib/run-one';
+import { GATE_LOSS, KILLERS, runOne, type RunSummary } from './lib/run-one';
 import { config as baseConfig } from '../src/config';
 
 /** Who got named, and why: does scoring find different characters, or one character many times? */
@@ -136,7 +138,7 @@ if (process.argv[2] === '--worker') {
 
   const pct = (x: number) => `${(x * 100).toFixed(0)}%`.padStart(5);
   console.log(`mapSeed ${mapSeed}, ${seeds} runSeeds, overrides ${JSON.stringify(overrides)}, scenario ${JSON.stringify(scenario)}`);
-  console.log('seed  infect   dead  resolved  ms/tick  shelters est/fell/re  quiet  curve (turned share every 1800 ticks)');
+  console.log('seed  infect   dead  resolved  ms/tick  shelters est/fell/re  stall/quiet end  curve (turned share every 1800 ticks)');
   for (const r of results) {
     const pop = r.population;
     const curve = r.samples
@@ -145,7 +147,7 @@ if (process.argv[2] === '--worker') {
       .join(' ');
     const dead = r.samples[r.samples.length - 1]!.unturned.dead / pop;
     console.log(
-      `${String(r.runSeed).padStart(4)}  ${pct(r.infection)}  ${pct(dead)}  ${String(r.resolvedAt ?? '-').padStart(8)}  ${r.msPerTick.toFixed(2).padStart(7)}  ${`${r.shelters.established}/${r.shelters.fell}/${r.shelters.reformed}`.padStart(20)}  ${String(r.longestQuiet).padStart(5)}  ${curve}${r.invariantError ? `  INVARIANT: ${r.invariantError.split('\n')[0]}` : ''}`,
+      `${String(r.runSeed).padStart(4)}  ${pct(r.infection)}  ${pct(dead)}  ${String(r.resolvedAt ?? '-').padStart(8)}  ${r.msPerTick.toFixed(2).padStart(7)}  ${`${r.shelters.established}/${r.shelters.fell}/${r.shelters.reformed}`.padStart(20)}  ${`${r.longestQuiet}/${r.quietEnd ?? '-'}`.padStart(15)}  ${curve}${r.invariantError ? `  INVARIANT: ${r.invariantError.split('\n')[0]}` : ''}`,
     );
   }
 
@@ -206,7 +208,7 @@ if (process.argv[2] === '--worker') {
   // turn is still a city falling. The infection share capped well below the band once
   // feeding and fortification stages were in.
   const lossOf = (r: (typeof results)[number]) => r.infection + r.samples[r.samples.length - 1]!.unturned.dead / r.population;
-  const inBand = results.filter((r) => lossOf(r) >= 0.4 && lossOf(r) <= 0.95).length;
+  const inBand = results.filter((r) => lossOf(r) >= GATE_LOSS.min && lossOf(r) <= GATE_LOSS.max).length;
   const early = results.filter((r) => r.resolvedAt !== null && r.resolvedAt < 3000).length;
   const need = Math.ceil(seeds * 0.75);
   const gate2 = invariantOk && inBand >= need && early === 0;

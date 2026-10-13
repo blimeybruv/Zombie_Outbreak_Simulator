@@ -119,8 +119,15 @@ export interface RunSummary {
   invariantError: string | null;
   /** Garrisons established and fallen, and those established after the first fall. */
   shelters: { established: number; fell: number; reformed: number };
-  /** Longest stretch with no conversion, death, kill, delivery or breach while anyone was alive. */
+  /**
+   * Longest stretch with no conversion, death, kill, delivery or breach while anyone was
+   * alive — a stall: one that something broke later, or one running to the end of the
+   * run while loss was still under GATE_LOSS.min. A quiet end after the outbreak has
+   * done its work is a run that finished early, not one that stalled (`quietEnd`).
+   */
   longestQuiet: number;
+  /** The quiet stretch at the end of the run, whether or not it counts as a stall. */
+  quietEnd: number;
   /** Tracked sims alive and healthy at the end, and in total, by caution band (low, mid, high). */
   caution: { alive: number[]; total: number[] };
   /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
@@ -190,6 +197,9 @@ function killer(s: Sim): number {
   return s.archetype === 'reservist' ? 4 : 5;
 }
 
+/** Gate 2's band for total loss (dead + turned) at the end: also where a quiet end stops counting as a stall. */
+export const GATE_LOSS = { min: 0.4, max: 0.95 } as const;
+
 /** Events that count as something happening, for the stasis check. */
 const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'materialsDelivered', 'buildingBreached']);
 
@@ -219,6 +229,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const shelters = { established: 0, fell: 0, reformed: 0 };
   let lastActivity = 0;
   let longestQuiet = 0;
+  let anyoneAlive = true;
   const roster: RosterEntry[] = [];
   const stages: StageStats[] = [];
   const timeline: TimelineEntry[] = [];
@@ -231,6 +242,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   try {
     while (world.tick < config.time.runLength) {
       const named = world.roster.length;
+      anyoneAlive = world.counters.unturned.outdoors + world.counters.unturned.indoors > 0;
       step(world, ctx, { checkInvariant: true });
       (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
       if (world.promotedAt === world.tick) recordStage(world, 'provisional', world.roster.slice(named), roster, stages);
@@ -250,7 +262,10 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
             if (BASE[kind] >= MAJOR) win.majorLines++;
           }
         }
-        if (ACTIVITY.has(e.type)) lastActivity = world.tick;
+        if (ACTIVITY.has(e.type)) {
+          if (anyoneAlive) longestQuiet = Math.max(longestQuiet, world.tick - lastActivity); // a stall something broke
+          lastActivity = world.tick;
+        }
         if (e.type === 'zombieDestroyed') {
           const k = killer(world.sims[e.by]!);
           kills.run[k]!++;
@@ -267,7 +282,6 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
         }
       }
       const c = world.counters;
-      if (c.unturned.outdoors + c.unturned.indoors > 0) longestQuiet = Math.max(longestQuiet, world.tick - lastActivity);
       const active = c.turned.symptomatic + c.turned.outdoors + c.turned.occupying;
       if (resolvedAt === null && (active === 0 || unturnedTotal(c) - c.unturned.dead - c.unturned.evacuated === 0)) {
         resolvedAt = world.tick;
@@ -281,6 +295,10 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   } catch (e) {
     invariantError = e instanceof Error ? e.message : String(e);
   }
+  // The quiet stretch at the end: a stall only if the outbreak stopped short of the gate's band.
+  const quietEnd = world.counters.unturned.outdoors + world.counters.unturned.indoors > 0 ? world.tick - lastActivity : 0;
+  const loss = (turnedTotal(world.counters) + world.counters.unturned.dead) / world.scenario.population;
+  if (loss < GATE_LOSS.min) longestQuiet = Math.max(longestQuiet, quietEnd);
   const fates: RunSummary['fates'] = {};
   for (const st of stages) {
     for (const c of st.candidates) {
@@ -339,6 +357,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     byLight,
     turnedHour,
     kills,
+    quietEnd,
     longestQuiet,
     caution,
     timeline,
