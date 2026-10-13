@@ -239,18 +239,19 @@ if (process.argv[2] === '--worker') {
     const fmt = (b: typeof pre) => `${b.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${b.z.toFixed(1)})`;
     console.log(`caution split at the broadcast: to it ${fmt(pre)} | after it, of those in the city ${fmt(post)} (not gated)`);
   }
-  const arch: Record<string, { alive: number; total: number; panic: number; samples: number }> = {};
+  const arch: Record<string, { alive: number; total: number; panic: number; samples: number; freezes: number }> = {};
   for (const r of results) for (const [k, v] of Object.entries(r.archetypes ?? {})) {
-    const a = (arch[k] ??= { alive: 0, total: 0, panic: 0, samples: 0 });
+    const a = (arch[k] ??= { alive: 0, total: 0, panic: 0, samples: 0, freezes: 0 });
     a.alive += v.alive;
     a.total += v.total;
     a.panic += v.panic;
     a.samples += v.samples;
+    a.freezes += v.freezes ?? 0;
   }
   console.log(
-    `by archetype, survived / mean panic of the aware outdoors: ${Object.keys(arch)
+    `by archetype, survived / mean panic of the aware outdoors / freezes per 100: ${Object.keys(arch)
       .sort()
-      .map((k) => `${k} ${((arch[k]!.alive / Math.max(1, arch[k]!.total)) * 100).toFixed(1)}% (${arch[k]!.total}) / ${(arch[k]!.panic / Math.max(1, arch[k]!.samples)).toFixed(3)}`)
+      .map((k) => `${k} ${((arch[k]!.alive / Math.max(1, arch[k]!.total)) * 100).toFixed(1)}% (${arch[k]!.total}) / ${(arch[k]!.panic / Math.max(1, arch[k]!.samples)).toFixed(3)} / ${((arch[k]!.freezes / Math.max(1, arch[k]!.total)) * 100).toFixed(1)}`)
       .join(' | ')}`,
   );
   const social = bandSurvival(results.map((r) => r.sociality));

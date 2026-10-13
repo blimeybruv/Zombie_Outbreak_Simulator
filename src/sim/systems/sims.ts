@@ -356,7 +356,7 @@ function holdStand(world: World, ctx: Context, sim: Sim): void {
  */
 function resolveCornered(world: World, ctx: Context, sim: Sim): void {
   // Its nerve gone, it does nothing at all: shock, not hiding.
-  if (breaks(sim, world.config)) return takeStand(world, sim, 'freeze');
+  if (breaks(sim, world.config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze');
   if (capacity(world, sim) > 0) return takeStand(world, sim, 'fight');
   const { buildings } = world;
   let door: Building | null = null;
@@ -377,7 +377,7 @@ function resolveCornered(world: World, ctx: Context, sim: Sim): void {
 function wayBlocked(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const { config } = world;
   const cap = capacity(world, sim);
-  if (cap > 0 && !breaks(sim, config)) {
+  if (cap > 0 && !breaks(sim, config, ctx.company[sim.id]!)) {
     ctx.zombieHash.query(sim.x, sim.y, config.cornered.fightRadius, ctx.ids2);
     if (ctx.ids2.length > 0 && cap >= ctx.ids2.length) return takeStand(world, sim, 'fight');
   }
@@ -607,7 +607,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   if (cornered(world, ctx, sim)) return resolveCornered(world, ctx, sim);
   // Run to exhaustion with the dead in sight and its nerve gone: it gives up.
   const nc = config.nerve;
-  if (threat > 0 && sim.stamina <= nc.collapseStamina && breaks(sim, config)) return takeStand(world, sim, 'freeze', nc.collapseTicks);
+  if (threat > 0 && sim.stamina <= nc.collapseStamina && breaks(sim, config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze', nc.collapseTicks);
 
   // Backing off from a blocked way, until the hold ends, whatever else would apply:
   // a panicked sim that ran for the same door again, or someone who engages turning

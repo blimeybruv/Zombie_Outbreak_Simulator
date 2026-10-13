@@ -306,17 +306,15 @@ export const config = {
     crowdAlignment: 0.35,
   },
 
-  // Company (panic.ts), for the aware outdoors. With calm people near — within `radius`
-  // and in sight, neither running nor frozen — panic decays at up to 1 + `steady` ×
-  // sociality times the usual rate, in full with `cap` of them. Alone, it decays (or
-  // climbs, at the same rate) only to `lonely` × sociality: the gregarious fray alone, the
-  // solitary do not. Only the baseline: rises (witnessed turnings, noise, people running
-  // this way) are untouched, so a calm crowd can still tip into a stampede — guess
+  // Company (panic.ts breaks): calm people beside a sim — within `radius` and in sight,
+  // neither running nor frozen — hold its nerve at the moment it is tested (cornered,
+  // blocked, run to exhaustion): the panic it takes to break rises by up to `nerve` ×
+  // sociality, in full with `cap` of them. Nothing about panic itself changes, so a calm
+  // crowd can still tip, and a crowd running steadies nobody — guess
   company: {
     radius: 8, // m
     cap: 4, // companions for the full effect
-    steady: 2,
-    lonely: 0.25,
+    nerve: 0.3,
   },
 
   perception: {

@@ -26,11 +26,16 @@ export function modeOf(sim: Sim, config: Config): Mode {
 /** Panic rises from conversions witnessed last tick, from new noise and from people running this way; it decays every tick. */
 /**
  * Has its nerve gone? Panic past its nerve (held up to nerve.floor for those trained
- * to it). The one question about panic that cornered, blocked and exhausted sims ask.
+ * to it), steadied by calm company beside it (`company`, from the perception snapshot:
+ * ctx.company). The one question about panic that cornered, blocked and exhausted sims
+ * ask. Company counts only the calm — a crowd running steadies nobody — and it raises
+ * the threshold at the moment of the test, never damps a rise in panic.
  */
-export function breaks(sim: Sim, config: Config): boolean {
+export function breaks(sim: Sim, config: Config, company: number): boolean {
   if (config.archetypes[sim.archetype].panicImmune || sim.outsider) return false; // trained soldiers from outside hold
-  return sim.panic > Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0);
+  const cc = config.company;
+  const steadied = config.features.company && company > 0 ? cc.nerve * sim.sociality * (Math.min(company, cc.cap) / cc.cap) : 0;
+  return sim.panic > Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0) + steadied;
 }
 
 export function updatePanic(world: World, ctx: Context): void {
@@ -41,18 +46,7 @@ export function updatePanic(world: World, ctx: Context): void {
 
   for (const sim of sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
-    // Company: among calm people panic settles sooner; alone, the gregarious settle only
-    // as far as a floor, lonely × sociality. Only the baseline it settles to and how fast:
-    // a rise is never damped, so a calm crowd can still tip (contagion below is untouched).
-    let base = 0;
-    let rate = pc.decayRate;
-    if (config.features.company && sim.awareAt !== null && isOutdoorLiving(sim)) {
-      const cc = config.company;
-      const n = ctx.company[sim.id]!;
-      if (n > 0) rate *= 1 + cc.steady * sim.sociality * (Math.min(n, cc.cap) / cc.cap);
-      else base = cc.lonely * sim.sociality;
-    }
-    sim.panic += (base - sim.panic) * rate;
+    sim.panic += (0 - sim.panic) * pc.decayRate;
     // Unease fades, and while it lasts holds panic up a little: the uneasy startle sooner.
     if (config.features.unease && sim.awareAt === null && sim.unease > 0) {
       const uc = config.unease;

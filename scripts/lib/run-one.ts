@@ -137,7 +137,7 @@ export interface RunSummary {
    * after: of those in the city at the broadcast, the share that survived the run.
    */
   /** By archetype (outsiders aside): survived and total, and mean panic of the aware outdoors, sampled every minute. */
-  archetypes?: Record<string, { alive: number; total: number; panic: number; samples: number }>;
+  archetypes?: Record<string, { alive: number; total: number; panic: number; samples: number; freezes: number }>;
   cautionSplit: { before: { alive: number[]; total: number[] }; after: { alive: number[]; total: number[] } };
   /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
   sociality: { alive: number[]; total: number[] };
@@ -253,7 +253,8 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   let turnedHour = 0;
   const byLight = { day: { ticks: 0, turned: 0, killed: 0 }, night: { ticks: 0, turned: 0, killed: 0 } };
   const arch: NonNullable<RunSummary['archetypes']> = {};
-  const archOf = (a: string) => (arch[a] ??= { alive: 0, total: 0, panic: 0, samples: 0 });
+  const archOf = (a: string) => (arch[a] ??= { alive: 0, total: 0, panic: 0, samples: 0, freezes: 0 });
+  const frozen: boolean[] = [];
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
@@ -261,6 +262,11 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       anyoneAlive = world.counters.unturned.outdoors + world.counters.unturned.indoors > 0;
       step(world, ctx, { checkInvariant: true });
       (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
+      for (const s of world.sims) {
+        const f = s.stand === 'freeze';
+        if (f && !frozen[s.id] && !s.outsider) archOf(s.archetype).freezes++;
+        frozen[s.id] = f;
+      }
       if (world.tick % 60 === 0) {
         for (const s of world.sims) {
           if (s.outsider || s.awareAt === null || s.insideBuilding !== null || s.car !== null) continue;

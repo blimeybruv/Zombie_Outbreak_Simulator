@@ -14,7 +14,7 @@ import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
 import { chooseShelter } from '../src/sim/systems/shelter';
 import { zombieDecisions } from '../src/sim/systems/zombies';
 import { bite, resolveCombat } from '../src/sim/systems/combat';
-import { updatePanic } from '../src/sim/systems/panic';
+import { breaks, updatePanic } from '../src/sim/systems/panic';
 import { reconsider } from '../src/sim/systems/awareness';
 import { believedDanger } from '../src/sim/pathfinding';
 import { convertDue } from '../src/sim/systems/infection';
@@ -895,24 +895,26 @@ describe('company', () => {
     return { world, ctx, s, run };
   }
 
-  it('alone, the gregarious fray and the solitary do not', () => {
-    const social = scene(0, 1, 0);
-    social.run(600);
-    expect(social.ctx.company[social.s.id]).toBe(0);
-    expect(social.s.panic).toBeGreaterThan(0.2);
-    expect(social.s.panic).toBeLessThanOrEqual(baseConfig.company.lonely);
-    const solitary = scene(0, 0, 0);
-    solitary.run(600);
-    expect(solitary.s.panic).toBe(0);
+  it('counts the calm close by, not those running', () => {
+    const calm = scene(4, 1, 0);
+    calm.run(1);
+    expect(calm.ctx.company[calm.s.id]).toBe(4);
+    const running = scene(4, 1, 0);
+    for (const o of running.world.sims) if (o !== running.s && o.condition !== 'dead' && o.insideBuilding === null) o.gait = 'run';
+    running.run(1);
+    expect(running.ctx.company[running.s.id]).toBe(0);
   });
 
-  it('among calm people panic settles sooner, but only back toward calm', () => {
-    const among = scene(4, 1, 0.5);
-    among.run(150);
-    expect(among.ctx.company[among.s.id]).toBe(4);
-    const off = scene(4, 1, 0.5, { ...baseConfig, features: { ...baseConfig.features, company: false } });
-    off.run(150);
-    expect(among.s.panic).toBeLessThan(off.s.panic * 0.7);
-    expect(among.s.panic).toBeGreaterThan(0);
+  it('calm company holds the nerve of the sociable when it is tested, not the solitary', () => {
+    const s = scene(0, 1, 0).s;
+    s.nerve = 0.4;
+    s.panic = 0.6;
+    expect(breaks(s, baseConfig, 0)).toBe(true);
+    expect(breaks(s, baseConfig, 4)).toBe(false); // 0.4 + 0.3 × 1 × 1
+    expect(breaks(s, baseConfig, 1)).toBe(true); // a quarter of it
+    s.sociality = 0;
+    expect(breaks(s, baseConfig, 4)).toBe(true);
+    s.sociality = 1;
+    expect(breaks(s, { ...baseConfig, features: { ...baseConfig.features, company: false } }, 4)).toBe(true);
   });
 });
