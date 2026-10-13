@@ -396,6 +396,8 @@ export interface Sim {
   firesOnCrossers: boolean;
   /** A soldier of the rescue company (rescue.ts): sends back whoever identifies itself, and may shoot whoever does not. @range true/false @unit — @readBy combat (the unidentified), rescue */
   sweep: boolean;
+  /** When it set out for the rescue's exit after the broadcast; null if it never did. What became of those who answered is the end screen's darkest line (rescue.ts rescueTally). @range tick | null @unit tick @readBy rescue (the tally), end stats */
+  answeredAt: Tick | null;
   /** An EMT's ambulance; null for everyone else. @range car id | null @unit id @readBy EMTs, alighting */
   crew: CarId | null;
   /** A patient in an ambulance crew's care: its driver's id; null otherwise. @range sim id | null @unit id @readBy EMTs, alighting */

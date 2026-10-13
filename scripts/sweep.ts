@@ -186,6 +186,15 @@ if (process.argv[2] === '--worker') {
     pairs.push([shots, walking]);
     console.log(`${String(r.runSeed).padStart(4)}  ${String(r.turnedHour).padStart(9)}  ${String(killed).padStart(9)}  ${(killed / Math.max(1, r.turnedHour)).toFixed(2).padStart(5)}  ${String(shots).padStart(8)}  ${String(walking).padStart(15)}  ${`${Math.round(r.infection * 100)}%`.padStart(10)}   ${r.kills.hour.join('/')}   ${r.kills.run.join('/')}`);
   }
+  // The rescue's broadcast: who answered it, and what became of them.
+  if (results.some((r) => r.rescue)) {
+    console.log('\nseed  rescue: answered → out / died / turned / waiting / elsewhere; trucked');
+    for (const r of results) {
+      const t = r.rescue;
+      if (t) console.log(`${String(r.runSeed).padStart(4)}  ${t.answered} → ${t.out} / ${t.dead} / ${t.turned} / ${t.waiting} / ${t.elsewhere}; ${t.trucked}`);
+    }
+  }
+
   // By daylight: does the outbreak step forward at each nightfall?
   const L = { dt: 0, nt: 0, dc: 0, nc: 0, dk: 0, nk: 0 };
   for (const r of results) {

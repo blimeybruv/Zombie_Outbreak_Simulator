@@ -27,6 +27,12 @@
       #roster .lost { position: relative; color: #5b636c; padding: 4px 6px 0; cursor: default; }
       #roster .lost-names { display: none; position: absolute; left: 100%; top: 0; margin-left: 6px; background: rgba(6, 7, 10, 0.92); padding: 6px 8px; border-radius: 4px; color: #6c757f; text-decoration: line-through; white-space: nowrap; max-height: 60vh; overflow-y: auto; }
       #roster .lost:hover .lost-names { display: block; }
+      #end { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, 90vw); background: rgba(6, 7, 10, 0.9); color: #d6dde4; padding: 14px 18px; border-radius: 6px; line-height: 1.45; }
+      #end[hidden] { display: none; }
+      #end .title { color: #8a949e; margin-bottom: 6px; }
+      #end p { margin: 6px 0; }
+      #end .broadcast { color: #e8d9c4; }
+      #end .sub { color: #8a949e; }
       #inspector { position: fixed; right: 12px; bottom: 12px; width: 300px; background: rgba(6, 7, 10, 0.82); padding: 8px 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 3px; }
       #inspector:empty { display: none; }
       #fps { position: fixed; left: 50%; transform: translateX(-50%); top: 8px; background: rgba(6, 7, 10, 0.75); color: #8fbf8f; padding: 3px 8px; border-radius: 3px; font-size: 11px; pointer-events: none; white-space: nowrap; }
@@ -71,6 +77,7 @@
     <div id="ticker"></div>
     <div id="roster"></div>
     <div id="inspector"></div>
+    <div id="end" hidden></div>
     <div id="fps" hidden></div>
     <div id="setup" hidden></div>
     <button id="newrun" hidden>new run…</button>

@@ -9,6 +9,7 @@ import { Renderer } from './render/renderer';
 import { line } from './ui/copy';
 import { Controls } from './ui/controls';
 import { FrameCounter } from './ui/frame-counter';
+import { EndScreen } from './ui/end';
 import { Inspector } from './ui/inspector';
 import { Roster } from './ui/roster';
 import { addressFor, settingsFrom, showSetup } from './ui/setup';
@@ -87,6 +88,7 @@ const ticker = new Ticker(document.querySelector<HTMLElement>('#ticker')!, {
 });
 const roster = new Roster(document.querySelector<HTMLElement>('#roster')!, track);
 const inspector = new Inspector(document.querySelector<HTMLElement>('#inspector')!, track);
+const endScreen = new EndScreen(document.querySelector<HTMLElement>('#end')!);
 
 worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
@@ -101,6 +103,8 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     }
     const infected = params.get('infected');
     if (infected === 'ring' || infected === 'fill' || infected === 'off') renderer.infectedStyle = infected;
+  } else if (msg.type === 'ended') {
+    endScreen.show(msg.end);
   } else {
     latest = msg.frame;
     stats.tick = latest.tick;

@@ -56,6 +56,27 @@ function snap(world: World, ctx: Context, x: number, y: number): Vec2 {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
+/**
+ * What became of those who answered the broadcast: out on a truck (or any way out),
+ * dead, turned, still alive in the queue at the barrier when the run ended, or still
+ * alive anywhere else. The broadcast kills more than it saves; this is where that shows.
+ */
+export function rescueTally(world: World): { answered: number; out: number; dead: number; turned: number; waiting: number; elsewhere: number } {
+  const t = { answered: 0, out: 0, dead: 0, turned: 0, waiting: 0, elsewhere: 0 };
+  const i = world.rescueExit;
+  const q = i === null ? null : queueAt(world, world.exits[i]!);
+  for (const s of world.sims) {
+    if (s.answeredAt === null) continue;
+    t.answered++;
+    if (s.condition === 'evacuated') t.out++;
+    else if (s.condition === 'dead') t.dead++;
+    else if (s.condition === 'turned') t.turned++;
+    else if (q !== null && s.insideBuilding === null && Math.hypot(s.x - q.x, s.y - q.y) <= world.config.cordon.queueRadius) t.waiting++;
+    else t.elsewhere++;
+  }
+  return t;
+}
+
 /** Who a soldier can take for one of the living asking to be taken out: not frozen, not sprinting in a panic. */
 export function identifies(world: World, sim: Sim): boolean {
   return sim.stand !== 'freeze' && sim.gait !== 'sprint' && modeOf(sim, world.config) !== 'flight';
@@ -181,6 +202,7 @@ export function updateRescue(world: World, ctx: Context): void {
     .sort((p, r) => p.queuedSince! - r.queuedSince! || p.id - r.id)
     .slice(0, rc.truckCapacity);
   for (const s of waiting) leaveMap(world, ctx, s);
+  world.trucked += waiting.length;
   const truck = world.cars[world.rescueTruck]!;
   truck.state = 'gone';
   ctx.events.push({ type: 'truckLeft', tick, count: waiting.length, sim: null, x: truck.x, y: truck.y });

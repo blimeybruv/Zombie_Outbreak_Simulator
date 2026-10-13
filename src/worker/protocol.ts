@@ -217,4 +217,19 @@ export type ToWorker =
   /** Keep sending detail for this sim or building with each frame; null stops. */
   | { type: 'inspect'; target: { kind: 'sim' | 'building'; id: number } | null };
 
-export type FromWorker = { type: 'map'; map: MapSnapshot } | { type: 'frame'; frame: FrameSnapshot };
+/** The run's last tick reached: the end screen's figures, read from the same place as the sweep's. */
+export interface EndSummary {
+  population: number;
+  /** Soldiers from outside, counted on top of the population. */
+  outsiders: number;
+  evacuated: number;
+  dead: number;
+  turned: number;
+  /** Alive in the city at the end, outsiders included. */
+  alive: number;
+  trucked: number;
+  /** What became of those who answered the broadcast, and the road they were told to make for; null without a rescue. */
+  rescue: { place: string; answered: number; out: number; dead: number; turned: number; waiting: number; elsewhere: number } | null;
+}
+
+export type FromWorker = { type: 'map'; map: MapSnapshot } | { type: 'frame'; frame: FrameSnapshot } | { type: 'ended'; end: EndSummary };

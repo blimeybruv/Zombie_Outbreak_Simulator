@@ -12,6 +12,7 @@ import { line } from '../../src/ui/copy';
 import { BASE, MAJOR, Salience } from '../../src/ui/salience';
 import { isFirearm, type Sim, type World } from '../../src/sim/state';
 import { isSwat } from '../../src/sim/systems/squads';
+import { rescueTally } from '../../src/sim/systems/rescue';
 
 /**
  * What a sample window looked like beyond the counters: why a run smoulders or takes
@@ -145,6 +146,8 @@ export interface RunSummary {
   fates: Record<number, { condition: string; endedAt: number | null }>;
   /** Zombies destroyed by whom (KILLERS order), in the first hour and over the run: whether one kind of unit decides the outbreak. */
   kills: { hour: number[]; run: number[] };
+  /** What became of those who answered the rescue's broadcast (rescue.ts rescueTally), and how many the trucks took; null without a rescue. */
+  rescue: { answered: number; out: number; dead: number; turned: number; waiting: number; elsewhere: number; trucked: number } | null;
   /** Sims turned in the first hour: what the kills there are set against. */
   turnedHour: number;
   /** By daylight (perception's, under 0.5 is night): ticks, conversions (turnings and risings) and zombies destroyed. */
@@ -299,6 +302,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const quietEnd = world.counters.unturned.outdoors + world.counters.unturned.indoors > 0 ? world.tick - lastActivity : 0;
   const loss = (turnedTotal(world.counters) + world.counters.unturned.dead) / world.scenario.population;
   if (loss < GATE_LOSS.min) longestQuiet = Math.max(longestQuiet, quietEnd);
+  const rescue = world.rescueExit === null ? null : { ...rescueTally(world), trucked: world.trucked };
   const fates: RunSummary['fates'] = {};
   for (const st of stages) {
     for (const c of st.candidates) {
@@ -355,6 +359,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     invariantError,
     shelters,
     byLight,
+    rescue,
     turnedHour,
     kills,
     quietEnd,

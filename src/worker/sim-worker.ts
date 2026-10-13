@@ -18,6 +18,7 @@ const STAGES = ['open', 'barricaded', 'reinforced', 'fortified'] as const;
 import { step } from '../sim/tick';
 import type { Context } from '../sim/context';
 import {
+  type EndSummary,
   BUILDING_CALL,
   BUILDING_STAGE_SHIFT,
   BUILDING_CONTESTED,
@@ -52,6 +53,7 @@ import { inspect } from './inspect';
 import { noteFor, centreOf } from './notes';
 import { isFirearm } from '../sim/state';
 import { barrierAt } from '../sim/systems/cordon';
+import { rescueTally } from '../sim/systems/rescue';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept
@@ -230,6 +232,24 @@ function frameSnapshot(w: World): FrameSnapshot {
   return frame;
 }
 
+let ended = false;
+
+/** The end screen's figures: the counters, and what became of those who answered the broadcast. */
+function endSummary(w: World): EndSummary {
+  const c = w.counters;
+  const t = w.rescueExit === null ? null : rescueTally(w);
+  return {
+    population: w.scenario.population,
+    outsiders: w.outsiders,
+    evacuated: c.unturned.evacuated,
+    dead: c.unturned.dead,
+    turned: c.turned.symptomatic + c.turned.outdoors + c.turned.occupying + c.turned.destroyed,
+    alive: c.unturned.outdoors + c.unturned.indoors,
+    trucked: w.trucked,
+    rescue: t === null ? null : { place: w.streets[w.exits[w.rescueExit!]!.street]!.name, ...t },
+  };
+}
+
 function run(): void {
   if (world && ctx && rate > 0 && world.tick < world.config.time.runLength) {
     const start = performance.now();
@@ -295,6 +315,10 @@ scope.onmessage = (e) => {
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
     scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    if (!ended && world.tick >= world.config.time.runLength) {
+      ended = true;
+      scope.postMessage({ type: 'ended', end: endSummary(world) });
+    }
   }
 };
 

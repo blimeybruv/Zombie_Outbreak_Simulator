@@ -121,6 +121,8 @@ export interface World {
   rescueTruck: CarId | null;
   /** When the next truck comes, or the one loading leaves. @range tick @unit tick @readBy rescue */
   rescueTruckAt: Tick;
+  /** People the rescue's trucks have taken out. @range 0–population @unit people @readBy end stats */
+  trucked: Count;
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

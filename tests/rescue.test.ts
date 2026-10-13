@@ -5,7 +5,7 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { queueAt } from '../src/sim/systems/cordon';
 import { rebuildHashes } from '../src/sim/systems/perception';
-import { updateRescue } from '../src/sim/systems/rescue';
+import { rescueTally, updateRescue } from '../src/sim/systems/rescue';
 import { assertInvariant } from '../src/sim/tick';
 
 const soon = { ...config, rescue: { ...config.rescue, at: 10, broadcast: 100, truckEvery: 50, truckLoad: 20 } };
@@ -58,5 +58,23 @@ describe('the rescue', () => {
     expect(world.counters.unturned.evacuated - before).toBe(soon.rescue.truckCapacity);
     expect(ctx.events.some((e) => e.type === 'truckLeft' && e.count === soon.rescue.truckCapacity)).toBe(true);
     assertInvariant(world);
+  });
+
+  it('counts what became of those who answered the broadcast', () => {
+    const { world, ctx } = fresh();
+    world.tick = soon.rescue.at;
+    updateRescue(world, ctx);
+    world.tick = soon.rescue.at + soon.rescue.broadcast;
+    updateRescue(world, ctx);
+    const answered = world.sims.filter((s) => s.answeredAt !== null);
+    expect(answered.length).toBeGreaterThan(0);
+    const [a, b] = answered;
+    a!.condition = 'dead';
+    b!.condition = 'evacuated';
+    const t = rescueTally(world);
+    expect(t.answered).toBe(answered.length);
+    expect(t.dead).toBe(1);
+    expect(t.out).toBe(1);
+    expect(t.out + t.dead + t.turned + t.waiting + t.elsewhere).toBe(t.answered);
   });
 });

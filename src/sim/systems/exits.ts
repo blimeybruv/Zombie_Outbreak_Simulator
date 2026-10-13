@@ -28,6 +28,9 @@ export function nearestExit(world: World, x: number, y: number, skip = 0): numbe
 export function headForExit(world: World, sim: Sim): boolean {
   const i = world.rescueExit ?? nearestExit(world, sim.x, sim.y, sim.knownClosed);
   if (i === null) return false;
+  // Setting out after the broadcast is answering it (rescue.ts rescueTally).
+  const rc = world.config.rescue;
+  if (world.rescueExit !== null && world.tick >= rc.at + rc.broadcast) sim.answeredAt ??= world.tick;
   const e = world.exits[i]!;
   sim.destinationKind = 'leave';
   sim.destinationBuilding = null;
