@@ -4,7 +4,7 @@ export const STREET_ROOTS = [
   'Rowan', 'Ash', 'Birch', 'Cedar', 'Elm', 'Hazel', 'Holly', 'Juniper', 'Larch', 'Maple',
   'Oak', 'Pine', 'Willow', 'Yew', 'Alder', 'Beech', 'Linden', 'Poplar', 'Sycamore', 'Thorn',
   'Abbey', 'Bridge', 'Canal', 'Chapel', 'Church', 'Mill', 'Market', 'Station', 'Quarry', 'Foundry',
-  'Granary', 'Harbour', 'Kiln', 'Mint', 'Tannery', 'Wharf', 'Albion', 'Barton', 'Carlton', 'Dalton',
+  'Granary', 'Harbor', 'Kiln', 'Mint', 'Tannery', 'Wharf', 'Albion', 'Barton', 'Carlton', 'Dalton',
   'Easton', 'Felton', 'Grafton', 'Hilton', 'Ingram', 'Kenton', 'Lawton', 'Merton', 'Norton', 'Oakley',
   'Preston', 'Ripley', 'Selby', 'Thornton', 'Upton', 'Walton', 'Weston', 'Ashby', 'Bramley', 'Coley',
   'Denby', 'Elstow', 'Farley', 'Gilbey', 'Harlow', 'Ivell', 'Kirby', 'Langley', 'Morley', 'Netley',
@@ -14,14 +14,14 @@ export const STREET_ROOTS = [
 ];
 
 export const SUFFIXES = {
-  main: ['Road', 'Avenue', 'High Street', 'Parade'],
+  main: ['Road', 'Avenue', 'Boulevard', 'Parkway'],
   highway: ['Highway', 'Expressway', 'Bypass'],
-  standard: ['Street', 'Road', 'Way', 'Row', 'Place', 'Close', 'Terrace', 'Gardens'],
-  alley: ['Lane', 'Alley', 'Passage', 'Mews', 'Yard'],
+  standard: ['Street', 'Road', 'Way', 'Drive', 'Place', 'Court', 'Circle', 'Terrace'],
+  alley: ['Lane', 'Alley', 'Passage', 'Walk', 'Path'], // none shared with another kind: a shared suffix makes new collisions, and redrawing a name would move the city
 };
 
 export const DISTRICT_NAMES = [
-  'Ashgrove', 'Blackwater', 'Coldharbour', 'Dunmore', 'Eastgate', 'Fairfield', 'Greystone',
+  'Ashgrove', 'Blackwater', 'Coldwater', 'Dunmore', 'Eastgate', 'Fairfield', 'Greystone',
   'Highbury', 'Ironside', 'Kingsmead', 'Longford', 'Millbrook', 'Northcote', 'Oldcastle',
   'Redhill', 'Saltmarsh', 'Thornbury', 'Westcombe',
 ];

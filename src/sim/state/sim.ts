@@ -394,7 +394,7 @@ export interface Sim {
   crossing: 1 | -1 | null;
   /** A cordon soldier whose unit fires on those getting round its barrier (drawn once per unit, cordon.fireShare); false for everyone else, and never shown. @range true/false @unit — @readBy combat (cordon fire) */
   firesOnCrossers: boolean;
-  /** A soldier of the rescue company (rescue.ts): sends back whoever identifies itself, and may shoot whoever does not. @range true/false @unit — @readBy combat (the unidentified), rescue */
+  /** An Army Ranger of the rescue (rescue.ts): elite light infantry, deployed fast; sends back whoever identifies itself, and may shoot whoever does not. @range true/false @unit — @readBy combat (the unidentified), rescue, inspector */
   sweep: boolean;
   /** When it set out for the rescue's exit after the broadcast; null if it never did. What became of those who answered is the end screen's darkest line (rescue.ts rescueTally). @range tick | null @unit tick @readBy rescue (the tally), end stats */
   answeredAt: Tick | null;

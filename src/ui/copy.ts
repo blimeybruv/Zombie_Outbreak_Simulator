@@ -15,8 +15,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'simTurned':
       return n.name ? `${n.name} turned on ${n.place}.` : `A survivor turned on ${n.place}.`;
     case 'simDied':
-      if (e.cause === 'mistaken') return `Soldiers shot ${n.name ?? 'a survivor'} on ${n.place}, taking them for one of the dead.`;
-      if (e.cause === 'shot') return `Soldiers shot ${n.name ?? 'a survivor'} trying to get round the cordon on ${n.place}.`;
+      if (e.cause === 'mistaken') return `Rangers shot ${n.name ?? 'a survivor'} on ${n.place}, taking them for one of the dead.`;
+      if (e.cause === 'shot') return `Soldiers shot ${n.name ?? 'a survivor'} trying to get around the cordon on ${n.place}.`;
       if (!n.name) return `A survivor died on ${n.place}.`;
       return e.cause === 'breach' ? `${n.name} died when ${n.place} was overrun.` : `${n.name} was pulled down on ${n.place}.`;
     case 'cascadeCrossed':
@@ -48,7 +48,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'cordonClosed':
       return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
     case 'rescueSweep':
-      return `Soldiers are coming into the city from ${n.place}, street by street. Anyone they find is being sent back to the road out.`;
+      return `Army Rangers are coming into the city from ${n.place}, street by street. Anyone they find is being sent back to the road out.`;
     case 'rescueBroadcast':
       return `A radio message on every frequency: anyone still alive is to make for ${n.place}. Trucks are taking people out.`;
     case 'truckLeft':
@@ -56,7 +56,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'bodyRose':
       return n.name ? `${n.name}, killed on ${n.place}, has got up again.` : null;
     case 'cordonEvaded':
-      return `${n.name ?? 'Someone'} got round the soldiers on ${n.place} and out of the city.`;
+      return `${n.name ?? 'Someone'} got around the soldiers on ${n.place} and out of the city.`;
     case 'simLeft':
       return n.name ? `${n.name} got out of the city on ${n.place}.` : null;
     case 'ambulanceDispatched':
@@ -72,7 +72,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
         ? `${n.district} is the first to leave: its people are out on the roads. The world outside will not leave the roads open long.`
         : `${n.district} is leaving: its people are out on the roads.`;
     case 'reservistsCalledUp':
-      return 'The National Guard reserve has been called up. Reservists are to report to their armouries.';
+      return 'The National Guard reserve has been called up. Reservists are to report to their armories.';
     case 'squadFormed':
       return `${e.members} reservists, armed at the depot on ${n.place}, have formed a squad.`;
     case 'squadEngaged':

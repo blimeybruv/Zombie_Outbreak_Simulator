@@ -48,7 +48,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     name: s.name,
     profession: s.profession,
     age: s.age,
-    archetype: s.archetype,
+    archetype: s.sweep ? 'Army Ranger' : s.outsider ? 'soldier' : s.archetype, // those from outside are not reservists of the city
     caution: s.caution,
     sociality: s.sociality,
     trust: s.trust,
@@ -79,10 +79,12 @@ function doing(s: Sim): string | null {
   if (s.avoidUntil !== null) return 'backing off';
   if (s.gathering !== null) return 'stopped to talk';
   if (s.car !== null) return 'in a car';
+  if (s.sweep) return s.squadLeader === s.id ? 'Army Ranger, leading a squad up the corridor' : 'Army Ranger, sweeping the corridor';
+  if (s.outsider) return 'soldier, holding the cordon';
   if (s.squadLeader === s.id) return s.diamondUntil !== null ? 'leading a squad, engaged' : 'leading a squad';
   if (s.squadLeader !== null) return s.directUntil !== null ? 'catching up with its squad' : 'in a squad';
-  if (s.muster === 'mobilised') return 'called up, making for the depot';
-  if (s.muster === 'waiting') return 'armed, waiting at the depot for a squad';
+  if (s.muster === 'mobilised') return 'called up, making for the armory';
+  if (s.muster === 'waiting') return 'armed, waiting at the armory for a squad';
   if (s.destinationKind === 'car') return 'going for a car';
   switch (s.destinationKind) {
     case 'isolate':

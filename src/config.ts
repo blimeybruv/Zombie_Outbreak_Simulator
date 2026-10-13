@@ -242,7 +242,7 @@ export const config = {
   // they fell. A zombie destroyed stays destroyed, and so does anyone shot. The eaten
   // still rarely spread anything: bites stay the vector, but no place where people
   // died is safe for good — guesses (the user's: low and late, to avoid a late surge)
-  // The rescue (rescue.ts; the user's design): the outbreak's fourteen hours, then a
+  // The rescue (rescue.ts; the user's design): the outbreak's fourteen hours, then the Army Rangers — a
   // company of `squads` squads comes in at `at` by the exit whose corridor holds the most
   // people still sheltering, and pushes up it — a corridor `halfWidth` either side of the
   // line from the exit toward the middle of the map — its front advancing `speed` m a
