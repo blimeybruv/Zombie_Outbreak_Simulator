@@ -129,7 +129,7 @@ export interface RunSummary {
   longestQuiet: number;
   /** The quiet stretch at the end of the run, whether or not it counts as a stall. */
   quietEnd: number;
-  /** Tracked sims alive and healthy at the end, and in total, by caution band (low, mid, high). */
+  /** Tracked sims that survived — alive and healthy at the end, or out of the city — and in total, by caution band (low, mid, high). */
   caution: { alive: number[]; total: number[] };
   /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
   sociality: { alive: number[]; total: number[] };
@@ -199,6 +199,9 @@ function killer(s: Sim): number {
   if (!isFirearm(s.weapon)) return 6;
   return s.archetype === 'reservist' ? 4 : 5;
 }
+
+/** Survived the run: alive and unbitten in the city at the end, or got out of it. */
+const survived = (s: { condition: string }) => s.condition === 'healthy' || s.condition === 'evacuated';
 
 /** Gate 2's band for total loss (dead + turned) at the end: also where a quiet end stops counting as a stall. */
 export const GATE_LOSS = { min: 0.4, max: 0.95 } as const;
@@ -320,33 +323,33 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   for (const s of world.sims) {
     const band = s.caution < bands[0]! ? 0 : s.caution < bands[1]! ? 1 : 2;
     caution.total[band]!++;
-    if (s.condition === 'healthy') caution.alive[band]!++;
+    if (survived(s)) caution.alive[band]!++;
   }
   const cautionAsocial = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     if (s.sociality >= bands[0]!) continue;
     const band = s.caution < bands[0]! ? 0 : s.caution < bands[1]! ? 1 : 2;
     cautionAsocial.total[band]!++;
-    if (s.condition === 'healthy') cautionAsocial.alive[band]!++;
+    if (survived(s)) cautionAsocial.alive[band]!++;
   }
   const nerve = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     const band = s.nerve < bands[0]! ? 0 : s.nerve < bands[1]! ? 1 : 2;
     nerve.total[band]!++;
-    if (s.condition === 'healthy') nerve.alive[band]!++;
+    if (survived(s)) nerve.alive[band]!++;
   }
   const trust = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     const band = s.trust < bands[0]! ? 0 : s.trust < bands[1]! ? 1 : 2;
     trust.total[band]!++;
-    if (s.condition === 'healthy') trust.alive[band]!++;
+    if (survived(s)) trust.alive[band]!++;
   }
   const sociality = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     if (config.archetypes[s.archetype].sociality <= 0) continue;
     const band = s.sociality < bands[0]! ? 0 : s.sociality < bands[1]! ? 1 : 2;
     sociality.total[band]!++;
-    if (s.condition === 'healthy') sociality.alive[band]!++;
+    if (survived(s)) sociality.alive[band]!++;
   }
   return {
     runSeed,
