@@ -521,7 +521,6 @@ describe('cars', () => {
 
   it('a car being driven makes engine noise, which frightens nobody', () => {
     const { world, ctx, car } = inCar();
-    const before = world.sims.map((x) => x.panic);
     let engines = 0;
     for (let t = 0; t < baseConfig.cars.engineInterval; t++) {
       world.tick++;
@@ -533,8 +532,16 @@ describe('cars', () => {
     expect(engines).toBe(1);
     world.tick++;
     computePerception(world, ctx);
+    // The same panic step with and without the engine's noise: the engine alone changes nothing.
+    const start = world.sims.map((x) => ({ panic: x.panic, unease: x.unease, awareAt: x.awareAt }));
     updatePanic(world, ctx);
-    expect(world.sims.every((x, i) => x.panic <= (before[i] ?? 0) + 1e-9)).toBe(true);
+    const withEngine = world.sims.map((x) => x.panic);
+    world.sims.forEach((x, i) => Object.assign(x, start[i]));
+    const stimuli = world.stimuli;
+    world.stimuli = stimuli.filter((n) => n.kind !== 'engine');
+    updatePanic(world, ctx);
+    world.stimuli = stimuli;
+    expect(world.sims.every((x, i) => Math.abs(x.panic - withEngine[i]!) < 1e-12)).toBe(true);
   });
 
   it('the dead at an occupied car break in, and everyone inside is out among them', () => {

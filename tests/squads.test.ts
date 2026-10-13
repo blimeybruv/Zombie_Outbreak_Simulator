@@ -147,22 +147,30 @@ describe('squads', () => {
     const b = armoury(world);
     const all = waitingAt(world, b, config.squads.size);
     pass(world, ctx);
+    // A lit street running east–west, long enough to see down: the squad on it, facing east.
+    const st = world.streets.find((t) => {
+      const a = world.nodes[t.a]!, c = world.nodes[t.b]!;
+      return t.lit && t.terrain === 'standard' && Math.abs(c.y - a.y) < 0.5 && Math.abs(c.x - a.x) > 60;
+    })!;
+    const a = world.nodes[st.a]!, c = world.nodes[st.b]!;
+    const x0 = Math.min(a.x, c.x) + 30, y0 = a.y;
     for (const s of all) {
       s.insideBuilding = null;
-      s.x = 1600;
-      s.y = 1600;
+      s.x = x0;
+      s.y = y0;
+      s.heading = 0; // the way it is walking, toward what it will see
     }
     b.sheltered = [];
     const leader = all[0]!;
-    leader.trail = [{ x: 1590, y: 1600 }, { x: 1594, y: 1600 }, { x: 1597, y: 1600 }];
+    leader.trail = [{ x: x0 - 10, y: y0 }, { x: x0 - 6, y: y0 }, { x: x0 - 3, y: y0 }];
     pass(world, ctx);
-    expect(ctx.slotX[all[1]!.id]).toBeLessThan(1600); // behind, along its path
+    expect(ctx.slotX[all[1]!.id]).toBeLessThan(x0); // behind, along its path
     expect(leader.diamondUntil).toBeNull();
-    spawnZombie(world, 1615, 1600, 'active', null, null);
+    spawnZombie(world, x0 + 15, y0, 'active', null, null);
     pass(world, ctx);
     expect(leader.diamondUntil).not.toBeNull();
     // Slot 1 is the point of the diamond, toward the zombie.
-    expect(ctx.slotX[all[1]!.id]).toBeGreaterThan(1600);
+    expect(ctx.slotX[all[1]!.id]).toBeGreaterThan(x0);
   });
 
   it('a follower kept from its slot makes straight for the leader, after slotPatience', () => {

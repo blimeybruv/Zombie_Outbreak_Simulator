@@ -56,7 +56,8 @@ describe('map generator', () => {
     });
     expect(crossing.length).toBeGreaterThan(0);
     expect(crossing.every((s) => s.terrain === 'bridge')).toBe(true);
-    expect(new Set(m.streets.filter((s) => s.terrain === 'bridge').map((s) => s.name)).size).toBe(config.map.river.bridges);
+    // The river's own bridges, and more where a highway happens to cross it.
+    expect(new Set(m.streets.filter((s) => s.terrain === 'bridge').map((s) => s.name)).size).toBeGreaterThanOrEqual(config.map.river.bridges);
   });
 
   it('runs the river diagonally, not along an axis', () => {

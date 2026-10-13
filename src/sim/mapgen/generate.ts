@@ -122,9 +122,15 @@ function offAxis(h: number): number {
   return Math.min(d, 90 - d);
 }
 
+/** Mixed into the map seed for the name stream: any constant will do, so long as it stays. */
+const NAME_STREAM = 0x4e414d45;
+
 export function generateMap(config: Config, mapSeed: number, power: boolean): GeneratedMap {
   const rng = createRng(mapSeed);
   const mapRng = rng;
+  // Names draw from their own stream, seeded from the map's, so that changing a name list
+  // (or a collision redrawn) never moves the city.
+  const nameRng = createRng(mapSeed ^ NAME_STREAM);
   const mc = config.map;
   const size = mc.size;
   const n = mc.districtGrid;
@@ -139,7 +145,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       const id = districts.length;
       districts.push({
         id: id as DistrictId,
-        name: districtNames.splice(nextInt(rng, 0, districtNames.length - 1), 1)[0]!,
+        name: districtNames.splice(nextInt(nameRng, 0, districtNames.length - 1), 1)[0]!,
         kind: mc.districtLayout[id] as DistrictKind,
         bounds: { x: c * cell, y: r * cell, w: cell, h: cell },
         released: false,
@@ -375,7 +381,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     const isDiagonal = Math.abs(line.a.x - line.b.x) > 1 && Math.abs(line.a.y - line.b.y) > 1 && offAxis(Math.atan2(line.b.y - line.a.y, line.b.x - line.a.x)) > 20;
     let name = '';
     for (let attempt = 0; attempt < 50 && (name === '' || usedNames.has(name)); attempt++) {
-      name = `${pick(rng, STREET_ROOTS)} ${isDiagonal ? pick(rng, ['Avenue', 'Way', 'Cut']) : pick(rng, SUFFIXES[line.kind])}`;
+      name = `${pick(nameRng, STREET_ROOTS)} ${isDiagonal ? pick(nameRng, ['Avenue', 'Way', 'Cut']) : pick(nameRng, SUFFIXES[line.kind])}`;
     }
     while (usedNames.has(name)) name = `${name} North`;
     usedNames.add(name);
