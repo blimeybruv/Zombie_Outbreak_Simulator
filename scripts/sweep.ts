@@ -239,6 +239,20 @@ if (process.argv[2] === '--worker') {
     const fmt = (b: typeof pre) => `${b.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${b.z.toFixed(1)})`;
     console.log(`caution split at the broadcast: to it ${fmt(pre)} | after it, of those in the city ${fmt(post)} (not gated)`);
   }
+  const arch: Record<string, { alive: number; total: number; panic: number; samples: number }> = {};
+  for (const r of results) for (const [k, v] of Object.entries(r.archetypes ?? {})) {
+    const a = (arch[k] ??= { alive: 0, total: 0, panic: 0, samples: 0 });
+    a.alive += v.alive;
+    a.total += v.total;
+    a.panic += v.panic;
+    a.samples += v.samples;
+  }
+  console.log(
+    `by archetype, survived / mean panic of the aware outdoors: ${Object.keys(arch)
+      .sort()
+      .map((k) => `${k} ${((arch[k]!.alive / Math.max(1, arch[k]!.total)) * 100).toFixed(1)}% (${arch[k]!.total}) / ${(arch[k]!.panic / Math.max(1, arch[k]!.samples)).toFixed(3)}`)
+      .join(' | ')}`,
+  );
   const social = bandSurvival(results.map((r) => r.sociality));
   console.log(`survival by sociality low/mid/high ${social.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${social.z.toFixed(1)}; joiners only, not gated)`);
   const asocial = bandSurvival(results.map((r) => r.cautionAsocial));

@@ -158,7 +158,7 @@ export interface Sim {
    * How readily this sim goes along with others: a uniform draw, nudged a little by
    * profession (`spawn.professionSociality`), independent of archetype. The archetype
    * scales it into a chance (encounters.ts join), so loners never join whatever it is.
-   * @range 0–1 @unit scalar @readBy joining, inspector, end stats (sociality band)
+   * @range 0–1 @unit scalar @readBy joining, talking, panic (company), inspector, end stats (sociality band)
    */
   sociality: Unit01;
   /**

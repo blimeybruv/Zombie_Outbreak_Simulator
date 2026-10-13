@@ -136,6 +136,8 @@ export interface RunSummary {
    * spawned by then, the share still alive in the city or already out at the broadcast.
    * after: of those in the city at the broadcast, the share that survived the run.
    */
+  /** By archetype (outsiders aside): survived and total, and mean panic of the aware outdoors, sampled every minute. */
+  archetypes?: Record<string, { alive: number; total: number; panic: number; samples: number }>;
   cautionSplit: { before: { alive: number[]; total: number[] }; after: { alive: number[]; total: number[] } };
   /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
   sociality: { alive: number[]; total: number[] };
@@ -250,6 +252,8 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const kills = { hour: KILLERS.map(() => 0), run: KILLERS.map(() => 0) };
   let turnedHour = 0;
   const byLight = { day: { ticks: 0, turned: 0, killed: 0 }, night: { ticks: 0, turned: 0, killed: 0 } };
+  const arch: NonNullable<RunSummary['archetypes']> = {};
+  const archOf = (a: string) => (arch[a] ??= { alive: 0, total: 0, panic: 0, samples: 0 });
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
@@ -257,6 +261,15 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       anyoneAlive = world.counters.unturned.outdoors + world.counters.unturned.indoors > 0;
       step(world, ctx, { checkInvariant: true });
       (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
+      if (world.tick % 60 === 0) {
+        for (const s of world.sims) {
+          if (s.outsider || s.awareAt === null || s.insideBuilding !== null || s.car !== null) continue;
+          if (s.condition !== 'healthy' && s.condition !== 'infected') continue;
+          const a = archOf(s.archetype);
+          a.panic += s.panic;
+          a.samples++;
+        }
+      }
       if (world.promotedAt === world.tick) recordStage(world, 'provisional', world.roster.slice(named), roster, stages);
       else if (world.rescoredAt === world.tick) recordStage(world, 'final', world.roster.slice(named), roster, stages);
       for (const s of world.stimuli) {
@@ -331,6 +344,12 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     caution.total[band]!++;
     if (survived(s)) caution.alive[band]!++;
   }
+  for (const s of world.sims) {
+    if (s.outsider) continue;
+    const a = archOf(s.archetype);
+    a.total++;
+    if (survived(s)) a.alive++;
+  }
   const broadcastAt = config.rescue.at + config.rescue.broadcast;
   const cautionSplit = { before: { alive: [0, 0, 0], total: [0, 0, 0] }, after: { alive: [0, 0, 0], total: [0, 0, 0] } };
   for (const s of world.sims) {
@@ -392,6 +411,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     trust,
     cautionAsocial,
     cautionSplit,
+    archetypes: arch,
     roster,
     stages,
     fates,

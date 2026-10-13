@@ -66,6 +66,7 @@ export function computePerception(world: World, ctx: Context): void {
     ctx.threatY[id] = 0;
     ctx.threatFocus[id] = 1;
     ctx.fleeingSeen[id] = 0;
+    ctx.company[id] = 0;
     ctx.crowdX[id] = 0;
     ctx.crowdY[id] = 0;
     ctx.nearestZombie[id] = -1;
@@ -116,12 +117,18 @@ export function computePerception(world: World, ctx: Context): void {
     ctx.simHash.query(sim.x, sim.y, pc.fleeingRadius, ctx.ids2);
     let fleeing = 0;
     let cx = 0, cy = 0;
+    let company = 0;
+    const companyR = config.company.radius;
     for (const oid of ctx.ids2) {
       if (oid === id) continue;
       const o = sims[oid]!;
-      if (o.gait !== 'run' && o.gait !== 'sprint') continue;
       const dx = sim.x - o.x, dy = sim.y - o.y;
       const d = Math.sqrt(dx * dx + dy * dy);
+      if (o.gait !== 'run' && o.gait !== 'sprint') {
+        // Company: someone close by, keeping their head. (Hearing them is enough at this range; a wall is not.)
+        if (d <= companyR && o.stand !== 'freeze' && ctx.map.lineOfSight(sim.x, sim.y, o.x, o.y)) company++;
+        continue;
+      }
       if (d === 0) continue;
       const hx = Math.cos(o.heading), hy = Math.sin(o.heading);
       // The crowd's current: everyone running close by, whichever way.
@@ -137,6 +144,7 @@ export function computePerception(world: World, ctx: Context): void {
       ty -= w * hy;
     }
     ctx.fleeingSeen[id] = fleeing;
+    ctx.company[id] = company;
     ctx.crowdX[id] = cx;
     ctx.crowdY[id] = cy;
     threat += fleeing;

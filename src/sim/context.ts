@@ -37,6 +37,8 @@ export interface Context {
   threatFocus: Float64Array;
   /** The part of perceived threat that is people running this way (panic contagion). */
   fleeingSeen: Float64Array;
+  /** Calm company: living people within company.radius and in sight, neither running nor frozen. */
+  company: Int32Array;
   /** Mean heading of people running nearby, weighted by nearness (crowd alignment); 0,0 with none. */
   crowdX: Float64Array;
   crowdY: Float64Array;
@@ -97,6 +99,7 @@ export function createContext(world: World): Context {
     threatY: new Float64Array(0),
     threatFocus: new Float64Array(0),
     fleeingSeen: new Float64Array(0),
+    company: new Int32Array(0),
     crowdX: new Float64Array(0),
     crowdY: new Float64Array(0),
     radius: new Float64Array(0),
@@ -139,6 +142,7 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.threatY = new Float64Array(cap);
     ctx.threatFocus = new Float64Array(cap);
     ctx.fleeingSeen = new Float64Array(cap);
+    ctx.company = new Int32Array(cap);
     ctx.crowdX = new Float64Array(cap);
     ctx.crowdY = new Float64Array(cap);
     ctx.radius = new Float64Array(cap);

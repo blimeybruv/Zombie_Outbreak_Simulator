@@ -41,7 +41,18 @@ export function updatePanic(world: World, ctx: Context): void {
 
   for (const sim of sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
-    sim.panic += (0 - sim.panic) * pc.decayRate;
+    // Company: among calm people panic settles sooner; alone, the gregarious settle only
+    // as far as a floor, lonely × sociality. Only the baseline it settles to and how fast:
+    // a rise is never damped, so a calm crowd can still tip (contagion below is untouched).
+    let base = 0;
+    let rate = pc.decayRate;
+    if (config.features.company && sim.awareAt !== null && isOutdoorLiving(sim)) {
+      const cc = config.company;
+      const n = ctx.company[sim.id]!;
+      if (n > 0) rate *= 1 + cc.steady * sim.sociality * (Math.min(n, cc.cap) / cc.cap);
+      else base = cc.lonely * sim.sociality;
+    }
+    sim.panic += (base - sim.panic) * rate;
     // Unease fades, and while it lasts holds panic up a little: the uneasy startle sooner.
     if (config.features.unease && sim.awareAt === null && sim.unease > 0) {
       const uc = config.unease;
@@ -50,7 +61,6 @@ export function updatePanic(world: World, ctx: Context): void {
       if (sim.panic < floor) sim.panic += (floor - sim.panic) * uc.panicFloorRate;
     }
     if (!isOutdoorLiving(sim)) continue;
-
     const r = ctx.radius[sim.id]!;
     for (const e of conversions) {
       if (e.sim === sim.id) continue;

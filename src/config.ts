@@ -172,6 +172,7 @@ export const config = {
     cars: true,
     strangerVeto: true,
     cautiousRouting: true,
+    company: true,
   },
 
   // The setup screen's ranges (src/ui/setup.ts): survivors [min, max, step]; initial
@@ -303,6 +304,19 @@ export const config = {
     // its own way out each tick — guess
     crowdRadius: 12, // m
     crowdAlignment: 0.35,
+  },
+
+  // Company (panic.ts), for the aware outdoors. With calm people near — within `radius`
+  // and in sight, neither running nor frozen — panic decays at up to 1 + `steady` ×
+  // sociality times the usual rate, in full with `cap` of them. Alone, it decays (or
+  // climbs, at the same rate) only to `lonely` × sociality: the gregarious fray alone, the
+  // solitary do not. Only the baseline: rises (witnessed turnings, noise, people running
+  // this way) are untouched, so a calm crowd can still tip into a stampede — guess
+  company: {
+    radius: 8, // m
+    cap: 4, // companions for the full effect
+    steady: 2,
+    lonely: 0.25,
   },
 
   perception: {

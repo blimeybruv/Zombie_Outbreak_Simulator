@@ -866,3 +866,53 @@ describe('bites add up', () => {
     expect(s.turnsAt! - world.tick).toBe(Math.ceil(left * world.config.infection.rebiteFactor));
   });
 });
+
+describe('company', () => {
+  /** An aware survivor at a street point with `n` calm others close round it; everyone else outdoors gone. */
+  function scene(n: number, sociality: number, panic: number, cfg: Config = baseConfig) {
+    const { world, ctx } = fresh(cfg);
+    for (const z of world.zombies) z.state = 'destroyed';
+    for (const s of world.sims) if (s.insideBuilding === null) s.condition = 'dead';
+    const p = streetPoint(world);
+    const s = walker(world, p.x, p.y);
+    s.awareAt = 0;
+    s.sociality = sociality;
+    s.panic = panic;
+    for (let i = 0; i < n; i++) {
+      const o = walker(world, p.x + p.ux * (i + 1) * 1.5, p.y + p.uy * (i + 1) * 1.5);
+      o.awareAt = 0;
+      o.gait = 'walk';
+    }
+    const run = (ticks: number) => {
+      for (let t = 0; t < ticks; t++) {
+        world.tick++;
+        sizeContext(ctx, world);
+        rebuildHashes(world, ctx);
+        computePerception(world, ctx);
+        updatePanic(world, ctx);
+      }
+    };
+    return { world, ctx, s, run };
+  }
+
+  it('alone, the gregarious fray and the solitary do not', () => {
+    const social = scene(0, 1, 0);
+    social.run(600);
+    expect(social.ctx.company[social.s.id]).toBe(0);
+    expect(social.s.panic).toBeGreaterThan(0.2);
+    expect(social.s.panic).toBeLessThanOrEqual(baseConfig.company.lonely);
+    const solitary = scene(0, 0, 0);
+    solitary.run(600);
+    expect(solitary.s.panic).toBe(0);
+  });
+
+  it('among calm people panic settles sooner, but only back toward calm', () => {
+    const among = scene(4, 1, 0.5);
+    among.run(150);
+    expect(among.ctx.company[among.s.id]).toBe(4);
+    const off = scene(4, 1, 0.5, { ...baseConfig, features: { ...baseConfig.features, company: false } });
+    off.run(150);
+    expect(among.s.panic).toBeLessThan(off.s.panic * 0.7);
+    expect(among.s.panic).toBeGreaterThan(0);
+  });
+});
