@@ -13,7 +13,7 @@
 // streets at the start; this one is a neighbourhood deciding to leave.
 
 import type { Context } from '../context';
-import { nextInt } from '../rng';
+import { nextInt, roundByChance } from '../rng';
 import type { World } from '../state';
 
 /** Draws each district's release tick from the run RNG. Called once at setup. */
@@ -53,7 +53,7 @@ export function updateEvacuation(world: World, ctx: Context): void {
     for (const b of buildings) {
       if (b.district !== d.id) continue;
       const queued = b.pendingRelease + b.pendingEvacuate + b.pendingExpel + b.pendingTurn + b.pendingDie;
-      const leaving = Math.floor(Math.max(0, b.residents - queued) * ec.share);
+      const leaving = roundByChance(world.rng, Math.max(0, b.residents - queued) * ec.share);
       b.pendingEvacuate += leaving;
       if (leaving > 0) {
         x += b.entrances[0]!.x;

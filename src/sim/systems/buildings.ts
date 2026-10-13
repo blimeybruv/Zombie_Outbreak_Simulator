@@ -8,7 +8,7 @@ import type { Context } from '../context';
 import { transfer, simLeaf } from '../counters';
 import { noteStreet, remember } from '../memory';
 import { functionalProfile } from '../mapgen/generate';
-import { chance, nextInt } from '../rng';
+import { chance, nextInt, roundByChance } from '../rng';
 import { spawnSim, spawnZombie } from '../spawn';
 import type { Building, Sim, World } from '../state';
 import { isFirearm } from '../state';
@@ -309,7 +309,7 @@ function noiseExpulsion(world: World, ctx: Context): void {
     if (b.residents + b.sheltered.length > 0) alert(world, b);
     if (!heard.get(bid)) continue;
     const available = b.residents - queued(b);
-    if (available > 0) b.pendingExpel += Math.floor(available * config.buildings.residentExpelShare);
+    if (available > 0) b.pendingExpel += roundByChance(world.rng, available * config.buildings.residentExpelShare);
   }
 }
 

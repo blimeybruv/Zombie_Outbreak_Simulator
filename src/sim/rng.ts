@@ -60,6 +60,16 @@ export function nextInt(s: RngState, min: number, max: number): number {
   return min + Math.floor(nextFloat(s) * (max - min + 1));
 }
 
+/**
+ * A share of a count, rounded by chance: x's whole part, plus one at x's fraction. A
+ * tenth of a household of three is nobody under Math.floor, every time; here it is one
+ * person three times in ten, so a share means the same in a house as in a tower block.
+ */
+export function roundByChance(s: RngState, x: number): number {
+  const whole = Math.floor(x);
+  return whole + (nextFloat(s) < x - whole ? 1 : 0);
+}
+
 /** True with probability p. */
 export function chance(s: RngState, p: number): boolean {
   return nextFloat(s) < p;

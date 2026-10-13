@@ -24,6 +24,7 @@
 //              truckLoad, and takes up to truckCapacity of those waiting, longest first
 
 import type { Context } from '../context';
+import { roundByChance } from '../rng';
 import type { Exit, Sim, Vec2, World } from '../state';
 import { parkTruck } from './cars';
 import { barrierAt, queueAt, spawnSquad } from './cordon';
@@ -201,7 +202,7 @@ export function updateRescue(world: World, ctx: Context): void {
     }
     for (const b of buildings) {
       if (b.zombiesInside > 0) continue;
-      b.pendingEvacuate += Math.floor(Math.max(0, b.residents - b.pendingEvacuate - b.pendingRelease) * rc.broadcastShare);
+      b.pendingEvacuate += roundByChance(world.rng, Math.max(0, b.residents - b.pendingEvacuate - b.pendingRelease) * rc.broadcastShare);
     }
   }
 

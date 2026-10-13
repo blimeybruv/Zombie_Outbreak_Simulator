@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cloneRng, createRng, nextFloat, nextInt, nextUint32 } from '../src/sim/rng';
+import { cloneRng, createRng, nextFloat, nextInt, nextUint32, roundByChance } from '../src/sim/rng';
 
 const draw = (seed: number, n: number) => {
   const s = createRng(seed);
@@ -59,5 +59,18 @@ describe('rng', () => {
 
   it('rejects non-integer seeds', () => {
     expect(() => createRng(1.5)).toThrow(RangeError);
+  });
+
+  it('rounds a share by chance, so a tenth of three is someone three times in ten', () => {
+    const r = createRng(5);
+    let sum = 0;
+    for (let i = 0; i < 10_000; i++) {
+      const n = roundByChance(r, 0.3);
+      expect(n === 0 || n === 1).toBe(true);
+      sum += n;
+    }
+    expect(sum / 10_000).toBeGreaterThan(0.28);
+    expect(sum / 10_000).toBeLessThan(0.32);
+    expect(roundByChance(r, 4)).toBe(4);
   });
 });
