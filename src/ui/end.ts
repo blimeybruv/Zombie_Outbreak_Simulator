@@ -5,7 +5,7 @@
 import type { EndSummary } from '../worker/protocol';
 
 function n(x: number): string {
-  return x.toLocaleString('en-GB');
+  return x.toLocaleString('en-US');
 }
 
 export class EndScreen {
@@ -29,6 +29,16 @@ export class EndScreen {
         `${n(r.out)} got out; ${n(r.dead)} died on the way and ${n(r.turned)} turned; ` +
         `${n(r.waiting)} were still waiting at the barrier when it ended, and ${n(r.elsewhere)} are still out there.` +
         (lost > r.out ? ` It killed more of those who answered it than it saved.` : '');
+      this.root.append(p);
+    }
+    const tr = end.trust;
+    if (tr !== null && tr.doubted > 0 && tr.believed > 0) {
+      const pct = (a: number, b: number) => `${Math.round((a / b) * 100)}%`;
+      const p = document.createElement('p');
+      p.className = 'broadcast';
+      p.textContent =
+        `Of those still in the city when the broadcast went out, ${pct(tr.doubtedLived, tr.doubted)} of the ${n(tr.doubted)} who doubted the radio lived or got out, ` +
+        `against ${pct(tr.believedLived, tr.believed)} of the ${n(tr.believed)} who believed it.`;
       this.root.append(p);
     }
     if (end.trucked > 0) {

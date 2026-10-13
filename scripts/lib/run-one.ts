@@ -131,6 +131,12 @@ export interface RunSummary {
   quietEnd: number;
   /** Tracked sims that survived — alive and healthy at the end, or out of the city — and in total, by caution band (low, mid, high). */
   caution: { alive: number[]; total: number[] };
+  /**
+   * Caution split at the rescue's broadcast. before: of tracked sims (outsiders aside)
+   * spawned by then, the share still alive in the city or already out at the broadcast.
+   * after: of those in the city at the broadcast, the share that survived the run.
+   */
+  cautionSplit: { before: { alive: number[]; total: number[] }; after: { alive: number[]; total: number[] } };
   /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
   sociality: { alive: number[]; total: number[] };
   /** The same by trust band, every tracked sim. */
@@ -325,6 +331,18 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     caution.total[band]!++;
     if (survived(s)) caution.alive[band]!++;
   }
+  const broadcastAt = config.rescue.at + config.rescue.broadcast;
+  const cautionSplit = { before: { alive: [0, 0, 0], total: [0, 0, 0] }, after: { alive: [0, 0, 0], total: [0, 0, 0] } };
+  for (const s of world.sims) {
+    if (s.outsider || s.history.spawnedAt > broadcastAt) continue;
+    const band = s.caution < bands[0]! ? 0 : s.caution < bands[1]! ? 1 : 2;
+    const inCity = s.history.endedAt === null || s.history.endedAt > broadcastAt;
+    cautionSplit.before.total[band]!++;
+    if (inCity || s.condition === 'evacuated') cautionSplit.before.alive[band]!++;
+    if (!inCity) continue;
+    cautionSplit.after.total[band]!++;
+    if (survived(s)) cautionSplit.after.alive[band]!++;
+  }
   const cautionAsocial = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     if (s.sociality >= bands[0]!) continue;
@@ -373,6 +391,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     nerve,
     trust,
     cautionAsocial,
+    cautionSplit,
     roster,
     stages,
     fates,

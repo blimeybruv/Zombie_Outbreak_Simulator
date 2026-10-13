@@ -229,6 +229,12 @@ export interface EndSummary {
   alive: number;
   trucked: number;
   /** What became of those who answered the broadcast, and the road they were told to make for; null without a rescue. */
+  /**
+   * Of those still in the city when the broadcast went out, split at rescue.trustFloor:
+   * how many doubted the radio and how many believed it, and how many of each lived or
+   * got out. Null without a rescue.
+   */
+  trust: { doubted: number; doubtedLived: number; believed: number; believedLived: number } | null;
   rescue: { place: string; answered: number; out: number; dead: number; turned: number; waiting: number; elsewhere: number } | null;
 }
 

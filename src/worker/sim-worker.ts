@@ -234,6 +234,25 @@ function frameSnapshot(w: World): FrameSnapshot {
 
 let ended = false;
 
+/** Those in the city at the broadcast, doubters (trust below rescue.trustFloor) against believers: how many lived or got out. */
+function trustSplit(w: World): NonNullable<EndSummary['trust']> {
+  const { at, broadcast, trustFloor } = w.config.rescue;
+  const b = at + broadcast;
+  const r = { doubted: 0, doubtedLived: 0, believed: 0, believedLived: 0 };
+  for (const s of w.sims) {
+    if (s.outsider || s.history.spawnedAt > b || (s.history.endedAt !== null && s.history.endedAt <= b)) continue;
+    const lived = s.condition === 'healthy' || s.condition === 'evacuated';
+    if (s.trust < trustFloor) {
+      r.doubted++;
+      if (lived) r.doubtedLived++;
+    } else {
+      r.believed++;
+      if (lived) r.believedLived++;
+    }
+  }
+  return r;
+}
+
 /** The end screen's figures: the counters, and what became of those who answered the broadcast. */
 function endSummary(w: World): EndSummary {
   const c = w.counters;
@@ -246,6 +265,7 @@ function endSummary(w: World): EndSummary {
     turned: c.turned.symptomatic + c.turned.outdoors + c.turned.occupying + c.turned.destroyed,
     alive: c.unturned.outdoors + c.unturned.indoors,
     trucked: w.trucked,
+    trust: t === null ? null : trustSplit(w),
     rescue: t === null ? null : { place: w.streets[w.exits[w.rescueExit!]!.street]!.name, ...t },
   };
 }

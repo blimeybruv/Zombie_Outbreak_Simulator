@@ -232,6 +232,13 @@ if (process.argv[2] === '--worker') {
   console.log(
     `gate 4: shelters form, fall, re-form in ${reformed}/${seeds} (need ${need}) ${reformed >= need ? 'PASS' : 'FAIL'} | stasis ≥${STASIS}: ${stalled} ${stalled === 0 ? 'PASS' : 'FAIL'} | survival by caution low/mid/high ${rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${z.toFixed(1)}) ${cautionOk ? 'PASS' : 'FAIL'}`,
   );
+  const splits = results.map((r) => r.cautionSplit).filter((x) => x !== undefined);
+  if (splits.length) {
+    const pre = bandSurvival(splits.map((x) => x.before));
+    const post = bandSurvival(splits.map((x) => x.after));
+    const fmt = (b: typeof pre) => `${b.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${b.z.toFixed(1)})`;
+    console.log(`caution split at the broadcast: to it ${fmt(pre)} | after it, of those in the city ${fmt(post)} (not gated)`);
+  }
   const social = bandSurvival(results.map((r) => r.sociality));
   console.log(`survival by sociality low/mid/high ${social.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${social.z.toFixed(1)}; joiners only, not gated)`);
   const asocial = bandSurvival(results.map((r) => r.cautionAsocial));
