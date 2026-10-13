@@ -550,6 +550,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       pendingTurn: 0,
       pendingDie: 0,
       risings: [],
+      sweptAt: null,
       pendingSpill: 0,
     });
   };

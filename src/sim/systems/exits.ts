@@ -24,9 +24,9 @@ export function nearestExit(world: World, x: number, y: number, skip = 0): numbe
   return best;
 }
 
-/** Sets a sim making for the nearest way off the map it has not found closed. False if there is none. */
+/** Sets a sim making for the nearest way off the map it has not found closed — or, once the rescue has come, for the rescue's exit. False if there is none. */
 export function headForExit(world: World, sim: Sim): boolean {
-  const i = nearestExit(world, sim.x, sim.y, sim.knownClosed);
+  const i = world.rescueExit ?? nearestExit(world, sim.x, sim.y, sim.knownClosed);
   if (i === null) return false;
   const e = world.exits[i]!;
   sim.destinationKind = 'leave';

@@ -40,6 +40,7 @@ import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './
 import { callAmbulance, decideEmt, decidePatient } from './emt';
 import { rideToCall } from './dispatch';
 import { atClosedExit, flank, pastBarrier, queueAt } from './cordon';
+import { answersRescue } from './rescue';
 import { headForExit, nearestExit } from './exits';
 
 /**
@@ -741,6 +742,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     }
   }
 
+  // The rescue's broadcast heard: for its exit, once calm (rescue.ts).
+  if (answersRescue(world, sim)) headForExit(world, sim); // (in flight it has already run for a door, above)
+
   // At a closed exit, whatever brought it there: a way out, shut, with people waiting
   // at it. It joins them — and may try the flank, like anyone who set out to leave —
   // unless it has already given this one up. Not those on duty or in someone's care.
@@ -776,8 +780,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       const q = queueAt(world, e);
       if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
         sim.queuedSince ??= tick;
-        // The dead in sight end the wait at once: nobody stands in a queue to be caught.
-        if (threat === 0 && tick - sim.queuedSince < config.cordon.patience * (0.5 + sim.trust)) {
+        // At the rescue's exit the wait is for a truck, among soldiers: it does not end (rescue.ts).
+        // Elsewhere the dead in sight end it at once: nobody stands in a queue to be caught.
+        if (i === world.rescueExit || (threat === 0 && tick - sim.queuedSince < config.cordon.patience * (0.5 + sim.trust))) {
           sim.gait = 'still';
           steerToward(sim, e.x, e.y);
           return;
@@ -927,6 +932,11 @@ function decideIndoor(world: World, ctx: Context, sim: Sim): void {
   // A squad, a reservist waiting at its depot, or one called up somewhere else (out, and on).
   if (sim.squadLeader !== null) return decideSquadIndoor(world, ctx, sim);
   if (sim.muster === 'waiting') return;
+  // The rescue's broadcast heard: out, for its exit, once calm (rescue.ts).
+  if (modeOf(sim, config) !== 'flight' && answersRescue(world, sim) && headForExit(world, sim)) {
+    sim.exitingUntil = tick + exitTicks(world, buildings[sim.insideBuilding!]!);
+    return;
+  }
   if (sim.muster === 'mobilised' && sim.insideBuilding !== sim.depot) {
     sim.exitingUntil = tick + exitTicks(world, buildings[sim.insideBuilding!]!);
     return;

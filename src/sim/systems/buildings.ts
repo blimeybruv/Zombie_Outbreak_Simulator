@@ -21,6 +21,7 @@ import { dispatchAmbulances, emtEnter } from './emt';
 import { exitArrivals, headForExit } from './exits';
 import { pickUpDrops } from './arms';
 import { markResidentRising } from './rising';
+import { updateRescue } from './rescue';
 import { updateCordon } from './cordon';
 import { updateEvacuation, updateRelease } from './release';
 import { carProcesses } from './cars';
@@ -573,6 +574,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   exitArrivals(world, ctx);
   pickUpDrops(world, ctx);
   updateCordon(world, ctx);
+  updateRescue(world, ctx);
   probe('buildings.arrivals');
   exits(world, ctx);
   probe('buildings.exits');

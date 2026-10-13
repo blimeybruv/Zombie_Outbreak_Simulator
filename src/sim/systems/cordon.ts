@@ -65,6 +65,30 @@ export function atClosedExit(world: World, sim: Sim): number | null {
   return null;
 }
 
+/** A squad of soldiers from outside, at (x, y), its leader bound for `post`: outsiders, counted on top of the population. */
+export function spawnSquad(world: World, x: number, y: number, post: Vec2, ammo: number): Sim[] {
+  const { config } = world;
+  const squad: Sim[] = [];
+  for (let i = 0; i < config.squads.size; i++) {
+    const s = spawnSim(world, { x, y, insideBuilding: null, sourceTag: 'policeStation', initialPanic: 0, destinationKind: null, aware: true });
+    admit(world, 'unturned.outdoors');
+    world.outsiders++;
+    s.outsider = true;
+    s.archetype = 'reservist';
+    s.muster = 'deployed';
+    s.depot = null;
+    s.weapon = config.reservists.weapon;
+    s.ammo = ammo;
+    s.home = null;
+    s.church = null;
+    s.squadLeader = squad.length === 0 ? s.id : squad[0]!.id;
+    s.squadSlot = i;
+    if (i === 0) s.post = { x: post.x, y: post.y };
+    squad.push(s);
+  }
+  return squad;
+}
+
 /** Soldiers arrive at every exit, once; barriers close as squads reach their posts. Building processes. */
 export function updateCordon(world: World, ctx: Context): void {
   const { config, tick, exits, sims } = world;
@@ -75,26 +99,8 @@ export function updateCordon(world: World, ctx: Context): void {
     for (const e of exits) {
       const b = barrierAt(world, e);
       const post = { x: b.x + e.dx * cc.post, y: b.y + e.dy * cc.post };
-      let leader = -1;
       const fires = chance(world.rng, cc.fireShare); // the unit's, not the soldier's
-      for (let i = 0; i < config.squads.size; i++) {
-        const s = spawnSim(world, { x: e.x, y: e.y, insideBuilding: null, sourceTag: 'policeStation', initialPanic: 0, destinationKind: null, aware: true });
-        admit(world, 'unturned.outdoors');
-        world.outsiders++;
-        s.outsider = true;
-        s.archetype = 'reservist';
-        s.muster = 'deployed';
-        s.depot = null;
-        s.weapon = config.reservists.weapon;
-        s.ammo = cc.ammo;
-        s.home = null;
-        s.church = null;
-        if (leader < 0) leader = s.id;
-        s.squadLeader = leader as typeof s.id;
-        s.squadSlot = i;
-        s.firesOnCrossers = fires;
-        if (i === 0) s.post = post;
-      }
+      for (const s of spawnSquad(world, e.x, e.y, post, cc.ammo)) s.firesOnCrossers = fires;
     }
   }
   for (const e of exits) {

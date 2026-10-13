@@ -174,7 +174,7 @@ If one seems necessary, raise it rather than adding it.
 
 - Fire, explosions, petrol stations — wants to be the star; produces spectacle, not decisions
 - Z-levels, rooftop movement — a second map, not a building attribute
-- Survivor-on-survivor combat, psychopath archetype — a second hostility relation (one exception, the user's: a cordon unit may fire on those getting round its barrier; reference, "The cordon")
+- Survivor-on-survivor combat, psychopath archetype — a second hostility relation (the user's exceptions, institutional and narrow: a cordon unit may fire on those getting round its barrier, and the rescue company may shoot someone who does not identify itself; reference, "The cordon" and "The rescue")
 - Health pools, wounds, bandages, healer archetype — replaced by one infection flag
 - Heavy weapons, grenades — changes capability rather than decisions
 - Multi-slot inventory — one weapon, one ammo count, one materials count
@@ -187,7 +187,7 @@ If one seems necessary, raise it rather than adding it.
 
 ## Working practice
 
-- **Headless before visual.** Milestone 2 is a script that runs a full run (50,400 ticks; 36,000 until the fourth round)
+- **Headless before visual.** Milestone 2 is a script that runs a full run (64,800 ticks — the outbreak's 50,400 and the rescue's 14,400; 36,000 until the fourth round)
   from a fixed seed and prints the eight counters every 600. No renderer until the counters
   reconcile and the infection curve has a shape across 20 seeds.
 - Write the parameter-sweep harness early. Tuning is the actual work on this project;
@@ -249,7 +249,7 @@ is a triangle; positions are interpolated between ticks. A third round: police d
 as a unit, are cops by profession and age, churches are larger and fewer and drawn in
 plan, and every door has a step. Police run toward gunfire; fight, flight and freeze show
 as an outline, a streak and a slow pulse. Sheltered armed sims fire from the door.
-Sociality and trust are per sim, like caution; only stopping to talk trades what people know (the outbreak included), sociable passers join conversations into gatherings, drawn as a faint line or ring, and sceptics discount hearsay (reference, "Fourth round"). Cars park, drive, jam and are abandoned for good, draw the dead with their engines, and can be broken into (`systems/cars.ts`). Reservists — anonymous residents until a call-up order (300 911 calls) musters 2% of those still in buildings the living hold — make for an armoury, draw a rifle and deploy in squads of four that move in file or diamond, only the leader routing (`systems/squads.ts`; reference, "Reservists and squads"); the National Guard is pale green. SWAT squads start formed at three police stations and drive out in vans (light bars flashing) when an outmatched officer radios for them; ambulances fetch the bitten who think they are only hurt and deliver them to hospitals (`systems/emt.ts`); a district that comes to know sends a tenth of its residents out by the exits together (`release.ts updateEvacuation`); the first to go is what the world outside reacts to, and the cordon closes the roads behind it. Fortification has stages — open, barricaded, reinforced, fortified — each needing a bigger
+Sociality and trust are per sim, like caution; only stopping to talk trades what people know (the outbreak included), sociable passers join conversations into gatherings, drawn as a faint line or ring, and sceptics discount hearsay (reference, "Fourth round"). Cars park, drive, jam and are abandoned for good, draw the dead with their engines, and can be broken into (`systems/cars.ts`). Reservists — anonymous residents until a call-up order (300 911 calls) musters 2% of those still in buildings the living hold — make for an armoury, draw a rifle and deploy in squads of four that move in file or diamond, only the leader routing (`systems/squads.ts`; reference, "Reservists and squads"); the National Guard is pale green. SWAT squads start formed at three police stations and drive out in vans (light bars flashing) when an outmatched officer radios for them; ambulances fetch the bitten who think they are only hurt and deliver them to hospitals (`systems/emt.ts`); a district that comes to know sends a tenth of its residents out by the exits together (`release.ts updateEvacuation`); the first to go is what the world outside reacts to, and the cordon closes the roads behind it. After fourteen hours the rescue comes (`systems/rescue.ts`; reference, "The rescue"): a company sweeps a corridor up from one exit, sending back whoever it meets, a radio broadcast sends everyone still hidden to that exit, and trucks take people out until the run ends at eighteen hours. Fortification has stages — open, barricaded, reinforced, fortified — each needing a bigger
 crowd to break, with integrity capping the stage (`common.ts stageOf`).
 
 Gate: the city is legible at a glance at mid zoom; 2,000 agents hold 30 fps at 8×; the
@@ -267,7 +267,7 @@ Milestone 2 (headless loop) is done: `npm run sim -- <runSeed> <mapSeed>` prints
 counters every 600 ticks; `npm run sweep` runs 20 runSeeds on one mapSeed in parallel,
 asserts the invariant every tick and checks the gate (`--set path=value` overrides any
 config value; `--seeds 8` for quicker exploration). A full sweep takes about 30 minutes
-at the default population of 6,000 and run length of 36,000 ticks (the run is now 50,400 ticks, so about 40% longer). Re-run it after any change to simulation code,
+at the default population of 6,000 and run length of 36,000 ticks (the run is now 64,800 ticks, so nearly twice as long). Re-run it after any change to simulation code,
 map generation or tuning — a passing test suite does not mean the infection curve
 still has its shape.
 

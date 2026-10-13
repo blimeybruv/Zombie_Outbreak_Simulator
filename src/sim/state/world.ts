@@ -15,7 +15,7 @@ import type { SimEvent } from './events';
 import type { District, Exit, Lot, River, Street, StreetNode } from './map';
 import type { Archetype, Sim, Weapon } from './sim';
 import type { Stimulus } from './stimulus';
-import type { Count, Metres, SimId, Tick, Unit01 } from './units';
+import type { CarId, Count, Metres, SimId, Tick, Unit01 } from './units';
 import type { Zombie } from './zombie';
 
 /**
@@ -115,6 +115,12 @@ export interface World {
   outsiders: Count;
   /** Weapons lying where someone fell outdoors, or was dropped for a better one (systems/arms.ts), until picked up. @range 0–hundreds @unit — @readBy arms (pickup) */
   drops: { x: Metres; y: Metres; weapon: Weapon; ammo: Count }[];
+  /** The exit the rescue comes in by and takes people out of (rescue.ts); null before the sweep. @range exit index | null @unit index @readBy leaving (which exit, the wait for a truck), rescue */
+  rescueExit: number | null;
+  /** The truck loading at the rescue exit, and when it came; null between trucks. @range car id | null @unit id @readBy rescue */
+  rescueTruck: CarId | null;
+  /** When the next truck comes, or the one loading leaves. @range tick @unit tick @readBy rescue */
+  rescueTruckAt: Tick;
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

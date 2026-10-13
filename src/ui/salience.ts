@@ -36,6 +36,9 @@ export const BASE = {
   ambulanceDispatched: 20, // not in the reference: help on the way
   patientAdmitted: 45, // not in the reference: the vector delivered
   policeRadio: 35, // not in the reference: an officer outmatched
+  rescueSweep: 90, // not in the reference: the ending begins — drops playback to 1×
+  rescueBroadcast: 90, // not in the reference: everyone hidden is told to move
+  truckLeft: 35, // not in the reference
   firstEvacuation: 85, // not in the reference: the evacuation the world outside reacts to — drops playback to 1×
   districtEvacuating: 70, // not in the reference: a whole neighbourhood leaving at once
   reservistsCalledUp: 85, // not in the reference: the institution admitting the scale of it — drops playback to 1×
@@ -67,7 +70,7 @@ export function dropsTo1x(kind: Kind, n: EventNote): boolean {
 }
 
 function kindOf(e: SimEvent, n: EventNote): Kind | null {
-  if (e.type === 'simDied' && e.cause === 'shot') return 'cordonShot';
+  if (e.type === 'simDied' && (e.cause === 'shot' || e.cause === 'mistaken')) return 'cordonShot';
   if (e.type === 'districtEvacuating' && e.first) return 'firstEvacuation';
   if ((e.type === 'simDied' || e.type === 'simTurned') && n.name !== null) return 'promotedLoss';
   return e.type in BASE ? (e.type as Kind) : null;

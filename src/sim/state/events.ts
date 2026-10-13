@@ -23,8 +23,8 @@ export interface SimDiedEvent extends EventBase, Located {
   type: 'simDied';
   /** Null for an anonymous resident who died in a breach. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
-  /** Shot: by cordon soldiers, getting round their barrier. @range 3 values @unit enum @readBy ticker copy, salience */
-  cause: 'fedOn' | 'breach' | 'shot';
+  /** Shot: by cordon soldiers, getting round their barrier; mistaken: by the rescue company, taken for one of the dead. @range 4 values @unit enum @readBy ticker copy, salience */
+  cause: 'fedOn' | 'breach' | 'shot' | 'mistaken';
 }
 
 export interface SimTurnedEvent extends EventBase, Located {
@@ -176,6 +176,19 @@ export interface SimLeftEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface RescueEvent extends EventBase, Located {
+  /**
+   * rescueSweep: the rescue company comes in at its exit. rescueBroadcast: the radio
+   * tells everyone still hidden to make for it. truckLeft: a truck takes `count` out.
+   * @range 3 values @unit enum @readBy event consumers
+   */
+  type: 'rescueSweep' | 'rescueBroadcast' | 'truckLeft';
+  /** People taken out (truckLeft); 0 otherwise. @range 0–rescue.truckCapacity @unit people @readBy ticker copy */
+  count: Count;
+  /** Always null: the line is about the rescue. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export interface BodyRoseEvent extends EventBase, Located {
   /** Someone the dead killed gets up again (systems/rising.ts). Null for an anonymous resident, inside. @range literal @unit — @readBy event consumers */
   type: 'bodyRose';
@@ -198,6 +211,7 @@ export interface CordonClosedEvent extends EventBase, Located {
 }
 
 export type SimEvent =
+  | RescueEvent
   | BodyRoseEvent
   | ReservistsCalledUpEvent
   | CordonClosedEvent

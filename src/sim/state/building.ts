@@ -145,6 +145,8 @@ export interface Building {
   pendingDie: Count;
   /** Residents killed here in a breach who will get up again, by tick (systems/rising.ts), soonest first. @range 0–residents entries @unit tick @readBy rising */
   risings: Tick[];
+  /** When the rescue company's sweep reached it and sent its people back to the exit (rescue.ts); null if it never did. @range tick | null @unit tick @readBy rescue */
+  sweptAt: Tick | null;
   /** Occupiers queued to re-instantiate onto the street, drained under a per-tick cap. @range 0–zombiesInside @unit zombies @readBy building processes */
   pendingSpill: Count;
 }

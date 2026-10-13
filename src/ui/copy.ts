@@ -15,6 +15,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'simTurned':
       return n.name ? `${n.name} turned on ${n.place}.` : `A survivor turned on ${n.place}.`;
     case 'simDied':
+      if (e.cause === 'mistaken') return `Soldiers shot ${n.name ?? 'a survivor'} on ${n.place}, taking them for one of the dead.`;
       if (e.cause === 'shot') return `Soldiers shot ${n.name ?? 'a survivor'} trying to get round the cordon on ${n.place}.`;
       if (!n.name) return `A survivor died on ${n.place}.`;
       return e.cause === 'breach' ? `${n.name} died when ${n.place} was overrun.` : `${n.name} was pulled down on ${n.place}.`;
@@ -46,6 +47,12 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `A car was abandoned on ${n.place}.`;
     case 'cordonClosed':
       return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
+    case 'rescueSweep':
+      return `Soldiers are coming into the city from ${n.place}, street by street. Anyone they find is being sent back to the road out.`;
+    case 'rescueBroadcast':
+      return `A radio message on every frequency: anyone still alive is to make for ${n.place}. Trucks are taking people out.`;
+    case 'truckLeft':
+      return e.count > 0 ? `A truck has left ${n.place} with ${e.count} aboard.` : null;
     case 'bodyRose':
       return n.name ? `${n.name}, killed on ${n.place}, has got up again.` : null;
     case 'cordonEvaded':

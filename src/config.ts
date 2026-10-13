@@ -124,7 +124,7 @@ export const config = {
   time: {
     dayLength: 7200, // ticks per day/night cycle; compressed, 7 cycles per run
     startWeekday: 0, // the day a run starts on, for the status line: 0 Monday … 6 Sunday
-    runLength: 50400, // ticks; the demo's one terminal condition: 14 simulated hours, seven whole day/night cycles, ending at the hour it began — the late rise of dormant hordes needed room (it was 36,000)
+    runLength: 64800, // ticks; the demo's one terminal condition: 18 simulated hours — the outbreak's fourteen (it was 50,400, before that 36,000), then the rescue's four
     sunrise: 0.25, // fraction of day (06:00)
     sunset: 0.75, // fraction of day (18:00)
     twilight: 0.04, // fraction of day over which perception interpolates (~1 h)
@@ -144,6 +144,7 @@ export const config = {
   //   strangerVeto    the cautious let strangers in
   //   cautiousRouting the cautious take an unknown street for safe
   //   evacuation      districts never evacuate: the release at the start is the only one
+  //   rescue          no company comes in at the end, no broadcast, no trucks
   //   exits           no highways out: the map is closed
   //   cordon          nobody outside notices: the exits stay open
   //   yards           no service yards: stations and hospitals park one vehicle at the kerb
@@ -158,6 +159,7 @@ export const config = {
     yards: true,
     emt: true,
     swat: true,
+    rescue: true,
     evacuation: true, // on since evacuees leave by the exits and the cordon closes behind the first district (reference, "Evacuation")
     reservists: true,
     relevanceTrim: true,
@@ -240,6 +242,20 @@ export const config = {
   // they fell. A zombie destroyed stays destroyed, and so does anyone shot. The eaten
   // still rarely spread anything: bites stay the vector, but no place where people
   // died is safe for good — guesses (the user's: low and late, to avoid a late surge)
+  // The rescue (rescue.ts; the user's design): the outbreak's fourteen hours, then a
+  // company of `squads` squads comes in at `at` by the exit whose corridor holds the most
+  // people still sheltering, and pushes up it — a corridor `halfWidth` either side of the
+  // line from the exit toward the middle of the map — its front advancing `speed` m a
+  // tick to at most `depth`. The soldiers shoot the dead, send back down the corridor
+  // anyone who identifies itself (within `sendRadius`), and may shoot anyone who does
+  // not — frozen, sprinting, or in the dark — at `misidentify` a look; buildings the
+  // living hold behind the front give up `takeShare` of their residents. `broadcast`
+  // ticks after the sweep began, a radio order tells everyone still hidden to make for
+  // that exit (`broadcastShare` of the residents of every building still held). Trucks
+  // come every `truckEvery` ticks, load for `truckLoad` and take up to `truckCapacity`
+  // of those waiting; nobody is screened — guesses
+  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
+
   rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
 
   // Nerve (Sim.nerve, a uniform draw): composure under terror. It breaks when panic

@@ -168,6 +168,11 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
   return car;
 }
 
+/** A truck pulled up at (x, y), facing `heading`, for the rescue (rescue.ts): a van to look at. */
+export function parkTruck(world: World, ctx: Context, x: number, y: number, heading: number): Car | null {
+  return addCar(world, ctx, x, y, heading, false, null, 'van');
+}
+
 /** Whether a police station or hospital has a yard of its own (map generation, when it fit). */
 export function hasYard(world: World, b: Building): boolean {
   return world.lots.some((l) => l.home === b.id);

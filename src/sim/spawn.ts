@@ -244,6 +244,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     knownClosed: 0,
     crossing: null,
     firesOnCrossers: false,
+    sweep: false,
     crew: null,
     carriedBy: null,
     ambulanceCalledAt: null,

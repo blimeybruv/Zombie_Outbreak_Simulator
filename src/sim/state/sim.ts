@@ -394,6 +394,8 @@ export interface Sim {
   crossing: 1 | -1 | null;
   /** A cordon soldier whose unit fires on those getting round its barrier (drawn once per unit, cordon.fireShare); false for everyone else, and never shown. @range true/false @unit — @readBy combat (cordon fire) */
   firesOnCrossers: boolean;
+  /** A soldier of the rescue company (rescue.ts): sends back whoever identifies itself, and may shoot whoever does not. @range true/false @unit — @readBy combat (the unidentified), rescue */
+  sweep: boolean;
   /** An EMT's ambulance; null for everyone else. @range car id | null @unit id @readBy EMTs, alighting */
   crew: CarId | null;
   /** A patient in an ambulance crew's care: its driver's id; null otherwise. @range sim id | null @unit id @readBy EMTs, alighting */

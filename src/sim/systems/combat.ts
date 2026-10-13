@@ -11,6 +11,7 @@ import type { Sim, World, Zombie } from '../state';
 import { isFirearm } from '../state';
 import { dropWeapon } from './arms';
 import { markRising } from './rising';
+import { identifies } from './rescue';
 import { cornered } from './sims';
 import { modeOf } from './panic';
 import { recognisedWithin, viewFactor } from './perception';
@@ -84,7 +85,7 @@ function seen(world: World, ctx: Context, x: number, y: number): number {
   return floor + (1 - floor) * vis;
 }
 
-export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot'): void {
+export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot' | 'mistaken'): void {
   const from = simLeaf(victim);
   if (from === null || victim.condition === 'dead') return;
   dropWeapon(world, victim); // left where it fell
@@ -134,7 +135,10 @@ function sims(world: World, ctx: Context): void {
       targetD = d;
     }
     if (target === null) {
-      if (sim.firesOnCrossers && usable && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger) cordonFire(world, ctx, sim, ranged);
+      if (usable && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger) {
+        if (sim.firesOnCrossers) cordonFire(world, ctx, sim, ranged);
+        else if (sim.sweep) sweepFire(world, ctx, sim, ranged);
+      }
       continue;
     }
 
@@ -202,6 +206,35 @@ function cordonFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile)
   }
   if (target === null) return;
   if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) killSim(world, ctx, target, 'shot');
+  sim.ammo -= ranged.ammoPerAttack;
+  sim.nextAttackAt = tick + ranged.cooldown;
+  emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);
+}
+
+/**
+ * A soldier of the rescue company with no dead in reach: someone in sight and range who
+ * does not identify itself — frozen, sprinting in a panic, or in the dark — is taken for
+ * one of them, at rescue.misidentify a look, and shot at like one. Nobody can tell the
+ * living from the bitten; the soldiers do not try. The cordon's exception, at the scale
+ * of the ending (the user's).
+ */
+function sweepFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile): void {
+  const { config, tick } = world;
+  let target: Sim | null = null;
+  let targetD = Infinity;
+  ctx.simHash.query(sim.x, sim.y, ranged.range, ctx.ids2);
+  for (const id of ctx.ids2) {
+    const s = world.sims[id]!;
+    if (s === sim || s.outsider || !isOutdoorLiving(s) || s.car !== null) continue;
+    const d = Math.hypot(s.x - sim.x, s.y - sim.y);
+    if (d > ranged.range * viewFactor(config, sim, s.x - sim.x, s.y - sim.y, d) || d >= targetD) continue;
+    if (identifies(world, s) && seen(world, ctx, s.x, s.y) >= 1) continue; // it calls out, and is seen to
+    if (!ctx.map.lineOfSight(sim.x, sim.y, s.x, s.y)) continue;
+    target = s;
+    targetD = d;
+  }
+  if (target === null || !chance(world.rng, config.rescue.misidentify)) return;
+  if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) killSim(world, ctx, target, 'mistaken');
   sim.ammo -= ranged.ammoPerAttack;
   sim.nextAttackAt = tick + ranged.cooldown;
   emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);
