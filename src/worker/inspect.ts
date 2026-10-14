@@ -6,6 +6,7 @@ import { functionalProfile } from '../sim/mapgen/generate';
 import type { Sim, World } from '../sim/state';
 import { scoreLiving } from '../sim/systems/promotion';
 import { backstory } from './backstory';
+import { thoughts } from './thoughts';
 import { words } from './notes';
 import type { Inspected } from './protocol';
 
@@ -68,6 +69,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     buildingsKnown: s.buildingMemory.size,
     knownInfected: s.knownInfected.size,
     backstory: story,
+    thoughts: living ? thoughts(w, s) : [],
   };
 }
 

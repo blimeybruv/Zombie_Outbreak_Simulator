@@ -1,7 +1,7 @@
 // Serves the viewer, opens it in headless Chromium and screenshots it: a way to see
 // the renderer from a container with no display.
 //
-//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click] [--at x,y] [--query k=v&...] [--flagged 1]
+//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click | --click-at sx,sy] [--at x,y] [--query k=v&...] [--flagged 1]
 //
 // Shots are taken at far, mid and near zoom (near centred on the busiest spot, or
 // on --at, a world point in metres, or with --flagged on the first survivor outdoors
@@ -83,14 +83,19 @@ try {
     await page.screenshot({ path: `${out}/${shot.name}.png` });
     console.log(`${out}/${shot.name}.png  (tick ${tick}, ${shot.scale} px/m)`);
   }
-  if (args.includes('--click')) {
-    // Try a few points around the middle until something is picked.
+  if (args.includes('--click') || args.includes('--click-at')) {
+    // Try a few points around the middle (or --click-at sx,sy, a screen point in the near shot) until something is picked.
+    const [cx, cy] = args.includes('--click-at') ? opt('click-at', '720,450').split(',').map(Number) : [720, 450];
     for (const [dx, dy] of [[0, 0], [12, 0], [0, 12], [-12, 0], [0, -12], [30, 30], [-30, 30]] as const) {
-      await page.mouse.click(720 + dx, 450 + dy);
+      await page.mouse.click(cx! + dx, cy! + dy);
       await page.waitForTimeout(300);
-      if (await page.evaluate(() => (document.querySelector('#inspector')?.childElementCount ?? 0) > 0)) break;
+      if (await page.evaluate(() => document.querySelector('#inspector:not(.idle) .head') !== null)) break;
     }
     await page.waitForTimeout(400);
+    // Hover the second trait (caution, for a person), so its explanation shows.
+    const tips = page.locator('#inspector .tip');
+    if ((await tips.count()) > 1) await tips.nth(1).hover();
+    await page.waitForTimeout(200);
     await page.screenshot({ path: `${out}/inspect.png` });
     console.log(`${out}/inspect.png`);
   }

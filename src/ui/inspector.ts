@@ -31,26 +31,71 @@ function bar(label: string, value: number): HTMLElement {
 
 const words = (s: string) => s.replace(/([A-Z])/g, ' $1').toLowerCase();
 
+/** What each trait means, for the viewer: what they are about to watch it do. */
+const TRAITS: Record<string, string> = {
+  caution:
+    'How much danger they will go out of their way to avoid. The cautious take long detours round streets they believe are bad, the most cautious will not trust a street they know nothing about, and they are slower to open the door to strangers.',
+  sociality:
+    'How readily they stop to talk and go along with others. Talk is how people learn: about the outbreak, which streets are bad, which buildings are held, who has been bitten.',
+  trust:
+    'How much they believe what they are told. Sceptics hear news as older than it is, need more people to tell them before they believe in the outbreak, and doubt the radio when it calls everyone out.',
+  nerve: 'How much fear they can take before it takes over. When cornered, blocked or run to exhaustion, someone whose nerve goes freezes where they stand.',
+};
+
+const ARCHETYPES: Record<string, string> = {
+  civilian: 'An ordinary person. Goes home if home is near, goes along with others, and fights only when cornered.',
+  loner: 'Keeps to themselves: never goes along with anyone, prefers quiet streets, and picks shelters with fewer people in them.',
+  prepper: 'Ready for this. Makes for home from anywhere in the city, and chooses shelters for their walls, their quiet and their supplies.',
+  reckless: 'Goes looking for a fight. Will take on the dead in the open and contest a building they have overrun.',
+  police: 'A police officer: does not panic, answers calls, runs toward gunfire, and falls back only when outmatched.',
+  reservist: 'A reservist: an ordinary person until the call-up, then makes for the armory to draw a rifle and deploy in a squad.',
+  'Army Ranger': 'Part of the rescue company: sweeps a corridor up from the exit and sends back anyone it meets.',
+  soldier: 'Holds the cordon at a road out of the city. Will fire on those getting round the barrier, if their unit decides to.',
+};
+
+function tip(text: string, explanation: string | undefined): HTMLElement {
+  const e = el('span', explanation ? 'tip' : undefined, text);
+  if (explanation) e.dataset['tip'] = explanation;
+  return e;
+}
+
 export class Inspector {
   private key = '';
+  /** The part that changes rarely (a sim's name and traits), kept in place so a hover on it survives the frame's refresh. */
+  private readonly top = el('div');
+  private topKey = '';
+  /** The part rebuilt whenever anything in it changes. */
+  private readonly body = el('div');
 
   constructor(
     private readonly root: HTMLElement,
     private readonly onSim: (id: number) => void,
-  ) {}
+  ) {
+    for (const part of [this.top, this.body]) part.style.cssText = 'display: flex; flex-direction: column; gap: 3px;';
+    root.append(this.top, this.body);
+    root.classList.add('idle');
+  }
 
   show(detail: Inspected | null, history: readonly string[]): void {
     const key = JSON.stringify(detail) + history.length;
     if (key === this.key) return;
     this.key = key;
-    this.root.replaceChildren();
-    if (!detail) return;
-    if (detail.kind === 'building') this.building(detail, history);
-    else this.sim(detail);
+    this.body.replaceChildren();
+    this.root.classList.toggle('idle', detail === null);
+    if (!detail) {
+      this.top.replaceChildren();
+      this.topKey = '';
+      return;
+    }
+    if (detail.kind === 'building') {
+      this.top.replaceChildren();
+      this.topKey = '';
+      this.building(detail, history);
+    } else this.sim(detail);
   }
 
   private building(b: BuildingDetail, history: readonly string[]): void {
-    const r = this.root;
+    const r = this.body;
     r.append(el('div', 'head', `${b.what[0]!.toUpperCase()}${b.what.slice(1)}, ${b.street}`));
     r.append(el('div', 'sub', b.district));
     r.append(bar('integrity', b.integrity), bar('fortified', b.fortification));
@@ -83,15 +128,28 @@ export class Inspector {
   }
 
   private sim(s: SimDetail): void {
-    const r = this.root;
-    r.append(el('div', 'head', s.name ?? 'A survivor'));
-    r.append(el('div', 'sub', `${words(s.profession)}, ${s.age} · ${words(s.archetype)} · caution ${s.caution.toFixed(2)} · sociality ${s.sociality.toFixed(2)} · trust ${s.trust.toFixed(2)} · nerve ${s.nerve.toFixed(2)}`));
+    const topKey = `${s.id}|${s.name}|${s.archetype}`;
+    if (topKey !== this.topKey) {
+      this.topKey = topKey;
+      const traits = el('div', 'sub');
+      traits.append(`${words(s.profession)}, ${s.age} · `, tip(s.archetype === 'Army Ranger' ? s.archetype : words(s.archetype), ARCHETYPES[s.archetype]));
+      for (const [name, value] of [['caution', s.caution], ['sociality', s.sociality], ['trust', s.trust], ['nerve', s.nerve]] as const) {
+        traits.append(' · ', tip(`${name} ${value.toFixed(2)}`, TRAITS[name]));
+      }
+      this.top.replaceChildren(el('div', 'head', s.name ?? 'A survivor'), traits);
+    }
+    const r = this.body;
     const truth = [s.condition === 'infected' ? (s.bites > 1 ? `bitten ×${s.bites}` : 'bitten') : s.condition, s.insideBuilding !== null ? 'indoors' : 'outdoors', s.doing ?? '', s.role ? `role: ${s.role}` : ''].filter(Boolean);
     r.append(el('div', s.condition === 'infected' ? 'sub warn' : 'sub', truth.join(' · ')));
     r.append(el('div', 'sub', [s.weapon ? `${s.weapon}${s.ammo > 0 ? ` (${s.ammo})` : ''}` : 'unarmed', s.materials > 0 ? `carrying ${s.materials}` : ''].filter(Boolean).join(' · ')));
     if (s.home) r.append(el('div', 'sub', `lives at ${s.home}`));
     if (s.shelter && s.shelter !== s.home) r.append(el('div', 'sub', `sheltering at ${s.shelter}`));
     r.append(el('div', 'sub dim', `believes: ${s.streetsKnown} streets, ${s.buildingsKnown} buildings, ${s.knownInfected} known bitten`));
+    if (s.thoughts.length > 0) {
+      const t = el('div', 'thoughts');
+      for (const line of s.thoughts) t.append(el('div', undefined, line));
+      r.append(t);
+    }
     if (s.backstory) r.append(el('div', 'story', s.backstory));
   }
 }

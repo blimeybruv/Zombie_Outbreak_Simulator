@@ -34,7 +34,12 @@
       #end .broadcast { color: #e8d9c4; }
       #end .sub { color: #8a949e; }
       #inspector { position: fixed; right: 12px; bottom: 12px; width: 300px; background: rgba(6, 7, 10, 0.82); padding: 8px 10px; border-radius: 4px; display: flex; flex-direction: column; gap: 3px; }
-      #inspector:empty { display: none; }
+      #inspector:empty, #inspector.idle { display: none; }
+      #inspector .tip { border-bottom: 1px dotted #4b535c; cursor: help; position: relative; }
+      #inspector .tip:hover::after { content: attr(data-tip); position: absolute; right: -10px; bottom: calc(100% + 6px); width: 260px; background: rgba(14, 16, 20, 0.97); border: 1px solid #2a2f36; color: #c9d1d9; padding: 6px 8px; border-radius: 4px; font-style: normal; white-space: normal; z-index: 5; pointer-events: none; }
+      #inspector .thoughts { color: #d7dee5; margin-top: 3px; border-left: 2px solid #3a414a; padding-left: 6px; }
+      #inspector .thoughts div::before { content: '“'; color: #6c757f; }
+      #inspector .thoughts div::after { content: '”'; color: #6c757f; }
       #fps { position: fixed; left: 50%; transform: translateX(-50%); top: 8px; background: rgba(6, 7, 10, 0.75); color: #8fbf8f; padding: 3px 8px; border-radius: 3px; font-size: 11px; pointer-events: none; white-space: nowrap; }
       #fps.slow { color: #e0a060; }
       #inspector .head { color: #eef3f7; }

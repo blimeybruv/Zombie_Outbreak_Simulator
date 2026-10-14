@@ -152,6 +152,8 @@ export interface SimDetail {
   buildingsKnown: number;
   knownInfected: number;
   backstory: string;
+  /** What it believes, in its own words, from its own fields only (thoughts.ts); empty for the dead. */
+  thoughts: string[];
 }
 
 export type Inspected = BuildingDetail | SimDetail;
