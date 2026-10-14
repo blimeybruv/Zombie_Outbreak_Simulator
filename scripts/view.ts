@@ -1,7 +1,7 @@
 // Serves the viewer, opens it in headless Chromium and screenshots it: a way to see
 // the renderer from a container with no display.
 //
-//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click | --click-at sx,sy] [--at x,y] [--query k=v&...] [--flagged 1]
+//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click | --click-at sx,sy] [--at x,y] [--settle ms] [--query k=v&...] [--flagged 1]
 //
 // Shots are taken at far, mid and near zoom (near centred on the busiest spot, or
 // on --at, a world point in metres, or with --flagged on the first survivor outdoors
@@ -78,10 +78,12 @@ try {
       const found = flagged > 0 && (await page.evaluate((f) => (window as unknown as Win).__view!.centreOnFlagged(f), flagged));
       if (!found) await page.evaluate(() => (window as unknown as Win).__view!.centreOnBusiest());
     }
-    await page.waitForTimeout(400);
+    // --settle: how long after the zoom (and the last screenshot, which itself stalls the page) before the shot.
+    await page.waitForTimeout(Number(opt('settle', '1500')));
     const tick = await page.evaluate(() => (window as unknown as Win).__view!.stats.tick);
+    const fps = await page.evaluate(() => document.querySelector('#fps')?.textContent ?? '');
     await page.screenshot({ path: `${out}/${shot.name}.png` });
-    console.log(`${out}/${shot.name}.png  (tick ${tick}, ${shot.scale} px/m)`);
+    console.log(`${out}/${shot.name}.png  (tick ${tick}, ${shot.scale} px/m)  ${fps}`);
   }
   if (args.includes('--click') || args.includes('--click-at')) {
     // Try a few points around the middle (or --click-at sx,sy, a screen point in the near shot) until something is picked.
