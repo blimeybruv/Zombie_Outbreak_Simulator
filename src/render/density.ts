@@ -53,14 +53,18 @@ export class DensityField {
     for (let i = 0; i < this.living.length; i++) {
       const l = Math.min(1, this.living[i]! / SATURATE);
       const d = Math.min(1, this.dead[i]! / SATURATE);
-      const a = Math.max(l, d);
       // Mix toward red where the dead outnumber the living.
       const share = l + d > 0 ? d / (l + d) : 0;
       px[i * 4] = 225 - 45 * share;
       px[i * 4 + 1] = 232 - 180 * share;
       px[i * 4 + 2] = 240 - 175 * share;
-      // The living as a pale haze, the dead stronger: the run reads as white draining to red.
-      px[i * 4 + 3] = Math.round(255 * Math.sqrt(a) * (0.28 + 0.42 * share));
+      // The living as a pale haze that shows even for a few (a square root); the dead on
+      // a steeper curve, so a crowd reads red and a scattering stays faint. (With the dead
+      // on a square root too, late in a run one zombie per 80 m cell was enough to wash
+      // the whole city red and hide what was left; straight proportion lost the spread.)
+      const haze = Math.sqrt(l) * 0.28;
+      const red = d ** 0.75 * 0.72;
+      px[i * 4 + 3] = Math.round(255 * Math.max(haze, red));
     }
     this.image.getContext('2d')!.putImageData(this.pixels, 0, 0);
     const b = this.blurred.getContext('2d')!;
