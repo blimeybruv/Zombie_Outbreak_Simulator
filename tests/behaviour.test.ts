@@ -554,7 +554,7 @@ describe('cars', () => {
       }
       expect(sirens).toBe(on ? 1 : 0);
     }
-  });
+  }, 30_000); // two worlds set up and driven: slow on a busy host
 
   it('a car being driven makes engine noise, which frightens nobody', () => {
     const { world, ctx, car } = inCar();

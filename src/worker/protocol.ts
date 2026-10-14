@@ -235,6 +235,8 @@ export interface EndSummary {
    * got out. Null without a rescue.
    */
   trust: { doubted: number; doubtedLived: number; believed: number; believedLived: number } | null;
+  /** Loners against civilians, the city's outsiders aside: how many of each, and how many lived or got out. */
+  loners: { loners: number; lonersLived: number; civilians: number; civiliansLived: number };
   rescue: { place: string; answered: number; out: number; dead: number; turned: number; waiting: number; elsewhere: number } | null;
 }
 

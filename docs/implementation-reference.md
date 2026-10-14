@@ -19,10 +19,9 @@ Open decisions are marked inline rather than collected at the end, so they are v
 Everything else marked open further down has since been decided, resolved or made moot, and says so where it stands ("Was open … Since …").
 
 - **Gate 3, by eye and on a real machine.** Whether the city is legible at a glance at mid zoom, including whether the occupancy fill is too faint for a block emptying to be seen. Whether 2,000 agents hold 30 fps at 8× (`scripts/fps.ts`).
-- **The spread across seeds is narrow at the end.** It is wide early — turned in the first hour 159–651 — but every run ends at 44–48% turned. The sweep targets call low variance at the end "the outcome being determined". Here the rescue and the run's length shape the ending more than the outbreak does. Whether that matters is the user's judgement.
 - **Recorded sounds** in place of the synthesised ones. Optional.
 - **Done:** a 20-seed sweep of the final state and the cost of the full run ("Final state", under the rescue).
-- **Settled, not open:** this city punishes grouping ("Grouping is punished in this city", under the rescue); the roster is a record (re-score, under promotion); civilian squads stay out, which that finding makes moot.
+- **Settled, not open:** the narrow spread at the end of a run is a stable system, not a determined one ("Sweep targets", restated). This city punishes grouping ("Grouping is punished in this city", under the rescue); the roster is a record (re-score, under promotion); civilian squads stay out, which that finding makes moot.
 
 ### Field lists live in code
 
@@ -1540,7 +1539,7 @@ That output doubles as the first test. The invariant assertion runs every tick, 
 
 A sweep needs something to optimise. "Interesting" is not measurable; these are:
 
-- Survivors alive at the end, and variance across seeds — low variance means the outcome is determined, which is the failure mode to avoid
+- Survivors alive at the end, and variance across seeds — low variance means the outcome is determined, which is the failure mode to avoid. **Restated (the user's, after the 20-seed sweep of the final state):** the variance that matters is in the trajectory, not the endpoint. Read it in the first hour (turned 159–651 over 20 seeds) and the middle of the run: when and where the outbreak takes the city. This target was written when runs ended mid-curve and the worry was that nothing differed between seeds. Now every run converges to 44–48% turned, because the outbreak reliably takes the same share before the rescue and the clock end it. That is a stable system, not a determined one.
 - Duration of the middle phase, from first cascade to promotion
 - Count of events above salience 40 per 1,000 ticks
 - Peak horde size, and whether splintering bounds it

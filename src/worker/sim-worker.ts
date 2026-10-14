@@ -253,6 +253,23 @@ function trustSplit(w: World): NonNullable<EndSummary['trust']> {
   return r;
 }
 
+/** Loners against civilians: those who keep away from people against everyone else's default. */
+function lonerSplit(w: World): EndSummary['loners'] {
+  const r = { loners: 0, lonersLived: 0, civilians: 0, civiliansLived: 0 };
+  for (const s of w.sims) {
+    if (s.outsider || (s.archetype !== 'loner' && s.archetype !== 'civilian')) continue;
+    const lived = s.condition === 'healthy' || s.condition === 'evacuated';
+    if (s.archetype === 'loner') {
+      r.loners++;
+      if (lived) r.lonersLived++;
+    } else {
+      r.civilians++;
+      if (lived) r.civiliansLived++;
+    }
+  }
+  return r;
+}
+
 /** The end screen's figures: the counters, and what became of those who answered the broadcast. */
 function endSummary(w: World): EndSummary {
   const c = w.counters;
@@ -266,6 +283,7 @@ function endSummary(w: World): EndSummary {
     alive: c.unturned.outdoors + c.unturned.indoors,
     trucked: w.trucked,
     trust: t === null ? null : trustSplit(w),
+    loners: lonerSplit(w),
     rescue: t === null ? null : { place: w.streets[w.exits[w.rescueExit!]!.street]!.name, ...t },
   };
 }

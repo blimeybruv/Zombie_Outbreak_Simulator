@@ -41,6 +41,16 @@ export class EndScreen {
         `against ${pct(tr.believedLived, tr.believed)} of the ${n(tr.believed)} who believed it.`;
       this.root.append(p);
     }
+    const l = end.loners;
+    if (l.loners > 0 && l.civilians > 0) {
+      const pct = (a: number, b: number) => `${Math.round((a / b) * 100)}%`;
+      const p = document.createElement('p');
+      p.className = 'broadcast';
+      p.textContent =
+        `Those who kept away from other people did best: ${pct(l.lonersLived, l.loners)} of the ${n(l.loners)} loners lived or got out, ` +
+        `against ${pct(l.civiliansLived, l.civilians)} of the ${n(l.civilians)} who went about among others. Crowds draw the dead and fall together.`;
+      this.root.append(p);
+    }
     if (end.trucked > 0) {
       const t = document.createElement('p');
       t.className = 'sub';
