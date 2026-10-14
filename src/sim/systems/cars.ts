@@ -21,7 +21,7 @@
 import { isOutdoorLiving, type Context } from '../context';
 import { functionalProfile } from '../mapgen/generate';
 import { sharedNode } from '../pathfinding';
-import { chance } from '../rng';
+import { chance, cloneRng } from '../rng';
 import type { Building, BuildingId, Car, CarId, Sim, World } from '../state';
 import { bite } from './combat';
 import { entranceNearest, leaveTalk, setDestination } from './common';
@@ -163,6 +163,8 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
     route: [],
     routeIndex: 0,
     blockedSince: null,
+    alarm: false,
+    alarmUntil: null,
   };
   world.cars.push(car);
   return car;
@@ -389,6 +391,7 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
     return;
   }
   car.state = 'driving';
+  soundAlarm(world, ctx, car);
   car.route = route;
   car.routeIndex = 0;
   car.blockedSince = null;
@@ -424,6 +427,7 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
   car.destinationBuilding = target?.id ?? null;
   car.destination = dest;
   car.state = 'driving';
+  soundAlarm(world, ctx, car);
   car.route = route;
   car.routeIndex = 0;
   car.blockedSince = null;
@@ -455,10 +459,31 @@ function boardForExit(world: World, ctx: Context, sim: Sim, car: Car): void {
   }
 }
 
-/** Car processes, in building processes (step 10): stale claims, boarding, arriving, abandoning. */
+/** Arms the alarms of a share of ordinary cars, from a copy of the run's stream so that nothing else at setup moves. Called once at setup. */
+export function armAlarms(world: World): void {
+  const rng = cloneRng(world.rng);
+  for (const car of world.cars) if (car.kind === 'car') car.alarm = chance(rng, world.config.cars.alarm.share);
+}
+
+/** An armed alarm goes off: once, loud and brief, and then it is spent. */
+function soundAlarm(world: World, ctx: Context, car: Car): void {
+  if (!car.alarm || !world.config.features.carAlarms) return;
+  car.alarm = false;
+  car.alarmUntil = world.tick + world.config.cars.alarm.ticks;
+  emitStimulus(world, car.x, car.y, 'alarm', world.config.cars.alarm.noise, false, world.config.cars.alarm.intensity);
+  ctx.events.push({ type: 'carAlarm', tick: world.tick, car: car.id, x: car.x, y: car.y, sim: null });
+}
+
+/** Car processes, in building processes (step 10): alarms, stale claims, boarding, arriving, abandoning. */
 export function carProcesses(world: World, ctx: Context): void {
   const { config, tick, cars, sims } = world;
   const cc = config.cars;
+  // Alarms sounding: a blast every alarm.every ticks until it stops (the first came as it went off).
+  for (const car of cars) {
+    if (car.alarmUntil === null) continue;
+    if (tick >= car.alarmUntil) car.alarmUntil = null;
+    else if ((car.alarmUntil - tick) % cc.alarm.every === 0) emitStimulus(world, car.x, car.y, 'alarm', cc.alarm.noise, false, cc.alarm.intensity);
+  }
   for (const car of cars) {
     if (car.state === 'parked' && car.claimedBy !== null) {
       const s = sims[car.claimedBy]!;
@@ -508,6 +533,8 @@ export function carProcesses(world: World, ctx: Context): void {
       const z = world.zombies[id]!;
       if (z.state === 'active' || z.state === 'wandering') at++;
     }
+    // The dead tearing at it with people inside: its alarm, if armed, tells the district.
+    if (at > 0) soundAlarm(world, ctx, car);
     if (at > 0 && chance(world.rng, 1 - (1 - cc.breakIn) ** at)) {
       car.state = 'abandoned';
       ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });
@@ -608,9 +635,13 @@ export function decideCars(world: World, ctx: Context): void {
     if (car.routeIndex >= car.route.length - 1) speed = Math.min(speed, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
     car.speed = speed;
   }
-  // Engines, moving or stuck: the dead hear them.
+  // Engines, moving or stuck: the dead hear them. With features.sirens (an experiment,
+  // off by default), a police car, SWAT van or ambulance on the move sounds its siren:
+  // sparse and modest, a thin wake rather than a corridor (cars.siren).
+  const sr = cc.siren;
   for (const car of moving) {
     if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
+    if (config.features.sirens && car.home !== null && (car.id + tick) % sr.every === 0) emitStimulus(world, car.x, car.y, 'siren', sr.noise, false, sr.intensity);
   }
 }
 

@@ -7,7 +7,7 @@
 import type { BuildingId, Metres, Tick, Unit01 } from './units';
 import type { Weapon } from './sim';
 
-export type StimulusKind = Weapon | 'shout' | 'engine';
+export type StimulusKind = Weapon | 'shout' | 'engine' | 'alarm' | 'siren';
 
 export interface Stimulus {
   /** @range 0–3200 @unit m @readBy zombie hearing, panic, audio */

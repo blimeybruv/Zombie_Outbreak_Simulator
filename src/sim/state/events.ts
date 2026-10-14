@@ -118,6 +118,15 @@ export interface CarAbandonedEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface CarAlarmEvent extends EventBase, Located {
+  /** A car's alarm went off: taken, or the dead at it with people inside. @range literal @unit — @readBy event consumers */
+  type: 'carAlarm';
+  /** @range car id @unit id @readBy ticker */
+  car: CarId;
+  /** Always null: the line is about the street. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export interface SquadEvent extends EventBase, Located {
   /**
    * squadFormed: reservists armed at a depot deploy. squadEngaged: from file to
@@ -222,6 +231,7 @@ export type SimEvent =
   | DistrictEvacuatingEvent
   | SquadEvent
   | CarAbandonedEvent
+  | CarAlarmEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent

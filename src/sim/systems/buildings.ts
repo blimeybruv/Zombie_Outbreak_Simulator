@@ -300,7 +300,7 @@ function noiseExpulsion(world: World, ctx: Context): void {
   const r = config.buildings.spill.alertRadius;
   const heard = new Map<number, boolean>(); // building → heard gunfire
   for (const s of world.stimuli) {
-    if (s.createdAt !== tick || s.kind === 'shout' || s.kind === 'engine') continue;
+    if (s.createdAt !== tick || s.kind === 'shout' || s.kind === 'engine' || s.kind === 'alarm' || s.kind === 'siren') continue;
     // (A building's own defence alerts it, but does not drive its own people out.)
     for (const bid of ctx.map.buildingsNear(s.x, s.y, r, ctx.buildingIds)) heard.set(bid, (heard.get(bid) ?? false) || s.from !== bid);
   }

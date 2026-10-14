@@ -251,6 +251,7 @@ if (process.argv[2] === '--worker') {
     const fmt = (b: typeof pre) => `${b.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${b.z.toFixed(1)})`;
     console.log(`caution split at the broadcast: to it ${fmt(pre)} | after it, of those in the city ${fmt(post)} (not gated)`);
   }
+  if (results.some((r) => r.alarms !== undefined)) console.log(`car alarms per seed: ${results.map((r) => r.alarms ?? 0).join(' / ')}`);
   const arch: Record<string, { alive: number; total: number; panic: number; samples: number; freezes: number }> = {};
   for (const r of results) for (const [k, v] of Object.entries(r.archetypes ?? {})) {
     const a = (arch[k] ??= { alive: 0, total: 0, panic: 0, samples: 0, freezes: 0 });

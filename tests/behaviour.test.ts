@@ -519,6 +519,43 @@ describe('cars', () => {
     return d;
   }
 
+  it('an armed alarm goes off once, as the car is taken, and frightens nobody', () => {
+    const d = driver();
+    const { world, ctx, s, car } = d;
+    car.alarm = true;
+    let alarms = 0, events = 0;
+    for (let t = 0; t < 260 && !(s.car !== null && world.tick > 60 + (car.alarmUntil ?? 0)); t++) {
+      const before = world.sims.map((x) => x.panic);
+      step(world, ctx, { checkInvariant: false });
+      alarms += world.stimuli.filter((n) => n.kind === 'alarm' && n.createdAt === world.tick).length;
+      events += world.events.filter((e) => e.type === 'carAlarm' && e.car === car.id).length;
+      // Nobody's panic rises from it: only alarms were new near the car (the dead are cleared).
+      expect(world.sims.every((x, i) => x.panic <= (before[i] ?? 0) + 1e-9 || Math.hypot(x.x - car.x, x.y - car.y) > baseConfig.cars.alarm.noise)).toBe(true);
+    }
+    expect(s.car).toBe(car.id);
+    expect(events).toBe(1);
+    expect(alarms).toBe(Math.ceil(baseConfig.cars.alarm.ticks / baseConfig.cars.alarm.every));
+    expect(car.alarm).toBe(false);
+    expect(car.alarmUntil).toBeNull();
+  });
+
+  it('a police car on the move sounds its siren only with features.sirens', () => {
+    for (const on of [false, true]) {
+      const { world, ctx, car } = inCar();
+      world.config = { ...world.config, features: { ...world.config.features, sirens: on } };
+      car.home = 0 as typeof car.home; // a service vehicle: one with a home
+      let sirens = 0;
+      for (let t = 0; t < baseConfig.cars.siren.every; t++) {
+        world.tick++;
+        sizeContext(ctx, world);
+        rebuildHashes(world, ctx);
+        decideCars(world, ctx);
+        sirens += world.stimuli.filter((n) => n.kind === 'siren' && n.createdAt === world.tick).length;
+      }
+      expect(sirens).toBe(on ? 1 : 0);
+    }
+  });
+
   it('a car being driven makes engine noise, which frightens nobody', () => {
     const { world, ctx, car } = inCar();
     let engines = 0;

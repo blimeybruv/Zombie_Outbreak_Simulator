@@ -137,6 +137,8 @@ export interface RunSummary {
    * after: of those in the city at the broadcast, the share that survived the run.
    */
   /** By archetype (outsiders aside): survived and total, and mean panic of the aware outdoors, sampled every minute. */
+  /** Car alarms that went off over the run. */
+  alarms?: number;
   archetypes?: Record<string, { alive: number; total: number; panic: number; samples: number; freezes: number }>;
   cautionSplit: { before: { alive: number[]; total: number[] }; after: { alive: number[]; total: number[] } };
   /** The same by sociality band, counting only sims whose archetype ever joins anyone (the trait does nothing for the rest). */
@@ -255,6 +257,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const arch: NonNullable<RunSummary['archetypes']> = {};
   const archOf = (a: string) => (arch[a] ??= { alive: 0, total: 0, panic: 0, samples: 0, freezes: 0 });
   const frozen: boolean[] = [];
+  let alarms = 0;
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
@@ -281,9 +284,10 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       for (const s of world.stimuli) {
         if (s.createdAt !== world.tick) continue;
         if (s.kind === 'shout') win.shouts++;
-        else if (s.kind !== 'engine') win.shots++;
+        else if (s.kind !== 'engine' && s.kind !== 'alarm' && s.kind !== 'siren') win.shots++;
       }
       for (const e of world.events) {
+        if (e.type === 'carAlarm') alarms++;
         win.events[e.type] = (win.events[e.type] ?? 0) + 1;
         const n = noteFor(world, ctx, e);
         if (n && line(e, n) !== null) {
@@ -418,6 +422,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     cautionAsocial,
     cautionSplit,
     archetypes: arch,
+    alarms,
     roster,
     stages,
     fates,

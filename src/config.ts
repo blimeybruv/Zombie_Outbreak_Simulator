@@ -173,6 +173,8 @@ export const config = {
     strangerVeto: true,
     cautiousRouting: true,
     company: true,
+    carAlarms: true,
+    sirens: false, // an experiment (reference, "Car alarms and sirens"): emergency vehicles' sirens draw the dead
   },
 
   // The setup screen's ranges (src/ui/setup.ts): survivors [min, max, step]; initial
@@ -660,6 +662,15 @@ export const config = {
     engineInterval: 10,
     engineNoise: 45, // m
     engineIntensity: 0.6,
+    // Alarms: an armed share of ordinary cars (drawn at setup) goes off the first time
+    // the car is taken, or the dead tear at it with people inside — loud and brief, a
+    // blast every `every` ticks for `ticks`, heard by the dead to `noise` metres; then
+    // spent. People ignore it — guess
+    alarm: { share: 0.3, noise: 150, intensity: 0.9, every: 5, ticks: 30 },
+    // Sirens (features.sirens, an experiment): a police car, SWAT van or ambulance on
+    // the move, heard by the dead to `noise` metres every `every` ticks — sparse and
+    // modest, so it leaves a thin wake rather than a corridor — guess
+    siren: { every: 15, noise: 100, intensity: 0.6 },
     // Each awake zombie at an occupied car (within half its length and contact range)
     // breaks in at breakIn a tick: the doors give, and everyone inside is out among
     // them. Someone who turns inside bites each of the others at turnInsideBite.

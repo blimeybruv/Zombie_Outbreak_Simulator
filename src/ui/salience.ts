@@ -27,6 +27,7 @@ export const BASE = {
   policeDispatched: 20, // not in the reference: a 911 call answered
   simIsolating: 30, // not in the reference: a decision only the viewer sees
   carAbandoned: 25, // not in the reference: a road closing for good
+  carAlarm: 30, // not in the reference: why a horde just changed direction
   swatDeployed: 60, // not in the reference: the institution answering something large
   cordonClosed: 90, // not in the reference: the city sealed — drops playback to 1×
   bodyRose: 40, // not in the reference: a named survivor, dead, walking again

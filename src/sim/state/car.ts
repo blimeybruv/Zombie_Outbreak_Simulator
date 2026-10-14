@@ -56,4 +56,12 @@ export interface Car {
   routeIndex: number;
   /** Since when it has been stopped with something in front of it; null while moving. @range tick | null @unit tick @readBy abandonment */
   blockedSince: Tick | null;
+  /**
+   * Its alarm is armed: it sounds the first time the car is taken, or the dead tear at
+   * it with people inside, and is spent. Drawn at setup for ordinary cars only.
+   * @range boolean @unit — @readBy car processes (alarm)
+   */
+  alarm: boolean;
+  /** The alarm sounding until this tick; null when quiet. @range tick | null @unit tick @readBy car processes (alarm) */
+  alarmUntil: Tick | null;
 }
