@@ -7,7 +7,7 @@ import { spawnSim, spawnZombie } from '../src/sim/spawn';
 import type { Sim, World } from '../src/sim/state';
 import { merge, resolveEncounters } from '../src/sim/systems/encounters';
 import { computePerception, rebuildHashes } from '../src/sim/systems/perception';
-import { simDecisions } from '../src/sim/systems/sims';
+import { simDecisions, talkSpacing } from '../src/sim/systems/sims';
 import { openDoor, setDestination, stageOf } from '../src/sim/systems/common';
 import { buildingProcesses } from '../src/sim/systems/buildings';
 import { dispatchCalls, placeCall } from '../src/sim/systems/dispatch';
@@ -202,13 +202,13 @@ describe('sociality', () => {
 
 describe('conversations', () => {
   /** Two walkers side by side, cooldowns spent, `a` knowing one street's danger. */
-  function pair(sa: number, sb: number, trustB = 1) {
+  function pair(sa: number, sb: number, trustB = 1, apart = 1) {
     const { world, ctx } = fresh();
     const p = streetPoint(world);
     // Nobody else close enough to join or be met.
     for (const o of world.sims) if (o.insideBuilding === null && Math.hypot(o.x - p.x, o.y - p.y) < 60) o.insideBuilding = 0 as never;
     const a = walker(world, p.x, p.y);
-    const b = walker(world, p.x + 1, p.y);
+    const b = walker(world, p.x + apart, p.y);
     a.sociality = sa;
     b.sociality = sb;
     b.trust = trustB;
@@ -227,9 +227,22 @@ describe('conversations', () => {
     expect(a.gathering).toBe(a.id);
     expect(b.gathering).toBe(a.id);
     expect(b.streetMemory.get(0 as never)?.danger).toBe(0.9);
+    // At the conversation's own distance, both stand.
+    b.x = a.x + talkSpacing(world.config, a.id);
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
     decide(world, ctx);
     expect([a.gait, b.gait]).toEqual(['still', 'still']);
     expect(Math.cos(b.heading)).toBeLessThan(-0.99); // b, east of a, faces west
+  });
+
+  it('too close to talk, the higher id steps back and the lower holds', () => {
+    const { world, ctx, a, b } = pair(1, 1, 1, 0.3);
+    expect(b.gathering).toBe(a.id);
+    decide(world, ctx);
+    expect(a.gait).toBe('still');
+    expect(b.gait).toBe('sneak');
+    expect(Math.cos(b.heading)).toBeGreaterThan(0.99); // b, east of a, steps east
   });
 
   it('the solitary pass by: neither the outbreak nor the details pass on', () => {

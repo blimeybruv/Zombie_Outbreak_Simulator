@@ -602,10 +602,15 @@ export const config = {
     ticks: [4, 20],
     joinChance: 1,
     joinRadius: 12, // m
-    // Those in a conversation walk in until within closeIn + closeInPer × its size of
-    // its middle: joiners came from up to joinRadius away, and stood where they were.
-    closeIn: 1.5, // m
-    closeInPer: 0.4, // m per person
+    // Those in a conversation walk in until on the circle its people would stand on,
+    // `spacing` apart (joiners came from up to joinRadius away, and stood where they
+    // were). Each keeps the conversation's distance from the nearest other in it, fixed per
+    // conversation between these (m): closer, it steps back; they met within the 4 m encounter
+    // radius, often passing almost shoulder to shoulder, and stood there congealed.
+    spacing: [1, 4],
+    backOff: 0.7, // steps back below this share of its distance…
+    spacingSlack: 0.75, // m; …and walks in only when the nearest is this much beyond it
+    shuffleWithin: 2, // m; within this of its place it steps at the sneak's pace, not a walk
     cap: 10,
     poolInterval: 5,
   },

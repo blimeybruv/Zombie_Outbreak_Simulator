@@ -22,6 +22,7 @@
 // Indoor sims tick cheaply: stamina, leaving when a routine stop is over, and the
 // shelter economy's role and migration check on a staggered cycle (shelter.ts).
 
+import type { Config } from '../../config';
 import { isOutdoorLiving, type Context } from '../context';
 import { functionalProfile } from '../mapgen/generate';
 import { noteStreet, remember } from '../memory';
@@ -435,6 +436,15 @@ function decideMuster(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 
 /** Faces the nearest zombie in sight, or `fallback`'s way. */
 /** A small integer hash: deterministic variety without a draw from the run's stream. */
+/** Mixed with a conversation's id for the distance its people keep. */
+const TALK_SPACING = 0x7a1c;
+
+/** The distance the people of conversation `g` keep from one another (m). */
+export function talkSpacing(config: Config, g: number): number {
+  const [lo, hi] = config.talk.spacing;
+  return lo! + (hi! - lo!) * mix(g, TALK_SPACING);
+}
+
 function mix(a: number, b: number): number {
   let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x632be5ab, 0xc2b2ae35);
   h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
@@ -653,9 +663,39 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     if (ctx.talkAlarm[g] || mode === 'flight' || sim.stand !== null) leaveTalk(sim, tick);
     else {
       const cx = ctx.talkX[g]!, cy = ctx.talkY[g]!;
-      steerToward(sim, cx, cy);
       const tc = config.talk;
-      sim.gait = Math.hypot(cx - sim.x, cy - sim.y) > tc.closeIn + tc.closeInPer * ctx.talkSize[g]! ? 'walk' : 'still';
+      // The conversation's distance, and the nearest other in it (start-of-tick positions).
+      const own = talkSpacing(config, g);
+      ctx.simHash.query(sim.x, sim.y, own + tc.spacingSlack, ctx.ids2);
+      let near = Infinity, nx = 0, ny = 0, nid = -1;
+      for (const id of ctx.ids2) {
+        const o = world.sims[id]!;
+        if (id === sim.id || o.gathering !== g || o.insideBuilding !== null) continue;
+        const d = Math.hypot(o.x - sim.x, o.y - sim.y);
+        if (d < near) [near, nx, ny, nid] = [d, o.x, o.y, id];
+      }
+      // Of two adjusting to each other, the higher id moves and the lower holds: both
+      // moving closed or opened the gap twice as fast, overshot, and swung back.
+      const yields = nid < sim.id;
+      if (near < own * tc.backOff) {
+        if (!yields) {
+          steerToward(sim, cx, cy);
+          sim.gait = 'still';
+          return;
+        }
+        // Too close: a step back from them, then face the conversation again.
+        if (near > 0) steerToward(sim, 2 * sim.x - nx, 2 * sim.y - ny);
+        else sim.heading = mix(sim.id, tick) * 2 * Math.PI;
+        sim.gait = 'sneak';
+        return;
+      }
+      steerToward(sim, cx, cy);
+      // Walks in while outside the circle its people would stand on, that distance apart.
+      const n = ctx.talkSize[g]!;
+      const ring = n <= 2 ? own / 2 : own / (2 * Math.sin(Math.PI / n));
+      // A walk from afar, a half step for the last metres: a full step overshot a gap of one.
+      const out = Math.hypot(cx - sim.x, cy - sim.y) - ring;
+      sim.gait = out <= 0 || near <= own + tc.spacingSlack ? 'still' : out > tc.shuffleWithin ? 'walk' : yields || nid < 0 ? 'sneak' : 'still';
       return;
     }
   }
