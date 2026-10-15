@@ -10,6 +10,7 @@
 // on the same snapshot.
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
+import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE } from '../worker/protocol';
 import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
@@ -108,6 +109,61 @@ function addChurch(path: Path2D, o: Float32Array, i: number): void {
   path.closePath();
 }
 
+/**
+ * A hospital's L or a school's U, as one outline cut from the back of its plot: the
+ * L loses a back corner, the U the middle of its back. The front (the wall its first
+ * door is on) stays whole, so no door floats. Null, and a plain box, where a door
+ * would fall in the cut. Drawing only: the simulation's footprint is the plot.
+ */
+function shapedOutline(o: Float32Array, i: number, shape: number, doors: number[][]): number[] | null {
+  const k = i * 8;
+  const p = [0, 1, 2, 3].map((j) => [o[k + j * 2]!, o[k + j * 2 + 1]!] as const);
+  const cx = (p[0]![0] + p[1]![0] + p[2]![0] + p[3]![0]) / 4, cy = (p[0]![1] + p[1]![1] + p[2]![1] + p[3]![1]) / 4;
+  if (doors.length === 0) return null;
+  // The front: the wall whose outward normal best matches the first door's.
+  const [, , dnx, dny] = doors[0]!;
+  let front = 0, best = -Infinity;
+  for (let j = 0; j < 4; j++) {
+    const a = p[j]!, b = p[(j + 1) % 4]!;
+    const mx = (a[0] + b[0]) / 2 - cx, my = (a[1] + b[1]) / 2 - cy;
+    const l = Math.hypot(mx, my) || 1;
+    const dot = (mx / l) * dnx! + (my / l) * dny!;
+    if (dot > best) {
+      best = dot;
+      front = j;
+    }
+  }
+  const back = (front + 2) % 4;
+  const B0 = p[back]!, B1 = p[(back + 1) % 4]!, C2 = p[(back + 2) % 4]!, C3 = p[(back + 3) % 4]!;
+  const len = Math.hypot(B1[0] - B0[0], B1[1] - B0[1]) || 1;
+  const ux = (B1[0] - B0[0]) / len, uy = (B1[1] - B0[1]) / len; // along the back, B0 to B1
+  const depth = Math.hypot(C2[0] - B1[0], C2[1] - B1[1]) || 1;
+  const vx = (C2[0] - B1[0]) / depth, vy = (C2[1] - B1[1]) / depth; // from the back toward the front
+  // Whether a door lies in the cut: [s0, s1] along the back, [0, d] in from it, with a metre's grace.
+  const inCut = (s0: number, s1: number, d: number) =>
+    doors.some(([x, y]) => {
+      const s = (x! - B0[0]) * ux + (y! - B0[1]) * uy, t = (x! - B0[0]) * vx + (y! - B0[1]) * vy;
+      return s > s0 - 1 && s < s1 + 1 && t < d + 1;
+    });
+  const at = (s: number, t: number) => [B0[0] + ux * s + vx * t, B0[1] + uy * s + vy * t];
+  if (shape === SHAPE_U) {
+    const s0 = len * 0.32, s1 = len * 0.68, d = depth * 0.42;
+    if (inCut(s0, s1, d)) return null;
+    return [...B0, ...at(s0, 0), ...at(s0, d), ...at(s1, d), ...at(s1, 0), ...B1, ...C2, ...C3];
+  }
+  // The L: the back corner with no door near it, B1's first.
+  const cw = len * 0.45, d = depth * 0.45;
+  if (!inCut(len - cw, len, d)) return [...B0, ...at(len - cw, 0), ...at(len - cw, d), ...at(len, d), ...C2, ...C3];
+  if (!inCut(0, cw, d)) return [...at(0, d), ...at(cw, d), ...at(cw, 0), ...B1, ...C2, ...C3];
+  return null;
+}
+
+function addPolygon(path: Path2D, pts: number[]): void {
+  path.moveTo(pts[0]!, pts[1]!);
+  for (let j = 2; j < pts.length; j += 2) path.lineTo(pts[j]!, pts[j + 1]!);
+  path.closePath();
+}
+
 function addOutline(path: Path2D, o: Float32Array, i: number): void {
   const k = i * 8;
   path.moveTo(o[k]!, o[k + 1]!);
@@ -120,6 +176,8 @@ export class Renderer {
   private readonly staticLayer: HTMLCanvasElement;
   private staticKey = '';
   /** The world point at the middle of the static layer, as last drawn. */
+  /** Outlines cut from their plots (hospitals, schools), by building index. */
+  private readonly shapes = new Map<number, number[]>();
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
@@ -155,10 +213,23 @@ export class Renderer {
     this.outlinePath = new Path2D();
     const o = map.outlines;
     const n = o.length / 8;
+    // Hospitals' Ls and schools' Us, cut once from the back of their plots.
+    const doorsOf = new Map<number, number[][]>();
+    for (let i = 0; i < map.doors.length; i += 5) {
+      const b = map.doors[i]!;
+      if (map.buildingShape[b] !== SHAPE_L && map.buildingShape[b] !== SHAPE_U) continue;
+      const list = doorsOf.get(b) ?? [];
+      list.push([map.doors[i + 1]!, map.doors[i + 2]!, map.doors[i + 3]!, map.doors[i + 4]!]);
+      doorsOf.set(b, list);
+    }
+    for (const [b, doors] of doorsOf) {
+      const pts = shapedOutline(o, b, map.buildingShape[b]!, doors);
+      if (pts) this.shapes.set(b, pts);
+    }
     this.bounds = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) {
       const k = i * 8;
-      (map.buildingChurch[i] ? addChurch : addOutline)(this.outlinePath, o, i);
+      this.addBuilding(this.outlinePath, i);
       const xs = [o[k]!, o[k + 2]!, o[k + 4]!, o[k + 6]!];
       const ys = [o[k + 1]!, o[k + 3]!, o[k + 5]!, o[k + 7]!];
       this.bounds.set([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], i * 4);
@@ -225,12 +296,12 @@ export class Renderer {
     };
     const d = map.doors;
     for (let i = 0; i < d.length; i += 5) {
-      if (map.buildingChurch[d[i]!]) continue; // its plot's doors would float beside the drawn church
+      if (map.buildingShape[d[i]!] === SHAPE_CHURCH) continue; // its plot's doors would float beside the drawn church
       step(d[i + 1]!, d[i + 2]!, d[i + 3]!, d[i + 4]!, DOOR_W, d[i]!);
     }
     // A church's door: the west face of its tower, a little grander.
-    for (let i = 0; i < map.buildingChurch.length; i++) {
-      if (!map.buildingChurch[i]) continue;
+    for (let i = 0; i < map.buildingShape.length; i++) {
+      if (map.buildingShape[i] !== SHAPE_CHURCH) continue;
       const f = churchFrame(map.outlines, i);
       step(f.cx - f.ax * f.half, f.cy - f.ay * f.half, -f.ax, -f.ay, DOOR_W * 1.6, i);
     }
@@ -369,6 +440,14 @@ export class Renderer {
     return placed();
   }
 
+  /** A building's outline, as drawn: a church in plan, a hospital's L or a school's U, else its plot. */
+  private addBuilding(path: Path2D, i: number): void {
+    if (this.map.buildingShape[i] === SHAPE_CHURCH) return addChurch(path, this.map.outlines, i);
+    const pts = this.shapes.get(i);
+    if (pts) addPolygon(path, pts);
+    else addOutline(path, this.map.outlines, i);
+  }
+
   /** The building whose footprint contains a world point, if any. */
   buildingAt(x: number, y: number): number | null {
     const o = this.map.outlines;
@@ -400,7 +479,7 @@ export class Renderer {
     g.lineWidth = 1.5 / (cam.scale * dpr);
     if (sel.kind === 'building') {
       const p = new Path2D();
-      (this.map.buildingChurch[sel.id] ? addChurch : addOutline)(p, this.map.outlines, sel.id);
+      this.addBuilding(p, sel.id);
       g.stroke(p);
     } else if (frame.simKind[sel.id]) {
       g.beginPath();
@@ -764,8 +843,8 @@ export class Renderer {
         bars.lineTo(bar[j + 2]!, bar[j + 3]!);
       }
       if (stage < 2) continue;
-      (this.map.buildingChurch[i] ? addChurch : addOutline)(walls, o, i);
-      if (stage < 3 || this.map.buildingChurch[i]) continue;
+      this.addBuilding(walls, i);
+      if (stage < 3 || this.map.buildingShape[i] !== 0) continue; // the inner wall is drawn for plain boxes only
       const k = i * 8;
       const cx = (o[k]! + o[k + 2]! + o[k + 4]! + o[k + 6]!) / 4, cy = (o[k + 1]! + o[k + 3]! + o[k + 5]! + o[k + 7]!) / 4;
       for (let c = 0; c < 4; c++) {
@@ -793,7 +872,6 @@ export class Renderer {
     const view = this.viewBounds(cam);
     const levels = Array.from({ length: FILL_LEVELS }, () => new Path2D());
     const contested = new Path2D();
-    const o = this.map.outlines;
     let anyContested = false;
     for (let i = 0; i < frame.fill.length; i++) {
       const n = frame.fill[i]!;
@@ -801,9 +879,9 @@ export class Renderer {
       const b = i * 4;
       if (this.bounds[b + 2]! < view.x0 || this.bounds[b]! > view.x1 || this.bounds[b + 3]! < view.y0 || this.bounds[b + 1]! > view.y1) continue;
       const level = Math.min(FILL_LEVELS - 1, Math.floor((Math.min(n, FULL_AT) / FULL_AT) * FILL_LEVELS));
-      (this.map.buildingChurch[i] ? addChurch : addOutline)(levels[level]!, o, i);
+      this.addBuilding(levels[level]!, i);
       if (frame.buildingFlags[i]! & BUILDING_CONTESTED) {
-        (this.map.buildingChurch[i] ? addChurch : addOutline)(contested, o, i);
+        this.addBuilding(contested, i);
         anyContested = true;
       }
     }

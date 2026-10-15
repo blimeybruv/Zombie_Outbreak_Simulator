@@ -22,8 +22,8 @@ export interface MapSnapshot {
   doors: Float32Array;
   /** Where the outbreak began: each building the dead started in (its centre) and each spot where someone turned in the street, at tick 0. The view opens on the first. */
   origins: { x: number; y: number }[];
-  /** Per building: 1 for a church, drawn in plan (nave, apse, tower). */
-  buildingChurch: Uint8Array;
+  /** Per building: how its outline is drawn — SHAPE_BOX, or a church in plan, a hospital's L or a school's U (renderer.ts). */
+  buildingShape: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
   /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
   lots: Float32Array;
@@ -55,6 +55,11 @@ export const ZOMBIE_HIDDEN = 0; // occupying or destroyed
 export const ZOMBIE_AWAKE = 1;
 export const ZOMBIE_DORMANT = 2;
 /** Car states, as drawn. */
+export const SHAPE_BOX = 0;
+export const SHAPE_CHURCH = 1;
+export const SHAPE_L = 2; // a hospital: an L, a back corner cut away
+export const SHAPE_U = 3; // a school: a U, open at the back
+
 export const CAR_PARKED = 0;
 export const CAR_DRIVING = 1;
 export const CAR_ABANDONED = 2;
