@@ -441,23 +441,20 @@ function mix(a: number, b: number): number {
 }
 
 /**
- * A cordon soldier at its place with nothing in sight: at ease, not frozen. It ambles to
- * a spot near its place, a new one each period (out of step with the others), and while
- * there turns slowly to look about. Anything in sight ends it (true when it acted).
+ * A cordon soldier at its place with nothing in sight: at ease, not frozen. It stays
+ * where it stands and, each period (out of step with the others), either holds still or
+ * turns slowly to look somewhere new, to one side or the other of facing back into the
+ * city. Anything in sight ends it (true when it acted).
  */
-function atEase(world: World, ctx: Context, sim: Sim, cx: number, cy: number): boolean {
+function atEase(world: World, ctx: Context, sim: Sim): boolean {
   if (ctx.threat[sim.id]! > 0 || ctx.nearestZombie[sim.id]! >= 0) return false;
   const ae = world.config.cordon.atEase;
-  const period = Math.floor((world.tick + sim.id * 7) / ae.period);
-  const a = mix(sim.id, period) * Math.PI * 2, r = ae.radius * Math.sqrt(mix(period, sim.id));
-  const tx = cx + Math.cos(a) * r, ty = cy + Math.sin(a) * r;
-  if (Math.hypot(tx - sim.x, ty - sim.y) > 0.6) {
-    sim.gait = 'sneak';
-    headFor(world, ctx, sim, tx, ty);
-    return true;
-  }
   sim.gait = 'still';
-  const look = mix(sim.id + 1, period) * Math.PI * 2;
+  const period = Math.floor((world.tick + sim.id * 37) / ae.period);
+  if (mix(sim.id, period) < ae.still) return true; // this while, it just stands
+  const half = world.config.map.size / 2;
+  const inward = Math.atan2(half - sim.y, half - sim.x);
+  const look = inward + (mix(period, sim.id + 1) - 0.5) * 2 * ae.sweep;
   let turn = look - sim.heading;
   turn = Math.atan2(Math.sin(turn), Math.cos(turn));
   sim.heading += Math.max(-ae.turn, Math.min(ae.turn, turn));
@@ -490,7 +487,7 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     if (Math.hypot(sim.post.x - sim.x, sim.post.y - sim.y) > world.config.cordon.postReach / 2) {
       sim.gait = 'walk';
       headFor(world, ctx, sim, sim.post.x, sim.post.y);
-    } else if (!atEase(world, ctx, sim, sim.post.x, sim.post.y)) {
+    } else if (!atEase(world, ctx, sim)) {
       sim.gait = 'still';
       faceDanger(world, ctx, sim, sim.heading);
     }
@@ -579,7 +576,7 @@ function decideFollower(world: World, ctx: Context, sim: Sim): void {
   }
   const d = Math.hypot(tx - sim.x, ty - sim.y);
   // A cordon squad holding its post: each at ease about its own place in the line.
-  if (leader.post !== null && sim.directUntil === null && d <= world.config.cordon.atEase.radius * 2 && atEase(world, ctx, sim, tx, ty)) return;
+  if (leader.post !== null && sim.directUntil === null && d <= sq.slotStill && atEase(world, ctx, sim)) return;
   if (d <= sq.slotStill) {
     sim.gait = 'still';
     faceDanger(world, ctx, sim, leader.heading);

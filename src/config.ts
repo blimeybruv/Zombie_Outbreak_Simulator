@@ -543,11 +543,12 @@ export const config = {
   // returnFor: an armed sim getting round the barrier fires back at the soldiers for this
   // many ticks after they fire on it; fireFirstBelow: one whose trust is below this fires
   // first (the user's third exception to no survivor-on-survivor combat) — guess
-  // atEase: a cordon soldier with nothing in sight ambles (at a sneak) to a spot within
-  // `radius` m of its place, a new one every `period` ticks (each soldier out of step,
-  // from its id), and between moves turns at most `turn` rad a tick to look somewhere
-  // new: a line of soldiers stood stock still read as frozen — guess
-  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, atEase: { radius: 2.5, period: 45, turn: 0.08 } },
+  // atEase: a cordon soldier with nothing in sight stays where it stands; each `period`
+  // ticks (out of step with the others, from its id) it either holds still (at chance
+  // `still`) or turns, at most `turn` rad a tick, to look up to `sweep` rad either side of
+  // facing back into the city. Stood stock still, a line read as frozen; ambling about
+  // its place, as jittery (the user's notes) — guess
+  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not
