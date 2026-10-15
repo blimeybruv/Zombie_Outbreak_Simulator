@@ -98,8 +98,10 @@ try {
     const tips = page.locator('#inspector .tip');
     if ((await tips.count()) > 1) await tips.nth(1).hover();
     await page.waitForTimeout(200);
+    await page.waitForTimeout(Number(opt('settle', '1500')));
+    const fps = await page.evaluate(() => document.querySelector('#fps')?.textContent ?? '');
     await page.screenshot({ path: `${out}/inspect.png` });
-    console.log(`${out}/inspect.png`);
+    console.log(`${out}/inspect.png  ${fps}`);
   }
 } finally {
   await browser.close();

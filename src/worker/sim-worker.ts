@@ -49,6 +49,7 @@ import {
   type MapSnapshot,
   type ToWorker,
 } from './protocol';
+import { clearEndings, noteEndings } from './endings';
 import { inspect } from './inspect';
 import { noteFor, centreOf } from './notes';
 import { isFirearm } from '../sim/state';
@@ -80,6 +81,7 @@ function collect(w: World, c: Context): void {
   for (const s of w.stimuli) {
     if (s.createdAt === w.tick && noises.length < NOISE_CAP) noises.push({ x: s.x, y: s.y, kind: s.kind, radius: s.radius });
   }
+  noteEndings(w, c, w.events);
   for (const e of w.events) {
     if (pending.length < EVENT_CAP) {
       pending.push(e);
@@ -333,8 +335,10 @@ scope.onmessage = (e) => {
       ...world.buildings.filter((b) => b.zombiesInside > 0).map((b) => centreOf(b)),
       ...world.zombies.filter((z) => z.insideBuilding === null && z.state !== 'destroyed').map((z) => ({ x: z.x, y: z.y })),
     ];
+    clearEndings();
     while (world.tick < msg.advance) {
       step(world, ctx, { checkInvariant: false });
+      noteEndings(world, ctx, world.events);
       // Deaths while fast-forwarding still belong on the corpse layer.
       for (const e of world.events) {
         if (e.type !== 'simDied' && e.type !== 'zombieDestroyed') continue;

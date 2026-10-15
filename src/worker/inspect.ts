@@ -6,9 +6,10 @@ import { functionalProfile } from '../sim/mapgen/generate';
 import type { Sim, World } from '../sim/state';
 import { scoreLiving } from '../sim/systems/promotion';
 import { backstory } from './backstory';
+import { endingOf } from './endings';
 import { thoughts } from './thoughts';
 import { words } from './notes';
-import type { Inspected } from './protocol';
+import type { Inspected, SimDetail } from './protocol';
 
 export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number }): Inspected | null {
   if (target.kind === 'building') {
@@ -70,7 +71,30 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     knownInfected: s.knownInfected.size,
     backstory: story,
     thoughts: living ? thoughts(w, s) : [],
+    knownBitten: knownBitten(w, s),
+    ending: ending(w, s.id),
+    kills: s.history.kills,
   };
+}
+
+/** Ticks as hours on the viewer's clock (a day every time.dayLength ticks). */
+function hours(w: World, ticks: number): number {
+  return (ticks * 24) / w.config.time.dayLength;
+}
+
+function ending(w: World, id: number): SimDetail['ending'] {
+  const e = endingOf(id);
+  if (!e) return null;
+  return { how: e.how, place: e.place, hoursIn: hours(w, e.tick), roseAfter: e.roseAt === null ? null : hours(w, e.roseAt - e.tick) };
+}
+
+function knownBitten(w: World, s: Sim): SimDetail['knownBitten'] {
+  const names: string[] = [];
+  for (const id of [...s.knownInfected].sort((a, b) => a - b)) {
+    const n = w.sims[id]!.name;
+    if (n !== null && names.length < 3) names.push(n);
+  }
+  return { names, count: s.knownInfected.size };
 }
 
 /** What a living sim is doing, in words, from its intent. */

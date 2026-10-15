@@ -53,6 +53,35 @@ const ARCHETYPES: Record<string, string> = {
   soldier: 'Holds the cordon at a road out of the city. Will fire on those getting round the barrier, if their unit decides to.',
 };
 
+/** A trait as a word, by fifths of its range; the number stays in the tooltip. */
+const WORDS: Record<string, readonly string[]> = {
+  caution: ['heedless', 'bold', 'careful', 'cautious', 'very cautious'],
+  sociality: ['solitary', 'reserved', 'sociable', 'outgoing', 'gregarious'],
+  trust: ['suspicious', 'sceptical', 'open-minded', 'trusting', 'credulous'],
+  nerve: ['brittle', 'jumpy', 'steady', 'cool-headed', 'unshakeable'],
+};
+const WORD_EDGES = [0.15, 0.33, 0.66, 0.85];
+
+function traitWord(name: string, value: number): string {
+  let i = 0;
+  while (i < WORD_EDGES.length && value >= WORD_EDGES[i]!) i++;
+  return WORDS[name]![i]!;
+}
+
+function hoursText(h: number): string {
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} minutes`;
+  return h < 1.5 ? 'an hour' : `${Math.round(h)} hours`;
+}
+
+const HOW: Record<NonNullable<SimDetail['ending']>['how'], (place: string) => string> = {
+  fedOn: (p) => `Killed by the dead on ${p}`,
+  breach: (p) => `Killed when the dead broke into ${p}`,
+  shot: (p) => `Shot by soldiers getting round the barrier on ${p}`,
+  mistaken: (p) => `Shot by the Rangers on ${p}, taken for one of the dead`,
+  turned: (p) => `Turned on ${p}`,
+  evacuated: (p) => `Got out of the city by ${p}`,
+};
+
 function tip(text: string, explanation: string | undefined): HTMLElement {
   const e = el('span', explanation ? 'tip' : undefined, text);
   if (explanation) e.dataset['tip'] = explanation;
@@ -134,22 +163,46 @@ export class Inspector {
       const traits = el('div', 'sub');
       traits.append(`${words(s.profession)}, ${s.age} · `, tip(s.archetype === 'Army Ranger' ? s.archetype : words(s.archetype), ARCHETYPES[s.archetype]));
       for (const [name, value] of [['caution', s.caution], ['sociality', s.sociality], ['trust', s.trust], ['nerve', s.nerve]] as const) {
-        traits.append(' · ', tip(`${name} ${value.toFixed(2)}`, TRAITS[name]));
+        traits.append(' · ', tip(traitWord(name, value), `${TRAITS[name]} (${name[0]!.toUpperCase()}${name.slice(1)} ${value.toFixed(2)}.)`));
       }
       this.top.replaceChildren(el('div', 'head', s.name ?? 'A survivor'), traits);
     }
     const r = this.body;
+    // The dead, the turned and those who got out: what happened to them, first and mostly.
+    if (s.ending !== null || (s.condition !== 'healthy' && s.condition !== 'infected')) return this.ended(s);
     const truth = [s.condition === 'infected' ? (s.bites > 1 ? `bitten ×${s.bites}` : 'bitten') : s.condition, s.insideBuilding !== null ? 'indoors' : 'outdoors', s.doing ?? '', s.role ? `role: ${s.role}` : ''].filter(Boolean);
     r.append(el('div', s.condition === 'infected' ? 'sub warn' : 'sub', truth.join(' · ')));
     r.append(el('div', 'sub', [s.weapon ? `${s.weapon}${s.ammo > 0 ? ` (${s.ammo})` : ''}` : 'unarmed', s.materials > 0 ? `carrying ${s.materials}` : ''].filter(Boolean).join(' · ')));
     if (s.home) r.append(el('div', 'sub', `lives at ${s.home}`));
     if (s.shelter && s.shelter !== s.home) r.append(el('div', 'sub', `sheltering at ${s.shelter}`));
-    r.append(el('div', 'sub dim', `believes: ${s.streetsKnown} streets, ${s.buildingsKnown} buildings, ${s.knownInfected} known bitten`));
+    r.append(el('div', 'sub dim', `Knows ${s.streetsKnown} streets and ${s.buildingsKnown} buildings, from what they have seen and been told.`));
+    const kb = s.knownBitten;
+    if (kb.count > 0) {
+      const who =
+        kb.names.length === 0
+          ? `${kb.count === 1 ? 'someone' : `${kb.count} people`}`
+          : kb.names.length >= kb.count
+            ? kb.names.join(' and ')
+            : `${kb.names.join(', ')} and ${kb.count - kb.names.length} more`;
+      r.append(el('div', 'sub warn', `Knows ${who} ${kb.count === 1 ? 'has' : 'have'} been bitten, and would turn ${kb.count === 1 ? 'them' : 'them'} away from a shelter.`));
+    }
     if (s.thoughts.length > 0) {
       const t = el('div', 'thoughts');
       for (const line of s.thoughts) t.append(el('div', undefined, line));
       r.append(t);
     }
     if (s.backstory) r.append(el('div', 'story', s.backstory));
+  }
+
+  /** What happened to someone no longer alive in the city: how, where and when; then the little else that still matters. */
+  private ended(s: SimDetail): void {
+    const r = this.body;
+    const e = s.ending;
+    if (e !== null) {
+      r.append(el('div', e.how === 'evacuated' ? 'head' : 'sub warn', `${HOW[e.how](e.place)}, ${hoursText(e.hoursIn)} into the outbreak.`));
+      if (e.roseAfter !== null) r.append(el('div', 'sub warn', `Got up again ${hoursText(e.roseAfter)} later.`));
+    } else r.append(el('div', 'sub warn', s.condition === 'evacuated' ? 'Got out of the city.' : s.condition === 'turned' ? 'Turned.' : 'Dead.'));
+    if (s.kills > 0) r.append(el('div', 'sub', `Destroyed ${s.kills} of the dead${s.weapon ? `, with a ${s.weapon}` : ''}.`));
+    if (s.home) r.append(el('div', 'sub dim', `Lived at ${s.home}.`));
   }
 }

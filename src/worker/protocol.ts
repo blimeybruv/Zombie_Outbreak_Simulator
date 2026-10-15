@@ -154,6 +154,12 @@ export interface SimDetail {
   backstory: string;
   /** What it believes, in its own words, from its own fields only (thoughts.ts); empty for the dead. */
   thoughts: string[];
+  /** Those it knows have been bitten: up to three names (of the named), and how many in all. */
+  knownBitten: { names: string[]; count: number };
+  /** How its story ended, for the dead, the turned and those who got out (endings.ts): hours are on the viewer's clock, since the outbreak began. */
+  ending: { how: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'turned' | 'evacuated'; place: string; hoursIn: number; roseAfter: number | null } | null;
+  /** The dead it destroyed. */
+  kills: number;
 }
 
 export type Inspected = BuildingDetail | SimDetail;

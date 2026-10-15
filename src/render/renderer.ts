@@ -11,7 +11,7 @@
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE } from '../worker/protocol';
-import type { Camera } from './camera';
+import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
@@ -50,6 +50,7 @@ const CAR_L = 4.5; // m
 const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
+const STATIC_MARGIN = 0.25; // the static city is drawn this share of the view beyond it on every side
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -118,6 +119,9 @@ export class Renderer {
   private readonly g: CanvasRenderingContext2D;
   private readonly staticLayer: HTMLCanvasElement;
   private staticKey = '';
+  /** The world point at the middle of the static layer, as last drawn. */
+  private staticX = 0;
+  private staticY = 0;
   private readonly outlinePath: Path2D;
   private readonly riverPath: Path2D;
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, stroked in background colour
@@ -293,19 +297,38 @@ export class Renderer {
   }
 
   /** Redraws the static city when the view or the light has changed since last time. */
-  private staticFor(cam: Camera, dpr: number, night: boolean, frame: FrameSnapshot): HTMLCanvasElement {
+  /**
+   * The static city, drawn larger than the view by STATIC_MARGIN of it on every side and
+   * kept while the camera only pans: following someone, or dragging, shifts the image
+   * rather than redrawing the city each frame (which cost 40–50 ms a frame in the build
+   * container). Redrawn on a zoom, at nightfall and daybreak, when a car starts, stops
+   * or is abandoned, or when the view leaves the margin. Returns where to draw it, in
+   * device pixels.
+   */
+  private staticFor(cam: Camera, dpr: number, night: boolean, frame: FrameSnapshot): { layer: HTMLCanvasElement; x: number; y: number } {
     const far = cam.mode === 'far';
     // Cars standing still are part of the static city, redrawn only when one starts,
     // stops or is abandoned (the states' signature changes).
     let sig = 0;
     const st = frame.carState;
     for (let i = 0; i < st.length; i++) sig = (sig * 31 + st[i]! + 1) | 0;
-    const key = `${cam.version}|${night}|${far}|${cam.mode}|${sig}|${this.canvas.width}x${this.canvas.height}`;
-    if (key === this.staticKey) return this.staticLayer;
-    this.staticKey = key;
+    const key = `${cam.scale}|${night}|${far}|${cam.mode}|${sig}|${this.canvas.width}x${this.canvas.height}`;
     const c = this.staticLayer;
-    c.width = this.canvas.width;
-    c.height = this.canvas.height;
+    const k = cam.scale * dpr;
+    const placed = () => ({ layer: c, x: (this.canvas.width - c.width) / 2 + (this.staticX - cam.x) * k, y: (this.canvas.height - c.height) / 2 + (this.staticY - cam.y) * k });
+    if (key === this.staticKey) {
+      const p = placed();
+      if (p.x <= 0 && p.y <= 0 && p.x + c.width >= this.canvas.width && p.y + c.height >= this.canvas.height) return p;
+    }
+    this.staticKey = key;
+    this.staticX = cam.x;
+    this.staticY = cam.y;
+    c.width = Math.ceil(this.canvas.width * (1 + 2 * STATIC_MARGIN));
+    c.height = Math.ceil(this.canvas.height * (1 + 2 * STATIC_MARGIN));
+    // A camera over the larger layer, at the same scale and centre.
+    const view = cam;
+    cam = new Camera(view.x, view.y, view.scale);
+    cam.resize(c.width / dpr, c.height / dpr);
     const g = c.getContext('2d')!;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = P.BACKGROUND;
@@ -342,7 +365,8 @@ export class Renderer {
     g.globalAlpha = 1;
     this.drawExits(g, cam, dpr);
     if (!far) this.drawCars(g, frame, cam, dpr, false);
-    return c;
+    cam = view;
+    return placed();
   }
 
   /** The building whose footprint contains a world point, if any. */
@@ -389,7 +413,8 @@ export class Renderer {
     const g = this.g;
     const night = frame.daylight < 0.5;
     g.setTransform(1, 0, 0, 1, 0, 0);
-    g.drawImage(this.staticFor(cam, dpr, night, frame), 0, 0);
+    const city = this.staticFor(cam, dpr, night, frame);
+    g.drawImage(city.layer, city.x, city.y);
 
     this.corpses.draw(g, cam, dpr);
     if (cam.mode === 'far') {
