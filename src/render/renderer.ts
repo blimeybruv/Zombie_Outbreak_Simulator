@@ -191,8 +191,9 @@ export class Renderer {
   private staticY = 0;
   private readonly outlinePath: Path2D;
   private readonly riverPath: Path2D;
-  private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, stroked in background colour
+  private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, filled in background colour
   private readonly bridgeRails: Path2D;
+  private readonly bridgeAbutments: Path2D;
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
   private readonly litPath: Path2D;
@@ -258,39 +259,64 @@ export class Renderer {
       this.litPath.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
     }
     // Streets are read from the gaps between buildings, but a river has no buildings to
-    // frame a crossing, so bridges are drawn: a deck that cuts the water, and a rail
-    // either side over the stretch that is actually water.
+    // frame a crossing, so bridges are drawn: a deck that cuts the water from bank to bank,
+    // a rail either side, and an abutment along each bank where it lands. The deck's ends
+    // follow the banks, not the road: cut square to a road crossing at an angle, one corner
+    // of each end fell short of the bank and left a triangle of water.
     this.bridgeRails = new Path2D();
+    this.bridgeAbutments = new Path2D();
     const line = map.river.centreline;
-    const wetBy = map.river.width / 2 + 2;
-    const wet = (x: number, y: number) => {
-      for (let j = 0; j + 1 < line.length; j++) if (pointSegment(x, y, line[j]!, line[j + 1]!) <= wetBy) return true;
-      return false;
-    };
+    const bank = map.river.width / 2;
     for (let i = 0; i < map.streetBridge.length; i++) {
       if (!map.streetBridge[i]) continue;
       const s = i * 5;
       const ax = map.streets[s]!, ay = map.streets[s + 1]!, bx = map.streets[s + 2]!, by = map.streets[s + 3]!;
       const width = map.streets[s + 4]!;
       const len = Math.hypot(bx - ax, by - ay) || 1;
-      const steps = Math.ceil(len / 2);
-      let from = -1, to = -1;
-      for (let k = 0; k <= steps; k++) {
-        if (!wet(ax + ((bx - ax) * k) / steps, ay + ((by - ay) * k) / steps)) continue;
-        if (from < 0) from = k;
-        to = k;
+      const ux = (bx - ax) / len, uy = (by - ay) / len; // along the road
+      // The river where this road crosses it: the centreline segment nearest the road's middle.
+      const mx = (ax + bx) / 2, my = (ay + by) / 2;
+      let best = Infinity, cx = 0, cy = 0, rx = 1, ry = 0;
+      for (let j = 0; j + 1 < line.length; j++) {
+        const d = pointSegment(mx, my, line[j]!, line[j + 1]!);
+        if (d >= best) continue;
+        best = d;
+        const p = line[j]!, q = line[j + 1]!;
+        const l = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+        rx = (q.x - p.x) / l;
+        ry = (q.y - p.y) / l;
+        cx = p.x;
+        cy = p.y;
       }
-      if (from < 0) continue;
-      const t0 = from / steps, t1 = to / steps;
-      const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0, x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
+      const cross = ux * ry - uy * rx; // sine of the crossing angle
+      if (Math.abs(cross) < 0.2) continue; // running along the river, not across it
+      const nx = -uy * (width / 2), ny = ux * (width / 2); // to one side of the road
+      const qx = -ry, qy = rx; // across the river
+      // Where a line along the road, offset by (ox, oy), meets the bank at signed distance b from the centreline.
+      const meet = (ox: number, oy: number, b: number): [number, number] => {
+        // (a + o + u t - c) · q = b, solved for t.
+        const t = (b - ((ax + ox - cx) * qx + (ay + oy - cy) * qy)) / (ux * qx + uy * qy);
+        return [ax + ox + ux * t, ay + oy + uy * t];
+      };
+      // Banks in the order the road meets them.
+      const near = (ux * qx + uy * qy > 0 ? -1 : 1) * bank, far = -near;
+      const corners = [meet(nx, ny, near), meet(nx, ny, far), meet(-nx, -ny, far), meet(-nx, -ny, near)];
       let deck = this.bridgeDecks.get(width);
       if (!deck) this.bridgeDecks.set(width, (deck = new Path2D()));
-      deck.moveTo(x0, y0);
-      deck.lineTo(x1, y1);
-      const nx = (-(by - ay) / len) * (width / 2), ny = ((bx - ax) / len) * (width / 2);
-      for (const side of [1, -1]) {
-        this.bridgeRails.moveTo(x0 + nx * side, y0 + ny * side);
-        this.bridgeRails.lineTo(x1 + nx * side, y1 + ny * side);
+      deck.moveTo(...corners[0]!);
+      for (const c of corners.slice(1)) deck.lineTo(...c);
+      deck.closePath();
+      this.bridgeRails.moveTo(...corners[0]!);
+      this.bridgeRails.lineTo(...corners[1]!);
+      this.bridgeRails.moveTo(...corners[3]!);
+      this.bridgeRails.lineTo(...corners[2]!);
+      // An abutment along each bank, a little wider than the deck where it lands.
+      for (const [a, b] of [[corners[0]!, corners[3]!], [corners[1]!, corners[2]!]] as const) {
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const l = Math.hypot(dx, dy) || 1;
+        const over = Math.min(6, width * 0.4);
+        this.bridgeAbutments.moveTo(a[0] - (dx / l) * over, a[1] - (dy / l) * over);
+        this.bridgeAbutments.lineTo(b[0] + (dx / l) * over, b[1] + (dy / l) * over);
       }
     }
     // Doors: a step DOOR_W wide standing DOOR_D proud of the wall, so it shows where
@@ -427,13 +453,8 @@ export class Renderer {
     g.strokeStyle = P.RIVER;
     g.lineWidth = this.map.river.width;
     g.stroke(this.riverPath);
-    g.strokeStyle = P.BACKGROUND;
-    g.lineCap = 'butt';
-    for (const [width, deck] of this.bridgeDecks) {
-      g.lineWidth = width;
-      g.stroke(deck);
-    }
-    g.lineCap = 'round';
+    g.fillStyle = P.BACKGROUND;
+    for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
       // Lit streets are a night-time thing; by day they would only be clutter.
       g.strokeStyle = P.STREET_LIGHT;
@@ -446,6 +467,10 @@ export class Renderer {
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
     g.stroke(this.bridgeRails);
+    // The abutments: heavier than a rail, the bridge set into the bank.
+    g.lineWidth = Math.max(2.5 / (cam.scale * dpr), 1); // 2.5 px, or a metre once that is wider
+    g.stroke(this.bridgeAbutments);
+    g.lineWidth = 1 / (cam.scale * dpr);
     if (cam.mode === 'near') g.stroke(this.doorPath);
     g.globalAlpha = far ? 0.25 : 0.6;
     g.stroke(this.groundsPath);
