@@ -20,6 +20,7 @@ import type { Context } from '../sim/context';
 import {
   type EndSummary,
   BUILDING_CALL,
+  BUILDING_CALL_WAITING,
   BUILDING_STAGE_SHIFT,
   BUILDING_CONTESTED,
   BUILDING_GARRISON,
@@ -195,7 +196,7 @@ function frameSnapshot(w: World): FrameSnapshot {
   for (const b of w.buildings) {
     fill[b.id] = Math.min(65535, b.residents + b.sheltered.length + b.zombiesInside);
     buildingFlags[b.id] =
-      (b.zombiesInside > 0 && b.sheltered.length > 0 ? BUILDING_CONTESTED : 0) | (b.garrisonedAt !== null ? BUILDING_GARRISON : 0) | (b.lit ? BUILDING_LIT : 0) | (b.dispatchedAt !== null ? BUILDING_CALL : 0) | (STAGES.indexOf(stageOf(w, b)) << BUILDING_STAGE_SHIFT);
+      (b.zombiesInside > 0 && b.sheltered.length > 0 ? BUILDING_CONTESTED : 0) | (b.garrisonedAt !== null ? BUILDING_GARRISON : 0) | (b.lit ? BUILDING_LIT : 0) | (b.dispatchedAt !== null ? BUILDING_CALL : b.callAt !== null && w.tick - b.callAt >= w.config.dispatch.timeout / 2 ? BUILDING_CALL_WAITING : 0) | (STAGES.indexOf(stageOf(w, b)) << BUILDING_STAGE_SHIFT);
   }
   const tod = timeOfDay(w.tick, w.scenario, w.config);
   const now = performance.now();

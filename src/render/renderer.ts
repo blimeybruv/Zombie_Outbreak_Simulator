@@ -11,6 +11,7 @@
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
+import { BUILDING_CALL_WAITING } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE } from '../worker/protocol';
 import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
@@ -32,7 +33,9 @@ const DOOR_W = 1.8; // m
 const DOOR_D = 0.9; // m
 const BAR_OVERHANG = 0.5; // m either side of a door step
 const INSET = 1.2; // m: a fortified building's inner outline
-const PING_MS = 1100; // one 911 ping, wide to nothing
+const PING_MS = 1100; // officers on the way: one ring closing in
+const CALL_WAIT_MS = 2600; // a waiting call's slow pulse
+const DISPATCH_MS = 800; // the flash as officers are sent
 const FREEZE_PULSE_MS = 1600; // one slow breath of a frozen survivor
 const ORIGIN_TICKS = 120; // how long patient zero's building is marked: 12 s of watching at 1×
 const ORIGIN_PING_MS = 1500;
@@ -195,6 +198,8 @@ export class Renderer {
   private readonly barrierSeen: number[] = []; // per exit: when its barrier was first drawn (wall ms)
   private readonly zombieTrails = new Trails();
   private pulses: { x: number; y: number; start: number }[] = [];
+  /** Officers sent to a 911 call: a brief flash at the building. */
+  private dispatches: { building: number; start: number }[] = [];
   private sounds: { x: number; y: number; radius: number; shout: boolean; start: number }[] = [];
   private readonly interp = new Interpolator();
   /** Where the outbreak began, pinged with a biohazard mark until ORIGIN_TICKS. */
@@ -358,7 +363,10 @@ export class Renderer {
   /** Takes a new snapshot's events: deaths into the corpse paint, conversions as pulses. */
   ingest(frame: FrameSnapshot, wallMs: number): void {
     this.corpses.add(frame.events, frame.tick);
-    for (const e of frame.events) if (e.type === 'simTurned' && e.sim !== null) this.pulses.push({ x: e.x, y: e.y, start: wallMs });
+    for (const e of frame.events) {
+      if (e.type === 'simTurned' && e.sim !== null) this.pulses.push({ x: e.x, y: e.y, start: wallMs });
+      if (e.type === 'policeDispatched') this.dispatches.push({ building: e.building, start: wallMs });
+    }
     if (this.pulses.length > 400) this.pulses = this.pulses.slice(-400);
     for (const n of frame.noises) {
       const shout = n.kind === 'shout';
@@ -758,36 +766,65 @@ export class Renderer {
     g.textAlign = 'start';
   }
 
-  /**
-   * Police on the way to a 911 call: a light blue ring that shrinks onto the building
-   * and vanishes, like a ping, over and over until they get there or give up.
+    /**
+   * 911 calls, kept below the brightness of what they are about. A call going unanswered
+   * (half its time gone and nobody sent) is a faint slow pulse at the building; when it
+   * lapses it simply stops, which is the telling case. The moment officers are sent is the one bright
+   * thing: a single ring flashing outward. While they are on their way, a dim ring closes
+   * in on the building, again and again, until they arrive or give up.
    */
   private drawCalls(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
-    const t = (wallMs % PING_MS) / PING_MS; // 0 wide, 1 gone
-    const path = new Path2D();
-    let any = false;
     const view = this.viewBounds(cam);
-    const minR = 24 / cam.scale; // at least 24 px across at the start, so a ping reads at far zoom
+    const waiting = new Path2D(), coming = new Path2D();
+    let anyWaiting = false, anyComing = false;
+    const minR = 10 / cam.scale; // at least 10 px across, so a call reads at far zoom
+    const t = (wallMs % PING_MS) / PING_MS; // 0 wide, 1 gone
+    const breath = 0.5 + 0.5 * Math.sin((wallMs / CALL_WAIT_MS) * Math.PI * 2);
     for (let i = 0; i < frame.buildingFlags.length; i++) {
-      if (!(frame.buildingFlags[i]! & BUILDING_CALL)) continue;
+      const f = frame.buildingFlags[i]!;
+      if (!(f & (BUILDING_CALL | BUILDING_CALL_WAITING))) continue;
       const b = i * 4;
       const x0 = this.bounds[b]!, y0 = this.bounds[b + 1]!, x1 = this.bounds[b + 2]!, y1 = this.bounds[b + 3]!;
       if (x1 < view.x0 - 60 || x0 > view.x1 + 60 || y1 < view.y0 - 60 || y0 > view.y1 + 60) continue;
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-      const r = Math.max(Math.hypot(x1 - x0, y1 - y0) / 2 + 30, minR) * (1 - t);
-      if (r <= 0) continue;
-      path.moveTo(cx + r, cy);
-      path.arc(cx, cy, r, 0, Math.PI * 2);
-      any = true;
+      const base = Math.max(Math.hypot(x1 - x0, y1 - y0) / 2 + 6, minR);
+      if (f & BUILDING_CALL) {
+        const r = base * (1 - t * 0.85);
+        coming.moveTo(cx + r, cy);
+        coming.arc(cx, cy, r, 0, Math.PI * 2);
+        anyComing = true;
+      } else {
+        waiting.moveTo(cx + base, cy);
+        waiting.arc(cx, cy, base, 0, Math.PI * 2);
+        anyWaiting = true;
+      }
     }
-    if (!any) return;
+    this.dispatches = this.dispatches.filter((d) => wallMs - d.start < DISPATCH_MS);
     cam.apply(g, dpr);
-    const [r, gr, b] = P.POLICE_RGB;
-    g.strokeStyle = `rgba(${r}, ${gr}, ${b}, ${(0.35 + 0.55 * t).toFixed(3)})`; // brightening as it closes in
-    g.lineWidth = 2 / (cam.scale * dpr);
-    g.stroke(path);
+    const [r, gr, bl] = P.POLICE_RGB;
+    if (anyWaiting) {
+      g.strokeStyle = `rgba(${r}, ${gr}, ${bl}, ${(0.08 + 0.14 * breath).toFixed(3)})`;
+      g.lineWidth = 1 / (cam.scale * dpr);
+      g.stroke(waiting);
+    }
+    if (anyComing) {
+      g.strokeStyle = `rgba(${r}, ${gr}, ${bl}, ${(0.15 + 0.3 * t).toFixed(3)})`; // brightening as it closes in
+      g.lineWidth = 1.5 / (cam.scale * dpr);
+      g.stroke(coming);
+    }
+    for (const d of this.dispatches) {
+      const u = (wallMs - d.start) / DISPATCH_MS;
+      const b = d.building * 4;
+      const x0 = this.bounds[b]!, y0 = this.bounds[b + 1]!, x1 = this.bounds[b + 2]!, y1 = this.bounds[b + 3]!;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const rr = Math.max(Math.hypot(x1 - x0, y1 - y0) / 2 + 6, minR) + (25 + 12 / cam.scale) * u;
+      const flash = new Path2D();
+      flash.arc(cx, cy, rr, 0, Math.PI * 2);
+      g.strokeStyle = `rgba(${r}, ${gr}, ${bl}, ${(0.9 * (1 - u)).toFixed(3)})`;
+      g.lineWidth = 2 / (cam.scale * dpr);
+      g.stroke(flash);
+    }
   }
-
 
   /** Shouted warnings as faint rings growing to earshot; shots as brief flashes. */
   private drawSounds(g: CanvasRenderingContext2D, cam: Camera, dpr: number, wallMs: number): void {

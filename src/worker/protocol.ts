@@ -76,7 +76,8 @@ export const ZOMBIE_INTACT = 3;
 export const BUILDING_CONTESTED = 1;
 export const BUILDING_GARRISON = 2;
 export const BUILDING_LIT = 4;
-export const BUILDING_CALL = 8; // police on the way to a 911 call: a flashing light blue ring
+export const BUILDING_CALL = 8; // police on the way to a 911 call: a light blue ring closing in
+export const BUILDING_CALL_WAITING = 64; // a 911 call going unanswered (half its time gone, nobody sent): a faint slow pulse, gone when it lapses
 /** Fortification stage in two bits: 0 open, 1 barricaded, 2 reinforced, 3 fortified. */
 export const BUILDING_STAGE_SHIFT = 4;
 export const BUILDING_STAGE_MASK = 3 << BUILDING_STAGE_SHIFT;
