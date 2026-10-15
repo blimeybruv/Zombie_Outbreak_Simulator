@@ -156,6 +156,7 @@ function frameSnapshot(w: World): FrameSnapshot {
   const simKind = new Uint8Array(w.sims.length);
   const simFlags = new Uint8Array(w.sims.length);
   const simHeading = new Float32Array(w.sims.length);
+  const simTurnIn = new Float32Array(w.sims.length);
   const talk: number[] = [];
   const squad: number[] = [];
   for (const s of w.sims) {
@@ -176,6 +177,7 @@ function frameSnapshot(w: World): FrameSnapshot {
       (s.archetype === 'police' ? SIM_POLICE : 0) |
       (s.weapon === 'rifle' ? SIM_GUARD : 0);
     simHeading[s.id] = s.heading;
+    if (s.condition === 'infected' && s.turnsAt !== null) simTurnIn[s.id] = Math.max(0, s.turnsAt - w.tick);
   }
   const zombieXY = new Float32Array(w.zombies.length * 2);
   const zombieKind = new Uint8Array(w.zombies.length);
@@ -212,6 +214,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     simKind,
     simFlags,
     simHeading,
+    simTurnIn,
     talk: new Int32Array(talk),
     squad: new Int32Array(squad),
     zombieXY,
@@ -361,7 +364,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.simTurnIn.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
     if (!ended && world.tick >= world.config.time.runLength) {
       ended = true;
       scope.postMessage({ type: 'ended', end: endSummary(world) });

@@ -189,6 +189,8 @@ export interface FrameSnapshot {
   simFlags: Uint8Array;
   /** Per sim: heading in radians (which way a triangle points). */
   simHeading: Float32Array;
+  /** Per sim: ticks until the bitten turn (0 for everyone else), for the amber ring's pulse. */
+  simTurnIn: Float32Array;
   /** Everyone outdoors in a conversation, as pairs: sim id, and the id that names the conversation. */
   talk: Int32Array;
   /** Squad followers outdoors with their leader outdoors too, as pairs: follower id, leader id. */

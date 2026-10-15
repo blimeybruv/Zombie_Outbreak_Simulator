@@ -33,6 +33,12 @@ const DOOR_W = 1.8; // m
 const DOOR_D = 0.9; // m
 const BAR_OVERHANG = 0.5; // m either side of a door step
 const INSET = 1.2; // m: a fortified building's inner outline
+// The bitten's amber ring: its pulse period runs from PULSE_SLOW_MS a turn delay away
+// (TURN_SLOW ticks or more) to PULSE_FAST_MS at the turn, on an exponential.
+const TURN_SLOW = 1200; // ticks: the longest turn delay
+const PULSE_SLOW_MS = 3200;
+const PULSE_FAST_MS = 260;
+const RING_LEVELS = 6; // alpha buckets, one stroke each
 const PING_MS = 1100; // officers on the way: one ring closing in
 const CALL_WAIT_MS = 2600; // a waiting call's slow pulse
 const DISPATCH_MS = 800; // the flash as officers are sent
@@ -198,6 +204,9 @@ export class Renderer {
   private readonly barrierSeen: number[] = []; // per exit: when its barrier was first drawn (wall ms)
   private readonly zombieTrails = new Trails();
   private pulses: { x: number; y: number; start: number }[] = [];
+  /** Per sim: where the bitten are in their pulse (0–1), kept so a changing rate does not jump. */
+  private turnPhase = new Float32Array(0);
+  private lastPulseMs = 0;
   /** Officers sent to a 911 call: a brief flash at the building. */
   private dispatches: { building: number; start: number }[] = [];
   private sounds: { x: number; y: number; radius: number; shout: boolean; start: number }[] = [];
@@ -1022,17 +1031,38 @@ export class Renderer {
       g.stroke(fighting);
     }
     if (showInfected === 'ring') {
-      g.strokeStyle = P.INFECTED;
-      g.lineWidth = 1.5 * dpr;
-      g.beginPath();
+      // The bitten pulse faster the nearer they are to turning: a slow, shallow breath a
+      // turn delay away, frantic and deep in the last minute (period and depth on an
+      // exponential, so the change shows). Motion means imminence: someone long from
+      // turning is nearly a steady ring. Each keeps its own phase as its rate changes.
+      const dt = this.lastPulseMs === 0 ? 0 : Math.min(200, wallMs - this.lastPulseMs);
+      this.lastPulseMs = wallMs;
+      if (this.turnPhase.length < k.length) {
+        const grown = new Float32Array(k.length);
+        grown.set(this.turnPhase);
+        this.turnPhase = grown;
+      }
+      const levels = Array.from({ length: RING_LEVELS }, () => new Path2D());
       for (let i = 0; i < k.length; i++) {
         if (k[i] === SIM_HIDDEN || !(f[i]! & SIM_INFECTED)) continue;
+        const left = Math.min(1, frame.simTurnIn[i]! / TURN_SLOW); // 1 a full delay away, 0 at the turn
+        this.turnPhase[i] = (this.turnPhase[i]! + dt / (PULSE_FAST_MS * (PULSE_SLOW_MS / PULSE_FAST_MS) ** left)) % 1;
         const cx = sx(xy[i * 2]!) + half, cy = sy(xy[i * 2 + 1]!) + half;
         if (cx < -size * 3 || cy < -size * 3 || cx > w + size * 3 || cy > h + size * 3) continue;
-        g.moveTo(cx + size * 1.4, cy);
-        g.arc(cx, cy, size * 1.4, 0, Math.PI * 2);
+        const depth = 0.9 * 0.06 ** left; // 0.9 at the turn, about 0.05 a full delay away
+        const a = 1 - depth * (0.5 + 0.5 * Math.cos(this.turnPhase[i]! * Math.PI * 2));
+        const r = size * (1.4 + 0.35 * depth * (0.5 - 0.5 * Math.cos(this.turnPhase[i]! * Math.PI * 2)));
+        const p = levels[Math.min(RING_LEVELS - 1, Math.floor(a * RING_LEVELS))]!;
+        p.moveTo(cx + r, cy);
+        p.arc(cx, cy, r, 0, Math.PI * 2);
       }
-      g.stroke();
+      g.strokeStyle = P.INFECTED;
+      g.lineWidth = 1.5 * dpr;
+      levels.forEach((p, l) => {
+        g.globalAlpha = (l + 1) / RING_LEVELS;
+        g.stroke(p);
+      });
+      g.globalAlpha = 1;
     }
     // Names on promoted survivors, so they can be picked out and followed (not at far zoom).
     g.font = `${(cam.mode === 'near' ? 11 : 10) * dpr}px ui-monospace, Menlo, Consolas, monospace`;
