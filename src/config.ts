@@ -174,7 +174,7 @@ export const config = {
     cautiousRouting: true,
     company: true,
     carAlarms: true,
-    sirens: false, // an experiment (reference, "Car alarms and sirens"): emergency vehicles' sirens draw the dead
+    sirens: true, // emergency vehicles' sirens draw the dead: the city hears what the viewer hears (reference, "Car alarms and sirens")
   },
 
   // The setup screen's ranges (src/ui/setup.ts): survivors [min, max, step]; initial
@@ -667,7 +667,7 @@ export const config = {
     // blast every `every` ticks for `ticks`, heard by the dead to `noise` metres; then
     // spent. People ignore it — guess
     alarm: { share: 0.3, noise: 150, intensity: 0.9, every: 5, ticks: 30 },
-    // Sirens (features.sirens, an experiment): a police car, SWAT van or ambulance on
+    // Sirens (features.sirens): a police car, SWAT van or ambulance on
     // the move, heard by the dead to `noise` metres every `every` ticks — sparse and
     // modest, so it leaves a thin wake rather than a corridor — guess
     siren: { every: 15, noise: 100, intensity: 0.6 },

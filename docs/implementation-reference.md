@@ -123,12 +123,7 @@ The viewer, built after the shelter economy. Everything here is presentation: no
   - **Distance.** The listener stands at the middle of the view, raised by 0.18 of the view's width, so a city-wide view hears everything from far off and street level hears it close. Farther is quieter, duller (a low-pass falling by e every 450 m) and later (by its distance along the ground at 343 m/s, at most 1.2 s).
   - **Gunshots** come in three layers: a crack of a couple of milliseconds, a body with a low thump, and a dull tail. They differ per weapon: pistol pop, rifle crack, shotgun boom, a burst of three from the SMG. Gunfire sends to one shared street echo (a synthesised impulse response: reflections off the buildings at 15–70 ms, then a diffuse tail of about 1.5 s), more of it the farther off the shot. Until this change rifle shots were silent, the rifle missing from the categories played.
   - **Beds** follow what is in view: the dead as a crowd (low voices through vowel resonances, by how many are awake and how near); engines (cars being driven, nearer louder, panned); a siren (the nearest police car, SWAT van or ambulance on the move, as the light bar is drawn); wind always; the hum of a living city, scaled by the share still alive in it and by daylight, so it thins as the city empties; crickets after dark.
-  - **Sirens are heard but are not a stimulus.** Like the light bar, they are drawn from state; the dead hear these vehicles' engines only. Whether a siren should draw the dead (a cruiser as a dinner bell) is a simulation question, left open.
-  - **Car alarms, groundwork.** Audio plays a noise of kind `alarm`: two tones taking turns, 1.6 s, its own category with two voices. Nothing makes one yet. To build it as a stimulus — so the alarm you hear is one the dead heard:
-    - a parked car carries an alarm at some share, drawn at spawn from the map stream;
-    - it sounds when the dead break into the car, or when someone breaks in for its contents;
-    - it emits an `alarm` stimulus every few seconds for a minute or two, as engines do;
-    - a ticker line goes with it.
+  - **Sirens and car alarms are stimuli**, so what the viewer hears is what the city hears ("Car alarms and sirens", below). The siren bed plays from the nearest emergency vehicle on the move; the alarm is a one-shot like gunfire, two tones taking turns over 1.6 s, its own category with two voices.
   - **Open:** recorded sounds in place of the synthesised ones. Optional; CC0 libraries would do, behind the same code, with synthesis as the fallback.
 - **The view opens where it began:** centred on patient zero's building at mid zoom, with a red ☣ in a ring pinging over it — the two shrinking together onto the building, over and over — until tick 120 (twelve seconds at 1×; the run opens paused, so it waits). The worker notes the buildings occupied at tick 0 for the map snapshot (`MapSnapshot.origins`); no simulation state.
 - **Frame counter** (development): top centre, on under the dev server, F toggles, `?fps` shows it in a build. Over the last second: frames per second, the worst frame, the main thread's draw time, and the simulation's achieved tick rate against its target; amber below 30 fps or 90% of the target rate. Draw time counts only issuing the drawing — rasterising happens after it — so frames per second is the number that decides.
@@ -1365,6 +1360,32 @@ The ending (`systems/rescue.ts`, `config.rescue`; the user's design, after B's o
 - **The end screen says what trust did** (`EndSummary.trust`, `sim-worker.ts trustSplit`): of those still in the city when the broadcast went out (outsiders aside), how many doubted the radio (trust below `rescue.trustFloor`) and how many believed it, and the share of each who lived or got out. The sceptics' better survival is the broadcast's doing, and the viewer should not have to read it off a sweep.
 - **Caution split at the broadcast** (the sweep's `cautionSplit`, ungated): survival by caution band up to the broadcast (of those spawned by then, still in the city or already out at it), and after it (of those in the city at it, healthy or out at the end) — to say which phase caution's separation comes from.
 - Off with `features.rescue`.
+
+### Car alarms and sirens
+
+Two noises the dead hear that are not gunfire. Both are stimuli like any other, so the alarm or siren the viewer hears is one the dead heard. Neither frightens people or drives residents out of their houses, as engines don't.
+
+- **Car alarms** (`Car.alarm`, `Car.alarmUntil`, `cars.alarm`, `features.carAlarms`).
+  - **Which cars:** 30% of ordinary parked cars carry an armed alarm, drawn at setup from a copy of the run's stream so nothing else moves. Police cars, vans and ambulances do not.
+  - **When it sounds:** the first time the car is taken, by anyone for any reason, or the first time the dead tear at it with people inside. Then it is spent: a car screams once in its life, so a stationary car can never become a fly-trap.
+  - **Loud and brief:** a blast heard to 150 m every 5 ticks for 30 ticks.
+  - **The ticker** names the street ("A car alarm went off on Selby Cut."), so the viewer knows why a horde just turned.
+  - **No ownership and no hotwiring trait** (the user's call, on B's argument). Gating who can take a car would cut the driving that makes the jams and the closed bridges. If a hotwirer comes later, it should change how long taking a car takes and how likely the alarm is, not whether you can.
+- **Sirens** (`cars.siren`, `features.sirens`). A police car, SWAT van or ambulance on the move (a vehicle with a home; rescue trucks have none) makes a 100 m noise every 15 ticks. That is a thin wake behind it, not a corridor, and a zombie that reaches the spot and finds nothing loses interest as it does for any sound.
+  - **Measured first:** emergency vehicles drive almost only in the first hour (police cars 62–66 driving-minutes in hour 1, 0–7 in hours 2–3, none after; ambulances 105–147, then 0–18; SWAT vans 3–7 in hours 2–3). So sirens act on the opening, where a run's take-off is decided.
+  - **On by default** (the user's call). Without them the audio layer would be lying, the one place the viewer would hear something the city does not.
+- **Swept** (mapSeed 1, runSeeds 1–8; commit b2962e1). Compared with the household rounding sweep on the same map, with neither feature:
+
+  | | neither | + alarms | + alarms + sirens |
+  |---|---|---|---|
+  | civilians survived | 20.7% | 20.2% | 19.8% |
+  | loners survived | 27.8% | 30.5% | 25.9% |
+  | freezes per 100 civilians | 91 | 88 | 99 |
+  | caution z (to broadcast) | 7.9 | 5.9 | 7.2 |
+  | trust z | −9.5 | −11.9 | −12.5 |
+  | alarms per seed | — | 156–191 | 152–216 |
+
+  Both gates pass in all three, and turned is 42–47% throughout. Alarms cost little. Sirens make the opening harder: more freezes, and loners lose about four points, which is about three standard errors.
 
 ### Evacuation
 

@@ -635,9 +635,9 @@ export function decideCars(world: World, ctx: Context): void {
     if (car.routeIndex >= car.route.length - 1) speed = Math.min(speed, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
     car.speed = speed;
   }
-  // Engines, moving or stuck: the dead hear them. With features.sirens (an experiment,
-  // off by default), a police car, SWAT van or ambulance on the move sounds its siren:
-  // sparse and modest, a thin wake rather than a corridor (cars.siren).
+  // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
+  // the move sounds its siren too (features.sirens): sparse and modest, a thin wake
+  // rather than a corridor (cars.siren).
   const sr = cc.siren;
   for (const car of moving) {
     if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
