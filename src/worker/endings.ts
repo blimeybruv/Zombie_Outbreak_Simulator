@@ -8,7 +8,7 @@ import type { SimEvent, World } from '../sim/state';
 import { noteFor, words } from './notes';
 
 export interface Ending {
-  how: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'turned' | 'evacuated';
+  how: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned' | 'turned' | 'evacuated';
   place: string;
   tick: number;
   /** The tick the body got up again, if it did. */

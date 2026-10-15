@@ -23,8 +23,8 @@ export interface SimDiedEvent extends EventBase, Located {
   type: 'simDied';
   /** Null for an anonymous resident who died in a breach. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
-  /** Shot: by cordon soldiers, getting round their barrier; mistaken: by the rescue company, taken for one of the dead. @range 4 values @unit enum @readBy ticker copy, salience */
-  cause: 'fedOn' | 'breach' | 'shot' | 'mistaken';
+  /** Shot: by cordon soldiers, getting round their barrier; mistaken: by the rescue company, taken for one of the dead; returned: a cordon soldier shot by someone getting round its barrier. @range 4 values @unit enum @readBy ticker copy, salience */
+  cause: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned';
 }
 
 export interface SimTurnedEvent extends EventBase, Located {
@@ -116,6 +116,15 @@ export interface CarAbandonedEvent extends EventBase, Located {
   car: CarId;
   /** Always null: the line is about the road. @range null @unit — @readBy ticker notes */
   sim: null;
+}
+
+export interface CordonFiredOnEvent extends EventBase, Located {
+  /** Someone getting round a cordon's barrier opened fire on its soldiers (said once a sim). @range literal @unit — @readBy event consumers */
+  type: 'cordonFiredOn';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+  /** It fired first, rather than back. @range true/false @unit — @readBy ticker copy */
+  first: boolean;
 }
 
 export interface VehicleTakenEvent extends EventBase, Located {
@@ -246,6 +255,7 @@ export type SimEvent =
   | CarAbandonedEvent
   | CarAlarmEvent
   | VehicleTakenEvent
+  | CordonFiredOnEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent

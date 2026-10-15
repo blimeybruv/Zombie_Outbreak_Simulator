@@ -85,7 +85,7 @@ function seen(world: World, ctx: Context, x: number, y: number): number {
   return floor + (1 - floor) * vis;
 }
 
-export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot' | 'mistaken'): void {
+export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned'): void {
   const from = simLeaf(victim);
   if (from === null || victim.condition === 'dead') return;
   dropWeapon(world, victim); // left where it fell
@@ -109,7 +109,7 @@ function sims(world: World, ctx: Context): void {
     if (!isOutdoorLiving(sim) || tick < sim.nextAttackAt) continue;
     // A frozen sim does nothing that might be noticed; a panicked one fights only when cornered.
     if (sim.stand === 'freeze') continue;
-    if (modeOf(sim, config) === 'flight' && sim.stand !== 'fight') continue;
+    if (modeOf(sim, config) === 'flight' && sim.stand !== 'fight' && sim.crossing === null) continue; // getting round a barrier under fire, it still shoots
 
     const w = sim.weapon;
     const ranged = isFirearm(w) ? cc.ranged[w] : null;
@@ -138,6 +138,7 @@ function sims(world: World, ctx: Context): void {
       if (usable && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger) {
         if (sim.firesOnCrossers) cordonFire(world, ctx, sim, ranged);
         else if (sim.sweep) sweepFire(world, ctx, sim, ranged);
+        else if (sim.crossing !== null && !sim.outsider) crosserFire(world, ctx, sim, ranged);
       }
       continue;
     }
@@ -205,7 +206,43 @@ function cordonFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile)
     targetD = d;
   }
   if (target === null) return;
+  target.firedOnAt = tick;
   if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) killSim(world, ctx, target, 'shot');
+  sim.ammo -= ranged.ammoPerAttack;
+  sim.nextAttackAt = tick + ranged.cooldown;
+  emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);
+}
+
+/**
+ * An armed sim getting round a cordon's barrier, with no dead in reach: it fires back at
+ * the nearest cordon soldier in range and in sight for cordon.returnFor ticks after the
+ * soldiers fired on it, or fires first if its trust is below cordon.fireFirstBelow. The
+ * ordinary ranged roll and noise. The third and last exception to no survivor-on-survivor
+ * combat (the user's, CLAUDE.md), as narrow as the other two: only at the barrier, only
+ * while crossing.
+ */
+function crosserFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile): void {
+  const { config, tick } = world;
+  const cc = config.cordon;
+  const provoked = sim.firedOnAt !== null && tick - sim.firedOnAt <= cc.returnFor;
+  if (!provoked && sim.trust >= cc.fireFirstBelow) return;
+  let target: Sim | null = null;
+  let targetD = Infinity;
+  ctx.simHash.query(sim.x, sim.y, ranged.range, ctx.ids2);
+  for (const id of ctx.ids2) {
+    const s = world.sims[id]!;
+    if (!s.outsider || s.sweep || !isOutdoorLiving(s)) continue; // the cordon's soldiers, not the Rangers
+    const d = Math.hypot(s.x - sim.x, s.y - sim.y);
+    if (d > ranged.range || d >= targetD || !ctx.map.lineOfSight(sim.x, sim.y, s.x, s.y)) continue;
+    target = s;
+    targetD = d;
+  }
+  if (target === null) return;
+  if (!sim.firedOnCordon) {
+    sim.firedOnCordon = true;
+    ctx.events.push({ type: 'cordonFiredOn', tick, sim: sim.id, first: !provoked, x: sim.x, y: sim.y });
+  }
+  if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) killSim(world, ctx, target, 'returned');
   sim.ammo -= ranged.ammoPerAttack;
   sim.nextAttackAt = tick + ranged.cooldown;
   emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);

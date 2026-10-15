@@ -72,7 +72,8 @@ export function dropsTo1x(kind: Kind, n: EventNote): boolean {
 }
 
 function kindOf(e: SimEvent, n: EventNote): Kind | null {
-  if (e.type === 'simDied' && (e.cause === 'shot' || e.cause === 'mistaken')) return 'cordonShot';
+  if (e.type === 'simDied' && (e.cause === 'shot' || e.cause === 'mistaken' || e.cause === 'returned')) return 'cordonShot';
+  if (e.type === 'cordonFiredOn') return 'cordonShot';
   if (e.type === 'districtEvacuating' && e.first) return 'firstEvacuation';
   if ((e.type === 'simDied' || e.type === 'simTurned') && n.name !== null) return 'promotedLoss';
   return e.type in BASE ? (e.type as Kind) : null;

@@ -50,6 +50,7 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
       sim = e.sim;
       break;
     case 'vehicleTaken':
+    case 'cordonFiredOn':
       sim = e.sim;
       x = e.x;
       y = e.y;

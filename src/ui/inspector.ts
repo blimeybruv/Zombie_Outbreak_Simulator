@@ -78,6 +78,7 @@ const HOW: Record<NonNullable<SimDetail['ending']>['how'], (place: string) => st
   breach: (p) => `Killed when the dead broke into ${p}`,
   shot: (p) => `Shot by soldiers getting round the barrier on ${p}`,
   mistaken: (p) => `Shot by the Rangers on ${p}, taken for one of the dead`,
+  returned: (p) => `Shot at the cordon on ${p} by someone getting round the barrier`,
   turned: (p) => `Turned on ${p}`,
   evacuated: (p) => `Got out of the city by ${p}`,
 };

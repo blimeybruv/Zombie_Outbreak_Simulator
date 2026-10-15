@@ -125,4 +125,33 @@ describe('the cordon', () => {
       } else expect(s.condition).toBe('evacuated');
     }, 60_000);
   }
+
+  // The third exception: an armed crosser fires back when fired on, or first if very sceptical.
+  for (const [fires, trust] of [[false, 0.05], [true, 0.9]] as const) {
+    it(`an armed crosser ${fires ? 'fired on fires back' : 'who trusts nobody fires first'}`, () => {
+      const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+      world.noticedAt = world.tick;
+      world.tick += config.cordon.delay - 1;
+      step(world, ctx, { checkInvariant: true });
+      for (const x of world.sims) if (x.outsider) x.firesOnCrossers = fires;
+      for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
+      const e = world.exits[0]!;
+      const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian')!;
+      s.weapon = 'pistol';
+      s.ammo = 12;
+      s.trust = trust;
+      const q = queueAt(world, e);
+      s.x = q.x;
+      s.y = q.y;
+      headForExit(world, s);
+      s.crossing = 1;
+      let opened: boolean | null = null;
+      for (let k = 0; k < 120 && opened === null && (s.condition === 'healthy' || s.condition === 'infected'); k++) {
+        step(world, ctx, { checkInvariant: true });
+        for (const ev of world.events) if (ev.type === 'cordonFiredOn' && ev.sim === s.id) opened = ev.first;
+      }
+      if (fires) expect(opened === false || s.condition === 'dead' || s.condition === 'evacuated').toBe(true); // fired back, unless hit or past first
+      else expect(opened).toBe(true);
+    }, 60_000);
+  }
 });

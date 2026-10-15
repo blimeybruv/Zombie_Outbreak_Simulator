@@ -17,6 +17,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'simDied':
       if (e.cause === 'mistaken') return `Rangers shot ${n.name ?? 'a survivor'} on ${n.place}, taking them for one of the dead.`;
       if (e.cause === 'shot') return `Soldiers shot ${n.name ?? 'a survivor'} trying to get around the cordon on ${n.place}.`;
+      if (e.cause === 'returned') return `A soldier at the cordon on ${n.place} was shot by someone getting around it.`;
       if (!n.name) return `A survivor died on ${n.place}.`;
       return e.cause === 'breach' ? `${n.name} died when ${n.place} was overrun.` : `${n.name} was pulled down on ${n.place}.`;
     case 'cascadeCrossed':
@@ -47,6 +48,10 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `A car was abandoned on ${n.place}.`;
     case 'carAlarm':
       return `A car alarm went off on ${n.place}.`;
+    case 'cordonFiredOn':
+      return e.first
+        ? `${n.name ?? 'Someone'} opened fire on the soldiers on ${n.place} while getting around their barrier.`
+        : `${n.name ?? 'Someone'} fired back at the soldiers shooting at them on ${n.place}.`;
     case 'vehicleTaken': {
       const what = e.kind === 'ambulance' ? 'an ambulance' : e.kind === 'cruiser' ? 'a police car' : 'a SWAT van';
       return `${n.name ?? 'Someone'} drove off in ${what} on ${n.place}${e.leaving ? ', making for the way out' : ''}. There was nobody left to drive it.`;
