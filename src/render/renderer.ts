@@ -941,7 +941,7 @@ export class Renderer {
     g.stroke(inner);
   }
 
-  /** Faint fill tracking how many are inside; residents and occupiers look the same. Contested buildings pulse. */
+  /** Faint fill tracking how many are inside; residents and occupiers look the same. A contested building has a faint red rim, barely breathing. */
   private drawOccupancy(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     const view = this.viewBounds(cam);
     const levels = Array.from({ length: FILL_LEVELS }, () => new Path2D());
@@ -966,7 +966,7 @@ export class Renderer {
       g.fill(levels[l]!);
     }
     if (anyContested) {
-      const pulse = 0.35 + 0.35 * Math.sin(wallMs / 180);
+      const pulse = 0.4 + 0.12 * Math.sin(wallMs / 400);
       const [cr, cg, cb] = P.CONTESTED;
       g.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, ${pulse.toFixed(3)})`;
       g.lineWidth = 2 / (cam.scale * dpr);
