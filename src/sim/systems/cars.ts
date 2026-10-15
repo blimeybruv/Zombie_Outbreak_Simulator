@@ -108,8 +108,18 @@ export class CarIndex {
 
   /** Whether the point lies within a car's rectangle. */
   blocks(x: number, y: number): boolean {
+    return this.standing(x, y) || this.drivingAt(x, y);
+  }
+
+  /** Whether the point lies within a parked or abandoned car: one a sim can climb over. */
+  standing(x: number, y: number): boolean {
     if (this.cols === 0) return false;
     for (const id of this.cells[this.col(y) * this.cols + this.col(x)]!) if (inside(this.cars[id]!, x, y, this.halfL, this.halfW)) return true;
+    return false;
+  }
+
+  /** Whether the point lies within a car on the move. */
+  drivingAt(x: number, y: number): boolean {
     for (const car of this.moving) if (inside(car, x, y, this.halfL, this.halfW)) return true;
     return false;
   }

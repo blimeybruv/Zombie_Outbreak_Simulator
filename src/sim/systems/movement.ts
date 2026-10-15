@@ -38,26 +38,55 @@ function tryMove(ctx: Context, e: Mover, heading: number, distance: number): boo
   return true;
 }
 
+/** Straight on over a standing car, at `climb` of the pace: anything else in the way still stops it. */
+function climbOver(ctx: Context, e: Mover, heading: number, distance: number): boolean {
+  const nx = e.x + Math.cos(heading) * distance;
+  const ny = e.y + Math.sin(heading) * distance;
+  if (!ctx.map.walkable(nx, ny) || ctx.cars.drivingAt(nx, ny)) return false;
+  e.x = nx;
+  e.y = ny;
+  return true;
+}
+
 /**
  * Moves along heading. When blocked, slides along the obstacle, keeping to the side
  * it chose until the direct way opens: wall-following with hysteresis, so an agent
- * neither stalls against a wall nor flips sides every tick (the zig-zag).
+ * neither stalls against a wall nor flips sides every tick (the zig-zag). One who can
+ * climb (climb > 0, a share of its pace) goes round a standing car if a small turn
+ * will do, else straight over it; on a car already, it carries on over at that pace.
  */
-function step(ctx: Context, e: Mover, heading: number, distance: number, slideSpeed: number): void {
+function step(ctx: Context, e: Mover, heading: number, distance: number, slideSpeed: number, climb = { share: 0, turn: 0 }): void {
   if (distance <= 0) return;
+  if (climb.share > 0 && ctx.cars.standing(e.x, e.y)) {
+    if (climbOver(ctx, e, heading, distance * climb.share)) e.slide = 0;
+    return;
+  }
   if (tryMove(ctx, e, heading, distance)) {
     e.slide = 0;
     return;
   }
   const sides: (-1 | 1)[] = e.slide === -1 ? [-1, 1] : [1, -1];
-  for (const side of sides) {
-    for (const d of DEFLECT) {
-      if (tryMove(ctx, e, heading + side * d, distance * slideSpeed)) {
-        e.slide = side;
-        return;
+  const deflect = (from: number, to: number): boolean => {
+    for (const side of sides) {
+      for (const d of DEFLECT) {
+        if (d <= from || d > to) continue;
+        if (tryMove(ctx, e, heading + side * d, distance * slideSpeed)) {
+          e.slide = side;
+          return true;
+        }
       }
     }
-  }
+    return false;
+  };
+  if (climb.share > 0) {
+    if (deflect(0, climb.turn)) return;
+    const ax = e.x + Math.cos(heading) * distance, ay = e.y + Math.sin(heading) * distance;
+    if (ctx.cars.standing(ax, ay) && climbOver(ctx, e, heading, distance * climb.share)) {
+      e.slide = 0;
+      return;
+    }
+    if (deflect(climb.turn, Infinity)) return;
+  } else if (deflect(0, Infinity)) return;
   for (const d of SWEEP) {
     for (const side of sides) {
       if (tryMove(ctx, e, heading + side * d, distance * slideSpeed * 0.5)) {
@@ -81,12 +110,12 @@ export function integrateMovement(world: World, ctx: Context): void {
     sim.stamina = Math.min(1, Math.max(0, sim.stamina + drain));
     const speed =
       g.speed * (mv.staminaSpeedFloor + (1 - mv.staminaSpeedFloor) * sim.stamina) * ageFactor(sim.age, sim.gait, world) / (1 + drag.speed * contacts);
-    step(ctx, sim, sim.heading, speed, mv.slideSpeed);
+    step(ctx, sim, sim.heading, speed, mv.slideSpeed, mv.climb);
   }
 
   for (const z of world.zombies) {
     if (z.state === 'destroyed' || z.state === 'occupying') continue;
-    step(ctx, z, z.heading, ctx.zombieSpeed[z.id] ?? 0, mv.slideSpeed);
+    step(ctx, z, z.heading, ctx.zombieSpeed[z.id] ?? 0, mv.slideSpeed, mv.climbDead);
   }
   moveCars(world);
 }

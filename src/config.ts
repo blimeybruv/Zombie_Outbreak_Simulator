@@ -729,6 +729,13 @@ export const config = {
     fleeAgeFactor: { atAge: [30, 80], value: [1, 0.45] },
     concealment: 0.5, // detectability multiplier indoors, or on an unlit street at night
     slideSpeed: 0.7, // fraction of speed kept while sliding along a wall or bank
+    // On foot, a sim blocked by a parked or abandoned car goes round it if a turn of at
+    // most `turn` radians will do, else climbs straight over at `share` of its pace
+    // (two cars nose to tail had people trapped between them, sliding back and forth).
+    // The dead clamber over too, slower: kept out, they piled up behind any car the
+    // living had climbed (zombies stuck 1.0% → 2.8% of moving ticks on seed 1) — guess
+    climb: { share: 0.35, turn: 0.8 },
+    climbDead: { share: 0.2, turn: 0.8 },
     gaitNoiseIntensity: 0.6, // at origin; heard by zombies within the gait's noise radius — guess
   },
 
