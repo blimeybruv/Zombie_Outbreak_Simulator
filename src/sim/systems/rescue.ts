@@ -160,10 +160,18 @@ export function updateRescue(world: World, ctx: Context): void {
   // The front: each squad's leader holds its lane of the corridor at the front line.
   if (tick % 30 === 0) {
     const leaders = sims.filter((s) => s.sweep && s.squadLeader === s.id && isLiving(s));
+    // In bounds: the line moves up `bound` metres at once, then holds and looks about
+    // until the schedule catches up. A post crept forward a few metres every 30 ticks,
+    // and the squads walked two metres and stood, over and over.
+    const goal = Math.min(rc.depth, (Math.floor((rc.speed * (tick - rc.at)) / rc.bound) + 1) * rc.bound);
     leaders.forEach((s, k) => {
       const lane = ((k + 0.5) / leaders.length - 0.5) * 2 * rc.halfWidth * 0.8;
-      const goal = Math.min(rc.depth, rc.speed * (tick - rc.at)); // where it is meant to be by now
-      s.post = snap(world, ctx, e.x + a.x * goal - a.y * lane, e.y + a.y * goal + a.x * lane);
+      const want = { x: e.x + a.x * goal - a.y * lane, y: e.y + a.y * goal + a.x * lane };
+      const at = snap(world, ctx, want.x, want.y);
+      // Nowhere to stand near its place in the line (the river, a block with no street
+      // through it): it holds where it is until the line is past. Snapped from afar, the
+      // post slid along the bank road as the line moved, and the squad with it.
+      if (s.post === null || Math.hypot(at.x - want.x, at.y - want.y) <= rc.snapReach) s.post = at;
     });
 
     // Sending back: whoever a soldier meets, and buildings behind the front.

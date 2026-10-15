@@ -61,8 +61,13 @@ export function stockBuildings(world: World): void {
   }
 }
 
-/** Would carrying this make the sim more capable than it is? */
+/**
+ * Would carrying this make the sim more capable than it is? Police and reservists never
+ * give up a firearm for anything else: run dry, an officer took a dropped club over its
+ * empty pistol, no longer counted as run dry, and never went back to rearm.
+ */
 function better(world: World, sim: Sim, weapon: Weapon, ammo: number): boolean {
+  if ((sim.archetype === 'police' || sim.archetype === 'reservist') && isFirearm(sim.weapon) && !isFirearm(weapon)) return false;
   return capacity(world, { ...sim, weapon, ammo }) > capacity(world, sim);
 }
 
@@ -103,13 +108,22 @@ export function outOfAmmo(world: World, sim: Sim): boolean {
 }
 
 /**
- * An officer back at a police station with its firearm run dry takes what rounds the
+ * An officer back at a police station takes a firearm if it has none, and what rounds the
  * station still holds for it: boxes of ammunition, and the rounds in any weapon like its
  * own, up to combat.ammoCap. Finite, like everything since arms became finite: a
  * station emptied stays empty.
  */
 export function restock(world: World, sim: Sim, b: Building): void {
-  if (!isFirearm(sim.weapon)) return;
+  // Without a firearm (it came in with something else), the first the station holds,
+  // whatever it carried left in its place.
+  if (!isFirearm(sim.weapon)) {
+    const i = b.stock.findIndex((a) => isFirearm(a.item));
+    if (i < 0) return;
+    const gun = b.stock.splice(i, 1)[0]!;
+    if (sim.weapon !== null) b.stock.push({ item: sim.weapon, ammo: sim.ammo });
+    sim.weapon = gun.item as Weapon;
+    sim.ammo = gun.ammo;
+  }
   const cap = world.config.combat.ammoCap;
   for (let i = 0; i < b.stock.length && sim.ammo < cap; i++) {
     const a = b.stock[i]!;

@@ -93,6 +93,6 @@ export class Controls {
     const dead = c.turned.outdoors + c.turned.occupying;
     const target = this.paused ? 0 : this.speed * this.options.ticksPerSecondAt1x;
     const lag = target > 0 && frame.achievedRate < target * 0.9 ? `  ·  running at ${frame.achievedRate}/s of ${target}` : '';
-    this.status.textContent = `${WEEKDAYS[frame.weekday]} ${clock(frame.hour)} (${elapsed(frame.sinceOutbreak)} since outbreak)  ·  tick ${frame.tick}  ·  living ${living} (${c.unturned.outdoors} out)  ·  infected ${c.turned.symptomatic}  ·  dead walking ${dead}  ·  lost ${c.unturned.dead + c.turned.destroyed}${lag}`;
+    this.status.textContent = `${WEEKDAYS[frame.weekday]} ${clock(frame.hour)} (${elapsed(frame.sinceOutbreak)} since outbreak)  ·  tick ${frame.tick}  ·  living ${living} (${c.unturned.outdoors} out)  ·  evacuated ${c.unturned.evacuated}  ·  infected ${c.turned.symptomatic}  ·  dead walking ${dead}  ·  lost ${c.unturned.dead + c.turned.destroyed}${lag}`;
   }
 }

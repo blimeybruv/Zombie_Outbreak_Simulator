@@ -1,7 +1,8 @@
 // Draws snapshots. Reads them, never writes simulation state (it holds none).
 //
 // Layers, bottom to top: the static city (cached, redrawn only when the camera or
-// the light changes), the corpse paint, occupancy fill, trails (near zoom), the
+// the light changes), standing cars (cached over it, redrawn when one starts, stops or
+// is abandoned), the corpse paint, occupancy fill, trails (near zoom), the
 // agents, conversion pulses, and the sounds that carry decisions: a warning shouted
 // is a ring as wide as earshot, a shot a flash. At far zoom the agents give way to a density
 // field — at that scale individuals are mush.
@@ -190,6 +191,9 @@ export class Renderer {
   private readonly g: CanvasRenderingContext2D;
   private readonly staticLayer: HTMLCanvasElement;
   private staticKey = '';
+  /** Standing cars, the same size as the static layer and placed with it (standingCars). */
+  private readonly carLayer: HTMLCanvasElement;
+  private carKey = '';
   /** The world point at the middle of the static layer, as last drawn. */
   /** Outlines cut from their plots (hospitals, schools), by building index. */
   private readonly shapes = new Map<number, number[]>();
@@ -231,6 +235,7 @@ export class Renderer {
   ) {
     this.g = canvas.getContext('2d', { alpha: false })!;
     this.staticLayer = document.createElement('canvas');
+    this.carLayer = document.createElement('canvas');
     this.outlinePath = new Path2D();
     const o = map.outlines;
     const n = o.length / 8;
@@ -427,18 +432,16 @@ export class Renderer {
    */
   private staticFor(cam: Camera, dpr: number, night: boolean, frame: FrameSnapshot): { layer: HTMLCanvasElement; x: number; y: number } {
     const far = cam.mode === 'far';
-    // Cars standing still are part of the static city, redrawn only when one starts,
-    // stops or is abandoned (the states' signature changes).
-    let sig = 0;
-    const st = frame.carState;
-    for (let i = 0; i < st.length; i++) sig = (sig * 31 + st[i]! + 1) | 0;
-    const key = `${cam.scale}|${night}|${far}|${cam.mode}|${sig}|${this.canvas.width}x${this.canvas.height}`;
+    const key = `${cam.scale}|${night}|${far}|${cam.mode}|${this.canvas.width}x${this.canvas.height}`;
     const c = this.staticLayer;
     const k = cam.scale * dpr;
     const placed = () => ({ layer: c, x: (this.canvas.width - c.width) / 2 + (this.staticX - cam.x) * k, y: (this.canvas.height - c.height) / 2 + (this.staticY - cam.y) * k });
     if (key === this.staticKey) {
       const p = placed();
-      if (p.x <= 0 && p.y <= 0 && p.x + c.width >= this.canvas.width && p.y + c.height >= this.canvas.height) return p;
+      if (p.x <= 0 && p.y <= 0 && p.x + c.width >= this.canvas.width && p.y + c.height >= this.canvas.height) {
+        this.standingCars(cam, dpr, frame);
+        return p;
+      }
     }
     this.staticKey = key;
     this.staticX = cam.x;
@@ -483,9 +486,39 @@ export class Renderer {
     if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
     this.drawExits(g, cam, dpr);
-    if (!far) this.drawCars(g, frame, cam, dpr, false);
     cam = view;
+    this.carKey = '';
+    this.standingCars(cam, dpr, frame);
     return placed();
+  }
+
+  /**
+   * Cars standing still, on a layer of their own over the static city and placed with it,
+   * redrawn only when one starts, stops or is abandoned (the states' signature changes).
+   * They were drawn into the city layer itself, so every car that parked or was
+   * abandoned redrew the whole city: late in a run, with people driving for the exit,
+   * that was a hitch every few seconds.
+   */
+  private standingCars(cam: Camera, dpr: number, frame: FrameSnapshot): void {
+    let sig = 0;
+    const st = frame.carState;
+    for (let i = 0; i < st.length; i++) sig = (sig * 31 + st[i]! + 1) | 0;
+    const key = `${this.staticKey}|${this.staticX}|${this.staticY}|${sig}`;
+    if (key === this.carKey) return;
+    this.carKey = key;
+    const c = this.carLayer, city = this.staticLayer;
+    if (c.width !== city.width || c.height !== city.height) {
+      c.width = city.width;
+      c.height = city.height;
+    }
+    const g = c.getContext('2d')!;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    if (cam.mode === 'far') return;
+    const at = new Camera(this.staticX, this.staticY, cam.scale);
+    at.resize(c.width / dpr, c.height / dpr);
+    at.apply(g, dpr);
+    this.drawCars(g, frame, at, dpr, false);
   }
 
   /** A building's outline, as drawn: a church in plan, a hospital's L or a school's U, else its plot. */
@@ -542,6 +575,7 @@ export class Renderer {
     g.setTransform(1, 0, 0, 1, 0, 0);
     const city = this.staticFor(cam, dpr, night, frame);
     g.drawImage(city.layer, city.x, city.y);
+    if (cam.mode !== 'far') g.drawImage(this.carLayer, city.x, city.y);
 
     this.corpses.draw(g, cam, dpr);
     if (cam.mode === 'far') {

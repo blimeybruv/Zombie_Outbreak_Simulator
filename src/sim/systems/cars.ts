@@ -334,14 +334,27 @@ export function giveUpCar(world: World, sim: Sim): void {
 
 /** Where a car pulls up for a building: its street, beside the door, to the right of the way in. */
 function pullUpBy(world: World, b: Building, x: number, y: number): { x: number; y: number } {
+  const cc = world.config.cars;
   const s = world.streets[b.street]!;
   const a = world.nodes[s.a]!, n = world.nodes[s.b]!;
   const len = Math.hypot(n.x - a.x, n.y - a.y) || 1;
   const ux = (n.x - a.x) / len, uy = (n.y - a.y) / len;
-  const t = Math.min(len, Math.max(0, (x - a.x) * ux + (y - a.y) * uy));
+  const t0 = Math.min(len, Math.max(0, (x - a.x) * ux + (y - a.y) * uy));
   const side = Math.sign((x - a.x) * -uy + (y - a.y) * ux) || 1;
-  const off = Math.min(world.config.cars.laneOffset, s.width / 4);
-  return { x: a.x + ux * t - uy * off * side, y: a.y + uy * t + ux * off * side };
+  // At the kerb, like a parked car, in the first gap along it from the door: pulled up
+  // in the lane, it stood where the next car drove, and the next one up to the same
+  // door stopped on top of it.
+  const kerb = Math.max(Math.min(cc.laneOffset, s.width / 4), s.width / 2 - cc.kerbInset);
+  const at = (t: number) => ({ x: a.x + ux * t - uy * kerb * side, y: a.y + uy * t + ux * kerb * side });
+  for (let k = 0; k <= cc.pullUpTries; k++) {
+    for (const sign of k === 0 ? [1] : [1, -1]) {
+      const t = t0 + sign * k * cc.spacing;
+      if (t < 0 || t > len) continue;
+      const p = at(t);
+      if (!world.cars.some((c) => c.state !== 'gone' && c.state !== 'driving' && Math.hypot(c.x - p.x, c.y - p.y) < cc.spacing)) return p;
+    }
+  }
+  return at(t0); // no gap: up to the door anyway, and it stops short of whatever is there
 }
 
 /** Everyone gets out beside the car, on foot again, each toward the building they meant to reach. */
@@ -548,7 +561,9 @@ export function carProcesses(world: World, ctx: Context): void {
       }
     }
     const last = car.routeIndex >= car.route.length - 1;
-    if (last && car.destination !== null && Math.hypot(car.destination.x - car.x, car.destination.y - car.y) <= cc.arriveRadius) {
+    // Arrived: at its spot, or stopped close to it behind something standing there.
+    const toGo = car.destination === null ? Infinity : Math.hypot(car.destination.x - car.x, car.destination.y - car.y);
+    if (last && (toGo <= cc.arriveRadius || (car.blockedSince !== null && toGo <= cc.arriveRadius * cc.arriveBlocked))) {
       // At a way off the map: everyone in it, and the car, out of play (exits.ts).
       if (car.exit !== null) {
         carLeaves(world, ctx, car);
@@ -604,6 +619,7 @@ export function decideCars(world: World, ctx: Context): void {
   const reach = cc.gap + cc.length / 2;
   const blockers = new Map<number, number[]>(); // moving car → moving cars stopping it
   const other = new Set<number>(); // moving cars stopped by anything else
+  const roomOf = new Map<number, number>(); // moving car → metres it can go before touching a car ahead (read by id, never iterated)
 
   for (const car of moving) {
     // Where to now: the next junction, offset right of the way there, or the kerb.
@@ -649,6 +665,25 @@ export function decideCars(world: World, ctx: Context): void {
       for (const id of ctx.ids2) if (ahead(car, zombies[id]!.x, zombies[id]!.y, reach, cc.width / 2 + 0.5)) blocked = true;
     }
     if (blocked) other.add(car.id);
+    // Room to move before touching an abandoned or moving car ahead: a car stopped only
+    // for what was within `reach` of it, and at up to maxSpeed a tick one just beyond
+    // reach ended the next tick on top of it — overlapping cars, frozen so when abandoned.
+    // Parked cars stand at the kerb, clear of the lane (pullUpBy): counting them stopped
+    // every car pulling out from the kerb behind the next one along, until abandoned.
+    let room = Infinity;
+    const look = cc.maxSpeed + cc.length + cc.gap;
+    const fit = (o: Car) => {
+      if (o === car || o.state === 'gone' || o.state === 'parked') return;
+      const dx = o.x - car.x, dy = o.y - car.y;
+      const c = Math.cos(car.heading), sn = Math.sin(car.heading);
+      const along = dx * c + dy * sn;
+      if (along <= 0 || along > look || Math.abs(-dx * sn + dy * c) >= cc.width) return;
+      room = Math.min(room, along - cc.length - cc.clearance);
+    };
+    for (const id of ctx.cars.near(car.x, car.y, look, ctx.ids2)) fit(cars[id]!);
+    for (const o of moving) fit(o);
+    roomOf.set(car.id, Math.max(0, room));
+    if (room < cc.clearance) other.add(car.id);
   }
 
   for (const car of moving) {
@@ -665,7 +700,7 @@ export function decideCars(world: World, ctx: Context): void {
     for (const o of moving) if (o !== car && Math.hypot(o.x - car.x, o.y - car.y) <= cc.congestionRadius) near++;
     let speed = cc.maxSpeed / (1 + cc.congestion * near);
     if (car.routeIndex >= car.route.length - 1) speed = Math.min(speed, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
-    car.speed = speed;
+    car.speed = Math.min(speed, roomOf.get(car.id)!);
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move sounds its siren too (features.sirens): sparse and modest, a thin wake

@@ -9,6 +9,16 @@ import type { Config } from '../config';
 import type { Sim } from '../sim/state';
 import { SCORED, type ScoredCounter } from '../sim/systems/promotion';
 
+/**
+ * What a person does, as the viewer is told it: a soldier from outside (the cordon,
+ * the Rangers) by rank — sergeant leading its squad, else private — not by the
+ * profession drawn for it like anyone's; everyone else by profession.
+ */
+export function callingOf(sim: Sim): string {
+  if (sim.outsider) return sim.squadLeader === sim.id ? 'sergeant' : 'private';
+  return sim.profession;
+}
+
 function label(profession: string): string {
   const words = profession.replace(/([A-Z])/g, ' $1').toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -42,5 +52,5 @@ export function backstory(sim: Sim, values: readonly number[], z: readonly numbe
     .sort((a, b) => Math.abs(z[b.i]!) - Math.abs(z[a.i]!) || a.i - b.i)
     .slice(0, clauses)
     .map((c) => CLAUSE[c.name as Exclude<ScoredCounter, 'caution'>](values[c.i]!));
-  return `${label(sim.profession)}, ${sim.age}, ${cautionBand(sim.caution, config)}; ${top.join(', ')}`;
+  return `${label(callingOf(sim))}, ${sim.age}, ${cautionBand(sim.caution, config)}; ${top.join(', ')}`;
 }

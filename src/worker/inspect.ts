@@ -5,7 +5,7 @@
 import { functionalProfile } from '../sim/mapgen/generate';
 import type { Sim, World } from '../sim/state';
 import { scoreLiving } from '../sim/systems/promotion';
-import { backstory } from './backstory';
+import { backstory, callingOf } from './backstory';
 import { endingOf } from './endings';
 import { thoughts } from './thoughts';
 import { words } from './notes';
@@ -27,7 +27,11 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
       breached: b.breached,
       garrisoned: b.garrisonedAt !== null,
       residents: b.residents,
-      tracked: b.sheltered.map((id) => ({ id, name: w.sims[id]!.name })),
+      tracked: b.sheltered.map((id) => {
+        const t = w.sims[id]!;
+        // The map's rule (sim-worker.ts flags): police by archetype, anyone with a rifle pale green.
+        return { id, name: t.name, kind: t.archetype === 'police' ? ('police' as const) : t.weapon === 'rifle' ? ('guard' as const) : null };
+      }),
       occupiers: b.zombiesInside,
     };
   }
@@ -48,7 +52,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     kind: 'sim',
     id: s.id,
     name: s.name,
-    profession: s.profession,
+    profession: callingOf(s),
     age: s.age,
     archetype: s.sweep ? 'Army Ranger' : s.outsider ? 'soldier' : s.archetype, // those from outside are not reservists of the city
     caution: s.caution,

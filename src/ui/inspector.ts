@@ -3,7 +3,8 @@
 // read instead of the map, the map would stop mattering.
 //
 // A building shows its interior as squares, never as dots on the map: dim white
-// for residents, bright white for tracked sims (click through to them), red for
+// for residents, bright white for tracked sims (click through to them) — light blue
+// for police and pale green for anyone with a rifle, as on the map — red for
 // occupiers. One square each up to 60 people, then one per five with a numeral.
 
 import type { BuildingDetail, Inspected, SimDetail } from '../worker/protocol';
@@ -146,8 +147,12 @@ export class Inspector {
       }
     };
     add('resident', b.residents);
-    if (per === 1) for (const t of b.tracked) add('tracked', 1, () => this.onSim(t.id), t.name ?? 'a survivor');
-    else add('tracked', b.tracked.length);
+    for (const kind of [null, 'police', 'guard'] as const) {
+      const cls = kind === null ? 'tracked' : `tracked ${kind}`;
+      const these = b.tracked.filter((t) => t.kind === kind);
+      if (per === 1) for (const t of these) add(cls, 1, () => this.onSim(t.id), t.name ?? (kind === 'police' ? 'an officer' : kind === 'guard' ? 'a soldier' : 'a survivor'));
+      else add(cls, these.length);
+    }
     add('occupier', b.occupiers);
     if (total > 0) r.append(grid);
     if (history.length > 0) {

@@ -120,7 +120,8 @@ export interface BuildingDetail {
   /** Anonymous residents present since the start. */
   residents: number;
   /** Tracked sims inside, by id, with a name if promoted. */
-  tracked: { id: number; name: string | null }[];
+  /** Each tracked sim inside; `kind` colours it as on the map (police light blue, a rifle pale green). */
+  tracked: { id: number; name: string | null; kind: 'police' | 'guard' | null }[];
   /** Occupying zombies. */
   occupiers: number;
 }

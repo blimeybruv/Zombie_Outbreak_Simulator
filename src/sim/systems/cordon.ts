@@ -20,7 +20,7 @@
 
 import type { Context } from '../context';
 import { admit } from '../counters';
-import { chance } from '../rng';
+import { chance, nextInt } from '../rng';
 import { spawnSim } from '../spawn';
 import type { Exit, Sim, Vec2, World } from '../state';
 
@@ -80,6 +80,7 @@ export function spawnSquad(world: World, x: number, y: number, post: Vec2, ammo:
     world.outsiders++;
     s.outsider = true;
     s.archetype = 'reservist';
+    s.age = nextInt(world.rng, config.cordon.soldierAge[0]!, config.cordon.soldierAge[1]!); // of soldiering age, whatever the profession drawn
     s.muster = 'deployed';
     s.depot = null;
     s.weapon = config.reservists.weapon;

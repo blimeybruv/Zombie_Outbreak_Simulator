@@ -266,8 +266,10 @@ export const config = {
   // caution × risk passes riskTolerance, risk growing with the uncleared ground between
   // it and the cleared corridor, full at farFrom. Trucks
   // come every `truckEvery` ticks, load for `truckLoad` and take up to `truckCapacity`
-  // of those waiting; nobody is screened — guesses
-  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
+  // of those waiting; nobody is screened. The squads' line moves up in bounds of `bound`
+  // m and holds between them; a squad whose place in the line has no street within
+  // `snapReach` m (the river) holds where it is until the line is past — guesses
+  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, bound: 30, snapReach: 30, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
 
   rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
 
@@ -554,8 +556,9 @@ export const config = {
   // ticks (out of step with the others, from its id) it either holds still (at chance
   // `still`) or turns, at most `turn` rad a tick, to look up to `sweep` rad either side of
   // facing back into the city. Stood stock still, a line read as frozen; ambling about
-  // its place, as jittery (the user's notes) — guess
-  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
+  // its place, as jittery (the user's notes) — guess. soldierAge: the age range of every
+  // soldier from outside (the cordon and the Rangers), shown by rank, not profession.
+  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, soldierAge: [19, 40] as [number, number], atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not
@@ -680,6 +683,9 @@ export const config = {
     searchRadius: 50, // m
     boardRadius: 3, // m
     arriveRadius: 6, // m
+    arriveBlocked: 3, // stopped behind something within this many arriveRadius of its spot, it has arrived
+    pullUpTries: 4, // kerb spots tried either way along the street from the door, spacing apart
+    clearance: 0.5, // m kept bumper to bumper: a car never moves closer than this to one ahead
     waypointRadius: 4, // m; a junction counts as passed within this
     jamTicks: 180,
     // Engines: a car being driven (moving or stuck) makes a noise every engineInterval
