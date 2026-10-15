@@ -31,6 +31,7 @@ export const BASE = {
   vehicleTaken: 35, // not in the reference: why an ambulance is heading for the edge
   swatDeployed: 60, // not in the reference: the institution answering something large
   cordonClosed: 90, // not in the reference: the city sealed — drops playback to 1×
+  outOfAmmo: 20, // not in the reference: why a squad member is walking away from the fight
   cordonBreached: 70, // not in the reference: a way out open again, nobody left to hold it
   bodyRose: 40, // not in the reference: a named survivor, dead, walking again
   cordonShot: 70, // not in the reference: the cordon firing on the city's own people

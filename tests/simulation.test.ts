@@ -64,7 +64,7 @@ describe('the tick', () => {
   it('reproduces a run exactly from its seeds', () => {
     const scenario = { ...defaultScenario, runSeed: 5 };
     expect(fingerprint(run(scenario, 1200))).toBe(fingerprint(run(scenario, 1200)));
-  }, 60_000);
+  }, 120_000); // two full-population runs with the invariant recounted every tick, the opening at its heaviest
 
   it('diverges for a different runSeed on the same map', () => {
     expect(fingerprint(run({ ...defaultScenario, runSeed: 5 }, 300))).not.toBe(fingerprint(run({ ...defaultScenario, runSeed: 6 }, 300)));

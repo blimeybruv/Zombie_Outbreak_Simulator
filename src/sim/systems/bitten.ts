@@ -42,8 +42,12 @@ export function decideBitten(world: World, ctx: Context, sim: Sim): void {
     return;
   }
   sim.infectedChoice = 'isolate';
-  // Whatever it was to the house, it is not coming back.
+  // Whatever it was to the house, it is not coming back; nor to its ambulance crew or its
+  // call. (A bitten EMT going off alone was still sent out of every building by its crew's
+  // job, and walked straight back in: the user saw it blink at a door.)
   sim.shelter = null;
+  sim.crew = null;
+  sim.answering = null;
   sim.role = null;
   sim.sortieUntil = null;
   sim.idleUntil = null;

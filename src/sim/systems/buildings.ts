@@ -19,7 +19,7 @@ import { modeOf } from './panic';
 import { armAtDepot } from './squads';
 import { dispatchAmbulances, emtEnter } from './emt';
 import { exitArrivals, headForExit } from './exits';
-import { pickUpDrops } from './arms';
+import { pickUpDrops, restock } from './arms';
 import { markResidentRising } from './rising';
 import { updateRescue } from './rescue';
 import { updateCordon } from './cordon';
@@ -195,6 +195,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   }
   const from = simLeaf(sim);
   sim.insideBuilding = b.id;
+  sim.enteredAt = tick;
   sim.street = null;
   openDoor(world, b);
   if (b.alertedAt !== null) sim.awareAt ??= tick; // the house knows, and says so
@@ -225,6 +226,8 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   const to = simLeaf(sim);
   if (from !== null && to !== null && from !== to) transfer(world, from, to);
   if (!contesting && sim.squadLeader === null) placeCall(world, sim, b);
+  // An officer back at a station takes what rounds it still holds (arms.ts).
+  if (sim.archetype === 'police' && b.tag === 'policeStation' && b.zombiesInside === 0) restock(world, sim, b);
 
   if (sim.destinationKind === 'routine') {
     // The uneasy cut their errands short.
@@ -276,7 +279,11 @@ function exits(world: World, ctx: Context): void {
     const sim = world.sims[i]!;
     if (sim.insideBuilding === null || !isLiving(sim)) continue;
     const b = world.buildings[sim.insideBuilding]!;
-    const panicked = sim.panic > config.panic.expelThreshold;
+    // Panic drives people out, but not the trained, and not someone who has only just come
+    // in: they settle first. (Without that, gunfire nearby took someone back over the
+    // threshold, out they went, in at the nearest door — the same one — and out again.)
+    const settling = sim.enteredAt !== null && tick - sim.enteredAt < config.panic.settleTicks;
+    const panicked = sim.panic > config.panic.expelThreshold && !settling && !config.archetypes[sim.archetype].panicImmune && !sim.outsider;
     if (panicked && sim.exitingUntil === null) sim.exitingUntil = tick + exitTicks(world, b);
     if (sim.exitingUntil === null || tick < sim.exitingUntil) continue;
     if (b.zombiesInside > 0) {

@@ -31,6 +31,7 @@ import type { Building, Sim, Stand, StreetId, World } from '../state';
 import { isFirearm } from '../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
+import { outOfAmmo } from './arms';
 import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, setDestination } from './common';
 import { carStillMine, considerDriving, decideCars, giveUpCar } from './cars';
 import { breaks, modeOf, type Mode } from './panic';
@@ -604,6 +605,37 @@ function decideSquadIndoor(world: World, ctx: Context, sim: Sim): void {
   sim.exitingUntil = tick + exitTicks(world, b);
 }
 
+const stationCache = new WeakMap<World, Building[]>();
+/** The map's police stations, found once per world. */
+function policeStations(world: World): Building[] {
+  let list = stationCache.get(world);
+  if (!list) stationCache.set(world, (list = world.buildings.filter((b) => b.tag === 'policeStation')));
+  return list;
+}
+
+/**
+ * Where an officer run dry can rearm: its station, else the nearest police station, so
+ * long as it is not overrun and still holds rounds for its weapon (an officer knows its
+ * station's armory; one walking to an empty one would come back out and go again). Null
+ * with none: it goes on unarmed.
+ */
+function policeStationFor(world: World, sim: Sim): Building | null {
+  const usable = (b: Building) => b.zombiesInside === 0 && b.stock.some((a) => a.item === 'ammo' || a.item === sim.weapon);
+  const own = sim.station === null ? null : world.buildings[sim.station]!;
+  if (own !== null && usable(own)) return own;
+  let best: Building | null = null, bestD = Infinity;
+  for (const b of policeStations(world)) {
+    if (!usable(b)) continue;
+    const e = b.entrances[0]!;
+    const d = Math.hypot(e.x - sim.x, e.y - sim.y);
+    if (d < bestD) {
+      best = b;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
 function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const { config, buildings, zombies, tick } = world;
   const arch = config.archetypes[sim.archetype];
@@ -676,6 +708,19 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       steerAway(ctx, sim);
     }
     return;
+  }
+
+  // An officer run dry: back to its station (or the nearest) to take what rounds it still
+  // holds (buildings.ts restock), giving up any call. A station overrun is no help.
+  if (sim.archetype === 'police' && sim.squadLeader === null && outOfAmmo(world, sim)) {
+    const station = policeStationFor(world, sim);
+    if (station !== null) {
+      sim.answering = null;
+      if (sim.destinationBuilding !== station.id || sim.destinationKind !== 'shelter') setDestination(sim, station, 'shelter');
+      sim.gait = threat > 0 || mode !== 'informed' ? 'run' : 'walk';
+      travel(world, ctx, sim, mode);
+      return;
+    }
   }
 
   const engages = arch.engageThreshold > 0 && capacity(world, sim) > 0;

@@ -97,6 +97,29 @@ export function loot(world: World, ctx: Context, sim: Sim, b: Building): void {
   ctx.events.push({ type: 'weaponFound', tick, sim: sim.id, building: b.id, weapon: a.item });
 }
 
+/** Out of rounds for the firearm it carries (or nearly: less than one attack's worth). */
+export function outOfAmmo(world: World, sim: Sim): boolean {
+  return isFirearm(sim.weapon) && sim.ammo < world.config.combat.ranged[sim.weapon].ammoPerAttack;
+}
+
+/**
+ * An officer back at a police station with its firearm run dry takes what rounds the
+ * station still holds for it: boxes of ammunition, and the rounds in any weapon like its
+ * own, up to combat.ammoCap. Finite, like everything since arms became finite: a
+ * station emptied stays empty.
+ */
+export function restock(world: World, sim: Sim, b: Building): void {
+  if (!isFirearm(sim.weapon)) return;
+  const cap = world.config.combat.ammoCap;
+  for (let i = 0; i < b.stock.length && sim.ammo < cap; i++) {
+    const a = b.stock[i]!;
+    if (a.item !== 'ammo' && a.item !== sim.weapon) continue;
+    sim.ammo = Math.min(cap, sim.ammo + a.ammo);
+    b.stock.splice(i, 1);
+    i--;
+  }
+}
+
 /** A sim that dies or turns leaves what it carried where it fell: indoors in the building's stock, outdoors on the ground. */
 export function dropWeapon(world: World, sim: Sim): void {
   if (sim.weapon === null) return;

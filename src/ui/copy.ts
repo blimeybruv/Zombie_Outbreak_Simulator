@@ -56,6 +56,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       const what = e.kind === 'ambulance' ? 'an ambulance' : e.kind === 'cruiser' ? 'a police car' : 'a SWAT van';
       return `${n.name ?? 'Someone'} drove off in ${what} on ${n.place}${e.leaving ? ', making for the way out' : ''}. There was nobody left to drive it.`;
     }
+    case 'outOfAmmo':
+      return `${n.name ?? 'A squad member'}, out of ammunition on ${n.place}, is heading back to rearm.`;
     case 'cordonBreached':
       return `Nobody is left at the barrier on ${n.place}. People are walking out past it.`;
     case 'cordonClosed':

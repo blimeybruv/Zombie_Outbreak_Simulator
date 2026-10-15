@@ -118,6 +118,13 @@ export interface CarAbandonedEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface OutOfAmmoEvent extends EventBase, Located {
+  /** A squad member run dry leaves its squad to rearm where it set out from. @range literal @unit — @readBy event consumers */
+  type: 'outOfAmmo';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export interface CordonBreachedEvent extends EventBase, Located {
   /** Nobody is left to hold a cordon's barrier: people on foot pass it. @range literal @unit — @readBy event consumers */
   type: 'cordonBreached';
@@ -264,6 +271,7 @@ export type SimEvent =
   | VehicleTakenEvent
   | CordonFiredOnEvent
   | CordonBreachedEvent
+  | OutOfAmmoEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent

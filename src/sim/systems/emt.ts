@@ -131,6 +131,13 @@ export function decideEmt(world: World, ctx: Context, sim: Sim): boolean {
   if (sim.crew === null) return false;
   const { config, buildings, cars, sims } = world;
   const car = cars[sim.crew]!;
+  // Its ambulance abandoned or gone: no crew any more, just people. (Still crewed, they
+  // were sent out of every building but the job, and walked back into the nearest: the
+  // user saw them blink at a door.)
+  if (car.state === 'abandoned' || car.state === 'gone') {
+    sim.crew = null;
+    return false;
+  }
   if (car.job === null) return false;
   if (sim.insideBuilding !== null) {
     if (sim.insideBuilding === car.home && car.job === car.home) finishJob(world, ctx, car);

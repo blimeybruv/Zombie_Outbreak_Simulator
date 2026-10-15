@@ -245,6 +245,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     crossing: null,
     firesOnCrossers: false,
     firedOnAt: null,
+    enteredAt: null,
     firedOnCordon: false,
     sweep: false,
     answeredAt: null,

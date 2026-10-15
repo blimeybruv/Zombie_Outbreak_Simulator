@@ -283,6 +283,7 @@ export const config = {
     routingCutoff: 0.55, // above: flight mode, no pathfinding, sprint
     memoryCutoff: 0.4, // above: direct mode, memory ignored, run
     expelThreshold: 0.7, // occupants above this are expelled
+    settleTicks: 120, // ...but not within this many ticks of coming in, nor the panic-immune
     noiseIntensityFloor: 0.2, // stimulus intensity at the sim needed to count as nearby noise — guess
   },
 

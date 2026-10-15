@@ -24,6 +24,7 @@ import type { Building, BuildingId, Sim, World } from '../state';
 import { chance, nextFloat } from '../rng';
 import { makePolice, spawnSim, takeStaff } from '../spawn';
 import { isFirearm } from '../state';
+import { outOfAmmo } from './arms';
 import { capacity, isLiving, leaveTalk } from './common';
 import { boardSquad, parkVan } from './cars';
 import { intensityAt } from './stimuli';
@@ -308,6 +309,23 @@ export function squadPass(world: World, ctx: Context): void {
     if (s.squadLeader === null) continue;
     if (!isLiving(s)) {
       s.squadLeader = null;
+      continue;
+    }
+    // Run dry: out of the squad and back where it set out from to rearm — a reservist to
+    // its depot (called up again, sims.ts), an officer to its station (sims.ts). Soldiers
+    // from outside hold where they are. The rest go on, the lowest id leading.
+    if (!s.outsider && outOfAmmo(world, s)) {
+      s.squadLeader = null;
+      s.diamondUntil = null;
+      s.trail = [];
+      if (s.archetype === 'reservist' && s.depot !== null) {
+        s.muster = 'mobilised';
+        s.destinationKind = null;
+        s.destinationBuilding = null;
+        s.destination = null;
+        s.route = [];
+      }
+      ctx.events.push({ type: 'outOfAmmo', tick, sim: s.id, x: s.x, y: s.y });
       continue;
     }
     const g = (groups[s.squadLeader] ??= []);
