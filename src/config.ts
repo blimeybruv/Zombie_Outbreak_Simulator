@@ -735,6 +735,12 @@ export const config = {
     // The dead clamber over too, slower: kept out, they piled up behind any car the
     // living had climbed (zombies stuck 1.0% → 2.8% of moving ticks on seed 1) — guess
     climb: { share: 0.35, turn: 0.8 },
+    // The living pick up speed and slow down rather than jump to the gait's: each tick
+    // pace closes `accel` of the gap to it (`flightAccel` in flight, fear's spring),
+    // `decel` when slowing — stopping is quicker than starting; below `rest` m/tick
+    // toward a stop it is a stop. The user and B: people standing still went from
+    // nothing to full speed in one tick — guess
+    inertia: { accel: 0.35, flightAccel: 0.6, decel: 0.7, rest: 0.05 },
     climbDead: { share: 0.2, turn: 0.8 },
     gaitNoiseIntensity: 0.6, // at origin; heard by zombies within the gait's noise radius — guess
   },

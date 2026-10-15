@@ -185,6 +185,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     slide: 0,
     gait: 'walk',
     stamina: 1,
+    pace: 0,
     insideBuilding: spec.insideBuilding,
     street: null,
     exitingUntil: null,

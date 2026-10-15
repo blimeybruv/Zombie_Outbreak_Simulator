@@ -3,6 +3,7 @@
 
 import { isOutdoorLiving, type Context } from '../context';
 import { moveCars } from './cars';
+import { modeOf } from './panic';
 import type { Gait, World } from '../state';
 
 /** Age's toll on speed: mild for walking, steep for running and sprinting. */
@@ -103,14 +104,21 @@ export function integrateMovement(world: World, ctx: Context): void {
   const drag = config.combat.drag;
 
   for (const sim of world.sims) {
-    if (!isOutdoorLiving(sim)) continue;
+    if (!isOutdoorLiving(sim)) {
+      sim.pace = 0; // indoors or in a car: out of it, from a standstill
+      continue;
+    }
     const g = mv.gait[sim.gait];
     const contacts = ctx.contacts[sim.id]!;
     const drain = g.stamina < 0 ? g.stamina * (1 + drag.stamina * contacts) : g.stamina;
     sim.stamina = Math.min(1, Math.max(0, sim.stamina + drain));
-    const speed =
+    const target =
       g.speed * (mv.staminaSpeedFloor + (1 - mv.staminaSpeedFloor) * sim.stamina) * ageFactor(sim.age, sim.gait, world) / (1 + drag.speed * contacts);
-    step(ctx, sim, sim.heading, speed, mv.slideSpeed, mv.climb);
+    const inertia = mv.inertia;
+    const rate = target < sim.pace ? inertia.decel : modeOf(sim, config) === 'flight' ? inertia.flightAccel : inertia.accel;
+    sim.pace += (target - sim.pace) * rate;
+    if (target === 0 && sim.pace < inertia.rest) sim.pace = 0;
+    step(ctx, sim, sim.heading, sim.pace, mv.slideSpeed, mv.climb);
   }
 
   for (const z of world.zombies) {

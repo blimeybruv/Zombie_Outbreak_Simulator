@@ -2,7 +2,8 @@
 //
 // Every field carries @range, @unit and @readBy; tests/state-gate.test.ts enforces it.
 // Quantities derived from other state are deliberately absent:
-//   speed           — gait, stamina, age and drag (Movement)
+//   target speed    — gait, stamina, age and drag (Movement); `pace` is the speed it has
+//                     reached, stored because it lags the target (inertia)
 //   perceptionRadius — the street the sim stands on and time of day (Perception)
 //   perceivedThreat — recomputed each tick into the perception snapshot
 //   ticksSurvived   — (history.endedAt ?? tick) - history.spawnedAt
@@ -202,6 +203,8 @@ export interface Sim {
   gait: Gait;
   /** @range 0–1 @unit scalar @readBy movement (effectiveSpeed), gait selection */
   stamina: Unit01;
+  /** Speed actually reached, closing on the gait's: from standing, a sim picks up speed over a few ticks. @range 0–3 @unit m/tick @readBy movement */
+  pace: number;
   /** Null when outdoors. @range building id | null @unit id @readBy spatial hash, ticking, counters, combat */
   insideBuilding: BuildingId | null;
   /**
