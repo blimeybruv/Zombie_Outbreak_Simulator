@@ -561,9 +561,11 @@ export function carProcesses(world: World, ctx: Context): void {
       }
     }
     const last = car.routeIndex >= car.route.length - 1;
-    // Arrived: at its spot, or stopped close to it behind something standing there.
+    // Arrived: on its spot at the kerb (a way off the map, within arriveRadius), or
+    // stopped within arriveRadius of it behind something. Parking anywhere within
+    // arriveRadius left cars parked across the next car along the kerb.
     const toGo = car.destination === null ? Infinity : Math.hypot(car.destination.x - car.x, car.destination.y - car.y);
-    if (last && (toGo <= cc.arriveRadius || (car.blockedSince !== null && toGo <= cc.arriveRadius * cc.arriveBlocked))) {
+    if (last && (toGo <= (car.exit !== null ? cc.arriveRadius : cc.parkWithin) || (car.blockedSince !== null && toGo <= cc.arriveRadius))) {
       // At a way off the map: everyone in it, and the car, out of play (exits.ts).
       if (car.exit !== null) {
         carLeaves(world, ctx, car);

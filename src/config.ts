@@ -683,7 +683,7 @@ export const config = {
     searchRadius: 50, // m
     boardRadius: 3, // m
     arriveRadius: 6, // m
-    arriveBlocked: 3, // stopped behind something within this many arriveRadius of its spot, it has arrived
+    parkWithin: 1, // m; a car parks once this close to its kerb spot (or stopped within arriveRadius of it)
     pullUpTries: 4, // kerb spots tried either way along the street from the door, spacing apart
     clearance: 0.5, // m kept bumper to bumper: a car never moves closer than this to one ahead
     waypointRadius: 4, // m; a junction counts as passed within this
