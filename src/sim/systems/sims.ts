@@ -433,6 +433,37 @@ function decideMuster(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 }
 
 /** Faces the nearest zombie in sight, or `fallback`'s way. */
+/** A small integer hash: deterministic variety without a draw from the run's stream. */
+function mix(a: number, b: number): number {
+  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x632be5ab, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
+}
+
+/**
+ * A cordon soldier at its place with nothing in sight: at ease, not frozen. It ambles to
+ * a spot near its place, a new one each period (out of step with the others), and while
+ * there turns slowly to look about. Anything in sight ends it (true when it acted).
+ */
+function atEase(world: World, ctx: Context, sim: Sim, cx: number, cy: number): boolean {
+  if (ctx.threat[sim.id]! > 0 || ctx.nearestZombie[sim.id]! >= 0) return false;
+  const ae = world.config.cordon.atEase;
+  const period = Math.floor((world.tick + sim.id * 7) / ae.period);
+  const a = mix(sim.id, period) * Math.PI * 2, r = ae.radius * Math.sqrt(mix(period, sim.id));
+  const tx = cx + Math.cos(a) * r, ty = cy + Math.sin(a) * r;
+  if (Math.hypot(tx - sim.x, ty - sim.y) > 0.6) {
+    sim.gait = 'sneak';
+    headFor(world, ctx, sim, tx, ty);
+    return true;
+  }
+  sim.gait = 'still';
+  const look = mix(sim.id + 1, period) * Math.PI * 2;
+  let turn = look - sim.heading;
+  turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+  sim.heading += Math.max(-ae.turn, Math.min(ae.turn, turn));
+  return true;
+}
+
 function faceDanger(world: World, ctx: Context, sim: Sim, fallback: number): void {
   const zid = ctx.nearestZombie[sim.id]!;
   if (zid >= 0) steerToward(sim, world.zombies[zid]!.x, world.zombies[zid]!.y);
@@ -459,7 +490,7 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     if (Math.hypot(sim.post.x - sim.x, sim.post.y - sim.y) > world.config.cordon.postReach / 2) {
       sim.gait = 'walk';
       headFor(world, ctx, sim, sim.post.x, sim.post.y);
-    } else {
+    } else if (!atEase(world, ctx, sim, sim.post.x, sim.post.y)) {
       sim.gait = 'still';
       faceDanger(world, ctx, sim, sim.heading);
     }
@@ -547,6 +578,8 @@ function decideFollower(world: World, ctx: Context, sim: Sim): void {
     }
   }
   const d = Math.hypot(tx - sim.x, ty - sim.y);
+  // A cordon squad holding its post: each at ease about its own place in the line.
+  if (leader.post !== null && sim.directUntil === null && d <= world.config.cordon.atEase.radius * 2 && atEase(world, ctx, sim, tx, ty)) return;
   if (d <= sq.slotStill) {
     sim.gait = 'still';
     faceDanger(world, ctx, sim, leader.heading);
@@ -658,8 +691,15 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const base = unit.onCall ? Math.max(arch.engageThreshold, config.dispatch.engageThreshold) : arch.engageThreshold;
   const pc = config.police;
   const engageBelow = unit.size > 1 ? Math.max(base, Math.min(pc.unitMaxThreshold, base * (1 + pc.unitStrength * (unit.size - 1)))) : base;
-  const seen = unit.threat;
   const nearest = ctx.nearestZombie[sim.id]!;
+  // Few enough of the dead in sight for what it carries: it stands, however near they are.
+  let few = false;
+  if (engages && nearest >= 0 && sim.archetype === 'police') {
+    ctx.zombieHash.query(sim.x, sim.y, ctx.radius[sim.id]!, ctx.ids2);
+    const cap = unit.size > 1 ? unit.cap : capacity(world, sim);
+    few = ctx.ids2.length <= cap * pc.standRatio;
+  }
+  const seen = few ? 0 : unit.threat;
   // On a call and outmatched: more zombies in sight than the unit can handle. It radios
   // for SWAT, with what it counted (squads.ts radioForSwat).
   if (unit.onCall && nearest >= 0 && sim.archetype === 'police' && sim.squadLeader === null) {
@@ -671,8 +711,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   }
   // Falling back is a decision: on the way to shelter it does not turn to engage again
   // when the danger dips (that dithered at the threshold); it still fights if blocked
-  // or cornered, and engages again from the door as a dispatcher.
-  if (engages && nearest >= 0 && seen < engageBelow && sim.destinationKind !== 'shelter') {
+  // or cornered, and engages again from the door as a dispatcher. Unless the dead in
+  // sight are few for what the unit carries: then there is nothing to dither over.
+  if (engages && nearest >= 0 && seen < engageBelow && (sim.destinationKind !== 'shelter' || few)) {
     const z = zombies[nearest]!;
     const w = sim.weapon!;
     const range = isFirearm(w) ? config.combat.ranged[w].range * 0.8 : config.combat.contactRange;

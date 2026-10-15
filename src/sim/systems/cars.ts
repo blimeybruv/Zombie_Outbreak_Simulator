@@ -24,7 +24,7 @@ import { sharedNode } from '../pathfinding';
 import { chance, cloneRng } from '../rng';
 import type { Building, BuildingId, Car, CarId, Sim, World } from '../state';
 import { bite } from './combat';
-import { entranceNearest, leaveTalk, setDestination } from './common';
+import { entranceNearest, isLiving, leaveTalk, setDestination } from './common';
 import type { Mode } from './panic';
 import { carLeaves, headForExit, nearestExit } from './exits';
 import { barrierAt } from './cordon';
@@ -253,6 +253,20 @@ function bays(world: World, lot: World['lots'][number]): { x: number; y: number;
 // Choosing a car, and boarding
 
 /**
+ * Whether anyone may take this parked vehicle. An ordinary car, always. A service
+ * vehicle only once nobody living is left to drive it: an ambulance's crew, or the
+ * officers of a police car's or SWAT van's station, all dead or turned. Taking one
+ * from a staffed hospital or station would quietly end its service for the run. A
+ * rescue truck (a van with no home) is the Army's, never.
+ */
+function takeable(world: World, car: Car): boolean {
+  if (car.kind === 'car') return true;
+  if (car.home === null) return false;
+  if (car.kind === 'ambulance') return !world.sims.some((s) => s.crew === car.id && isLiving(s));
+  return !world.sims.some((s) => s.station === car.home && isLiving(s));
+}
+
+/**
  * An aware sim on foot heading for home or shelter far away takes the nearest free
  * parked car it can see within searchRadius, and walks to it. Staggered by id. The
  * building it meant to reach goes with the car (`Car.destinationBuilding`).
@@ -271,7 +285,7 @@ export function considerDriving(world: World, ctx: Context, sim: Sim, mode: Mode
     const c = cars[id]!;
     if (c.state !== 'parked' || c.claimedBy !== null) continue;
     const d = Math.hypot(c.x - sim.x, c.y - sim.y);
-    if (d >= bestD || !ctx.map.lineOfSight(sim.x, sim.y, c.x, c.y)) continue;
+    if (d >= bestD || !ctx.map.lineOfSight(sim.x, sim.y, c.x, c.y) || !takeable(world, c)) continue;
     best = c;
     bestD = d;
   }
@@ -392,6 +406,7 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
   }
   car.state = 'driving';
   soundAlarm(world, ctx, car);
+  vehicleTaken(world, ctx, car, sim);
   car.route = route;
   car.routeIndex = 0;
   car.blockedSince = null;
@@ -457,6 +472,13 @@ function boardForExit(world: World, ctx: Context, sim: Sim, car: Car): void {
     s.destinationKind = 'leave';
     s.destination = { x: e.x, y: e.y };
   }
+  vehicleTaken(world, ctx, car, sim);
+}
+
+/** Someone with no claim to it drives off in a service vehicle (its crew all gone): said, so the viewer knows why it heads off. */
+function vehicleTaken(world: World, ctx: Context, car: Car, sim: Sim): void {
+  if (car.kind === 'car') return;
+  ctx.events.push({ type: 'vehicleTaken', tick: world.tick, car: car.id, kind: car.kind, leaving: car.exit !== null, sim: sim.id, x: car.x, y: car.y });
 }
 
 /** Arms the alarms of a share of ordinary cars, from a copy of the run's stream so that nothing else at setup moves. Called once at setup. */

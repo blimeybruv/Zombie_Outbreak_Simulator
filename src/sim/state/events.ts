@@ -118,6 +118,19 @@ export interface CarAbandonedEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface VehicleTakenEvent extends EventBase, Located {
+  /** Someone drove off in a service vehicle whose crew are all gone. @range literal @unit — @readBy event consumers */
+  type: 'vehicleTaken';
+  /** @range car id @unit id @readBy ticker */
+  car: CarId;
+  /** @range 3 values @unit enum @readBy ticker copy */
+  kind: 'van' | 'cruiser' | 'ambulance';
+  /** Making for a way out of the city, rather than somewhere in it. @range true/false @unit — @readBy ticker copy */
+  leaving: boolean;
+  /** The driver. @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export interface CarAlarmEvent extends EventBase, Located {
   /** A car's alarm went off: taken, or the dead at it with people inside. @range literal @unit — @readBy event consumers */
   type: 'carAlarm';
@@ -232,6 +245,7 @@ export type SimEvent =
   | SquadEvent
   | CarAbandonedEvent
   | CarAlarmEvent
+  | VehicleTakenEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent

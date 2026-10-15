@@ -47,6 +47,10 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `A car was abandoned on ${n.place}.`;
     case 'carAlarm':
       return `A car alarm went off on ${n.place}.`;
+    case 'vehicleTaken': {
+      const what = e.kind === 'ambulance' ? 'an ambulance' : e.kind === 'cruiser' ? 'a police car' : 'a SWAT van';
+      return `${n.name ?? 'Someone'} drove off in ${what} on ${n.place}${e.leaving ? ', making for the way out' : ''}. There was nobody left to drive it.`;
+    }
     case 'cordonClosed':
       return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
     case 'rescueSweep':

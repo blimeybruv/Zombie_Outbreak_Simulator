@@ -428,7 +428,11 @@ export const config = {
   // First responders drive to a call in their station's police car when it is at the
   // kerb (within carNear of the door) and the call is beyond carBeyond: to the car, and
   // in together once all sent are within carGather. One way, like the SWAT van — guesses
-  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10 },
+  // standRatio: a unit stands its ground, whatever the threat reads, while the dead in
+  // sight number no more than this share of what its ammunition can expect to kill (its
+  // summed capacity): threat rises with nearness, so one zombie close by read as too much
+  // and a pair of armed officers fell back from it, firing as it followed — guess
+  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10, standRatio: 0.25 },
 
   // Reservists (archetype 'reservist'; squads.ts): anonymous residents until the
   // reserve is activated, once callUpCalls 911 calls have come in (0: at once). Then
@@ -534,7 +538,11 @@ export const config = {
   // flanks, bitten or not. A car reaching a closed barrier is left there; the cars
   // behind it stop. Soldiers are outsiders: the invariant counts them on top of the
   // population — guesses
-  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2 },
+  // atEase: a cordon soldier with nothing in sight ambles (at a sneak) to a spot within
+  // `radius` m of its place, a new one every `period` ticks (each soldier out of step,
+  // from its id), and between moves turns at most `turn` rad a tick to look somewhere
+  // new: a line of soldiers stood stock still read as frozen — guess
+  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, atEase: { radius: 2.5, period: 45, turn: 0.08 } },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not
