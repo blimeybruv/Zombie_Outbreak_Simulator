@@ -976,10 +976,12 @@ export class Renderer {
     // shoot back is a triangle pointing the way they face.
     const colourOf = (i: number) => (pale && f[i]! & SIM_INFECTED ? P.INFECTED_PALE : f[i]! & SIM_POLICE ? P.POLICE : f[i]! & SIM_GUARD ? P.GUARD : P.LIVING);
     const hd = frame.simHeading;
-    const r = Math.max(size * 1.3, 4 * dpr); // a triangle needs more room than a square to read
+    // A triangle about the area of a square, a little longer than wide so it points: it
+    // says "can shoot back" without standing out from the dots around it.
+    const r = Math.max(size * 0.85, 3 * dpr);
     const triangle = (path: Path2D, i: number, x: number, y: number, scale: number) => {
       const a = hd[i]!, cx = x + half, cy = y + half, rr = r * scale;
-      path.moveTo(cx + Math.cos(a) * rr * 1.3, cy + Math.sin(a) * rr * 1.3);
+      path.moveTo(cx + Math.cos(a) * rr * 1.35, cy + Math.sin(a) * rr * 1.35);
       path.lineTo(cx + Math.cos(a + 2.4) * rr, cy + Math.sin(a + 2.4) * rr);
       path.lineTo(cx + Math.cos(a - 2.4) * rr, cy + Math.sin(a - 2.4) * rr);
       path.closePath();
@@ -1009,7 +1011,7 @@ export class Renderer {
       const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
       if (f[i]! & SIM_ARMED) {
         const p = new Path2D();
-        triangle(p, i, x, y, 1.35);
+        triangle(p, i, x, y, 1.15);
         g.fill(p);
       } else g.fillRect(x - 1, y - 1, size + 2, size + 2);
     }
@@ -1020,14 +1022,15 @@ export class Renderer {
       if (k[i] === SIM_HIDDEN || !(f[i]! & SIM_FIGHTING)) continue;
       const x = sx(xy[i * 2]!), y = sy(xy[i * 2 + 1]!);
       if (x < -size * 2 || y < -size * 2 || x > w + size || y > h + size) continue;
-      const pad = 1.5 * dpr;
-      if (f[i]! & SIM_ARMED) triangle(fighting, i, x, y, k[i] === SIM_PROMOTED ? 1.7 : 1.35);
+      const pad = 1.2 * dpr;
+      // Traced just outside the shape, not as a bigger one round it.
+      if (f[i]! & SIM_ARMED) triangle(fighting, i, x, y, k[i] === SIM_PROMOTED ? 1.4 : 1.25);
       else fighting.rect(x - pad, y - pad, size + pad * 2, size + pad * 2);
       anyFight = true;
     }
     if (anyFight) {
       g.strokeStyle = P.FIGHT;
-      g.lineWidth = 1.2 * dpr;
+      g.lineWidth = 0.9 * dpr;
       g.stroke(fighting);
     }
     if (showInfected === 'ring') {

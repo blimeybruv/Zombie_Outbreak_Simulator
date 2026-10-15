@@ -1,7 +1,7 @@
 // Serves the viewer, opens it in headless Chromium and screenshots it: a way to see
 // the renderer from a container with no display.
 //
-//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click | --click-at sx,sy] [--at x,y] [--settle ms] [--query k=v&...] [--flagged 1]
+//   npx tsx scripts/view.ts [--advance 6000] [--play 8] [--seconds 5] [--out dir] [--run 1] [--map 1] [--click | --click-at sx,sy] [--at x,y] [--near px/m] [--settle ms] [--query k=v&...] [--flagged 1]
 //
 // Shots are taken at far, mid and near zoom (near centred on the busiest spot, or
 // on --at, a world point in metres, or with --flagged on the first survivor outdoors
@@ -62,7 +62,7 @@ try {
   const shots: Shot[] = [
     { name: 'far', scale: 0.26 },
     { name: 'mid', scale: 0.55 },
-    { name: 'near', scale: 2.4, busiest: at === null, at },
+    { name: 'near', scale: Number(opt('near', '2.4')), busiest: at === null, at },
   ];
   for (const shot of shots) {
     await page.evaluate(({ scale, busiest, at }) => {
