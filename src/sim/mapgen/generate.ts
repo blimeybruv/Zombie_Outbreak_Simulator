@@ -90,6 +90,93 @@ function range(rng: RngState, [lo, hi]: readonly number[]): number {
   return lo! + (hi! - lo!) * nextFloat(rng);
 }
 
+/**
+ * A few churches, placed once the city is built: per district kind so many, one to a
+ * district before any district gets a second. Each takes a house or flavour plot big
+ * enough, or several neighbouring house plots on one frontage joined into one, so a
+ * suburb of small houses still has one. Joined plots leave the array; ids are dense
+ * again afterwards and the lots' homes follow them. Draws only from its own stream.
+ */
+function placeChurches(config: Config, rng: RngState, buildings: Building[], districts: District[], lots: Lot[]): void {
+  const cc = config.map.churches;
+  const quota = new Map<number, number>();
+  for (const [kind, total] of Object.entries(cc.count)) {
+    const pool = districts.filter((d) => d.kind === kind).map((d) => d.id as number);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = nextInt(rng, 0, i);
+      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+    }
+    for (let n = 0, i = 0; n < (total ?? 0) && pool.length > 0 && i < pool.length * cc.perDistrict; i++) {
+      const d = pool[i % pool.length]!;
+      if ((quota.get(d) ?? 0) >= cc.perDistrict) continue;
+      quota.set(d, (quota.get(d) ?? 0) + 1);
+      n++;
+    }
+  }
+  const frame = (b: Building) => {
+    const [p0, p1, , p3] = b.outline;
+    return { at: p0!, dir: unit(sub(p1!, p0!)), w: dist(p0!, p1!), inward: unit(sub(p3!, p0!)), depth: dist(p0!, p3!) };
+  };
+  const plain = (b: Building) => b.tag === 'residential' || (FLAVOUR_TAGS as readonly string[]).includes(b.tag);
+  const removed = new Set<number>();
+  const centres: Pt[] = [];
+  for (const d of districts) {
+    let left = quota.get(d.id) ?? 0;
+    if (left === 0) continue;
+    // Candidates: runs of plain plots in creation order, on one frontage, each starting
+    // where the last ended (a vacant plot or a yard between breaks the run).
+    type Candidate = { ids: number[]; rect: Pt[]; dir: Pt; w: number };
+    const candidates: Candidate[] = [];
+    const inDistrict = buildings.filter((b) => b.district === d.id && plain(b));
+    for (let i = 0; i < inDistrict.length; i++) {
+      const first = inDistrict[i]!;
+      const f = frame(first);
+      if (f.w * f.depth > cc.maxArea) continue;
+      let w = f.w, depth = f.depth, end = add(f.at, scale(f.dir, f.w));
+      const ids = [first.id as number];
+      for (let j = i + 1; w * depth < cc.minArea && ids.length < cc.maxMerge && j < inDistrict.length; j++) {
+        const next = inDistrict[j]!;
+        const g = frame(next);
+        if (next.street !== first.street || next.id !== ids[ids.length - 1]! + 1) break;
+        const gap = dist(end, g.at);
+        if (Math.abs(g.dir.x * f.dir.x + g.dir.y * f.dir.y) < 0.999 || gap > 4) break;
+        w += gap + g.w;
+        depth = Math.min(depth, g.depth);
+        end = add(g.at, scale(g.dir, g.w));
+        ids.push(next.id);
+      }
+      if (w * depth < cc.minArea) continue;
+      candidates.push({ ids, rect: rectFromFront(f.at, f.dir, w, f.inward, depth), dir: f.dir, w });
+    }
+    const taken = new Set<number>();
+    while (left > 0 && candidates.length > 0) {
+      const c = candidates.splice(nextInt(rng, 0, candidates.length - 1), 1)[0]!;
+      const centre = scale(add(c.rect[0]!, c.rect[2]!), 0.5);
+      if (c.ids.some((id) => taken.has(id)) || centres.some((p) => dist(p, centre) < cc.spacing)) continue;
+      for (const id of c.ids) taken.add(id);
+      centres.push(centre);
+      const b = buildings[c.ids[0]!]!;
+      const doors = config.tags[functionalProfile('church', config)].entrances;
+      b.tag = 'church';
+      b.outline = c.rect;
+      b.entrances = [0.5, 0.25, 0.75, 0.1].slice(0, doors).map((t) => add(c.rect[0]!, scale(c.dir, c.w * t)));
+      b.materials = 0;
+      for (const id of c.ids.slice(1)) removed.add(id);
+      left--;
+    }
+  }
+  if (removed.size === 0) return;
+  const newId = new Map<number, number>();
+  const kept = buildings.filter((b) => !removed.has(b.id));
+  kept.forEach((b, i) => {
+    newId.set(b.id, i);
+    b.id = i as BuildingId;
+  });
+  buildings.length = 0;
+  buildings.push(...kept);
+  for (const l of lots) if (l.home !== null) l.home = newId.get(l.home)! as BuildingId;
+}
+
 function pickWeighted<K extends string>(rng: RngState, weights: Partial<Record<K, number>>): K | null {
   const keys = (Object.keys(weights) as K[]).filter((k) => (weights[k] ?? 0) > 0);
   let total = 0;
@@ -124,6 +211,8 @@ function offAxis(h: number): number {
 
 /** Mixed into the map seed for the name stream: any constant will do, so long as it stays. */
 const NAME_STREAM = 0x4e414d45;
+/** Mixed into the map seed for church placement, for the same reason. */
+const CHURCH_STREAM = 0x43485243;
 
 export function generateMap(config: Config, mapSeed: number, power: boolean): GeneratedMap {
   const rng = createRng(mapSeed);
@@ -682,6 +771,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       }
     }
   }
+
+  placeChurches(config, createRng(mapSeed ^ CHURCH_STREAM), buildings, districts, lots);
 
   // Each exit: the edge node at the highway's end, and its last segment.
   const exits: Exit[] = [];

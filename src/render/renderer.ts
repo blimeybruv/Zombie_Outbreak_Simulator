@@ -77,19 +77,28 @@ const FILL_LEVELS = 6; // occupancy alpha is bucketed so each level is one fill 
 const FULL_AT = 24; // people inside at which a building reads as full
 
 /** A church's frame: centre, unit long axis pointing east, half its length and half its width. */
-function churchFrame(o: Float32Array, i: number): { cx: number; cy: number; ax: number; ay: number; half: number; side: number } {
+/**
+ * A church's frame in its plot: centre, the long axis (pointing east), half the drawn
+ * length, half the nave's width w (also the apse's radius) and half the tower's h. A
+ * nave narrower than the plot reads as a nave even on a squarish plot and leaves the
+ * tower room to stand out either side of it; on a long shallow plot (joined suburban
+ * houses) the church is cut to four nave-widths and centred, not drawn as a stick.
+ */
+function churchFrame(o: Float32Array, i: number): { cx: number; cy: number; ax: number; ay: number; half: number; w: number; h: number } {
   const k = i * 8;
   const cx = (o[k]! + o[k + 2]! + o[k + 4]! + o[k + 6]!) / 4, cy = (o[k + 1]! + o[k + 3]! + o[k + 5]! + o[k + 7]!) / 4;
   const ux = o[k + 2]! - o[k]!, uy = o[k + 3]! - o[k + 1]!, vx = o[k + 6]! - o[k]!, vy = o[k + 7]! - o[k + 1]!;
   const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
-  const [x, y, half, side] = lu >= lv ? [ux / lu, uy / lu, lu / 2, lv / 2] : [vx / lv, vy / lv, lv / 2, lu / 2];
+  const [x, y, long, side] = lu >= lv ? [ux / lu, uy / lu, lu / 2, lv / 2] : [vx / lv, vy / lv, lv / 2, lu / 2];
   const east = x < 0 ? -1 : 1; // the axis points east
-  return { cx, cy, ax: x * east, ay: y * east, half, side };
+  const w = Math.min(side * 0.7, long * 0.36);
+  const h = Math.min(w * 1.35, side); // clearly wider than the nave
+  return { cx, cy, ax: x * east, ay: y * east, half: Math.min(long, w * 4), w, h };
 }
 
 /**
- * A church, in plan, as one continuous outline: a long nave, a square tower narrower
- * than the nave set flush against its western end, and a semicircular apse at the east
+ * A church, in plan, as one continuous outline: a long nave, a square tower wider
+ * than the nave standing at its western end, and a semicircular apse at the east
  * whose radius is half the nave's width, so the curve meets the corners. Parts share
  * edges and never overlap: an overlapping outline leaves an interior line that reads as
  * a mistake. The tower carries it — the silhouette still reads as a church a few pixels
@@ -97,12 +106,9 @@ function churchFrame(o: Float32Array, i: number): { cx: number; cy: number; ax: 
  * liturgical east.
  */
 function addChurch(path: Path2D, o: Float32Array, i: number): void {
-  const { cx, cy, ax, ay, half, side } = churchFrame(o, i);
+  const { cx, cy, ax, ay, half, w, h } = churchFrame(o, i);
   const px = -ay, py = ax; // across the nave
   const at = (t: number, u: number): [number, number] => [cx + ax * t + px * u, cy + ay * t + py * u];
-  // A nave narrower than the footprint reads as a nave even on a squarish plot.
-  const w = Math.min(side * 0.75, half * 0.4); // half the nave's width, and the apse's radius
-  const h = w * 0.62; // half the tower's width: clearly narrower than the nave
   const west = -half, towerEnd = -half + 2 * h; // a square tower
   const apseAt = half - w; // where the nave's sides end and the apse begins
   path.moveTo(...at(west, h));

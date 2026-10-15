@@ -25,6 +25,12 @@ export const config = {
     districtGrid: 3, // 3×3 districts of ~1067 m
     // Row-major from the top-left. Downtown centre, industrial in one corner, suburbs around.
     districtLayout: ['suburb', 'suburb', 'industrial', 'suburb', 'downtown', 'suburb', 'suburb', 'suburb', 'suburb'],
+    // Churches are placed after the city is built, never drawn by weight: so many in
+    // each district kind, spread one to a district before any gets a second, never more
+    // than perDistrict in one, at least spacing apart. A church stands on a house or
+    // flavour plot of minArea to maxArea m²; where no plot is that big (the suburbs), on
+    // up to maxMerge neighbouring house plots of one frontage joined into one — guess
+    churches: { count: { downtown: 2, suburb: 4 } as Partial<Record<string, number>>, perDistrict: 3, minArea: 600, maxArea: 2500, maxMerge: 4, spacing: 250 },
     river: {
       width: 40, // m — guess
       bridges: 3, // crossings in total, one of them on the crossing diagonal when there is one
@@ -920,10 +926,10 @@ export const config = {
   },
   flavourSizes: ['small', 'medium'], // footprint classes a flavour tag may occupy
   // Relative odds of each flavour tag (1 if absent), and the least footprint (m²) some
-  // need. Churches drawn uniformly were one flavour building in twenty — 41 on map 1,
-  // most of them house-sized; a church now needs more ground than nine houses in ten.
-  flavourWeights: { church: 16 } as Record<string, number>,
-  flavourMinArea: { church: 400 } as Record<string, number>,
+  // need. Churches are never drawn (map.churches places them): drawn by weight they all
+  // fell downtown, where the big plots are — 13 on map 1, none in the suburbs.
+  flavourWeights: { church: 0 } as Record<string, number>,
+  flavourMinArea: {} as Record<string, number>,
 
   // Each flavour tag behaves exactly like one functional profile but holds nothing useful.
   flavourProfiles: {
