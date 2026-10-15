@@ -8,6 +8,7 @@
 import type { Context } from '../context';
 import { simLeaf, transfer } from '../counters';
 import type { Car, Sim, World } from '../state';
+import { shut } from './cordon';
 
 /** The nearest way off the map from a point, of those not in `skip` (bits), or null. */
 export function nearestExit(world: World, x: number, y: number, skip = 0): number | null {
@@ -61,7 +62,7 @@ export function exitArrivals(world: World, ctx: Context): void {
     if (sim.destinationKind !== 'leave' || sim.insideBuilding !== null || sim.car !== null || sim.destination === null) continue;
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
     const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
-    if (e.closedAt !== null) {
+    if (shut(e)) {
       // The cordon: nobody passes the barrier — but someone round its flank, at the edge, is out.
       if (sim.crossing === null || (e.x - sim.x) * e.dx + (e.y - sim.y) * e.dy > reach) continue;
       ctx.events.push({ type: 'cordonEvaded', tick: world.tick, sim: sim.id, x: sim.x, y: sim.y });

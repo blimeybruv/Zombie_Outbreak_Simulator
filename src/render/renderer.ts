@@ -750,11 +750,14 @@ export class Renderer {
       const grow = Math.min(1, (wallMs - this.barrierSeen[k]!) / BARRIER_DRAW_MS);
       const nx = -e[i + 3]!, ny = e[i + 2]!, bx = e[i + 4]!, by = e[i + 5]!;
       const half = (e[i + 6]! / 2 + BARRIER_KERB_M) * grow; // kerb to kerb, and a little past
+      // Breached, nobody left to hold it: still there, but faded, abandoned.
+      g.globalAlpha = frame.breachedExits & (1 << k) ? 0.3 : 1;
       g.beginPath();
       g.moveTo(bx - nx * half, by - ny * half);
       g.lineTo(bx + nx * half, by + ny * half);
       g.stroke();
     }
+    g.globalAlpha = 1;
   }
 
   /** Squads: a thin line from each follower to its leader, so the unit reads as one. Near zoom. */

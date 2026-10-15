@@ -208,6 +208,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     daylight: daylight(tod, w.config),
     hour: tod * 24,
     closedExits: w.exits.reduce((bits, e, i) => (e.closedAt !== null ? bits | (1 << i) : bits), 0),
+    breachedExits: w.exits.reduce((bits, e, i) => (e.breachedAt !== null ? bits | (1 << i) : bits), 0),
     weekday: (w.config.time.startWeekday + Math.floor(w.scenario.startHour / 24 + w.tick / w.config.time.dayLength)) % 7,
     sinceOutbreak: (w.tick * 86400) / w.config.time.dayLength,
     simXY,

@@ -42,6 +42,8 @@ export interface Exit {
   dy: number;
   /** When the cordon closed it (cordon.ts); null while open. @range tick | null @unit tick @readBy leaving, car processes, snapshot (render) */
   closedAt: Tick | null;
+  /** When nobody was left to hold its closed barrier (cordon.ts): from then people on foot pass it, though vehicles still stop at it; null while held, or open. @range tick | null @unit tick @readBy leaving, snapshot (render) */
+  breachedAt: Tick | null;
 }
 
 /** A street segment: a straight edge between two nodes. Length is derived from them. */

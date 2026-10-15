@@ -179,6 +179,8 @@ export interface FrameSnapshot {
   hour: number;
   /** Exits the cordon has closed, as bits (1 << exit index). */
   closedExits: number;
+  /** Closed exits nobody is left to hold, as bits: their barriers are drawn abandoned. */
+  breachedExits: number;
   /** Day of the week, 0 Monday … 6 Sunday (time.startWeekday, then a day each dayLength ticks past midnight). */
   weekday: number;
   /** Game seconds since the outbreak began (tick 0): the clock's own rate, not wall time. */

@@ -118,6 +118,13 @@ export interface CarAbandonedEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface CordonBreachedEvent extends EventBase, Located {
+  /** Nobody is left to hold a cordon's barrier: people on foot pass it. @range literal @unit — @readBy event consumers */
+  type: 'cordonBreached';
+  /** Always null: the line is about the road. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export interface CordonFiredOnEvent extends EventBase, Located {
   /** Someone getting round a cordon's barrier opened fire on its soldiers (said once a sim). @range literal @unit — @readBy event consumers */
   type: 'cordonFiredOn';
@@ -256,6 +263,7 @@ export type SimEvent =
   | CarAlarmEvent
   | VehicleTakenEvent
   | CordonFiredOnEvent
+  | CordonBreachedEvent
   | PoliceDispatchedEvent
   | SimIsolatingEvent
   | SimDiedEvent

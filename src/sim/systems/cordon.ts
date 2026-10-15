@@ -24,6 +24,11 @@ import { chance } from '../rng';
 import { spawnSim } from '../spawn';
 import type { Exit, Sim, Vec2, World } from '../state';
 
+/** Whether a way out is shut to people on foot: closed by the cordon, and still held. A breached barrier still stops vehicles (cars.ts). */
+export function shut(e: Exit): boolean {
+  return e.closedAt !== null && e.breachedAt === null;
+}
+
 /** The barrier's middle: setback metres in from the edge, across the highway. */
 export function barrierAt(world: World, e: Exit): { x: number; y: number } {
   const s = world.config.cordon.setback;
@@ -58,7 +63,7 @@ export function pastBarrier(world: World, e: Exit, x: number, y: number): number
 export function atClosedExit(world: World, sim: Sim): number | null {
   for (let i = 0; i < world.exits.length; i++) {
     const e = world.exits[i]!;
-    if (e.closedAt === null || sim.knownClosed & (1 << i)) continue;
+    if (!shut(e) || sim.knownClosed & (1 << i)) continue;
     const q = queueAt(world, e);
     if (Math.hypot(q.x - sim.x, q.y - sim.y) <= world.config.cordon.queueRadius) return i;
   }
@@ -102,6 +107,17 @@ export function updateCordon(world: World, ctx: Context): void {
       const fires = chance(world.rng, cc.fireShare); // the unit's, not the soldier's
       for (const s of spawnSquad(world, e.x, e.y, post, cc.ammo)) s.firesOnCrossers = fires;
     }
+  }
+  // A closed barrier nobody is left to hold (no living soldier within breachRadius) is
+  // breached: people on foot walk through, and the street opens to their routes again.
+  // Vehicles still stop at the barrier itself (cars.ts). For good: nobody comes to relieve it.
+  for (const e of exits) {
+    if (e.closedAt === null || e.breachedAt !== null) continue;
+    const b = barrierAt(world, e);
+    if (sims.some((s) => s.outsider && (s.condition === 'healthy' || s.condition === 'infected') && Math.hypot(s.x - b.x, s.y - b.y) <= cc.breachRadius)) continue;
+    e.breachedAt = tick;
+    world.streets[e.street]!.blocked = 0;
+    ctx.events.push({ type: 'cordonBreached', tick, sim: null, x: b.x, y: b.y });
   }
   for (const e of exits) {
     if (e.closedAt !== null) continue;

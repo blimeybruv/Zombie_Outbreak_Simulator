@@ -538,6 +538,8 @@ export const config = {
   // flanks, bitten or not. A car reaching a closed barrier is left there; the cars
   // behind it stop. Soldiers are outsiders: the invariant counts them on top of the
   // population — guesses
+  // breachRadius: a closed barrier with no living soldier within this many metres is
+  // breached, and people on foot pass it (vehicles still stop) — guess
   // returnFor: an armed sim getting round the barrier fires back at the soldiers for this
   // many ticks after they fire on it; fireFirstBelow: one whose trust is below this fires
   // first (the user's third exception to no survivor-on-survivor combat) — guess
@@ -545,7 +547,7 @@ export const config = {
   // `radius` m of its place, a new one every `period` ticks (each soldier out of step,
   // from its id), and between moves turns at most `turn` rad a tick to look somewhere
   // new: a line of soldiers stood stock still read as frozen — guess
-  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, atEase: { radius: 2.5, period: 45, turn: 0.08 } },
+  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, atEase: { radius: 2.5, period: 45, turn: 0.08 } },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

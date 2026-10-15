@@ -6,6 +6,7 @@ import { transfer } from '../src/sim/counters';
 import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/exits';
 import { assertInvariant, step } from '../src/sim/tick';
 import { flank, queueAt, updateCordon } from '../src/sim/systems/cordon';
+import { killSim } from '../src/sim/systems/combat';
 
 describe('leaving the city', () => {
   it('one on foot who reaches a way off the map is out of play, counted as evacuated', () => {
@@ -154,4 +155,30 @@ describe('the cordon', () => {
       else expect(opened).toBe(true);
     }, 60_000);
   }
+
+  it('a barrier nobody is left to hold is breached, and those waiting at it walk out', () => {
+    const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+    world.noticedAt = world.tick;
+    world.tick += config.cordon.delay - 1;
+    step(world, ctx, { checkInvariant: true });
+    for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
+    const e = world.exits[0]!;
+    expect(e.closedAt).not.toBeNull();
+    expect(e.breachedAt).toBeNull();
+    const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian')!;
+    const q = queueAt(world, e);
+    s.x = q.x;
+    s.y = q.y;
+    headForExit(world, s);
+    // The squad there wiped out.
+    for (const x of world.sims) if (x.outsider && Math.hypot(x.x - q.x, x.y - q.y) < config.cordon.breachRadius + 20) killSim(world, ctx, x, 'returned');
+    let breached = false;
+    for (let k = 0; k < 600 && s.condition === 'healthy'; k++) {
+      step(world, ctx, { checkInvariant: true });
+      if (world.events.some((ev) => ev.type === 'cordonBreached')) breached = true;
+    }
+    expect(breached).toBe(true);
+    expect(e.breachedAt).not.toBeNull();
+    expect(s.condition).toBe('evacuated');
+  }, 60_000);
 });

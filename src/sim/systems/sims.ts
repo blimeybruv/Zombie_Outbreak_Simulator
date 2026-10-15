@@ -39,7 +39,7 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from './shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from './squads';
 import { callAmbulance, decideEmt, decidePatient } from './emt';
 import { rideToCall } from './dispatch';
-import { atClosedExit, flank, pastBarrier, queueAt } from './cordon';
+import { atClosedExit, flank, pastBarrier, queueAt, shut } from './cordon';
 import { answersRescue } from './rescue';
 import { headForExit, nearestExit } from './exits';
 
@@ -810,7 +810,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     const e = world.exits[i]!;
     // Closed by the cordon: stop short of the barrier and wait to be let through, until
     // patience gives out — the trusting wait longest — then try another way, or none.
-    if (e.closedAt !== null) {
+    if (shut(e)) {
       // Getting round it: along the kerb to beside the barrier's end, then out (exits.ts).
       if (sim.crossing !== null) {
         const f = flank(world, e, sim.crossing);
