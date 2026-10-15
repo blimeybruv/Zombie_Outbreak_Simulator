@@ -78,33 +78,33 @@ function churchFrame(o: Float32Array, i: number): { cx: number; cy: number; ax: 
 }
 
 /**
- * A church, in plan: a nave whose eastern end rounds into an apse and whose western
- * end carries a square tower — the spire — so one reads at a glance among the boxes.
- * East is the end of the long axis with the larger x, for want of a liturgical east.
+ * A church, in plan, as one continuous outline: a long nave, a square tower narrower
+ * than the nave set flush against its western end, and a semicircular apse at the east
+ * whose radius is half the nave's width, so the curve meets the corners. Parts share
+ * edges and never overlap: an overlapping outline leaves an interior line that reads as
+ * a mistake. The tower carries it — the silhouette still reads as a church a few pixels
+ * across at mid zoom. East is the end of the long axis with the larger x, for want of a
+ * liturgical east.
  */
 function addChurch(path: Path2D, o: Float32Array, i: number): void {
   const { cx, cy, ax, ay, half, side } = churchFrame(o, i);
   const px = -ay, py = ax; // across the nave
   const at = (t: number, u: number): [number, number] => [cx + ax * t + px * u, cy + ay * t + py * u];
   // A nave narrower than the footprint reads as a nave even on a squarish plot.
-  const width = Math.min(side * 0.75, half * 0.45); // half the nave's width, and the apse's radius
-  const tower = Math.min(width * 2.1, half * 0.7); // the tower's side: a little wider than the nave
-  const west = -half + tower * 0.5; // the nave starts inside the tower
-  const apse = width;
-  // Nave and apse.
-  path.moveTo(...at(west, width));
-  path.lineTo(...at(half - apse, width));
-  const [acx, acy] = at(half - apse, 0);
+  const w = Math.min(side * 0.75, half * 0.4); // half the nave's width, and the apse's radius
+  const h = w * 0.62; // half the tower's width: clearly narrower than the nave
+  const west = -half, towerEnd = -half + 2 * h; // a square tower
+  const apseAt = half - w; // where the nave's sides end and the apse begins
+  path.moveTo(...at(west, h));
+  path.lineTo(...at(towerEnd, h));
+  path.lineTo(...at(towerEnd, w));
+  path.lineTo(...at(apseAt, w));
+  const [acx, acy] = at(apseAt, 0);
   const north = Math.atan2(py, px);
-  path.arc(acx, acy, width, north, north - Math.PI, true);
-  path.lineTo(...at(west, -width));
-  path.closePath();
-  // Tower.
-  const t0 = -half, t1 = -half + tower, h = tower / 2;
-  path.moveTo(...at(t0, h));
-  path.lineTo(...at(t1, h));
-  path.lineTo(...at(t1, -h));
-  path.lineTo(...at(t0, -h));
+  path.arc(acx, acy, w, north, north - Math.PI, true);
+  path.lineTo(...at(towerEnd, -w));
+  path.lineTo(...at(towerEnd, -h));
+  path.lineTo(...at(west, -h));
   path.closePath();
 }
 
