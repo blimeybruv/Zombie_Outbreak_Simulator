@@ -304,6 +304,9 @@ export function zombieDecisions(world: World, ctx: Context): void {
         const dx = o.x - z.x;
         const dy = o.y - z.y;
         const d = Math.hypot(dx, dy);
+        // Walking with the dead gives an intact one away, for good: nobody takes it for one
+        // of the living in that company (the user's note: it escaped the shooting the rest got).
+        if (z.intact && !o.intact && d <= zc.intactCompany) z.intact = false;
         cx += dx;
         cy += dy;
         ax += Math.cos(o.heading);

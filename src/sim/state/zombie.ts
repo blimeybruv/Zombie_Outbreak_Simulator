@@ -56,7 +56,8 @@ export interface Zombie {
    * Turned from a single bite: no wounds or torn clothes to give it away, so survivors
    * register it only at a fraction of their sight, though never closer than its gait
    * gives it away (`zombie.intactSight`, `intactGiveaway`). Lost on its first attack,
-   * bite or miss: the first grab is when people notice.
+   * bite or miss: the first grab is when people notice. Lost too walking with the dead,
+   * within `zombie.intactCompany` of an ordinary one.
    * @range true/false @unit — @readBy perception (survivors' sight), combat, render
    */
   intact: boolean;
