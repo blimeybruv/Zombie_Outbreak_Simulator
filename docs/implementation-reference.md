@@ -1394,6 +1394,13 @@ The ending (`systems/rescue.ts`, `config.rescue`; the user's design, after B's o
 - **The status bar shows the infected**, the bitten not yet turned, beside the dead walking, so the viewer can tell whether the infection is truly burned out.
 - **An intact zombie in a horde is not intact** (`zombies.ts`, `zombie.intactCompany` 5 m; the user's note). A group of the dead was shot down and the intact one among them walked away, still passing for living. Now an awake intact zombie within 5 m of an ordinary awake one loses its camouflage for good, as it does on its first attack.
 - **The street origin's zombies start intact** (the user's call): people outdoors turned where they stand pass for living until close, like anyone turned by a single bite.
+- **Swept** after the fixes above, inertia, climbing over cars, churches placed, the rescue line in bounds and cars kept out of each other (mapSeed 1, runSeeds 1–20, 64,800 ticks, commit a3ad199; 1,610 s on 16 cores; seeds 1–8 alone in 376 s, identical per seed). **Both gates pass.**
+  - **Over 20 seeds:** loss in range in 17 of 20, none resolved early; shelters form, fall and re-form in 20 of 20, no stasis; caution 25.7% / 31.6% / 36.8% (z 29.8). Three seeds smoulder (9, 14 and 17 end at 12–14% turned). The other seventeen end at 37–48%.
+  - **Seeds 1–8 against 950dcd3:** turned at the end 37–48% (was 43–46%). Seed 6 ends at 37%, having stalled near 20% for most of the run before the rescue hours. Survival is up about three points throughout: by caution 17.7% / 24.4% / 30.5% (z 23.6; was 14.5% / 22.3% / 27.7%, z 25.7). Split at the broadcast: up to it z 6.5, after it z 30.3.
+  - **By archetype:** civilians 24.6% (was 21.8%), loners 38.0% (34.8%), preppers 21.8% (19.5%), police 16.9% (18.6%), reservists 7.6% (5.3%; rearming keeps them armed), reckless 12.7%. Trust z −9.8 (was −12.9), still the sceptics living; sociality z 0.6 (0.5); nerve z 1.8.
+  - **Kills over the eight runs:** squads 1,210 (was 1,288), police 4,793 (4,713), melee 5,587 (5,249), cordon 1,622 (2,047, fewer with soldiers at ease and barriers breached), SWAT 318, reservists alone 294, civilian guns 1,269, bare hands 1,665.
+  - **The rescue, seeds 1–8:** 612–1,162 answer the broadcast. Of those, 27–196 get out, 157–245 die on the way and 216–325 turn; the trucks take 70–271. Seed 2 gets only 27 out. Seed 11 (of 20) is trucked none, with 809 cars abandoned against about 100–150 elsewhere: worth watching.
+  - No stretch without a named person alive in the city in any run.
 
 ### Car alarms and sirens
 
