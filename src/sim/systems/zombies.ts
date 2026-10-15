@@ -258,6 +258,10 @@ export function zombieDecisions(world: World, ctx: Context): void {
       } else if (d > 0) {
         gx = dx / d;
         gy = dy / d;
+        // Closing on someone: no further than striking distance. A full step from closer
+        // than a step carried it past them, and it turned back the next tick — 68% of
+        // moves within 3 m of a target were reversals, the dead bouncing like a ball.
+        if (z.target !== null) pace = Math.min(pace, Math.max(0, d - config.combat.contactRange * zc.closeIn) / speed);
       }
     }
     if (z.heardPoint === null) {

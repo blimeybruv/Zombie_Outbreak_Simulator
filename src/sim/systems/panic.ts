@@ -18,7 +18,10 @@ export type Mode = 'informed' | 'direct' | 'flight';
 
 export function modeOf(sim: Sim, config: Config): Mode {
   if (config.archetypes[sim.archetype].panicImmune || sim.outsider) return 'informed'; // police, and soldiers from outside
-  if (sim.panic > config.panic.routingCutoff) return 'flight';
+  // A squad does not scatter: its members follow the leader's route and fall back as a
+  // unit, so panic never takes one into flight (where it would stop shooting just as the
+  // dead close in). Its nerve can still go when cornered (breaks, nerve.floor).
+  if (sim.panic > config.panic.routingCutoff) return sim.squadLeader !== null ? 'direct' : 'flight';
   if (sim.panic > config.panic.memoryCutoff) return 'direct';
   return 'informed';
 }

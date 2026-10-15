@@ -14,7 +14,8 @@
 //   beds       loops whose levels follow what is in view: the dead (a moan), cars
 //              being driven (engines), police cars, SWAT vans and ambulances on the
 //              move (a siren), and the city itself (wind always; the hum of a living
-//              city thinning as it empties; crickets after dark).
+//              city thinning as it empties and falling away at night, the wind
+//              rising in its place).
 //
 // The funnel is the work: loudest first, a few per frame, voice caps per category,
 // thinner above 4× and only the loudest at 8×. No per-zombie sounds.
@@ -31,7 +32,7 @@ import type { FrameSnapshot } from '../worker/protocol';
 import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
 type Category = 'gun' | 'melee' | 'voice' | 'alarm';
-type Bed = 'moan' | 'engine' | 'siren' | 'wind' | 'hum' | 'night';
+type Bed = 'moan' | 'engine' | 'siren' | 'wind' | 'hum';
 const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
@@ -238,28 +239,6 @@ function hum(ctx: AudioContext): AudioBuffer {
   return buf;
 }
 
-/** Crickets: short trains of high chirps, a few insects out of step. */
-function crickets(ctx: AudioContext): AudioBuffer {
-  const rate = ctx.sampleRate;
-  const seconds = 4;
-  const buf = ctx.createBuffer(1, rate * seconds, rate);
-  const d = buf.getChannelData(0);
-  for (let k = 0; k < 4; k++) {
-    const f = 4200 + Math.random() * 900;
-    const period = 0.5 + Math.random() * 0.4;
-    const offset = Math.random() * period;
-    const level = 0.03 + Math.random() * 0.03;
-    for (let i = 0; i < d.length; i++) {
-      const t = i / rate;
-      const p = ((t + offset) % period) / period;
-      if (p > 0.18) continue;
-      const pulse = Math.sin(Math.PI * ((p * 3 * 0.18 * 10) % 1)); // three pulses in a chirp
-      d[i]! += Math.sin(2 * Math.PI * f * t) * pulse * level;
-    }
-  }
-  return buf;
-}
-
 /** Engines: a rough low rumble with its harmonics, idling to driving. */
 function engine(ctx: AudioContext): AudioBuffer {
   const rate = ctx.sampleRate;
@@ -347,7 +326,7 @@ export class Audio {
     this.buffers.set('shout', normalise(shout(ctx)));
     this.buffers.set('alarm', normalise(alarm(ctx)));
     // Loops at one peak too: their levels are the bed gains in update().
-    const loops: Record<Bed, AudioBuffer> = { moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), wind: wind(ctx), hum: hum(ctx), night: crickets(ctx) };
+    const loops: Record<Bed, AudioBuffer> = { moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), wind: wind(ctx), hum: hum(ctx) };
     for (const buffer of Object.values(loops)) normalise(buffer, 0.7);
     for (const [name, buffer] of Object.entries(loops) as [Bed, AudioBuffer][]) {
       const src = ctx.createBufferSource();
@@ -416,13 +395,14 @@ export class Audio {
     this.bed('engine', Math.min(0.3, 0.12 * Math.sqrt(engines)) * fast, engines > 0 ? panOf(ex / engines) * 0.7 : 0);
     this.bed('siren', Math.min(0.22, 0.25 * sirenNear) * fast, panOf(sirenX) * 0.8, 0.25);
 
-    // The city: wind always; the hum of the living city, as it empties; crickets after dark.
+    // The city: wind always, a little more as it empties and after dark; the hum of the
+    // living city, thinning as it empties and falling away at night. (Crickets after dark
+    // were tried: high pulsed chirps that read as birdsong, and jarred.)
     const c = frame.counters;
     const population = c.unturned.outdoors + c.unturned.indoors + c.unturned.dead + c.unturned.evacuated + c.turned.symptomatic + c.turned.outdoors + c.turned.occupying + c.turned.destroyed;
     const living = population > 0 ? (c.unturned.outdoors + c.unturned.indoors) / population : 0;
-    this.bed('wind', 0.05 + 0.04 * (1 - living), 0, 1);
+    this.bed('wind', 0.05 + 0.04 * (1 - living) + 0.02 * (1 - frame.daylight), 0, 1);
     this.bed('hum', 0.07 * living * frame.daylight, 0, 1);
-    this.bed('night', 0.5 * (1 - frame.daylight), 0, 1);
 
     // One-shots: heard out to their own reach (how far the dead hear them) or the view,
     // loudest at the listener first, a few per frame.

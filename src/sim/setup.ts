@@ -140,7 +140,8 @@ function turnResident(world: World, ctx: Context, b: Building): void {
  * The initial zombies (`scenario.initialZombies`), placed by `scenario.origin`:
  * enclosed, all in one high-occupancy building (as many as it has residents);
  * scattered, one each in as many buildings, drawn without replacement weighted by
- * residents; street, people outdoors turned where they stand. Falls back to enclosed
+ * residents; street, people outdoors turned where they stand, intact (they pass for living
+ * until close). Falls back to enclosed
  * when nobody is outdoors.
  */
 function seedOutbreak(world: World, ctx: Context): void {
@@ -153,7 +154,10 @@ function seedOutbreak(world: World, ctx: Context): void {
         const s = outdoors.splice(nextInt(rng, 0, outdoors.length - 1), 1)[0]!;
         s.condition = 'turned';
         s.history.endedAt = 0;
-        spawnZombie(world, s.x, s.y, 'active', null, s.id);
+        // Turned where they stand, with nothing yet to give them away: intact, like anyone
+        // who turned from a single bite (the user's call).
+        const z = spawnZombie(world, s.x, s.y, 'active', null, s.id);
+        z.intact = world.config.features.intactZombies;
         transfer(world, 'unturned.outdoors', 'turned.outdoors');
       }
       return;

@@ -40,7 +40,8 @@ export function recognisedWithin(config: Config, r: number, z: Zombie): number {
  * gets much nearer before it registers — and two back to back cover each other.
  */
 export function viewFactor(config: Config, sim: Sim, dx: number, dy: number, d: number): number {
-  if (d === 0) return 1;
+  // A squad keeps all-round watch: each member looks about, so the file is not blind behind.
+  if (d === 0 || sim.squadLeader !== null) return 1;
   const along = (Math.cos(sim.heading) * dx + Math.sin(sim.heading) * dy) / d;
   return along >= config.perception.coneCos ? 1 : config.perception.rear;
 }
