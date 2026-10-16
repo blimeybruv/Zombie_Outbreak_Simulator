@@ -421,8 +421,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
 
   const lerpTo = (p: Pt, q: Pt, d: number) => add(p, scale(unit(sub(q, p)), d));
   // The border: on each side of the map (top, right, bottom, left), an impassable
-  // feature across the margin — water, a railway, a fenced motorway — every kind on
-  // some side, from a stream of its own so the city is the same whatever the border.
+  // feature across the margin — water, a railway, a fenced motorway on two sides — every
+  // kind on some side, from a stream of its own so the city is the same whatever the border.
   const borderRng = createRng(mapSeed ^ BORDER_STREAM);
   const kinds: BorderKind[] = [...BORDER_KINDS];
   for (let i = kinds.length - 1; i > 0; i--) {
@@ -430,7 +430,21 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     [kinds[i], kinds[j]] = [kinds[j]!, kinds[i]!];
   }
   while (kinds.length < 4) kinds.push(BORDER_KINDS[nextInt(borderRng, 0, BORDER_KINDS.length - 1)]!);
-  const border: Border = { margin, sides: kinds.slice(0, 4) };
+  // The motorway runs along two adjacent sides, curving round the corner between them
+  // (drawn so: renderer.ts buildBorder); water and the railway take one side each. It
+  // turns onto the neighbour that drew a kind twice (else a motorway, else the side
+  // before it), and the other two keep what they drew where they can.
+  const m = kinds.indexOf('motorway');
+  const before = (m + 3) % 4, after = (m + 1) % 4;
+  const twice = (i: number) => kinds[i] === 'motorway' || kinds.filter((k) => k === kinds[i]).length > 1;
+  const turn = twice(before) ? before : twice(after) ? after : before;
+  const sides: BorderKind[] = [...kinds.slice(0, 4)];
+  sides[m] = sides[turn] = 'motorway';
+  const [r0, r1] = [0, 1, 2, 3].filter((i) => i !== m && i !== turn) as [number, number];
+  const first: BorderKind = sides[r0] === 'water' || sides[r0] === 'rail' ? sides[r0] : sides[r1] === 'water' ? 'rail' : 'water';
+  sides[r0] = first;
+  sides[r1] = first === 'water' ? 'rail' : 'water';
+  const border: Border = { margin, sides };
   /** The side of the map a point on the ring road faces: 0 top, 1 right, 2 bottom, 3 left. */
   const sideOf = (p: Pt): number => {
     const d = [p.y - lo, hi - p.x, hi - p.y, p.x - lo];

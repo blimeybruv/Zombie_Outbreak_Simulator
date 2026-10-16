@@ -62,8 +62,8 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-/** The border's features, in metres: water band; railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road). */
-const BORDER = { water: 40, gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3 }; // the static city is drawn this share of the view beyond it on every side
+/** The border's features, in metres: water band; railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of the motorway's curve round a corner. */
+const BORDER = { water: 40, gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3, bend: 180 }; // the static city is drawn this share of the view beyond it on every side
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -531,7 +531,8 @@ export class Renderer {
    * The border, built once: along each side of the map, across the middle of the empty
    * margin, the feature on that side — a band of water, a fenced double-track railway
    * (rails, sleepers, a fence either side), or a fenced motorway (a fence either side, a
-   * median barrier) — so the edge reads as a boundary rather than as absence. Where an
+   * median barrier), which runs along two sides and curves round the corner between
+   * them — so the edge reads as a boundary rather than as absence. Where an
    * exit's stub crosses it: a deck over water or motorway, cut through the band like a
    * river bridge; over the railway a level crossing, the fences and sleepers broken for
    * the road and the rails running on across it.
@@ -561,13 +562,17 @@ export class Renderer {
       const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l;
       gaps[side]!.push([t - half, t + half]);
     }
+    // A motorway on two adjacent sides turns the corner on a curve: each side's lines stop
+    // BORDER.bend short of the corner, and a quarter circle joins them.
+    const bent = (side: number, next: number) => sides[side] === 'motorway' && sides[(side + next + 4) % 4] === 'motorway';
     const line = (path: Path2D, side: number, off: number, broken = false) => {
       const [ax, ay, bx, by, nx, ny] = run(side);
       const l = Math.hypot(bx - ax, by - ay);
       const ux = (bx - ax) / l, uy = (by - ay) / l;
       const cuts = broken ? [...gaps[side]!].sort((p, q) => p[0] - q[0]) : [];
-      let from = 0;
-      for (const [g0, g1] of [...cuts, [l, l] as [number, number]]) {
+      let from = bent(side, -1) ? BORDER.bend : 0;
+      const end = l - (bent(side, 1) ? BORDER.bend : 0);
+      for (const [g0, g1] of [...cuts, [end, end] as [number, number]]) {
         if (g0 > from) {
           path.moveTo(ax + ux * from + nx * off, ay + uy * from + ny * off);
           path.lineTo(ax + ux * g0 + nx * off, ay + uy * g0 + ny * off);
@@ -589,6 +594,19 @@ export class Renderer {
         line(b.fences, side, -BORDER.motorway / 2);
         line(b.fences, side, BORDER.motorway / 2);
         line(b.median, side, 0);
+        if (bent(side, 1)) {
+          // The curve into the next side, about a centre inside the corner: a line offset
+          // `off` inward runs at radius bend − off.
+          const [, , px, py, nx, ny] = run(side);
+          const [, , , , mx, my] = run((side + 1) % 4);
+          const qx = px + BORDER.bend * (nx + mx), qy = py + BORDER.bend * (ny + my);
+          const a0 = Math.atan2(-ny, -nx), a1 = Math.atan2(-my, -mx);
+          for (const [path, off] of [[b.fences, -BORDER.motorway / 2], [b.fences, BORDER.motorway / 2], [b.median, 0]] as const) {
+            const r = BORDER.bend - off;
+            path.moveTo(qx + Math.cos(a0) * r, qy + Math.sin(a0) * r);
+            path.arc(qx, qy, r, a0, a1);
+          }
+        }
       }
     });
     // The exits' crossings.
