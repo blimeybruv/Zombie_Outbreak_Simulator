@@ -8,6 +8,7 @@ export const BORDER = 'rgba(150, 160, 175, 0.28)'; // the railway and the motorw
 export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
 export const CONTESTED = [192, 58, 67] as const; // a faint red rim, the dead's colour: the living and the dead both inside
+export const STREET = '#0d0e12'; // every street's surface, always: opaque, so crossings do not add up
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.045)'; // night only
 export const LIVING = '#dfe7ef';
 export const LIVING_RGB = [223, 231, 239] as const;

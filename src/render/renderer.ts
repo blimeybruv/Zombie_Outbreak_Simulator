@@ -212,6 +212,8 @@ export class Renderer {
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
   private readonly litPath: Path2D;
+  /** Every street, by width: its surface, drawn always. */
+  private readonly streetPaths = new Map<number, Path2D>();
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
@@ -267,6 +269,16 @@ export class Renderer {
     }
     this.riverPath = new Path2D();
     map.river.centreline.forEach((p, i) => (i === 0 ? this.riverPath.moveTo(p.x, p.y) : this.riverPath.lineTo(p.x, p.y)));
+    // Every street's surface, at its own width, by day and night alike (a street used to
+    // show only at night, lit, and the city's roads vanished at dawn).
+    for (let i = 0; i < map.streetLit.length; i++) {
+      const s = i * 5;
+      const width = map.streets[s + 4]!;
+      let path = this.streetPaths.get(width);
+      if (!path) this.streetPaths.set(width, (path = new Path2D()));
+      path.moveTo(map.streets[s]!, map.streets[s + 1]!);
+      path.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
+    }
     this.litPath = new Path2D();
     for (let i = 0; i < map.streetLit.length; i++) {
       if (!map.streetLit[i]) continue;
@@ -469,11 +481,18 @@ export class Renderer {
     g.strokeStyle = P.RIVER;
     g.lineWidth = this.map.river.width;
     g.stroke(this.riverPath);
+    // Streets first, opaque so that where two widths meet they do not add up: under the
+    // border (a level crossing's rails run across the road) and the bridge decks.
+    g.strokeStyle = P.STREET;
+    for (const [width, path] of this.streetPaths) {
+      g.lineWidth = width;
+      g.stroke(path);
+    }
     this.drawBorder(g, cam, dpr);
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
-      // Lit streets are a night-time thing; by day they would only be clutter.
+      // Street lighting is a night-time thing, over the surface.
       g.strokeStyle = P.STREET_LIGHT;
       g.lineWidth = 14;
       g.stroke(this.litPath);
