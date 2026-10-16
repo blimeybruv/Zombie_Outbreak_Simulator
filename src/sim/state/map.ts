@@ -9,8 +9,8 @@ import type { BuildingId, DistrictId, Metres, NodeId, StreetId, Tick, Unit01, Ve
 export const TERRAINS = ['standard', 'alley', 'open', 'bridge'] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
-/** What runs along each side of the map, across the margin: scenery that makes the edge read as one, and that the exits cross. */
-export const BORDER_KINDS = ['water', 'rail', 'motorway'] as const;
+/** What runs along each side of the map, across the margin: scenery that makes the edge read as one, and that the exits cross. Each runs along two adjacent sides. */
+export const BORDER_KINDS = ['rail', 'motorway'] as const;
 export type BorderKind = (typeof BORDER_KINDS)[number];
 
 export const DISTRICT_KINDS = ['downtown', 'industrial', 'suburb'] as const;
@@ -128,6 +128,6 @@ export interface River {
 export interface Border {
   /** Width of the empty band inside the map edge; the ring road runs along its inner side. @range 50–400 @unit m @readBy walkability, render */
   margin: Metres;
-  /** The feature across the margin on each side, top, right, bottom, left: scenery, and what an exit's stub crosses. @range 4 of 3 values @unit enum @readBy render */
+  /** The feature across the margin on each side, top, right, bottom, left: scenery, and what an exit's stub crosses. @range 4 of 2 values, each on two adjacent sides @unit enum @readBy render */
   sides: BorderKind[];
 }

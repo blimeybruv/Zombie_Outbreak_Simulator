@@ -13,9 +13,9 @@ export const config = {
   map: {
     size: 3520, // m, square: the city's 3,200 and the border's margin either side
     // The city's edge: an empty band `margin` m wide inside the map edge, with nothing in
-    // it but the exits' stubs; on each side a feature across it (state/map.ts BORDER_KINDS: water,
-    // railway, fenced motorway), scenery that the stubs cross. Impassable everywhere but
-    // on a stub, so the cordon at the exits seals the city — guess
+    // it but the exits' stubs; across it a railway on two adjacent sides and a fenced
+    // motorway on the other two (state/map.ts BORDER_KINDS), scenery that the stubs cross.
+    // Impassable everywhere but on a stub, so the cordon at the exits seals the city — guess
     border: { margin: 160 },
     blockPitch: 80, // m, map default; a district kind's blockPitch overrides it
     streetWidth: { alley: 6, standard: 12, main: 20, highway: 28 }, // m

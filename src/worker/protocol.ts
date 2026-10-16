@@ -26,7 +26,7 @@ export interface MapSnapshot {
   buildingShape: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
   /** The empty margin round the city, and the feature across it on each side (top, right, bottom, left). */
-  border: { margin: number; sides: ('water' | 'rail' | 'motorway')[] };
+  border: { margin: number; sides: ('rail' | 'motorway')[] };
   /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
   lots: Float32Array;
   /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand, and the road's width there (x, y, dx, dy, bx, by, width). */

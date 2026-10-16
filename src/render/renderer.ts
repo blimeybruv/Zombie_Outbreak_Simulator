@@ -62,8 +62,8 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-/** The border's features, in metres: water band; railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of the motorway's curve round a corner. */
-const BORDER = { water: 40, gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3, bend: 180 }; // the static city is drawn this share of the view beyond it on every side
+/** The border's features, in metres: railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of a feature's curve round its own corner; the radius of its turn off the map, and how far short of the corner the turn begins. */
+const BORDER = { gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3, bend: 180, turn: 60, trail: 150 }; // the static city is drawn this share of the view beyond it on every side
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -204,7 +204,7 @@ export class Renderer {
   private readonly outlinePath: Path2D;
   private readonly riverPath: Path2D;
   /** The border across the margin (buildBorder): water, rails and sleepers, motorway fences and median. */
-  private readonly border = { water: new Path2D(), rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D() };
+  private readonly border = { rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D() };
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, filled in background colour
   private readonly bridgeRails: Path2D;
   private readonly bridgeAbutments: Path2D;
@@ -528,14 +528,14 @@ export class Renderer {
   }
 
   /**
-   * The border, built once: along each side of the map, across the middle of the empty
-   * margin, the feature on that side — a band of water, a fenced double-track railway
-   * (rails, sleepers, a fence either side), or a fenced motorway (a fence either side, a
-   * median barrier), which runs along two sides and curves round the corner between
-   * them — so the edge reads as a boundary rather than as absence. Where an
-   * exit's stub crosses it: a deck over water or motorway, cut through the band like a
-   * river bridge; over the railway a level crossing, the fences and sleepers broken for
-   * the road and the rails running on across it.
+   * The border, built once: across the middle of the empty margin, a fenced
+   * double-track railway (rails, sleepers, a fence either side) along two adjacent sides
+   * and a fenced motorway (a fence either side, a median barrier) along the other two,
+   * each curving round its own corner and, where it would meet the other, turning off
+   * the map — so the edge reads as a boundary rather than as absence. Where an exit's
+   * stub crosses it: an overpass over the motorway, a deck cut through it like a river
+   * bridge; over the railway a level crossing, the fences and sleepers broken for the
+   * road and the rails running on across it.
    */
   private buildBorder(map: MapSnapshot): void {
     const { margin, sides } = map.border;
@@ -562,16 +562,19 @@ export class Renderer {
       const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l;
       gaps[side]!.push([t - half, t + half]);
     }
-    // A motorway on two adjacent sides turns the corner on a curve: each side's lines stop
-    // BORDER.bend short of the corner, and a quarter circle joins them.
-    const bent = (side: number, next: number) => sides[side] === 'motorway' && sides[(side + next + 4) % 4] === 'motorway';
+    // Each feature runs along two adjacent sides and turns the corner between them on a
+    // curve: its lines stop BORDER.bend short of the corner, and a quarter circle joins
+    // them. Where it would meet the other feature, it turns outward instead, BORDER.trail
+    // short of the corner, and runs on off the map.
+    const same = (side: number, next: number) => sides[side] === sides[(side + next + 4) % 4];
+    const trim = (side: number, next: number) => (same(side, next) ? BORDER.bend : BORDER.trail);
     const line = (path: Path2D, side: number, off: number, broken = false) => {
       const [ax, ay, bx, by, nx, ny] = run(side);
       const l = Math.hypot(bx - ax, by - ay);
       const ux = (bx - ax) / l, uy = (by - ay) / l;
       const cuts = broken ? [...gaps[side]!].sort((p, q) => p[0] - q[0]) : [];
-      let from = bent(side, -1) ? BORDER.bend : 0;
-      const end = l - (bent(side, 1) ? BORDER.bend : 0);
+      let from = trim(side, -1);
+      const end = l - trim(side, 1);
       for (const [g0, g1] of [...cuts, [end, end] as [number, number]]) {
         if (g0 > from) {
           path.moveTo(ax + ux * from + nx * off, ay + uy * from + ny * off);
@@ -580,32 +583,57 @@ export class Renderer {
         from = Math.max(from, g1);
       }
     };
+    /** Every line of a feature, as [path, offset inward from its middle]. */
+    const parts = (kind: 'rail' | 'motorway'): [Path2D, number][] =>
+      kind === 'rail'
+        ? [
+            ...[-1, 1].flatMap((t) => [-1, 1].map((r): [Path2D, number] => [b.rails, (t * BORDER.trackGap + r * BORDER.gauge) / 2])),
+            [b.sleepers, -BORDER.trackGap / 2],
+            [b.sleepers, BORDER.trackGap / 2],
+            [b.fences, -BORDER.railFence],
+            [b.fences, BORDER.railFence],
+          ]
+        : [
+            [b.fences, -BORDER.motorway / 2],
+            [b.fences, BORDER.motorway / 2],
+            [b.median, 0],
+          ];
     sides.forEach((kind, side) => {
-      if (kind === 'water') line(b.water, side, 0);
-      else if (kind === 'rail') {
-        for (const track of [-BORDER.trackGap / 2, BORDER.trackGap / 2]) {
-          line(b.rails, side, track - BORDER.gauge / 2);
-          line(b.rails, side, track + BORDER.gauge / 2);
-          line(b.sleepers, side, track, true);
+      for (const [path, off] of parts(kind)) line(path, side, off, kind === 'rail' && path !== b.rails);
+      const [ax, ay, bx, by, nx, ny] = run(side);
+      const l = Math.hypot(bx - ax, by - ay);
+      const ux = (bx - ax) / l, uy = (by - ay) / l;
+      if (same(side, 1)) {
+        // Round the corner into the next side, about a centre inside it: a line offset
+        // `off` inward runs at radius bend − off.
+        const [, , , , mx, my] = run((side + 1) % 4);
+        const qx = bx + BORDER.bend * (nx + mx), qy = by + BORDER.bend * (ny + my);
+        const a0 = Math.atan2(-ny, -nx), a1 = Math.atan2(-my, -mx);
+        for (const [path, off] of parts(kind)) {
+          const r = BORDER.bend - off;
+          path.moveTo(qx + Math.cos(a0) * r, qy + Math.sin(a0) * r);
+          path.arc(qx, qy, r, a0, a1);
         }
-        line(b.fences, side, -BORDER.railFence, true);
-        line(b.fences, side, BORDER.railFence, true);
-      } else {
-        line(b.fences, side, -BORDER.motorway / 2);
-        line(b.fences, side, BORDER.motorway / 2);
-        line(b.median, side, 0);
-        if (bent(side, 1)) {
-          // The curve into the next side, about a centre inside the corner: a line offset
-          // `off` inward runs at radius bend − off.
-          const [, , px, py, nx, ny] = run(side);
-          const [, , , , mx, my] = run((side + 1) % 4);
-          const qx = px + BORDER.bend * (nx + mx), qy = py + BORDER.bend * (ny + my);
-          const a0 = Math.atan2(-ny, -nx), a1 = Math.atan2(-my, -mx);
-          for (const [path, off] of [[b.fences, -BORDER.motorway / 2], [b.fences, BORDER.motorway / 2], [b.median, 0]] as const) {
-            const r = BORDER.bend - off;
-            path.moveTo(qx + Math.cos(a0) * r, qy + Math.sin(a0) * r);
-            path.arc(qx, qy, r, a0, a1);
-          }
+      }
+      // Off the map at each end that would meet the other feature: travelling toward the
+      // corner (u), a quarter turn outward (toward −n) about a centre `turn` outside the
+      // middle, then straight on past the edge. A line offset `off` inward turns at turn + off.
+      for (const [atEnd, sx, sy, tx, ty] of [
+        [true, bx, by, ux, uy],
+        [false, ax, ay, -ux, -uy],
+      ] as const) {
+        if (same(side, atEnd ? 1 : -1)) continue;
+        const R = BORDER.turn;
+        const px = sx - tx * BORDER.trail, py = sy - ty * BORDER.trail; // where the turn begins
+        const qx = px - nx * R, qy = py - ny * R;
+        const a0 = Math.atan2(ny, nx), a1 = Math.atan2(ty, tx);
+        const ccw = nx * ty - ny * tx < 0;
+        for (const [path, off] of parts(kind)) {
+          const r = R + off;
+          path.moveTo(qx + Math.cos(a0) * r, qy + Math.sin(a0) * r);
+          path.arc(qx, qy, r, a0, a1, ccw);
+          const ex = qx + tx * r, ey = qy + ty * r;
+          path.lineTo(ex - nx * (c + R + BORDER.overhang * 10), ey - ny * (c + R + BORDER.overhang * 10));
         }
       }
     });
@@ -615,7 +643,7 @@ export class Renderer {
       const mx = x - dx * c, my = y - dy * c; // where the stub crosses the band's middle
       const side = sides[sideAt(x, y)]!;
       if (side === 'rail') continue; // a level crossing: the gaps in the fences and sleepers are all it needs
-      const half = (side === 'water' ? BORDER.water : BORDER.motorway) / 2 + BORDER.overhang;
+      const half = BORDER.motorway / 2 + BORDER.overhang;
       const nx = -dy * (width / 2), ny = dx * (width / 2);
       const corners: [number, number][] = [
         [mx + dx * half + nx, my + dy * half + ny],
@@ -640,9 +668,6 @@ export class Renderer {
     const px = 1 / (cam.scale * dpr);
     const b = this.border;
     g.lineCap = 'butt';
-    g.strokeStyle = P.RIVER;
-    g.lineWidth = BORDER.water;
-    g.stroke(b.water);
     g.strokeStyle = P.BORDER;
     g.lineWidth = px;
     g.stroke(b.rails);
