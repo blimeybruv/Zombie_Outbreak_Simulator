@@ -730,6 +730,7 @@ export function decideCars(world: World, ctx: Context): void {
   const roomOf = new Map<number, number>(); // moving car → metres it can go before touching what is ahead (read by id, never iterated)
   const wantOf = new Map<number, number>(); // moving car → the heading it is turning toward
   const softOf = new Map<number, number>(); // moving car → room it eases off for (less what it is swerving round)
+  const cornerOf = new Map<number, number>(); // moving car → the most it may do now to take the next junction's turn
 
   for (const car of moving) {
     // Where to now: the next junction, offset right of the way there, or the kerb.
@@ -752,8 +753,28 @@ export function decideCars(world: World, ctx: Context): void {
         continue;
       }
       const lane = Math.min(cc.laneOffset, st.width / 4);
-      tx = node.x - uy * lane;
-      ty = node.y + ux * lane;
+      const jx = node.x - uy * lane, jy = node.y + ux * lane; // the junction, in its lane
+      // Keeping to its lane: aim a little way ahead of where it is along the lane, not
+      // straight at the junction. Aiming at the junction, a car thrown wide by a turn, or
+      // joining from a yard or a lot, closed on its lane over a whole street at a shallow
+      // angle — and ran along the walls of alleys and into the buildings beside them.
+      const along = Math.max(0, Math.min(len, (car.x - far.x) * ux + (car.y - far.y) * uy)) + cc.lookahead;
+      if (along >= len) {
+        tx = jx;
+        ty = jy;
+      } else {
+        tx = far.x + ux * along - uy * lane;
+        ty = far.y + uy * along + ux * lane;
+      }
+      // The turn it makes there: slow enough by the junction to take it, and braking in
+      // time for it. Swinging wide round corners at speed, cars drove into the buildings
+      // on them.
+      const next = streets[car.route[car.routeIndex + 1]!]!;
+      const beyond = nodes[next.a === n ? next.b : next.a]!;
+      const nl = Math.hypot(beyond.x - node.x, beyond.y - node.y) || 1;
+      const turnCos = ux * ((beyond.x - node.x) / nl) + uy * ((beyond.y - node.y) / nl);
+      const corner = cc.maxSpeed * Math.max(cc.turnSlow, turnCos);
+      cornerOf.set(car.id, corner + Math.hypot(jx - car.x, jy - car.y) * cc.approach);
       break;
     }
     wantOf.set(car.id, tx !== car.x || ty !== car.y ? Math.atan2(ty - car.y, tx - car.x) : car.heading);
@@ -791,11 +812,20 @@ export function decideCars(world: World, ctx: Context): void {
     // the far side of where they stand, and keeps its speed for it.
     let swerved: (typeof inPath)[number] | null = null;
     const first = inPath[0];
-    if (first && car.speed >= cc.swerveFrom && first.along > cc.length / 2 + cc.personGap) {
+    const street = streets[car.route[Math.min(car.routeIndex, car.route.length - 1)]!];
+    if (first && street && car.speed >= cc.swerveFrom && first.along > cc.length / 2 + cc.personGap) {
+      // Only on the carriageway: within the street, a car's half-width in from its edge.
+      // Aimed only beside them, a swerve could leave the road and run into the buildings.
+      const sa = nodes[street.a]!, sb = nodes[street.b]!;
+      const onRoad = (x: number, y: number) => {
+        const dx = sb.x - sa.x, dy = sb.y - sa.y;
+        const t = Math.max(0, Math.min(1, ((x - sa.x) * dx + (y - sa.y) * dy) / (dx * dx + dy * dy || 1)));
+        return Math.hypot(x - sa.x - dx * t, y - sa.y - dy * t) <= street.width / 2 - cc.width / 2;
+      };
       const side = first.lat >= 0 ? 1 : -1;
       const off = cc.width / 2 + 0.5 + cc.swerveClear;
       const ax = first.x + hs * side * off, ay = first.y - hc * side * off; // beside them, away from their side
-      if (ctx.map.walkable(ax, ay) && ctx.cars.near(ax, ay, cc.length, ctx.ids2).length === 0) {
+      if (onRoad(ax, ay) && onRoad((car.x + ax) / 2, (car.y + ay) / 2) && ctx.cars.near(ax, ay, cc.length, ctx.ids2).length === 0) {
         swerved = first;
         wantOf.set(car.id, Math.atan2(ay - car.y, ax - car.x));
       }
@@ -848,6 +878,7 @@ export function decideCars(world: World, ctx: Context): void {
       target = cc.maxSpeed / (1 + cc.congestion * near);
       if (car.routeIndex >= car.route.length - 1) target = Math.min(target, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
       target *= Math.max(cc.turnSlow, Math.cos(err));
+      target = Math.min(target, cornerOf.get(car.id) ?? Infinity);
       target = Math.min(target, softOf.get(car.id)! * cc.approach); // easing off as it closes on what is ahead
     }
     // Inertia: speed closes on the target, braking harder than it picks up.
@@ -890,18 +921,25 @@ function overlap(p: [number, number][], q: [number, number][]): boolean {
 }
 
 /**
- * What a car would hit moving to (x, y): a building, or another car it is not already
- * touching (so a car can always drive out of an overlap it started in). Not parked
- * cars: pulling in and out of the kerb, a car passes close to them.
+ * What a car would hit moving to (x, y): a building it drives into at speed, or another
+ * car it is not already touching (so a car can always drive out of an overlap it started
+ * in). Not parked cars: pulling in and out of the kerb, a car passes close to them.
  */
 function wouldHit(world: World, ctx: Context, car: Car, x: number, y: number): boolean {
   const cc = world.config.cars;
   const to = cornersAt(world, x, y, car.heading);
-  if (to.some(([px, py]) => ctx.map.buildingAt(px, py) !== null)) return true;
-  if (ctx.map.buildingAt(x + Math.cos(car.heading) * cc.length * 0.5, y + Math.sin(car.heading) * cc.length * 0.5) !== null) return true;
   const from = cornersAt(world, car.x, car.y, car.heading);
+  // A building only at crash speed, by the car's front edge, and not one its front is
+  // already against: pulling in and out of the kerb, a yard bay or a stall, its corner
+  // brushes a plot at walking pace (14,403 such bumps on seed 1 in 4,000 ticks, every
+  // one stopping a car until it was abandoned).
+  if (car.speed >= cc.crashMin) {
+    const front = (q: [number, number][]) => [q[0]!, q[1]!, [(q[0]![0] + q[1]![0]) / 2, (q[0]![1] + q[1]![1]) / 2] as [number, number]];
+    const inside = (q: [number, number][]) => front(q).some(([px, py]) => ctx.map.buildingAt(px, py) !== null);
+    if (inside(to) && !inside(from)) return true;
+  }
   const hits = (o: Car) => {
-    if (o === car || o.state === 'gone' || o.state === 'parked') return false; // parked at the kerb: brushed pulling in and out, never hit (to revisit)
+    if (o === car || o.state === 'gone' || o.state === 'parked') return false; // parked at the kerb: brushed pulling in and out, never hit
     if (Math.hypot(o.x - x, o.y - y) > cc.length + 1) return false;
     const them = cornersAt(world, o.x, o.y, o.heading);
     return overlap(to, them) && !overlap(from, them);

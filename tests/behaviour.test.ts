@@ -18,7 +18,7 @@ import { breaks, updatePanic } from '../src/sim/systems/panic';
 import { reconsider } from '../src/sim/systems/awareness';
 import { believedDanger } from '../src/sim/pathfinding';
 import { convertDue } from '../src/sim/systems/infection';
-import { carProcesses, decideCars } from '../src/sim/systems/cars';
+import { carProcesses, decideCars, moveCars } from '../src/sim/systems/cars';
 import { step } from '../src/sim/tick';
 
 // Pinned to one zombie in one building, with no SWAT, EMTs, yards or exits: these tests set
@@ -566,6 +566,29 @@ describe('cars', () => {
       carProcesses(world, ctx);
     }
     expect(z.state).toBe('destroyed');
+  });
+
+  it('driven into a building at speed, a car is wrecked where it hit, and the crash reported', () => {
+    const { world, ctx, car } = inCar();
+    const cc = baseConfig.cars;
+    // Heading straight at the nearest building's middle, a little short of its wall.
+    const b = world.buildings.reduce((best, x) => (Math.hypot(x.outline[0]!.x - car.x, x.outline[0]!.y - car.y) < Math.hypot(best.outline[0]!.x - car.x, best.outline[0]!.y - car.y) ? x : best));
+    const cx = b.outline.reduce((a, p) => a + p.x / 4, 0), cy = b.outline.reduce((a, p) => a + p.y / 4, 0);
+    const h = Math.atan2(cy - car.y, cx - car.x);
+    let d = 0;
+    while (ctx.map.buildingAt(cx - Math.cos(h) * d, cy - Math.sin(h) * d) !== null) d += 0.5; // to its wall
+    car.x = cx - Math.cos(h) * (d + cc.length / 2 + 2);
+    car.y = cy - Math.sin(h) * (d + cc.length / 2 + 2);
+    car.heading = h;
+    car.speed = cc.maxSpeed;
+    moveCars(world, ctx);
+    expect(car.impact).toBe(cc.maxSpeed); // stopped where it was
+    world.events = [];
+    ctx.events = [];
+    carProcesses(world, ctx);
+    expect(car.state).toBe('abandoned');
+    expect(car.occupants).toHaveLength(0);
+    expect(ctx.events.some((e) => e.type === 'carCrashed' && e.car === car.id)).toBe(true);
   });
 
   it('an armed alarm goes off once, as the car is taken, and frightens nobody', () => {

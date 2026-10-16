@@ -691,7 +691,7 @@ export const config = {
     brake: 0.5,
     stopBelow: 0.2,
     turnRadius: 8,
-    turnMin: 0.08,
+    turnMin: 0.35,
     turnSlow: 0.2,
     approach: 0.35,
     personGap: 2,
@@ -706,9 +706,10 @@ export const config = {
     // (speed / maxSpeed)²; slower, a bump. Parked cars count only at crashMin or more —
     // a car pulling out of a stall brushes its neighbours — guess
     knockBack: [4, 7] as [number, number],
+    lookahead: 12, // m: a car steers for a point this far ahead along its lane
     swerveFrom: 1.5,
     swerveClear: 1,
-    crashMin: 3,
+    crashMin: 6,
     crashKill: 0.5,
     congestion: 0.3,
     congestionRadius: 15, // m
