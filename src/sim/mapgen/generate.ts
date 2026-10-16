@@ -25,6 +25,9 @@ import {
   type District,
   type Exit,
   type Lot,
+  BORDER_KINDS,
+  type Border,
+  type BorderKind,
   type DistrictId,
   type DistrictKind,
   type FunctionalTag,
@@ -66,6 +69,7 @@ export interface GeneratedMap {
   river: River;
   lots: Lot[];
   exits: Exit[];
+  border: Border;
 }
 
 type LineKind = 'highway' | 'main' | 'standard' | 'alley';
@@ -73,6 +77,8 @@ type LineKind = 'highway' | 'main' | 'standard' | 'alley';
 interface Line {
   a: Pt;
   b: Pt;
+  /** An exit's stub across the margin: the border feature it crosses; null for every street of the city. */
+  crosses?: BorderKind;
   kind: LineKind;
   bridge: boolean;
   name: string;
@@ -213,6 +219,8 @@ function offAxis(h: number): number {
 const NAME_STREAM = 0x4e414d45;
 /** Mixed into the map seed for church placement, for the same reason. */
 const CHURCH_STREAM = 0x43485243;
+/** Mixed into the map seed for the border's features, for the same reason. */
+const BORDER_STREAM = 0x42524452;
 
 export function generateMap(config: Config, mapSeed: number, power: boolean): GeneratedMap {
   const rng = createRng(mapSeed);
@@ -223,7 +231,11 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   const mc = config.map;
   const size = mc.size;
   const n = mc.districtGrid;
-  const cell = size / n;
+  // The city stands inside an empty margin: the districts tile the inner square, the
+  // ring road runs round its edge, and only the exits' stubs cross the margin.
+  const margin = mc.border.margin;
+  const lo = margin, hi = size - margin;
+  const cell = (hi - lo) / n;
   const widths = mc.streetWidth;
 
   // 1. Districts.
@@ -236,7 +248,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
         id: id as DistrictId,
         name: districtNames.splice(nextInt(nameRng, 0, districtNames.length - 1), 1)[0]!,
         kind: mc.districtLayout[id] as DistrictKind,
-        bounds: { x: c * cell, y: r * cell, w: cell, h: cell },
+        bounds: { x: lo + c * cell, y: lo + r * cell, w: cell, h: cell },
         released: false,
         releaseAt: 0,
         evacuatedAt: null,
@@ -244,8 +256,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     }
   }
   const districtAt = (p: Pt): number => {
-    const c = Math.min(n - 1, Math.max(0, Math.floor(p.x / cell)));
-    const r = Math.min(n - 1, Math.max(0, Math.floor(p.y / cell)));
+    const c = Math.min(n - 1, Math.max(0, Math.floor((p.x - lo) / cell)));
+    const r = Math.min(n - 1, Math.max(0, Math.floor((p.y - lo) / cell)));
     return r * n + c;
   };
   const kindOf = (d: number) => config.districtKinds[districts[d]!.kind];
@@ -287,12 +299,13 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   const addLine = (a: Pt, b: Pt, kind: LineKind, district: number) =>
     lines.push({ a, b, kind, bridge: false, name: '', lit: false, district });
 
-  // Boundaries and map edge: straight, continuous, axis-aligned. The rotated grids meet them at angles.
+  // District boundaries and the ring road round the city: straight, continuous,
+  // axis-aligned, all within the margin. The rotated grids meet them at angles.
   for (let k = 0; k <= n; k++) {
-    const pos = k * cell;
+    const pos = lo + k * cell;
     const kind: LineKind = k === 0 || k === n ? 'standard' : 'main';
-    addLine({ x: pos, y: 0 }, { x: pos, y: size }, kind, districtAt({ x: pos, y: size / 2 }));
-    addLine({ x: 0, y: pos }, { x: size, y: pos }, kind, districtAt({ x: size / 2, y: pos }));
+    addLine({ x: pos, y: lo }, { x: pos, y: hi }, kind, districtAt({ x: pos, y: size / 2 }));
+    addLine({ x: lo, y: pos }, { x: hi, y: pos }, kind, districtAt({ x: size / 2, y: pos }));
   }
 
   // District grids, rotated against the map, with mid-block alleys.
@@ -407,10 +420,29 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   }
 
   const lerpTo = (p: Pt, q: Pt, d: number) => add(p, scale(unit(sub(q, p)), d));
-  // Ways off the map: of the district-boundary arterials' ends on the map edge, the
-  // first at random, each next the farthest from those chosen. Each chosen line becomes
-  // a highway, bridged where it crosses the river.
+  // The border: on each side of the map (top, right, bottom, left), an impassable
+  // feature across the margin — water, a railway, a fenced motorway — every kind on
+  // some side, from a stream of its own so the city is the same whatever the border.
+  const borderRng = createRng(mapSeed ^ BORDER_STREAM);
+  const kinds: BorderKind[] = [...BORDER_KINDS];
+  for (let i = kinds.length - 1; i > 0; i--) {
+    const j = nextInt(borderRng, 0, i);
+    [kinds[i], kinds[j]] = [kinds[j]!, kinds[i]!];
+  }
+  while (kinds.length < 4) kinds.push(BORDER_KINDS[nextInt(borderRng, 0, BORDER_KINDS.length - 1)]!);
+  const border: Border = { margin, sides: kinds.slice(0, 4) };
+  /** The side of the map a point on the ring road faces: 0 top, 1 right, 2 bottom, 3 left. */
+  const sideOf = (p: Pt): number => {
+    const d = [p.y - lo, hi - p.x, hi - p.y, p.x - lo];
+    return d.indexOf(Math.min(...d));
+  };
+  // Ways off the map: of the district-boundary arterials' ends on the ring road, the
+  // first at random, each next the farthest from those chosen. Each chosen arterial
+  // becomes a highway across the city, and a stub of highway carries it on across the
+  // margin to the map edge — the only streets that cross it — over (or, for a railway,
+  // under) the border feature on that side.
   const exitEnds: { line: number; at: Pt; inward: Pt }[] = [];
+  const stubOf: [number, number][] = []; // [stub line, the arterial it carries on]
   if (config.features.exits) {
     // Drawn from a copy of the stream, so the rest of the city is the same with exits or
     // without: switching them off then removes the highways and nothing else.
@@ -418,8 +450,9 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     const ends: { line: number; at: Pt; inward: Pt }[] = [];
     lines.forEach((l, i) => {
       if (l.kind !== 'main' || i >= 2 * (n + 1)) return; // the boundary lines come first, two per k
-      // On the edge, and dry: where the river meets the edge, the street is cut out of it.
-      const onEdge = (p: Pt) => (p.x <= 0 || p.y <= 0 || p.x >= size || p.y >= size) && !wet(p) && !wet(lerpTo(p, l.a === p ? l.b : l.a, 40));
+      // On the ring road, and dry: where the river meets it, the street is cut out of it.
+      const ring = (p: Pt) => p.x <= lo + 0.5 || p.y <= lo + 0.5 || p.x >= hi - 0.5 || p.y >= hi - 0.5;
+      const onEdge = (p: Pt) => ring(p) && !wet(p) && !wet(lerpTo(p, l.a === p ? l.b : l.a, 40)) && !wet(lerpTo(p, l.a === p ? l.b : l.a, -margin));
       if (onEdge(l.a)) ends.push({ line: i, at: l.a, inward: unit(sub(l.b, l.a)) });
       if (onEdge(l.b)) ends.push({ line: i, at: l.b, inward: unit(sub(l.a, l.b)) });
     });
@@ -437,6 +470,13 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       const l = lines[e.line]!;
       l.kind = 'highway';
       if (crossesRiver(l.a, l.b)) l.bridge = true;
+      // The stub, from the ring road out to the map edge; the exit is its outer end.
+      const out = add(e.at, scale(e.inward, -margin));
+      const crosses = border.sides[sideOf(e.at)]!;
+      lines.push({ a: e.at, b: out, kind: crosses === 'rail' ? 'main' : 'highway', bridge: false, name: '', lit: false, district: l.district, crosses });
+      stubOf.push([lines.length - 1, e.line]);
+      e.line = lines.length - 1;
+      e.at = out;
     }
   }
 
@@ -477,6 +517,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     line.name = name;
     line.lit = power && (line.kind === 'main' || line.kind === 'highway' || chance(rng, kindOf(line.district).lightingCoverage));
   }
+  for (const [stub, arterial] of stubOf) lines[stub]!.name = lines[arterial]!.name; // the same road, on out
 
   // 5. Cut lines out of the river (bridges excepted), then planarise everything.
   const segs: Seg[] = [];
@@ -566,7 +607,9 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     const a = graph.nodes[e.a]!, b = graph.nodes[e.b]!;
     const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const spansWater = crossesRiver(a, b) || wet(a) || wet(b) || wet(mid);
-    const terrain: Terrain = l.bridge && spansWater ? 'bridge' : l.kind === 'alley' ? 'alley' : 'standard';
+    // An exit's stub crosses its border feature on a bridge (an overpass, over the
+    // motorway), or under the railway in a narrower underpass.
+    const terrain: Terrain = (l.bridge && spansWater) || (l.crosses !== undefined && l.crosses !== 'rail') ? 'bridge' : l.kind === 'alley' ? 'alley' : 'standard';
     return {
       id: id as StreetId,
       name: l.name,
@@ -796,7 +839,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     exits.push({ node: node as NodeId, street: street as StreetId, x: nodes[node]!.x, y: nodes[node]!.y, dx, dy, closedAt: null, breachedAt: null });
   }
 
-  return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots, exits };
+  return { nodes, streets, buildings, districts, river: { centreline, width: rc.width }, lots, exits, border };
 }
 
 interface MallLayout {

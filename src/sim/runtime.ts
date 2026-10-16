@@ -28,6 +28,10 @@ export class MapIndex {
   readonly bridges: { ax: number; ay: number; bx: number; by: number; half: number }[] = [];
   /** Outward unit normal of each building's entrances, parallel to `building.entrances`. */
   readonly entranceNormals: Vec2[][];
+  /** Where the city's edge runs: inside this distance of the map edge is the margin. */
+  private readonly cityLo: number;
+  /** The exits' stubs across the margin: the only walkable ground in it. */
+  private readonly stubs: { ax: number; ay: number; bx: number; by: number; half: number }[] = [];
   private readonly riverLine: readonly Vec2[];
   private readonly riverHalf: number;
   private readonly riverMinY: number;
@@ -43,6 +47,13 @@ export class MapIndex {
   constructor(private readonly world: World) {
     const size = world.config.map.size;
     this.size = size;
+    // The city's edge: the ring road's outer kerb, inside the margin.
+    this.cityLo = world.border.margin - world.config.map.streetWidth.standard / 2;
+    for (const e of world.exits) {
+      const st = world.streets[e.street]!;
+      const a = world.nodes[st.a]!, b = world.nodes[st.b]!;
+      this.stubs.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, half: st.width / 2 });
+    }
     const { nodes, streets, buildings } = world;
 
     this.adjacency = nodes.map(() => []);
@@ -256,12 +267,27 @@ export class MapIndex {
     return clear;
   }
 
-  /** Whether a point is walkable: on the map, outside every building, and dry or on a bridge. */
+  /**
+   * Whether a point is walkable: within the city's edge or on an exit's stub across the
+   * margin, outside every building, and dry or on a bridge. The margin is impassable
+   * everywhere else, to steering as to routes: someone in flight, who steers and never
+   * consults the street graph, cannot walk round the cordon or off the map.
+   */
   walkable(x: number, y: number): boolean {
-    // The perimeter street's surface runs half a main-street width past the map edge.
-    const edge = this.world.config.map.streetWidth.main / 2;
-    if (x < -edge || y < -edge || x > this.size + edge || y > this.size + edge) return false;
+    if (!this.inCity(x, y)) return false;
     if (this.inWater(x, y)) return false;
     return this.buildingAt(x, y) === null;
+  }
+
+  /** Inside the ring road's outer kerb, or on an exit's stub. */
+  inCity(x: number, y: number): boolean {
+    const lo = this.cityLo, hi = this.size - this.cityLo;
+    if (x >= lo && y >= lo && x <= hi && y <= hi) return true;
+    for (const st of this.stubs) {
+      const dx = st.bx - st.ax, dy = st.by - st.ay;
+      const t = Math.max(0, Math.min(1, ((x - st.ax) * dx + (y - st.ay) * dy) / (dx * dx + dy * dy || 1)));
+      if (distSq(x, y, st.ax + dx * t, st.ay + dy * t) <= st.half * st.half) return true;
+    }
+    return false;
   }
 }

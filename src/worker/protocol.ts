@@ -14,7 +14,7 @@ export interface MapSnapshot {
   streets: Float32Array;
   /** Per street: 1 if lit. */
   streetLit: Uint8Array;
-  /** Per street: 1 if it is a bridge deck over the river. */
+  /** Per street: 1 if it is a bridge deck over the river (an exit's crossing of the border is drawn with the border). */
   streetBridge: Uint8Array;
   /** Per building: the four outline corners, x0 y0 x1 y1 x2 y2 x3 y3. */
   outlines: Float32Array;
@@ -25,6 +25,8 @@ export interface MapSnapshot {
   /** Per building: how its outline is drawn — SHAPE_BOX, or a church in plan, a hospital's L or a school's U (renderer.ts). */
   buildingShape: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
+  /** The empty margin round the city, and the feature across it on each side (top, right, bottom, left). */
+  border: { margin: number; sides: ('water' | 'rail' | 'motorway')[] };
   /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
   lots: Float32Array;
   /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand, and the road's width there (x, y, dx, dy, bx, by, width). */

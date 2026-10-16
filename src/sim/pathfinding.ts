@@ -121,13 +121,18 @@ export class Pathfinder {
    * Street ids from the street nearest `from` to the street nearest `to`, with
    * consecutive duplicates removed. Waypoints are the nodes shared by consecutive
    * streets; the last leg heads straight for the destination. Null if unreachable.
+   * With `back`, it starts on the street `avoid`, leaves it by `node` and never uses it
+   * again: a car turning back from a blocked street (cars.ts reroute).
    */
-  route(sim: Sim, toX: number, toY: number, useMemory: boolean): StreetId[] | null {
+  route(sim: Sim, toX: number, toY: number, useMemory: boolean, back?: { node: NodeId; avoid: StreetId }): StreetId[] | null {
     const { world, map } = this;
     const search = world.config.behaviour.pathStreetSearch;
-    const startStreet = map.nearestStreet(sim.x, sim.y, search);
+    const startStreet = back ? back.avoid : map.nearestStreet(sim.x, sim.y, search);
     const goalStreet = map.nearestStreet(toX, toY, search);
     if (startStreet === null || goalStreet === null) return null;
+    // Turning back: out by `node`, and never along `avoid` again — so no way at all
+    // when the goal lies on the street it is turning back from.
+    if (back && goalStreet === back.avoid) return null;
     if (startStreet === goalStreet) return [startStreet];
 
     const nodes = world.nodes;
@@ -145,7 +150,7 @@ export class Pathfinder {
       this.prev[node] = prev;
       heap.push(cost + h(node), node);
     };
-    for (const end of [ss.a, ss.b]) {
+    for (const end of back ? [back.node] : [ss.a, ss.b]) {
       const n = nodes[end]!;
       open(end, Math.hypot(n.x - sim.x, n.y - sim.y), startStreet, -1);
     }
@@ -162,7 +167,7 @@ export class Pathfinder {
       const base = this.g[node]!;
       for (const adj of map.adjacency[node]!) {
         if (this.closed[adj.node] === stamp) continue;
-        const c = this.streetCost(sim, adj.street, useMemory);
+        const c = back && adj.street === back.avoid ? Infinity : this.streetCost(sim, adj.street, useMemory);
         if (c === Infinity) continue;
         open(adj.node, base + c, adj.street, node);
       }

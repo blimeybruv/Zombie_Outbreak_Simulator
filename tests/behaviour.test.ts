@@ -689,8 +689,12 @@ describe('release', () => {
     const { world, ctx } = fresh();
     const quiet = (b: World['buildings'][number]) => b.zombiesInside === 0 && b.sheltered.length === 0 && b.alertedAt === null;
     const office = world.buildings.find((b) => b.tag === 'office' && quiet(b) && b.residents >= 2)!;
-    const [house, other] = world.buildings.filter((b) => b.tag === 'residential' && quiet(b)); // at 09:00 a house holds one at most
+    // At 09:00 a house holds one at most. Doors well apart, so whoever comes out of one is not counted for another.
+    const apart = (a: World['buildings'][number], b: World['buildings'][number]) => Math.hypot(a.entrances[0]!.x - b.entrances[0]!.x, a.entrances[0]!.y - b.entrances[0]!.y) > 20;
+    const house = world.buildings.find((b) => b.tag === 'residential' && quiet(b) && apart(b, office))!;
+    const other = world.buildings.find((b) => b.tag === 'residential' && quiet(b) && apart(b, office) && apart(b, house))!;
     house!.residents = other!.residents = 3;
+    house!.materials = other!.materials = 20; // stocked: nobody steps out to scavenge
     office.alertedAt = house!.alertedAt = 0;
     for (const b of [office, house!, other!]) b.pendingRelease = 2;
     const before = world.sims.length;

@@ -11,7 +11,12 @@
 
 export const config = {
   map: {
-    size: 3200, // m, square
+    size: 3520, // m, square: the city's 3,200 and the border's margin either side
+    // The city's edge: an empty band `margin` m wide inside the map edge, with nothing in
+    // it but the exits' stubs; on each side a feature across it (state/map.ts BORDER_KINDS: water,
+    // railway, fenced motorway), scenery that the stubs cross. Impassable everywhere but
+    // on a stub, so the cordon at the exits seals the city — guess
+    border: { margin: 160 },
     blockPitch: 80, // m, map default; a district kind's blockPitch overrides it
     streetWidth: { alley: 6, standard: 12, main: 20, highway: 28 }, // m
     // Ways off the map: `count` of the district-boundary arterials (which already run
@@ -220,7 +225,7 @@ export const config = {
     } as Record<string, number>,
     // Anyone who is police is a cop by profession, whatever building they came from.
     policeProfessions: ['patrolOfficer', 'detective'],
-    originMinResidents: 30, // people; patient zero's building in `enclosed`, else the fullest eligible one
+    originMinResidents: 25, // people; patient zero's building in `enclosed`, else the fullest eligible one (30 until the city was inset in its border, when map 1's fullest at 19:00 held 27)
     originNeighbourhoodRadius: 300, // m; origins are weighted by the people living this close — guess
   },
 
@@ -688,6 +693,10 @@ export const config = {
     clearance: 0.5, // m kept bumper to bumper: a car never moves closer than this to one ahead
     waypointRadius: 4, // m; a junction counts as passed within this
     jamTicks: 180,
+    // A car stopped rerouteAfter ticks turns back to the junction behind it and takes
+    // another way, at most maxReroutes times; then jamTicks stopped and it is abandoned — guess
+    rerouteAfter: 60,
+    maxReroutes: 2,
     // Engines: a car being driven (moving or stuck) makes a noise every engineInterval
     // ticks, staggered by id, heard by the dead to engineNoise metres at
     // engineIntensity — a street of cars is a dinner bell. People ignore it.

@@ -105,7 +105,7 @@ function mapSnapshot(w: World): MapSnapshot {
     const a = w.nodes[s.a]!, b = w.nodes[s.b]!;
     streets.set([a.x, a.y, b.x, b.y, s.width], i * 5);
     streetLit[i] = s.lit ? 1 : 0;
-    streetBridge[i] = s.terrain === 'bridge' ? 1 : 0;
+    streetBridge[i] = s.terrain === 'bridge' && !w.exits.some((e) => e.street === s.id) ? 1 : 0;
   });
   const outlines = new Float32Array(w.buildings.length * 8);
   w.buildings.forEach((b, i) => b.outline.forEach((p, j) => outlines.set([p.x, p.y], i * 8 + j * 2)));
@@ -144,6 +144,7 @@ function mapSnapshot(w: World): MapSnapshot {
     origins,
     doors: new Float32Array(doors),
     river: { centreline: w.river.centreline.map((p) => ({ x: p.x, y: p.y })), width: w.river.width },
+    border: { margin: w.border.margin, sides: [...w.border.sides] },
     exits: new Float32Array(w.exits.flatMap((e) => { const b = barrierAt(w, e); return [e.x, e.y, e.dx, e.dy, b.x, b.y, w.streets[e.street]!.width]; })),
     lots: new Float32Array(w.lots.flatMap((l) => [...l.outline.flatMap((p) => [p.x, p.y]), l.parkingDepth, l.entry])),
     districts: w.districts.map((d) => ({ name: d.name, ...d.bounds })),

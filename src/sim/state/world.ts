@@ -12,7 +12,7 @@ import type { Building } from './building';
 import type { Car } from './car';
 import type { Counters } from './counters';
 import type { SimEvent } from './events';
-import type { District, Exit, Lot, River, Street, StreetNode } from './map';
+import type { Border, District, Exit, Lot, River, Street, StreetNode } from './map';
 import type { Archetype, Sim, Weapon } from './sim';
 import type { Stimulus } from './stimulus';
 import type { CarId, Count, Metres, SimId, Tick, Unit01 } from './units';
@@ -99,6 +99,8 @@ export interface World {
   districts: District[];
   /** The river; bridges are streets with terrain `bridge`. @range one polygon @unit — @readBy steering, render */
   river: River;
+  /** The empty margin round the city and the feature on each side. @range one per map @unit — @readBy walkability, render */
+  border: Border;
   /** A mall's grounds; empty when the map has no mall. @range 0–1 lots @unit — @readBy render */
   lots: Lot[];
   /** Ways off the map (map generation). @range 0–exits.count @unit — @readBy render, leaving (exits.ts), evacuation */

@@ -200,6 +200,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     nodes: map.nodes,
     districts: map.districts,
     river: map.river,
+    border: map.border,
     lots: map.lots,
     exits: map.exits,
     escapedInfected: 0,

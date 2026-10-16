@@ -56,6 +56,8 @@ export interface Car {
   routeIndex: number;
   /** Since when it has been stopped with something in front of it; null while moving. @range tick | null @unit tick @readBy abandonment */
   blockedSince: Tick | null;
+  /** Times it has turned back from a blocked street and taken another way; capped, so a car boxed in is still abandoned in the end. @range 0–cars.maxReroutes @unit count @readBy car processes (rerouting) */
+  reroutes: number;
   /**
    * Its alarm is armed: it sounds the first time the car is taken, or the dead tear at
    * it with people inside, and is spent. Drawn at setup for ordinary cars only.

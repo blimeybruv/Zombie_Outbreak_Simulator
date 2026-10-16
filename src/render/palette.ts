@@ -4,6 +4,7 @@
 export const BACKGROUND = '#06070a';
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
 export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
+export const BORDER = 'rgba(150, 160, 175, 0.28)'; // the railway and the motorway's fences across the margin
 export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
 export const CONTESTED = [192, 58, 67] as const; // a faint red rim, the dead's colour: the living and the dead both inside

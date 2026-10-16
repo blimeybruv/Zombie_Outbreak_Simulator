@@ -61,7 +61,9 @@ const CAR_L = 4.5; // m
 const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
-const STATIC_MARGIN = 0.25; // the static city is drawn this share of the view beyond it on every side
+const STATIC_MARGIN = 0.25;
+/** The border's features, in metres: water band; railway gauge, between tracks, sleeper pitch; motorway between fences; a deck's overhang past what it crosses. */
+const BORDER = { water: 40, gauge: 1.5, trackGap: 4.5, sleeperGap: 2, motorway: 32, overhang: 3 }; // the static city is drawn this share of the view beyond it on every side
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -201,6 +203,8 @@ export class Renderer {
   private staticY = 0;
   private readonly outlinePath: Path2D;
   private readonly riverPath: Path2D;
+  /** The border across the margin (buildBorder): water, rails and sleepers, motorway fences and median. */
+  private readonly border = { water: new Path2D(), rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D() };
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, filled in background colour
   private readonly bridgeRails: Path2D;
   private readonly bridgeAbutments: Path2D;
@@ -330,6 +334,7 @@ export class Renderer {
         this.bridgeAbutments.lineTo(b[0] + (dx / l) * over, b[1] + (dy / l) * over);
       }
     }
+    this.buildBorder(map);
     // Doors: a step DOOR_W wide standing DOOR_D proud of the wall, so it shows where
     // people go in and out — a dot reaching a door otherwise simply vanishes.
     this.doorPath = new Path2D();
@@ -462,6 +467,7 @@ export class Renderer {
     g.strokeStyle = P.RIVER;
     g.lineWidth = this.map.river.width;
     g.stroke(this.riverPath);
+    this.drawBorder(g, cam, dpr);
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
@@ -519,6 +525,105 @@ export class Renderer {
     at.resize(c.width / dpr, c.height / dpr);
     at.apply(g, dpr);
     this.drawCars(g, frame, at, dpr, false);
+  }
+
+  /**
+   * The border, built once: along each side of the map, across the middle of the empty
+   * margin, the feature on that side — a band of water, a double-track railway (rails
+   * and sleepers), or a fenced motorway (a fence either side, a median barrier) — so the
+   * edge reads as a boundary rather than as absence. Where an exit's stub crosses it: a
+   * deck over water or motorway, cut through the band like a river bridge, or portals
+   * either side of the railway, the road passing under it.
+   */
+  private buildBorder(map: MapSnapshot): void {
+    const { margin, sides } = map.border;
+    const size = map.size;
+    const c = margin / 2;
+    const b = this.border;
+    // Each side's band, corner to corner of the inner margin: start, end, and the offset direction across it.
+    const run = (side: number): [number, number, number, number, number, number] =>
+      [
+        [c, c, size - c, c, 0, 1],
+        [size - c, c, size - c, size - c, -1, 0],
+        [size - c, size - c, c, size - c, 0, -1],
+        [c, size - c, c, c, 1, 0],
+      ][side] as [number, number, number, number, number, number];
+    const line = (path: Path2D, side: number, off: number) => {
+      const [ax, ay, bx, by, nx, ny] = run(side);
+      path.moveTo(ax + nx * off, ay + ny * off);
+      path.lineTo(bx + nx * off, by + ny * off);
+    };
+    sides.forEach((kind, side) => {
+      if (kind === 'water') line(b.water, side, 0);
+      else if (kind === 'rail') {
+        for (const track of [-BORDER.trackGap / 2, BORDER.trackGap / 2]) {
+          line(b.rails, side, track - BORDER.gauge / 2);
+          line(b.rails, side, track + BORDER.gauge / 2);
+          line(b.sleepers, side, track);
+        }
+      } else {
+        line(b.fences, side, -BORDER.motorway / 2);
+        line(b.fences, side, BORDER.motorway / 2);
+        line(b.median, side, 0);
+      }
+    });
+    // The exits' crossings.
+    const e = map.exits;
+    for (let i = 0; i < e.length; i += EXIT_STRIDE) {
+      const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!, width = e[i + 6]!;
+      const mx = x - dx * c, my = y - dy * c; // where the stub crosses the band's middle
+      const side = sides[[y < c * 2 ? 0 : -1, x > size - c * 2 ? 1 : -1, y > size - c * 2 ? 2 : -1, x < c * 2 ? 3 : -1].find((k) => k >= 0) ?? 0]!;
+      const half = (side === 'water' ? BORDER.water : side === 'rail' ? BORDER.trackGap + BORDER.gauge : BORDER.motorway) / 2 + BORDER.overhang;
+      const nx = -dy * (width / 2), ny = dx * (width / 2);
+      const corners: [number, number][] = [
+        [mx + dx * half + nx, my + dy * half + ny],
+        [mx - dx * half + nx, my - dy * half + ny],
+        [mx - dx * half - nx, my - dy * half - ny],
+        [mx + dx * half - nx, my + dy * half - ny],
+      ];
+      if (side === 'rail') {
+        // Under the railway: a portal across the road either side of the tracks.
+        for (const [p, q] of [[corners[0]!, corners[3]!], [corners[1]!, corners[2]!]] as const) {
+          this.bridgeAbutments.moveTo(...p);
+          this.bridgeAbutments.lineTo(...q);
+        }
+        continue;
+      }
+      let deck = this.bridgeDecks.get(width);
+      if (!deck) this.bridgeDecks.set(width, (deck = new Path2D()));
+      deck.moveTo(...corners[0]!);
+      for (const k of corners.slice(1)) deck.lineTo(...k);
+      deck.closePath();
+      this.bridgeRails.moveTo(...corners[0]!);
+      this.bridgeRails.lineTo(...corners[1]!);
+      this.bridgeRails.moveTo(...corners[3]!);
+      this.bridgeRails.lineTo(...corners[2]!);
+    }
+  }
+
+  /** The border's features, into the static layer under the bridge decks. */
+  private drawBorder(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
+    const px = 1 / (cam.scale * dpr);
+    const b = this.border;
+    g.lineCap = 'butt';
+    g.strokeStyle = P.RIVER;
+    g.lineWidth = BORDER.water;
+    g.stroke(b.water);
+    g.strokeStyle = P.BORDER;
+    g.lineWidth = px;
+    g.stroke(b.rails);
+    g.setLineDash([BORDER.sleeperGap * 0.35, BORDER.sleeperGap * 0.65]);
+    g.lineWidth = BORDER.gauge + 1;
+    g.globalAlpha = 0.5;
+    g.stroke(b.sleepers);
+    g.globalAlpha = 1;
+    g.lineWidth = px;
+    g.setLineDash([4, 2.5]);
+    g.stroke(b.fences);
+    g.setLineDash([]);
+    g.lineWidth = Math.max(px, 1);
+    g.stroke(b.median);
+    g.lineCap = 'round';
   }
 
   /** A building's outline, as drawn: a church in plan, a hospital's L or a school's U, else its plot. */
