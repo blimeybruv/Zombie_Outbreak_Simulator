@@ -29,6 +29,7 @@ export const BASE = {
   carAbandoned: 25, // not in the reference: a road closing for good
   carAlarm: 30, // not in the reference: why a horde just changed direction
   vehicleTaken: 35, // not in the reference: why an ambulance is heading for the edge
+  carCrashed: 35, // not in the reference: a road blocked, and maybe people dead
   swatDeployed: 60, // not in the reference: the institution answering something large
   cordonClosed: 90, // not in the reference: the city sealed — drops playback to 1×
   outOfAmmo: 20, // not in the reference: why a squad member is walking away from the fight

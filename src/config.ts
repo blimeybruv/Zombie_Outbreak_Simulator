@@ -697,6 +697,19 @@ export const config = {
     personGap: 2,
     ramKill: 0.6,
     ramSlow: 0.6,
+    // A struck zombie that survives is thrown `knockBack` m [min, max] along the car's
+    // path, if it lands on open ground. A moving car swerves round the nearest person
+    // in its path instead of braking — aiming to pass swerveClear m clear of them — if it
+    // is doing at least swerveFrom m/tick and the ground beside them is clear. Moving
+    // into a building or another car stops it where it is: at crashMin m/tick or more it
+    // is wrecked (abandoned for good) and each person inside dies at crashKill ×
+    // (speed / maxSpeed)²; slower, a bump. Parked cars count only at crashMin or more —
+    // a car pulling out of a stall brushes its neighbours — guess
+    knockBack: [4, 7] as [number, number],
+    swerveFrom: 1.5,
+    swerveClear: 1,
+    crashMin: 3,
+    crashKill: 0.5,
     congestion: 0.3,
     congestionRadius: 15, // m
     gap: 7, // m

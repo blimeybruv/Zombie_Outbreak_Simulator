@@ -85,7 +85,7 @@ function seen(world: World, ctx: Context, x: number, y: number): number {
   return floor + (1 - floor) * vis;
 }
 
-export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned'): void {
+export function killSim(world: World, ctx: Context, victim: Sim, cause: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned' | 'crash'): void {
   const from = simLeaf(victim);
   if (from === null || victim.condition === 'dead') return;
   dropWeapon(world, victim); // left where it fell

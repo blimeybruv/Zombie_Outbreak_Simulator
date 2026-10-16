@@ -63,6 +63,8 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
+const THROWN_MS = 650; // a struck zombie's flight
+const THROWN_LIFT = 2.5; // m: how high it seems to go, drawn as a lift up the screen
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -222,6 +224,8 @@ export class Renderer {
   private readonly barrierSeen: number[] = []; // per exit: when its barrier was first drawn (wall ms)
   private readonly zombieTrails = new Trails();
   private pulses: { x: number; y: number; start: number }[] = [];
+  /** The dead a car has struck, in the air: from where it was hit, along the car's path. */
+  private thrown: { x: number; y: number; dx: number; dy: number; distance: number; start: number }[] = [];
   /** Per sim: where the bitten are in their pulse (0–1), kept so a changing rate does not jump. */
   private turnPhase = new Float32Array(0);
   private lastPulseMs = 0;
@@ -431,8 +435,10 @@ export class Renderer {
     for (const e of frame.events) {
       if (e.type === 'simTurned' && e.sim !== null) this.pulses.push({ x: e.x, y: e.y, start: wallMs });
       if (e.type === 'policeDispatched') this.dispatches.push({ building: e.building, start: wallMs });
+      if (e.type === 'carHit') this.thrown.push({ x: e.x, y: e.y, dx: e.dx, dy: e.dy, distance: e.distance, start: wallMs });
     }
     if (this.pulses.length > 400) this.pulses = this.pulses.slice(-400);
+    if (this.thrown.length > 100) this.thrown = this.thrown.slice(-100);
     for (const n of frame.noises) {
       const shout = n.kind === 'shout';
       if (shout || GUNS.has(n.kind)) this.sounds.push({ x: n.x, y: n.y, radius: n.radius, shout, start: wallMs });
@@ -793,6 +799,7 @@ export class Renderer {
     if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
     this.drawPulses(g, cam, dpr, wallMs);
+    this.drawThrown(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
     this.drawCalls(g, frame, cam, dpr, wallMs);
     this.drawOrigin(g, frame, cam, dpr, wallMs);
@@ -1109,6 +1116,39 @@ export class Renderer {
   }
 
   /** Expanding, fading rings where someone has just turned. */
+  /**
+   * One of the dead struck by a car, flying: a body thrown along the car's path, rising
+   * and falling (drawn larger at the top of its arc, its shadow left on the ground), a
+   * faint streak behind it. Wall time, so it reads at any playback speed. Mid and near zoom.
+   */
+  private drawThrown(g: CanvasRenderingContext2D, cam: Camera, dpr: number, wallMs: number): void {
+    this.thrown = this.thrown.filter((f) => wallMs - f.start < THROWN_MS);
+    if (this.thrown.length === 0 || cam.mode === 'far') return;
+    cam.apply(g, dpr);
+    const px = 1 / (cam.scale * dpr);
+    const [r, gr, b] = P.ZOMBIE_RGB;
+    for (const f of this.thrown) {
+      const t = (wallMs - f.start) / THROWN_MS;
+      const along = f.distance * (1 - (1 - t) ** 2); // fast off the bumper, slowing as it lands
+      const lift = Math.sin(Math.PI * t); // up and down again
+      const x = f.x + f.dx * along, y = f.y + f.dy * along;
+      g.strokeStyle = `rgba(${r}, ${gr}, ${b}, ${(0.35 * (1 - t)).toFixed(3)})`;
+      g.lineWidth = Math.max(px, 0.6);
+      g.beginPath();
+      g.moveTo(f.x, f.y);
+      g.lineTo(x, y);
+      g.stroke();
+      g.fillStyle = `rgba(0, 0, 0, ${(0.4 * lift).toFixed(3)})`; // its shadow, under it
+      g.beginPath();
+      g.arc(x, y, Math.max(2 * px, 0.6), 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = P.ZOMBIE;
+      g.beginPath();
+      g.arc(x - f.dy * lift * 0.5, y + f.dx * lift * 0.5 - lift * THROWN_LIFT, Math.max(2 * px, 0.6) * (1 + lift), 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
   private drawPulses(g: CanvasRenderingContext2D, cam: Camera, dpr: number, wallMs: number): void {
     this.pulses = this.pulses.filter((p) => wallMs - p.start < PULSE_MS);
     if (this.pulses.length === 0) return;

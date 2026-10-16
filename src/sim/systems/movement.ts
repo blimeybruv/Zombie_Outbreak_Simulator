@@ -125,5 +125,5 @@ export function integrateMovement(world: World, ctx: Context): void {
     if (z.state === 'destroyed' || z.state === 'occupying') continue;
     step(ctx, z, z.heading, ctx.zombieSpeed[z.id] ?? 0, mv.slideSpeed, mv.climbDead);
   }
-  moveCars(world);
+  moveCars(world, ctx);
 }

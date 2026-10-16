@@ -33,6 +33,7 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
   let x = 0, y = 0;
   switch (e.type) {
     case 'zombieDestroyed':
+    case 'carHit':
       return null;
     case 'simDied':
     case 'simTurned':
@@ -58,6 +59,7 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
       break;
     case 'carAbandoned':
     case 'carAlarm':
+    case 'carCrashed':
       x = e.x;
       y = e.y;
       break;

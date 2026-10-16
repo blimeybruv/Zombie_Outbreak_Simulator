@@ -23,8 +23,8 @@ export interface SimDiedEvent extends EventBase, Located {
   type: 'simDied';
   /** Null for an anonymous resident who died in a breach. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
-  /** Shot: by cordon soldiers, getting round their barrier; mistaken: by the rescue company, taken for one of the dead; returned: a cordon soldier shot by someone getting round its barrier. @range 4 values @unit enum @readBy ticker copy, salience */
-  cause: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned';
+  /** Shot: by cordon soldiers, getting round their barrier; mistaken: by the rescue company, taken for one of the dead; returned: a cordon soldier shot by someone getting round its barrier; crash: in a car that hit a building or another car. @range 6 values @unit enum @readBy ticker copy, salience */
+  cause: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned' | 'crash';
 }
 
 export interface SimTurnedEvent extends EventBase, Located {
@@ -139,6 +139,32 @@ export interface CordonFiredOnEvent extends EventBase, Located {
   sim: SimId;
   /** It fired first, rather than back. @range true/false @unit — @readBy ticker copy */
   first: boolean;
+}
+
+export interface CarHitEvent extends EventBase, Located {
+  /** A car struck one of the dead (its driver in flight): where, and which way it was thrown. @range literal @unit — @readBy event consumers */
+  type: 'carHit';
+  /** The way it flew, a unit vector. @range unit vector @unit — @readBy render (the body thrown) */
+  dx: number;
+  /** @range unit vector @unit — @readBy render */
+  dy: number;
+  /** How far it was thrown. @range 0–cars.knockBack[1] @unit m @readBy render */
+  distance: Metres;
+  /** Whether the blow destroyed it. @range true/false @unit — @readBy render */
+  killed: boolean;
+  /** @range literal null @unit — @readBy ticker */
+  sim: null;
+}
+
+export interface CarCrashedEvent extends EventBase, Located {
+  /** A car hit a building or another car hard enough to be wrecked. @range literal @unit — @readBy event consumers */
+  type: 'carCrashed';
+  /** @range car id @unit id @readBy ticker */
+  car: CarId;
+  /** How many inside died of it. @range 0–cars.capacity @unit count @readBy ticker copy */
+  dead: Count;
+  /** @range literal null @unit — @readBy ticker */
+  sim: null;
 }
 
 export interface VehicleTakenEvent extends EventBase, Located {
@@ -269,6 +295,8 @@ export type SimEvent =
   | CarAbandonedEvent
   | CarAlarmEvent
   | VehicleTakenEvent
+  | CarHitEvent
+  | CarCrashedEvent
   | CordonFiredOnEvent
   | CordonBreachedEvent
   | OutOfAmmoEvent

@@ -23,7 +23,7 @@ import { functionalProfile } from '../mapgen/generate';
 import { sharedNode } from '../pathfinding';
 import { chance, cloneRng } from '../rng';
 import type { Building, BuildingId, Car, CarId, Sim, World } from '../state';
-import { bite, destroyZombie } from './combat';
+import { bite, destroyZombie, killSim } from './combat';
 import { entranceNearest, isLiving, leaveTalk, setDestination } from './common';
 import { modeOf, type Mode } from './panic';
 import { carLeaves, headForExit, nearestExit } from './exits';
@@ -174,6 +174,7 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
     routeIndex: 0,
     blockedSince: null,
     reroutes: 0,
+    impact: null,
     alarm: false,
     alarmUntil: null,
   };
@@ -576,6 +577,15 @@ export function carProcesses(world: World, ctx: Context): void {
       alight(world, ctx, car);
       continue;
     }
+    // It hit a building or another car (movement stopped it): hard enough, a wreck.
+    if (car.impact !== null) {
+      const v = car.impact;
+      car.impact = null;
+      if (v >= cc.crashMin) {
+        crash(world, ctx, car, v);
+        continue;
+      }
+    }
     // Driving into the dead, its driver in flight: each in its path is knocked down — at
     // ramKill destroyed — and the impact slows it.
     if (car.speed > 0 && modeOf(sims[car.occupants[0]!]!, config) === 'flight') ram(world, ctx, car);
@@ -648,7 +658,25 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   return true;
 }
 
-/** The dead in a moving car's path, at its front: struck, each destroyed at ramKill; it slows for each. */
+/** A wreck: abandoned where it stands for good; each person inside dies at crashKill × (speed / maxSpeed)², and the rest get out. */
+function crash(world: World, ctx: Context, car: Car, speed: number): void {
+  const cc = world.config.cars;
+  const p = cc.crashKill * Math.min(1, (speed / cc.maxSpeed) ** 2);
+  let dead = 0;
+  for (const id of car.occupants) {
+    const s = world.sims[id]!;
+    if (!chance(world.rng, p)) continue;
+    s.x = car.x;
+    s.y = car.y;
+    killSim(world, ctx, s, 'crash');
+    dead++;
+  }
+  car.state = 'abandoned';
+  ctx.events.push({ type: 'carCrashed', tick: world.tick, car: car.id, dead, sim: null, x: car.x, y: car.y });
+  alight(world, ctx, car);
+}
+
+/** The dead in a moving car's path, at its front: struck, each destroyed at ramKill, else thrown along its path; it slows for each. */
 function ram(world: World, ctx: Context, car: Car): void {
   const cc = world.config.cars;
   const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
@@ -659,8 +687,17 @@ function ram(world: World, ctx: Context, car: Car): void {
     const dx = z.x - car.x, dy = z.y - car.y;
     const along = dx * hc + dy * hs;
     if (along < 0 || along > cc.length / 2 + world.config.combat.contactRange || Math.abs(-dx * hs + dy * hc) >= cc.width / 2 + 0.5) continue;
+    const thrown = cc.knockBack[0] + (cc.knockBack[1] - cc.knockBack[0]) * Math.min(1, car.speed / cc.maxSpeed);
     car.speed *= cc.ramSlow;
-    if (!chance(world.rng, cc.ramKill)) continue;
+    const killed = chance(world.rng, cc.ramKill);
+    const lx = z.x + hc * thrown, ly = z.y + hs * thrown; // where it lands
+    const lands = ctx.map.walkable(lx, ly);
+    ctx.events.push({ type: 'carHit', tick: world.tick, x: z.x, y: z.y, dx: hc, dy: hs, distance: lands ? thrown : 0, killed, sim: null });
+    if (lands) {
+      z.x = lx;
+      z.y = ly;
+    }
+    if (!killed) continue;
     const driver = world.sims[car.occupants[0]!]!;
     destroyZombie(world, z, driver);
     ctx.events.push({ type: 'zombieDestroyed', tick: world.tick, zombie: z.id, by: driver.id, x: z.x, y: z.y });
@@ -692,6 +729,7 @@ export function decideCars(world: World, ctx: Context): void {
   const other = new Set<number>(); // moving cars stopped by anything else
   const roomOf = new Map<number, number>(); // moving car → metres it can go before touching what is ahead (read by id, never iterated)
   const wantOf = new Map<number, number>(); // moving car → the heading it is turning toward
+  const softOf = new Map<number, number>(); // moving car → room it eases off for (less what it is swerving round)
 
   for (const car of moving) {
     // Where to now: the next junction, offset right of the way there, or the kerb.
@@ -731,14 +769,38 @@ export function decideCars(world: World, ctx: Context): void {
       const o = cars[id]!;
       if (o.state === 'abandoned' && ahead(car, o.x, o.y, reach, cc.width)) blocked = true;
     }
-    if (!blocked) {
-      ctx.simHash.query(car.x, car.y, reach, ctx.ids2);
-      for (const id of ctx.ids2) if (ahead(car, sims[id]!.x, sims[id]!.y, reach, cc.width / 2 + 0.5)) blocked = true;
+    // Anyone on foot in its path, the living and (unless it rams them) the dead: how far
+    // ahead, and how far to one side of its line.
+    const look = cc.maxSpeed + cc.length + cc.gap;
+    const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
+    const inPath: { x: number; y: number; along: number; lat: number }[] = [];
+    const onFoot = (x: number, y: number) => {
+      const dx = x - car.x, dy = y - car.y;
+      const along = dx * hc + dy * hs, lat = -dx * hs + dy * hc;
+      if (along > 0 && along <= look && Math.abs(lat) < cc.width / 2 + 0.5) inPath.push({ x, y, along, lat });
+    };
+    ctx.simHash.query(car.x, car.y, look, ctx.ids2);
+    for (const id of ctx.ids2) onFoot(sims[id]!.x, sims[id]!.y);
+    if (!rams) {
+      ctx.zombieHash.query(car.x, car.y, look, ctx.ids2);
+      for (const id of ctx.ids2) onFoot(zombies[id]!.x, zombies[id]!.y);
     }
-    if (!blocked && !rams) {
-      ctx.zombieHash.query(car.x, car.y, reach, ctx.ids2);
-      for (const id of ctx.ids2) if (ahead(car, zombies[id]!.x, zombies[id]!.y, reach, cc.width / 2 + 0.5)) blocked = true;
+    inPath.sort((p, q) => p.along - q.along);
+    // The nearest, swerved round rather than braked for, if the car is moving, they are
+    // not on top of it, and the road beside them is clear: the car aims to pass them on
+    // the far side of where they stand, and keeps its speed for it.
+    let swerved: (typeof inPath)[number] | null = null;
+    const first = inPath[0];
+    if (first && car.speed >= cc.swerveFrom && first.along > cc.length / 2 + cc.personGap) {
+      const side = first.lat >= 0 ? 1 : -1;
+      const off = cc.width / 2 + 0.5 + cc.swerveClear;
+      const ax = first.x + hs * side * off, ay = first.y - hc * side * off; // beside them, away from their side
+      if (ctx.map.walkable(ax, ay) && ctx.cars.near(ax, ay, cc.length, ctx.ids2).length === 0) {
+        swerved = first;
+        wantOf.set(car.id, Math.atan2(ay - car.y, ax - car.x));
+      }
     }
+    if (!blocked && inPath.some((p) => p !== swerved && p.along <= reach)) blocked = true;
     if (blocked) other.add(car.id);
     // Room to move before touching an abandoned or moving car ahead: a car stopped only
     // for what was within `reach` of it, and at up to maxSpeed a tick one just beyond
@@ -746,7 +808,6 @@ export function decideCars(world: World, ctx: Context): void {
     // Parked cars stand at the kerb, clear of the lane (pullUpBy): counting them stopped
     // every car pulling out from the kerb behind the next one along, until abandoned.
     let room = Infinity;
-    const look = cc.maxSpeed + cc.length + cc.gap;
     const fit = (o: Car) => {
       if (o === car || o.state === 'gone' || o.state === 'parked') return;
       const dx = o.x - car.x, dy = o.y - car.y;
@@ -757,20 +818,15 @@ export function decideCars(world: World, ctx: Context): void {
     };
     for (const id of ctx.cars.near(car.x, car.y, look, ctx.ids2)) fit(cars[id]!);
     for (const o of moving) fit(o);
-    // And before reaching anyone on foot in its path — the dead too, unless it rams them.
-    const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
-    const person = (x: number, y: number) => {
-      const dx = x - car.x, dy = y - car.y;
-      const along = dx * hc + dy * hs;
-      if (along <= 0 || along > look || Math.abs(-dx * hs + dy * hc) >= cc.width / 2 + 0.5) return;
-      room = Math.min(room, along - cc.length / 2 - cc.personGap);
-    };
-    ctx.simHash.query(car.x, car.y, look, ctx.ids2);
-    for (const id of ctx.ids2) person(sims[id]!.x, sims[id]!.y);
-    if (!rams) {
-      ctx.zombieHash.query(car.x, car.y, look, ctx.ids2);
-      for (const id of ctx.ids2) person(zombies[id]!.x, zombies[id]!.y);
+    // And before reaching anyone on foot in its path: never closer than personGap (the
+    // hard limit), and easing off for them unless swerving round them (the soft one).
+    let soft = room;
+    for (const p of inPath) {
+      const r = p.along - cc.length / 2 - cc.personGap;
+      room = Math.min(room, r);
+      if (p !== swerved) soft = Math.min(soft, r);
     }
+    softOf.set(car.id, Math.max(0, soft));
     roomOf.set(car.id, Math.max(0, room));
     if (room < cc.clearance) other.add(car.id);
   }
@@ -792,7 +848,7 @@ export function decideCars(world: World, ctx: Context): void {
       target = cc.maxSpeed / (1 + cc.congestion * near);
       if (car.routeIndex >= car.route.length - 1) target = Math.min(target, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
       target *= Math.max(cc.turnSlow, Math.cos(err));
-      target = Math.min(target, room * cc.approach); // easing off as it closes on what is ahead
+      target = Math.min(target, softOf.get(car.id)! * cc.approach); // easing off as it closes on what is ahead
     }
     // Inertia: speed closes on the target, braking harder than it picks up.
     car.speed += (target - car.speed) * (target > car.speed ? cc.accel : cc.brake);
@@ -811,12 +867,62 @@ export function decideCars(world: World, ctx: Context): void {
   }
 }
 
-/** Car movement (step 9): along its heading by its speed, everyone inside with it. */
-export function moveCars(world: World): void {
+/** The four corners of a car's rectangle at (x, y), along `heading`. */
+function cornersAt(world: World, x: number, y: number, heading: number): [number, number][] {
+  const l = world.config.cars.length / 2, w = world.config.cars.width / 2;
+  const c = Math.cos(heading), s = Math.sin(heading);
+  return [[l, w], [l, -w], [-l, -w], [-l, w]].map(([u, v]) => [x + c * u! - s * v!, y + s * u! + c * v!]);
+}
+
+/** Whether two convex quadrilaterals overlap (no separating axis among their edges). */
+function overlap(p: [number, number][], q: [number, number][]): boolean {
+  for (const poly of [p, q]) {
+    for (let i = 0; i < 4; i++) {
+      const [x1, y1] = poly[i]!, [x2, y2] = poly[(i + 1) % 4]!;
+      const nx = y2 - y1, ny = x1 - x2;
+      let pMin = Infinity, pMax = -Infinity, qMin = Infinity, qMax = -Infinity;
+      for (const [x, y] of p) { const d = x * nx + y * ny; pMin = Math.min(pMin, d); pMax = Math.max(pMax, d); }
+      for (const [x, y] of q) { const d = x * nx + y * ny; qMin = Math.min(qMin, d); qMax = Math.max(qMax, d); }
+      if (pMax <= qMin || qMax <= pMin) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * What a car would hit moving to (x, y): a building, or another car it is not already
+ * touching (so a car can always drive out of an overlap it started in). Not parked
+ * cars: pulling in and out of the kerb, a car passes close to them.
+ */
+function wouldHit(world: World, ctx: Context, car: Car, x: number, y: number): boolean {
+  const cc = world.config.cars;
+  const to = cornersAt(world, x, y, car.heading);
+  if (to.some(([px, py]) => ctx.map.buildingAt(px, py) !== null)) return true;
+  if (ctx.map.buildingAt(x + Math.cos(car.heading) * cc.length * 0.5, y + Math.sin(car.heading) * cc.length * 0.5) !== null) return true;
+  const from = cornersAt(world, car.x, car.y, car.heading);
+  const hits = (o: Car) => {
+    if (o === car || o.state === 'gone' || o.state === 'parked') return false; // parked at the kerb: brushed pulling in and out, never hit (to revisit)
+    if (Math.hypot(o.x - x, o.y - y) > cc.length + 1) return false;
+    const them = cornersAt(world, o.x, o.y, o.heading);
+    return overlap(to, them) && !overlap(from, them);
+  };
+  for (const id of ctx.cars.near(x, y, cc.length + 1, ctx.ids2)) if (hits(world.cars[id]!)) return true;
+  for (const o of ctx.cars.driving()) if (hits(o)) return true;
+  return false;
+}
+
+/** Car movement (step 9): along its heading by its speed, everyone inside with it — unless it would hit something, when it stops where it is (car processes resolve the impact). */
+export function moveCars(world: World, ctx: Context): void {
   for (const car of world.cars) {
     if (car.state !== 'driving' || car.speed <= 0) continue;
-    car.x += Math.cos(car.heading) * car.speed;
-    car.y += Math.sin(car.heading) * car.speed;
+    const nx = car.x + Math.cos(car.heading) * car.speed, ny = car.y + Math.sin(car.heading) * car.speed;
+    if (wouldHit(world, ctx, car, nx, ny)) {
+      car.impact = car.speed;
+      car.speed = 0;
+      continue;
+    }
+    car.x = nx;
+    car.y = ny;
     for (const id of car.occupants) {
       const s = world.sims[id]!;
       s.x = car.x;
