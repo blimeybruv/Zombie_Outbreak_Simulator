@@ -532,6 +532,42 @@ describe('cars', () => {
     return d;
   }
 
+  it('a car turns no faster than its turning circle allows, and slows to turn', () => {
+    const { world, ctx, car } = inCar();
+    const cc = baseConfig.cars;
+    car.heading += Math.PI; // facing the wrong way at full speed
+    car.speed = cc.maxSpeed;
+    const before = car.heading;
+    world.tick++;
+    rebuildHashes(world, ctx);
+    decideCars(world, ctx);
+    const turned = Math.abs(Math.atan2(Math.sin(car.heading - before), Math.cos(car.heading - before)));
+    expect(car.speed).toBeLessThan(cc.maxSpeed);
+    expect(turned).toBeLessThanOrEqual(Math.max(cc.turnMin, car.speed / cc.turnRadius) + 1e-9);
+  });
+
+  it('a calm driver stops short of the dead in its path; one in flight rams them', () => {
+    const { world, ctx, s, car } = inCar();
+    const cc = baseConfig.cars;
+    const z = spawnZombie(world, car.x + Math.cos(car.heading) * 6, car.y + Math.sin(car.heading) * 6, 'active', null, null);
+    car.speed = 5;
+    world.tick++;
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    decideCars(world, ctx);
+    expect(car.speed).toBeLessThanOrEqual(6 - cc.length / 2 - cc.personGap + 1e-9);
+    // In flight: no braking for it, and struck — destroyed at ramKill a blow.
+    s.panic = 1;
+    z.x = car.x + Math.cos(car.heading) * 2;
+    z.y = car.y + Math.sin(car.heading) * 2;
+    for (let t = 0; t < 30 && z.state !== 'destroyed'; t++) {
+      car.speed = 5;
+      rebuildHashes(world, ctx);
+      carProcesses(world, ctx);
+    }
+    expect(z.state).toBe('destroyed');
+  });
+
   it('an armed alarm goes off once, as the car is taken, and frightens nobody', () => {
     const d = driver();
     const { world, ctx, s, car } = d;

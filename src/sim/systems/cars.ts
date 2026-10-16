@@ -23,9 +23,9 @@ import { functionalProfile } from '../mapgen/generate';
 import { sharedNode } from '../pathfinding';
 import { chance, cloneRng } from '../rng';
 import type { Building, BuildingId, Car, CarId, Sim, World } from '../state';
-import { bite } from './combat';
+import { bite, destroyZombie } from './combat';
 import { entranceNearest, isLiving, leaveTalk, setDestination } from './common';
-import type { Mode } from './panic';
+import { modeOf, type Mode } from './panic';
 import { carLeaves, headForExit, nearestExit } from './exits';
 import { barrierAt } from './cordon';
 import { emitStimulus } from './stimuli';
@@ -576,6 +576,9 @@ export function carProcesses(world: World, ctx: Context): void {
       alight(world, ctx, car);
       continue;
     }
+    // Driving into the dead, its driver in flight: each in its path is knocked down — at
+    // ramKill destroyed — and the impact slows it.
+    if (car.speed > 0 && modeOf(sims[car.occupants[0]!]!, config) === 'flight') ram(world, ctx, car);
     // The dead at the doors: each awake one breaks in at breakIn a tick.
     ctx.zombieHash.query(car.x, car.y, cc.length / 2 + config.combat.contactRange, ctx.ids2);
     let at = 0;
@@ -645,6 +648,25 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   return true;
 }
 
+/** The dead in a moving car's path, at its front: struck, each destroyed at ramKill; it slows for each. */
+function ram(world: World, ctx: Context, car: Car): void {
+  const cc = world.config.cars;
+  const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
+  ctx.zombieHash.query(car.x, car.y, cc.length, ctx.ids2);
+  for (const id of ctx.ids2) {
+    const z = world.zombies[id]!;
+    if (z.state === 'destroyed' || z.state === 'occupying') continue;
+    const dx = z.x - car.x, dy = z.y - car.y;
+    const along = dx * hc + dy * hs;
+    if (along < 0 || along > cc.length / 2 + world.config.combat.contactRange || Math.abs(-dx * hs + dy * hc) >= cc.width / 2 + 0.5) continue;
+    car.speed *= cc.ramSlow;
+    if (!chance(world.rng, cc.ramKill)) continue;
+    const driver = world.sims[car.occupants[0]!]!;
+    destroyZombie(world, z, driver);
+    ctx.events.push({ type: 'zombieDestroyed', tick: world.tick, zombie: z.id, by: driver.id, x: z.x, y: z.y });
+  }
+}
+
 // Driving
 
 /** Something in this car's path, within gap ahead and a car's width either side. */
@@ -668,7 +690,8 @@ export function decideCars(world: World, ctx: Context): void {
   const reach = cc.gap + cc.length / 2;
   const blockers = new Map<number, number[]>(); // moving car → moving cars stopping it
   const other = new Set<number>(); // moving cars stopped by anything else
-  const roomOf = new Map<number, number>(); // moving car → metres it can go before touching a car ahead (read by id, never iterated)
+  const roomOf = new Map<number, number>(); // moving car → metres it can go before touching what is ahead (read by id, never iterated)
+  const wantOf = new Map<number, number>(); // moving car → the heading it is turning toward
 
   for (const car of moving) {
     // Where to now: the next junction, offset right of the way there, or the kerb.
@@ -695,7 +718,10 @@ export function decideCars(world: World, ctx: Context): void {
       ty = node.y + ux * lane;
       break;
     }
-    if (tx !== car.x || ty !== car.y) car.heading = Math.atan2(ty - car.y, tx - car.x);
+    wantOf.set(car.id, tx !== car.x || ty !== car.y ? Math.atan2(ty - car.y, tx - car.x) : car.heading);
+    // A driver in flight does not stop for the dead: it drives into them (carProcesses rams).
+    const driver = car.occupants.length > 0 ? sims[car.occupants[0]!]! : null;
+    const rams = driver !== null && modeOf(driver, config) === 'flight';
 
     const stoppedBy: number[] = [];
     for (const o of moving) if (o !== car && ahead(car, o.x, o.y, reach, cc.width)) stoppedBy.push(o.id);
@@ -709,7 +735,7 @@ export function decideCars(world: World, ctx: Context): void {
       ctx.simHash.query(car.x, car.y, reach, ctx.ids2);
       for (const id of ctx.ids2) if (ahead(car, sims[id]!.x, sims[id]!.y, reach, cc.width / 2 + 0.5)) blocked = true;
     }
-    if (!blocked) {
+    if (!blocked && !rams) {
       ctx.zombieHash.query(car.x, car.y, reach, ctx.ids2);
       for (const id of ctx.ids2) if (ahead(car, zombies[id]!.x, zombies[id]!.y, reach, cc.width / 2 + 0.5)) blocked = true;
     }
@@ -731,6 +757,20 @@ export function decideCars(world: World, ctx: Context): void {
     };
     for (const id of ctx.cars.near(car.x, car.y, look, ctx.ids2)) fit(cars[id]!);
     for (const o of moving) fit(o);
+    // And before reaching anyone on foot in its path — the dead too, unless it rams them.
+    const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
+    const person = (x: number, y: number) => {
+      const dx = x - car.x, dy = y - car.y;
+      const along = dx * hc + dy * hs;
+      if (along <= 0 || along > look || Math.abs(-dx * hs + dy * hc) >= cc.width / 2 + 0.5) return;
+      room = Math.min(room, along - cc.length / 2 - cc.personGap);
+    };
+    ctx.simHash.query(car.x, car.y, look, ctx.ids2);
+    for (const id of ctx.ids2) person(sims[id]!.x, sims[id]!.y);
+    if (!rams) {
+      ctx.zombieHash.query(car.x, car.y, look, ctx.ids2);
+      for (const id of ctx.ids2) person(zombies[id]!.x, zombies[id]!.y);
+    }
     roomOf.set(car.id, Math.max(0, room));
     if (room < cc.clearance) other.add(car.id);
   }
@@ -739,17 +779,27 @@ export function decideCars(world: World, ctx: Context): void {
     // Two moving cars stopped by each other: the lower id yields, the higher goes.
     const stoppedBy = blockers.get(car.id)!.filter((id) => !(id < car.id && blockers.get(id)!.includes(car.id)));
     const blocked = other.has(car.id) || stoppedBy.length > 0;
-    if (blocked) {
-      car.speed = 0;
-      car.blockedSince ??= tick;
-      continue;
+    const room = roomOf.get(car.id)!;
+    // Turning toward where it is going, no faster than its turning circle allows at its
+    // speed, and slowing for a sharp turn: it swung round on the spot at full speed.
+    const err = Math.atan2(Math.sin(wantOf.get(car.id)! - car.heading), Math.cos(wantOf.get(car.id)! - car.heading));
+    let target = 0;
+    if (blocked) car.blockedSince ??= tick;
+    else {
+      car.blockedSince = null;
+      let near = 0;
+      for (const o of moving) if (o !== car && Math.hypot(o.x - car.x, o.y - car.y) <= cc.congestionRadius) near++;
+      target = cc.maxSpeed / (1 + cc.congestion * near);
+      if (car.routeIndex >= car.route.length - 1) target = Math.min(target, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
+      target *= Math.max(cc.turnSlow, Math.cos(err));
+      target = Math.min(target, room * cc.approach); // easing off as it closes on what is ahead
     }
-    car.blockedSince = null;
-    let near = 0;
-    for (const o of moving) if (o !== car && Math.hypot(o.x - car.x, o.y - car.y) <= cc.congestionRadius) near++;
-    let speed = cc.maxSpeed / (1 + cc.congestion * near);
-    if (car.routeIndex >= car.route.length - 1) speed = Math.min(speed, Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y));
-    car.speed = Math.min(speed, roomOf.get(car.id)!);
+    // Inertia: speed closes on the target, braking harder than it picks up.
+    car.speed += (target - car.speed) * (target > car.speed ? cc.accel : cc.brake);
+    if (target === 0 && car.speed < cc.stopBelow) car.speed = 0;
+    car.speed = Math.min(car.speed, room); // and never into anything
+    const turn = Math.max(cc.turnMin, car.speed / cc.turnRadius);
+    car.heading += Math.max(-turn, Math.min(turn, err));
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move sounds its siren too (features.sirens): sparse and modest, a thin wake

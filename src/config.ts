@@ -680,6 +680,23 @@ export const config = {
     spacing: 6.5, // m between parked cars' centres
     laneOffset: 2.5, // m
     maxSpeed: 9, // m/tick, about 32 km/h
+    // Driving like a vehicle: speed closes `accel` of the gap to its target a tick, `brake`
+    // when slowing (a stop below stopBelow is a stop); it turns no faster than a circle of
+    // turnRadius m allows at its speed (turnMin rad/tick at a crawl), its target scaled by
+    // the cosine of how far it has to turn (at least turnSlow); and it eases off as it
+    // closes on what is ahead, its target at most `approach` × the room left, stopping
+    // personGap m short of anyone on foot. A driver in flight rams the dead instead:
+    // each struck destroyed at ramKill, the car slowed to ramSlow of its speed — guess
+    accel: 0.25,
+    brake: 0.5,
+    stopBelow: 0.2,
+    turnRadius: 8,
+    turnMin: 0.08,
+    turnSlow: 0.2,
+    approach: 0.35,
+    personGap: 2,
+    ramKill: 0.6,
+    ramSlow: 0.6,
     congestion: 0.3,
     congestionRadius: 15, // m
     gap: 7, // m
