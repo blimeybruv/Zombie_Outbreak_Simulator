@@ -439,8 +439,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   // Ways off the map: of the district-boundary arterials' ends on the ring road, the
   // first at random, each next the farthest from those chosen. Each chosen arterial
   // becomes a highway across the city, and a stub of highway carries it on across the
-  // margin to the map edge — the only streets that cross it — over (or, for a railway,
-  // under) the border feature on that side.
+  // margin to the map edge — the only streets that cross it — over the border feature
+  // on that side, or across a railway at a level crossing.
   const exitEnds: { line: number; at: Pt; inward: Pt }[] = [];
   const stubOf: [number, number][] = []; // [stub line, the arterial it carries on]
   if (config.features.exits) {
@@ -473,7 +473,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       // The stub, from the ring road out to the map edge; the exit is its outer end.
       const out = add(e.at, scale(e.inward, -margin));
       const crosses = border.sides[sideOf(e.at)]!;
-      lines.push({ a: e.at, b: out, kind: crosses === 'rail' ? 'main' : 'highway', bridge: false, name: '', lit: false, district: l.district, crosses });
+      lines.push({ a: e.at, b: out, kind: 'highway', bridge: false, name: '', lit: false, district: l.district, crosses });
       stubOf.push([lines.length - 1, e.line]);
       e.line = lines.length - 1;
       e.at = out;
@@ -608,7 +608,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
     const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const spansWater = crossesRiver(a, b) || wet(a) || wet(b) || wet(mid);
     // An exit's stub crosses its border feature on a bridge (an overpass, over the
-    // motorway), or under the railway in a narrower underpass.
+    // motorway), or a railway at grade: a level crossing, ordinary road.
     const terrain: Terrain = (l.bridge && spansWater) || (l.crosses !== undefined && l.crosses !== 'rail') ? 'bridge' : l.kind === 'alley' ? 'alley' : 'standard';
     return {
       id: id as StreetId,

@@ -135,8 +135,7 @@ describe('map generator', () => {
     const size = config.map.size;
     for (const e of m.exits) {
       const s = m.streets[e.street]!;
-      // A highway's width, or a main street's where it passes under a railway on the border.
-      expect(s.width).toBeGreaterThanOrEqual(config.map.streetWidth.main);
+      expect(s.width).toBe(config.map.streetWidth.highway);
       expect(e.x <= 1 || e.y <= 1 || e.x >= size - 1 || e.y >= size - 1).toBe(true);
       expect(s.a === e.node || s.b === e.node).toBe(true);
       // Outward: a step along it leaves the map.

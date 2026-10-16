@@ -62,8 +62,8 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-/** The border's features, in metres: water band; railway gauge, between tracks, sleeper pitch; motorway between fences; a deck's overhang past what it crosses. */
-const BORDER = { water: 40, gauge: 1.5, trackGap: 4.5, sleeperGap: 2, motorway: 32, overhang: 3 }; // the static city is drawn this share of the view beyond it on every side
+/** The border's features, in metres: water band; railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road). */
+const BORDER = { water: 40, gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3 }; // the static city is drawn this share of the view beyond it on every side
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -529,11 +529,12 @@ export class Renderer {
 
   /**
    * The border, built once: along each side of the map, across the middle of the empty
-   * margin, the feature on that side — a band of water, a double-track railway (rails
-   * and sleepers), or a fenced motorway (a fence either side, a median barrier) — so the
-   * edge reads as a boundary rather than as absence. Where an exit's stub crosses it: a
-   * deck over water or motorway, cut through the band like a river bridge, or portals
-   * either side of the railway, the road passing under it.
+   * margin, the feature on that side — a band of water, a fenced double-track railway
+   * (rails, sleepers, a fence either side), or a fenced motorway (a fence either side, a
+   * median barrier) — so the edge reads as a boundary rather than as absence. Where an
+   * exit's stub crosses it: a deck over water or motorway, cut through the band like a
+   * river bridge; over the railway a level crossing, the fences and sleepers broken for
+   * the road and the rails running on across it.
    */
   private buildBorder(map: MapSnapshot): void {
     const { margin, sides } = map.border;
@@ -548,10 +549,31 @@ export class Renderer {
         [size - c, size - c, c, size - c, 0, -1],
         [c, size - c, c, c, 1, 0],
       ][side] as [number, number, number, number, number, number];
-    const line = (path: Path2D, side: number, off: number) => {
+    // Where exits cross each side: [from, to] along the side's run, the road's width and a little.
+    const gaps: [number, number][][] = [[], [], [], []];
+    const e = map.exits;
+    const sideAt = (x: number, y: number) => [y < margin ? 0 : -1, x > size - margin ? 1 : -1, y > size - margin ? 2 : -1, x < margin ? 3 : -1].find((k) => k >= 0) ?? 0;
+    for (let i = 0; i < e.length; i += EXIT_STRIDE) {
+      const x = e[i]!, y = e[i + 1]!, half = e[i + 6]! / 2 + BORDER.overhang;
+      const side = sideAt(x, y);
+      const [ax, ay, bx, by] = run(side);
+      const l = Math.hypot(bx - ax, by - ay);
+      const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l;
+      gaps[side]!.push([t - half, t + half]);
+    }
+    const line = (path: Path2D, side: number, off: number, broken = false) => {
       const [ax, ay, bx, by, nx, ny] = run(side);
-      path.moveTo(ax + nx * off, ay + ny * off);
-      path.lineTo(bx + nx * off, by + ny * off);
+      const l = Math.hypot(bx - ax, by - ay);
+      const ux = (bx - ax) / l, uy = (by - ay) / l;
+      const cuts = broken ? [...gaps[side]!].sort((p, q) => p[0] - q[0]) : [];
+      let from = 0;
+      for (const [g0, g1] of [...cuts, [l, l] as [number, number]]) {
+        if (g0 > from) {
+          path.moveTo(ax + ux * from + nx * off, ay + uy * from + ny * off);
+          path.lineTo(ax + ux * g0 + nx * off, ay + uy * g0 + ny * off);
+        }
+        from = Math.max(from, g1);
+      }
     };
     sides.forEach((kind, side) => {
       if (kind === 'water') line(b.water, side, 0);
@@ -559,8 +581,10 @@ export class Renderer {
         for (const track of [-BORDER.trackGap / 2, BORDER.trackGap / 2]) {
           line(b.rails, side, track - BORDER.gauge / 2);
           line(b.rails, side, track + BORDER.gauge / 2);
-          line(b.sleepers, side, track);
+          line(b.sleepers, side, track, true);
         }
+        line(b.fences, side, -BORDER.railFence, true);
+        line(b.fences, side, BORDER.railFence, true);
       } else {
         line(b.fences, side, -BORDER.motorway / 2);
         line(b.fences, side, BORDER.motorway / 2);
@@ -568,12 +592,12 @@ export class Renderer {
       }
     });
     // The exits' crossings.
-    const e = map.exits;
     for (let i = 0; i < e.length; i += EXIT_STRIDE) {
       const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!, width = e[i + 6]!;
       const mx = x - dx * c, my = y - dy * c; // where the stub crosses the band's middle
-      const side = sides[[y < c * 2 ? 0 : -1, x > size - c * 2 ? 1 : -1, y > size - c * 2 ? 2 : -1, x < c * 2 ? 3 : -1].find((k) => k >= 0) ?? 0]!;
-      const half = (side === 'water' ? BORDER.water : side === 'rail' ? BORDER.trackGap + BORDER.gauge : BORDER.motorway) / 2 + BORDER.overhang;
+      const side = sides[sideAt(x, y)]!;
+      if (side === 'rail') continue; // a level crossing: the gaps in the fences and sleepers are all it needs
+      const half = (side === 'water' ? BORDER.water : BORDER.motorway) / 2 + BORDER.overhang;
       const nx = -dy * (width / 2), ny = dx * (width / 2);
       const corners: [number, number][] = [
         [mx + dx * half + nx, my + dy * half + ny],
@@ -581,14 +605,6 @@ export class Renderer {
         [mx - dx * half - nx, my - dy * half - ny],
         [mx + dx * half - nx, my + dy * half - ny],
       ];
-      if (side === 'rail') {
-        // Under the railway: a portal across the road either side of the tracks.
-        for (const [p, q] of [[corners[0]!, corners[3]!], [corners[1]!, corners[2]!]] as const) {
-          this.bridgeAbutments.moveTo(...p);
-          this.bridgeAbutments.lineTo(...q);
-        }
-        continue;
-      }
       let deck = this.bridgeDecks.get(width);
       if (!deck) this.bridgeDecks.set(width, (deck = new Path2D()));
       deck.moveTo(...corners[0]!);
