@@ -205,7 +205,7 @@ export class Renderer {
   /** Scenery cars on the border motorway, drawn from simulation time alone. */
   private readonly traffic: Traffic;
   /** The border across the margin (buildBorder): water, rails and sleepers, motorway fences and median. */
-  private readonly border = { rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D() };
+  private readonly border = { rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D(), barrier: new Path2D(), posts: new Path2D() };
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, filled in background colour
   private readonly bridgeRails: Path2D;
   private readonly bridgeAbutments: Path2D;
@@ -591,7 +591,9 @@ export class Renderer {
           ]
         : [
             [b.fences, -BORDER.motorway / 2],
-            [b.fences, BORDER.motorway / 2],
+            // On the city side, a sound barrier instead of the fence: a wall and its posts.
+            [b.barrier, BORDER.motorway / 2 + BORDER.barrier / 2],
+            [b.posts, BORDER.motorway / 2 + BORDER.barrier / 2],
             [b.median, 0],
           ];
     sides.forEach((kind, side) => {
@@ -678,6 +680,13 @@ export class Renderer {
     g.setLineDash([]);
     g.lineWidth = Math.max(px, 1);
     g.stroke(b.median);
+    // The sound barrier: a solid wall, its posts standing proud of it every few metres.
+    g.lineWidth = Math.max(1.5 * px, BORDER.barrier);
+    g.stroke(b.barrier);
+    g.setLineDash([BORDER.postWidth, BORDER.postPitch - BORDER.postWidth]);
+    g.lineWidth = Math.max(3 * px, BORDER.barrier * 2.2);
+    g.stroke(b.posts);
+    g.setLineDash([]);
     g.lineCap = 'round';
   }
 

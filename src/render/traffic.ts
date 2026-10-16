@@ -13,8 +13,8 @@ import type { Camera } from './camera';
 import type { MapSnapshot } from '../worker/protocol';
 import * as P from './palette';
 
-/** The border's features, in metres: railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of a feature's curve round its own corner; the radius of its turn off the map, and how far short of the corner the turn begins. */
-export const BORDER = { gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3, bend: 180, turn: 60, trail: 150 };
+/** The border's features, in metres: railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; the sound barrier on its city side (wall thickness, post width and pitch); a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of a feature's curve round its own corner; the radius of its turn off the map, and how far short of the corner the turn begins. */
+export const BORDER = { gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, barrier: 0.8, postWidth: 0.5, postPitch: 4, overhang: 3, bend: 180, turn: 60, trail: 150 };
 
 /** The traffic, in metres and ticks: a carriageway's middle from the median; speed (about 80 km/h); the gaps between cars; how far past the map edge a car comes on and goes off. */
 const TRAFFIC = { lane: 8, speed: 22, gap: [30, 260] as const, beyond: 60 };
