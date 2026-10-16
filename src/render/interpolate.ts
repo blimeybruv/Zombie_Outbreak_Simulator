@@ -18,6 +18,8 @@ export class Interpolator {
   private span = 0; // wall ms the ticks between the two snapshots take
   sim: Float32Array = new Float32Array(0);
   zombie: Float32Array = new Float32Array(0);
+  /** Simulation time this frame shows, in ticks, fractional between them: for anything drawn from time alone (traffic.ts). */
+  time = 0;
 
   /** Call once per animation frame with the latest snapshot; fills `sim` and `zombie`. */
   update(frame: FrameSnapshot, now: number, ticksPerSecond: number): void {
@@ -30,6 +32,7 @@ export class Interpolator {
       this.last = frame; // same tick, fresher kinds and flags
     }
     const t = this.span > 0 ? Math.min(1, (now - this.at) / this.span) : 1;
+    this.time = this.prev !== null ? this.prev.tick + (frame.tick - this.prev.tick) * t : frame.tick;
     this.sim = blend(this.sim, this.prev?.simXY, this.prev?.simKind, frame.simXY, frame.simKind, t);
     this.zombie = blend(this.zombie, this.prev?.zombieXY, this.prev?.zombieKind, frame.zombieXY, frame.zombieKind, t);
   }

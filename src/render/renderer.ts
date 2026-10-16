@@ -19,6 +19,7 @@ import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
 import * as P from './palette';
+import { BORDER, borderRun, Traffic } from './traffic';
 import { Trails } from './trails';
 import { FIREARMS } from '../sim/state';
 
@@ -62,8 +63,6 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-/** The border's features, in metres: railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of a feature's curve round its own corner; the radius of its turn off the map, and how far short of the corner the turn begins. */
-const BORDER = { gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, overhang: 3, bend: 180, turn: 60, trail: 150 }; // the static city is drawn this share of the view beyond it on every side
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
 const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signage, quieter than the barrier
 const EXIT_ALPHA = 0.4;
@@ -203,6 +202,8 @@ export class Renderer {
   private staticY = 0;
   private readonly outlinePath: Path2D;
   private readonly riverPath: Path2D;
+  /** Scenery cars on the border motorway, drawn from simulation time alone. */
+  private readonly traffic: Traffic;
   /** The border across the margin (buildBorder): water, rails and sleepers, motorway fences and median. */
   private readonly border = { rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D() };
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, filled in background colour
@@ -335,6 +336,7 @@ export class Renderer {
       }
     }
     this.buildBorder(map);
+    this.traffic = new Traffic(map);
     // Doors: a step DOOR_W wide standing DOOR_D proud of the wall, so it shows where
     // people go in and out — a dot reaching a door otherwise simply vanishes.
     this.doorPath = new Path2D();
@@ -543,13 +545,7 @@ export class Renderer {
     const c = margin / 2;
     const b = this.border;
     // Each side's band, corner to corner of the inner margin: start, end, and the offset direction across it.
-    const run = (side: number): [number, number, number, number, number, number] =>
-      [
-        [c, c, size - c, c, 0, 1],
-        [size - c, c, size - c, size - c, -1, 0],
-        [size - c, size - c, c, size - c, 0, -1],
-        [c, size - c, c, c, 1, 0],
-      ][side] as [number, number, number, number, number, number];
+    const run = (side: number) => borderRun(size, margin, side);
     // Where exits cross each side: [from, to] along the side's run, the road's width and a little.
     const gaps: [number, number][][] = [[], [], [], []];
     const e = map.exits;
@@ -740,6 +736,7 @@ export class Renderer {
     const city = this.staticFor(cam, dpr, night, frame);
     g.drawImage(city.layer, city.x, city.y);
     if (cam.mode !== 'far') g.drawImage(this.carLayer, city.x, city.y);
+    this.traffic.draw(g, cam, dpr, this.interp.time);
 
     this.corpses.draw(g, cam, dpr);
     if (cam.mode === 'far') {
