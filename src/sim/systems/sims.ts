@@ -294,12 +294,12 @@ function towardThreat(world: World, ctx: Context, sim: Sim, x: number, y: number
  * away nor `skip`. A door lying toward the danger is taken anyway ('any'), counts
  * doorTowardThreatPenalty times as far ('penalise'), or is passed over ('exclude').
  */
-function nearestDoor(world: World, ctx: Context, sim: Sim, toward: 'any' | 'penalise' | 'exclude', skip: number | null = null): Building | null {
+function nearestDoor(world: World, ctx: Context, sim: Sim, toward: 'any' | 'penalise' | 'exclude', skip: number | null = null, skipToo: number | null = null): Building | null {
   const { config, buildings } = world;
   let door: Building | null = null;
   let doorD = Infinity;
   for (const bid of ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.doorSearchRadius, ctx.buildingIds)) {
-    if (bid === sim.refusedBy || bid === skip) continue;
+    if (bid === sim.refusedBy || bid === skip || bid === skipToo) continue;
     const b = buildings[bid]!;
     const e = entranceNearest(b, sim.x, sim.y);
     let d = Math.hypot(e.x - sim.x, e.y - sim.y);
@@ -357,8 +357,11 @@ function holdStand(world: World, ctx: Context, sim: Sim): void {
  * the nearest door and the one it had picked as lying away from the danger.
  */
 function resolveCornered(world: World, ctx: Context, sim: Sim): void {
-  // Its nerve gone, it does nothing at all: shock, not hiding.
-  if (breaks(sim, world.config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze');
+  // Its nerve gone, it does nothing at all: shock, not hiding. But not again straight
+  // after a freeze: out of it, it runs. Re-freezing whenever a freeze ran out, a crowd
+  // with one zombie among them stood and froze by turns while it bit each in turn.
+  const thawing = sim.thawedAt !== null && world.tick - sim.thawedAt < world.config.cornered.refreeze;
+  if (!thawing && breaks(sim, world.config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze');
   if (capacity(world, sim) > 0) return takeStand(world, sim, 'fight');
   const { buildings } = world;
   let door: Building | null = null;
@@ -384,9 +387,17 @@ function wayBlocked(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     if (ctx.ids2.length > 0 && cap >= ctx.ids2.length) return takeStand(world, sim, 'fight');
   }
   // (Someone going off alone, bitten, wants no other door: it backs off and goes on.)
-  const door = sim.destinationKind === 'isolate' ? null : nearestDoor(world, ctx, sim, 'exclude', sim.destinationBuilding);
+  // Not back to the door it last turned from, for a while: two doors whose ways both
+  // looked blocked had sims swapping between them, some every tick, like pong balls.
+  const from = sim.turnedFromUntil !== null && world.tick < sim.turnedFromUntil ? sim.turnedFrom : null;
+  const door = sim.destinationKind === 'isolate' ? null : nearestDoor(world, ctx, sim, 'exclude', sim.destinationBuilding, from);
   if (door !== null) {
+    if (sim.destinationBuilding !== null) {
+      sim.turnedFrom = sim.destinationBuilding;
+      sim.turnedFromUntil = world.tick + config.behaviour.turnedFromHold;
+    }
     setDestination(sim, door, 'shelter');
+    sim.lastMigratedAt = world.tick;
     sim.gait = 'run';
     headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
     return;
@@ -703,13 +714,18 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // Holding ground until the stand is reconsidered (a fight ends sooner if nothing is in sight).
   if (sim.stand !== null) {
     if (tick < sim.standUntil! && (threat > 0 || sim.stand === 'freeze')) return holdStand(world, ctx, sim);
+    if (sim.stand === 'freeze') sim.thawedAt = tick;
     sim.stand = null;
     sim.standUntil = null;
   }
   if (cornered(world, ctx, sim)) return resolveCornered(world, ctx, sim);
-  // Run to exhaustion with the dead in sight and its nerve gone: it gives up.
+  // Run to exhaustion with the dead in sight and its nerve gone: it gives up — but not
+  // again straight after a freeze. A crowd sprinting from the dead ran itself out in
+  // half a minute, gave up for two, got just enough breath back to sprint again, and
+  // gave up again: frozen by turns, bitten one by one.
   const nc = config.nerve;
-  if (threat > 0 && sim.stamina <= nc.collapseStamina && breaks(sim, config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze', nc.collapseTicks);
+  const thawing = sim.thawedAt !== null && tick - sim.thawedAt < config.cornered.refreeze;
+  if (threat > 0 && !thawing && sim.stamina <= nc.collapseStamina && breaks(sim, config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze', nc.collapseTicks);
 
   // Backing off from a blocked way, until the hold ends, whatever else would apply:
   // a panicked sim that ran for the same door again, or someone who engages turning
@@ -734,13 +750,23 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // lie toward what it is running from — and, once chosen, keeping to it while it is
     // near, unless the danger comes squarely between (wayBlocked picks another).
     // Re-choosing every tick swung the sim between doors as the danger moved.
+    // A door it has just chosen is kept wherever it is: one picked as lying away from the
+    // danger was often just past the search radius, dropped the next tick for the nearer
+    // door it had turned from, and picked again the tick after.
     let door: Building | null = null;
+    const chosenLately = sim.lastMigratedAt !== null && tick - sim.lastMigratedAt < config.behaviour.turnedFromHold;
     if (sim.destinationKind === 'shelter' && sim.destinationBuilding !== null && sim.destination !== null) {
-      if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= config.behaviour.doorSearchRadius) door = buildings[sim.destinationBuilding]!;
+      if (chosenLately || Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= config.behaviour.doorSearchRadius) door = buildings[sim.destinationBuilding]!;
     }
-    door ??= nearestDoor(world, ctx, sim, 'penalise');
+    door ??= nearestDoor(world, ctx, sim, 'penalise', null, sim.turnedFromUntil !== null && tick < sim.turnedFromUntil ? sim.turnedFrom : null);
     if (door !== null) {
-      if (sim.destinationBuilding !== door.id || sim.destinationKind !== 'shelter') setDestination(sim, door, 'shelter');
+      if (sim.destinationBuilding !== door.id || sim.destinationKind !== 'shelter') {
+        // A change of shelter like any other: calm again a tick later, it does not
+        // reconsider straight back to the one it was making for. Panic flickering about
+        // the flight threshold swung it between the two every tick or two.
+        setDestination(sim, door, 'shelter');
+        sim.lastMigratedAt = tick;
+      }
       if (headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y)) wayBlocked(world, ctx, sim, mode);
     } else {
       clearDestination(sim);
@@ -925,9 +951,11 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
         }
         return;
       }
-      // Not there yet: on toward it (the road through is shut, so straight on).
+      // Not there yet: on toward it by the streets, the way it would go out — the route
+      // runs down the exit's road past the queue. Straight for the queue, anyone not
+      // already on that road walked into the empty ground beside it and stayed there.
       sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
-      headFor(world, ctx, sim, q.x, q.y);
+      travel(world, ctx, sim, mode);
       return;
     }
     sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';

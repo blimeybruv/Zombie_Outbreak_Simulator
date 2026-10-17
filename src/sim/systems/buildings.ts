@@ -142,6 +142,12 @@ export function occupierAppeared(world: World, ctx: Context, b: Building): void 
 }
 
 function turnAway(world: World, sim: Sim, b: Building): void {
+  // The door that turned it away before is not forgotten at once: remembering only the
+  // last, a sim between two doors that both refused it ran from one to the other.
+  if (sim.refusedBy !== null && sim.refusedBy !== b.id) {
+    sim.turnedFrom = sim.refusedBy;
+    sim.turnedFromUntil = world.tick + world.config.behaviour.turnedFromHold;
+  }
   sim.refusedBy = b.id;
   if (sim.shelter === b.id) sim.shelter = null;
   sim.destinationBuilding = null;

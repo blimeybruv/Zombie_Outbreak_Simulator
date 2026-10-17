@@ -380,11 +380,27 @@ function alight(world: World, ctx: Context, car: Car): void {
         break;
       }
     }
+    // Neither side clear (a car run into a building, or wedged among others): out
+    // wherever there is ground nearby — a ring at a time, behind first. Put down where
+    // the car stood, people from a crash were left inside the building it had hit.
+    for (let r = out; !placed && r <= cc.length * 2; r += 0.8) {
+      for (let k2 = 0; k2 < 8 && !placed; k2++) {
+        const a = car.heading + Math.PI + (k2 % 2 === 0 ? 1 : -1) * Math.ceil(k2 / 2) * (Math.PI / 4);
+        const px = car.x + Math.cos(a) * r, py = car.y + Math.sin(a) * r;
+        if (ctx.map.walkable(px, py) && !ctx.cars.blocks(px, py)) {
+          s.x = px;
+          s.y = py;
+          placed = true;
+        }
+      }
+    }
     if (!placed) {
       s.x = car.x;
       s.y = car.y;
     }
     s.gait = 'walk';
+    s.route = []; // routed afresh from where it got out
+    s.routeIndex = 0;
     if (s.condition !== 'healthy' && s.condition !== 'infected') continue;
     if (b !== null && s.squadLeader === null && s.crew === null && s.carriedBy === null && s.answering === null) setDestination(s, b, 'shelter'); // a squad, a crew, its patient and officers on a call go where they are taken
   }
@@ -496,6 +512,8 @@ function boardForExit(world: World, ctx: Context, sim: Sim, car: Car): void {
   for (const s of car.occupants.map((id) => world.sims[id]!)) {
     s.destinationKind = 'leave';
     s.destination = { x: e.x, y: e.y };
+    s.route = []; // the walk to the car's: kept, it had them out of the car and on straight for the edge, into the margin
+    s.routeIndex = 0;
   }
   vehicleTaken(world, ctx, car, sim);
 }

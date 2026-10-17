@@ -388,6 +388,7 @@ export const config = {
     pathStreetSearch: 200, // m; widest search for the street a route starts or ends on
     observeInterval: 5, // ticks between close-pass building observations, staggered by id
     avoidHold: 15, // ticks a sim keeps avoiding after the threat drops out of sight
+    turnedFromHold: 120, // ticks a door it turned from (its way blocked, or refused before the last refusal) is not run for again — guess
     // A warning is shouted out loud: it is a stimulus
     // (encounters.shoutNoiseRadius, by default the warning's), heard by the dead as well as the living — telling the
     // neighbours costs drawing the horde. Loudness at the source — guess
@@ -419,6 +420,7 @@ export const config = {
     fightRadius: 15, // m
     fightTicks: 10, // a stand is reconsidered after this long
     freezeTicks: 20, // — guess
+    refreeze: 120, // ticks after coming out of a freeze in which, cornered again, it runs rather than freezes — guess
   },
 
   // 911. Someone who gets indoors within `callWindow` ticks of seeing a zombie calls it

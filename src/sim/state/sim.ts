@@ -305,6 +305,12 @@ export interface Sim {
   stand: Stand | null;
   /** When the stand is reconsidered. @range tick | null @unit tick @readBy sim decisions */
   standUntil: Tick | null;
+  /** When it last came out of a freeze; for cornered.refreeze ticks after, cornered again, it runs for a door instead of freezing again. @range tick | null @unit tick @readBy sim decisions (cornered) */
+  thawedAt: Tick | null;
+  /** The door it last turned away from, its way there blocked, or that refused it before refusedBy did; not run for again until turnedFromUntil (behaviour.turnedFromHold after). @range building id | null @unit id @readBy sim decisions (flight, way blocked) */
+  turnedFrom: BuildingId | null;
+  /** @range tick | null @unit tick @readBy sim decisions (flight, way blocked) */
+  turnedFromUntil: Tick | null;
   /** The last building that turned this sim away (occupied, or someone inside knew it was bitten); never chosen again as a door or shelter. @range building id | null @unit id @readBy door and shelter choice */
   refusedBy: BuildingId | null;
 
