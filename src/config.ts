@@ -251,7 +251,7 @@ export const config = {
     professionStopWeight: 3, // multiplier on tags matching the sim's profession — guess
   },
 
-  // Rising (systems/rising.ts): of those the dead kill — fed on in the street or
+  // Rising (systems/dead/rising.ts): of those the dead kill — fed on in the street or
   // indoors, or killed in a breach — `chance` get up again `delay` ticks later, where
   // they fell. A zombie destroyed stays destroyed, and so does anyone shot. The eaten
   // still rarely spread anything: bites stay the vector, but no place where people
@@ -656,7 +656,7 @@ export const config = {
     panicFloorRate: 0.05, // /tick toward the floor
   },
 
-  // Cars (systems/cars.ts): a building with a velocity, not traffic. Parked at setup at
+  // Cars (systems/services/cars.ts): a building with a velocity, not traffic. Parked at setup at
   // the kerb in front of a share of each tag's buildings (parkShare), on standard and
   // main streets only (an alley is too narrow to pass one), never within nodeClear of
   // a junction nor nearer than spacing to another, and in the mall's stalls (lotShare).
@@ -967,7 +967,7 @@ export const config = {
     // Items each building holds at the start, drawn from its tag's loot table (weights,
     // materials aside): a house has one knife block, not an endless one. What is taken
     // is gone; a weapon given up for a better one, or carried by someone who dies or
-    // turns, is left where it was (systems/arms.ts) — guesses
+    // turns, is left where it was (systems/fighting/arms.ts) — guesses
     lootStock: { residential: 1, firearmsStore: 8, policeStation: 5, hardwareStore: 6, workshop: 3, supermarket: 2, mall: 6 } as Record<string, number>,
     pickupRadius: 2, // m: a weapon on the ground is taken by someone passing this close who is better off with it
     // Residents never get positions, but fortification is addition: up to this many

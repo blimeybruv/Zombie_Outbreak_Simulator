@@ -121,7 +121,7 @@ export interface Building {
    */
   weaponStock: Count | null;
   /**
-   * What is still here to be found (systems/arms.ts): drawn at setup from the tag's loot
+   * What is still here to be found (systems/fighting/arms.ts): drawn at setup from the tag's loot
    * table, buildings.lootStock items; each taken is gone; a weapon given up for a better
    * one, or carried by someone who dies or turns here, is left here.
    * @range 0–dozens items @unit — @readBy loot, arms (drops)
@@ -143,7 +143,7 @@ export interface Building {
   pendingTurn: Count;
   /** Residents queued to die after a breach. @range 0–residents @unit people @readBy building processes */
   pendingDie: Count;
-  /** Residents killed here in a breach who will get up again, by tick (systems/rising.ts), soonest first. @range 0–residents entries @unit tick @readBy rising */
+  /** Residents killed here in a breach who will get up again, by tick (systems/dead/rising.ts), soonest first. @range 0–residents entries @unit tick @readBy rising */
   risings: Tick[];
   /** When the rescue company's sweep reached it and sent its people back to the exit (rescue.ts); null if it never did. @range tick | null @unit tick @readBy rescue */
   sweptAt: Tick | null;

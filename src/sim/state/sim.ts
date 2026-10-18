@@ -329,7 +329,7 @@ export interface Sim {
 
   /** Conversion tick, set on a bite to tick + infection.turnDelay (300–1,200); null when not infected. @range tick | null @unit tick @readBy conversion */
   turnsAt: Tick | null;
-  /** Killed by the dead, it gets up again at this tick (systems/rising.ts, rising.chance); null if it stays down, or is not dead. @range tick | null @unit tick @readBy rising */
+  /** Killed by the dead, it gets up again at this tick (systems/dead/rising.ts, rising.chance); null if it stays down, or is not dead. @range tick | null @unit tick @readBy rising */
   risesAt: Tick | null;
   /**
    * Made once, by the sim itself, at its first decision after the bite. Its own

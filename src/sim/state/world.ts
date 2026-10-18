@@ -115,7 +115,7 @@ export interface World {
   calledUpAt: Tick | null;
   /** Soldiers who came in from outside to hold the cordon: counted in the leaves like anyone, so the invariant is population + outsiders. @range 0–exits × squads.size @unit people @readBy invariant, cordon, end stats */
   outsiders: Count;
-  /** Weapons lying where someone fell outdoors, or was dropped for a better one (systems/arms.ts), until picked up. @range 0–hundreds @unit — @readBy arms (pickup) */
+  /** Weapons lying where someone fell outdoors, or was dropped for a better one (systems/fighting/arms.ts), until picked up. @range 0–hundreds @unit — @readBy arms (pickup) */
   drops: { x: Metres; y: Metres; weapon: Weapon; ammo: Count }[];
   /** The exit the rescue comes in by and takes people out of (rescue.ts); null before the sweep. @range exit index | null @unit index @readBy leaving (which exit, the wait for a truck), rescue */
   rescueExit: number | null;

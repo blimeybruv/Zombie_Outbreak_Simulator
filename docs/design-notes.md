@@ -4,6 +4,8 @@ Sep 27, 2026 · @Trib
 
 A spectator-only outbreak simulation: a top-down city of dots and building outlines, roughly 2,000 people, no player input beyond camera, roster and time controls. The core loop is a shelter economy — fortify, run out of materials, send someone out, and the retrieval trip brings the horde back.
 
+**What these notes are.** The reasoning written before the build: why the design is shaped as it is, and what was cut and why. They are kept as reasoning, not updated into a description of the program — `docs/implementation-reference.md` is the specification and is newer wherever the two differ. Where the build went another way, the section says so in a **Since built** note, so nothing here is re-litigated by accident.
+
 ## Concept and scope
 
 The demo tests whether a population of dots, driven by archetype behaviour and a spreading infection, produces a story worth watching without any player agency at all.
@@ -17,8 +19,6 @@ Deliberately out of scope: traffic modelling, fire and explosions, z-levels, hea
 No engine. TypeScript, simulation as a pure module with no DOM dependency, rendering to a plain canvas — so the same code runs headless in Node and in the browser.
 
 ## Scenario progression
-
-&#91;embedded content: phase stages · 4 stages, 2 triggers\]
 
 **Phase exists to solve the cold-start problem.** Most of the population is an occupant count, and counts only become agents through local panic, so a district the infection has not reached is not quietly going about its business — it is not simulated at all. A viewer panning there sees a dead grid. Phase is the release valve that fixes this.
 
@@ -90,6 +90,8 @@ Starting occupancy and structural soundness derive from tag, giving the map text
 `indoors` must be broken out or the numbers do not reconcile, and a drop in `living` is otherwise ambiguous between deaths and people going inside. `destroyed` must be its own term or the sum breaks the moment police kill something, and keeping it apart from `dead` makes the end statistics readable: total human loss is `dead` plus `destroyed`, since every zombie but patient zero was someone.
 
 The constant sum is the cheapest and most useful invariant available, and the headless harness should assert it every tick.
+
+**Since built:** eight leaves, not six — the living split into outdoors, indoors, dead and evacuated, the turned into symptomatic, outdoors, occupying and destroyed, with `World.outsiders` added for soldiers who come in from outside (reference, "The invariant"). There is no `rescued`: those the rescue takes out are evacuated.
 
 ## The map
 
@@ -168,8 +170,6 @@ This is the core loop, and the only cycle in the design. Everything else pushes 
 4. **Horde converges** — noise, or a tracked return, draws them.
 
 Then back to the first, if the shelter holds and materials are needed again.
-
-&#91;embedded content: shelter economy · 4 stages, one reinforcing loop\]
 
 **Fortification** is one float per building, raised by time spent working on it, lowering breach probability. That single field turns the hunker-down archetype from a movement preference into an activity, and creates a real tradeoff: a sim fortifying is a sim not fleeing.
 
@@ -343,7 +343,7 @@ Full procedural variety is a later addition, not a hard one. The reason to defer
 
 Outbreak origin is the highest-leverage setting. A single patient zero in a dense block gives a slow visible bloom with a clear front; several simultaneous sources give a city already lost and a story about survival rather than spread. Those are nearly different scenarios, and flipping between them is probably the most useful control on screen.
 
-**The demo has one terminal ending: the timer.** One in-game month elapses and the run stops.
+**The demo has one terminal ending: the timer.** One in-game month elapses and the run stops. (**Since built:** the run is eighteen simulated hours, 64,800 ticks — fourteen of outbreak, then the rescue — and ends at the timer; reference, "Ending".)
 
 Stalemate is handled as a controller rather than an ending. If the map settles — no conversions for a sustained window — the wander rate is raised until movement resumes, promoting dormant zombies into wanderers a fraction at a time. Someone stepping out to scavenge then risks meeting one, which is not stalemate, it is a slow leak.
 
@@ -355,7 +355,9 @@ It converts the ending from a fade-out into a convergence: every thread suddenly
 
 Two routes to triggering it, still undecided: off-map on a timer, which makes the ending fixed and survivors race a clock they cannot affect; or earned by a group surviving long enough, which makes it contingent but needs a fallback for runs where every group collapses early.
 
-## Cars — deferred expansion
+**Since built**, on a timer and by road rather than helicopter: after fourteen hours a company of Army Rangers comes in by one exit and sweeps a corridor up from it, a radio broadcast sends everyone still hidden to that exit, and trucks take people out until the run ends. It does kill many of those it saves (reference, "The rescue").
+
+## Cars
 
 A car is a mobile occupancy container, which means it reuses the building system with a velocity added: a number inside, entry criteria per archetype, breach behaviour, conversion over several ticks. Not a new subsystem, a parameterised one.
 
@@ -376,6 +378,8 @@ That third rule turns the failure state into content. Gridlock becomes the mecha
 Two knock-on effects. Cars make noise, so a street full of engines is a citywide dinner bell — probably correct, but it needs tuning alongside gunfire. And abandoned cars should persist as obstacles, since a road blocked by dead vehicles is how a district becomes permanently cut off, and permanent structural change over a run is worth a lot for a spectator piece.
 
 Sequencing: this is the second expansion, after the base dynamics prove out. Adding cars before the infection curve is understood means tuning two coupled systems that are both unknown.
+
+**Since built**, at the user's request, as described here: containers that drive the street graph offset from the centreline, the lower id yielding, abandoned for good after a timeout, engines drawing the dead. Since then they have gained inertia, turning circles, slowing for corners, swerving round people, crashes, and turning back from a wreck (reference, "Cars").
 
 ## Tuning parameters
 
@@ -416,19 +420,17 @@ The complete list of facts the program holds at any moment: what exists and what
 
 **Zombie.** Position, heading, dormancy flag, wandering flag, tracked-target reference, timers. Nothing else.
 
-**Building.** Outline, tag, anonymous occupant count, materials, fortification value, breached flag, lit flag, and the list of individually tracked sims sheltering inside. Starting occupancy and structural soundness derive from tag rather than being stored.
-
 **Street.** Name, endpoints, lit flag, terrain class. The graph's edges, and the key space for sim memory.
 
 **World.** Tick, seed, time of day, the six counters, promoted survivors, the repath queue, and the config object holding every tuning parameter.
 
 Three decisions this exercise must surface rather than assume: whether coordinates are continuous or grid cells, which changes pathfinding, collision and infection radius; how a building's anonymous count relates to the named survivors inside it; and whether history counters live on the sim or in a parallel structure indexed by sim id.
 
+**Since built:** the authoritative field list is `src/sim/state/`, every field with its range, unit and readers. The three decisions went: continuous coordinates in metres; a building's anonymous residents are a count and become tracked sims when something makes them matter; history counters live on the sim.
+
 Memory is the only non-scalar here and the only thing that is not trivially cheap, which is why it is bounded. Everything else is numbers and flags — two thousand sims with twenty integer fields each is forty thousand values, which costs nothing. Per-tick work is the expense, not state.
 
 ## Build sequence
-
-&#91;embedded content: build order · 4 steps, 3 gates\]
 
 The first deliverable is a script that runs 500 ticks from a fixed seed and prints the four population numbers every 50. A text dump takes seconds to read; a renderer takes hours to build, and the question it answers — whether the infection curve has any shape to it — is answerable without one.
 
@@ -451,26 +453,28 @@ Recorded so they are not re-litigated.
 | Heavy weapons, grenades | Cut | Changes capability rather than decisions, and one sim able to clear crowds breaks the one-way infection curve. |
 | Building on Project Zomboid | Rejected | Wants the opposite half of that engine: mass agents and a spectator camera rather than one deep character. No headless harness, and the core parameters would not be reachable. |
 | Cars and traffic | Built (fourth round) | Brought forward at the user's request: gridlock as a vector, engines as a dinner bell. See the reference, "Cars". |
-| Memory sharing between sims | Deferred | Now core rather than deferred: street-keyed memory makes merging a recency comparison, and it is what makes grouping an advantage. |
+| Memory sharing between sims | Built | Core rather than deferred: street-keyed memory makes merging a recency comparison. Since the fourth round only stopping to talk trades it (reference, "Encounters"). |
 | Procedural map variety | Deferred | Generation quality is its own tuning problem. |
-| Rescue ending | Deferred to v2 | The better ending; the demo uses timer and stalemate. |
+| Rescue ending | Built | The better ending; see Scenario setup and endings, above. |
 | Progressive grid failure | Deferred | A scenario setting first; earns itself if lit and dark runs differ. |
 
-**Squads — v2.** A small number of pre-placed survivors moving in formation: file when travelling, diamond when engaged. Deliberately not dynamic. Emergent grouping needs joining rules, leaving rules, leadership succession and group-meets-group arbitration, all of which is negotiation; a pre-placed squad has fixed membership and a fixed leader, and dissolves into ordinary sims if the leader dies.
+**Squads — v2.** (**Since built**, not as pre-placed civilians but as the city's armed responses: reservists called up after the 911 load passes a threshold, SWAT from three police stations, the cordon's units and the Rangers. Civilian squads stay out; reference, "Organised responses".) A small number of pre-placed survivors moving in formation: file when travelling, diamond when engaged. Deliberately not dynamic. Emergent grouping needs joining rules, leaving rules, leadership succession and group-meets-group arbitration, all of which is negotiation; a pre-placed squad has fixed membership and a fixed leader, and dissolves into ordinary sims if the leader dies.
 
 Cheap because formations only look like coordination. One leader runs pathfinding; followers steer toward fixed slot offsets and never route at all, which the repath budget benefits from. What it buys is a contrast nothing else in the design can show — discipline moving through panic — and the first unit with enough engagement capacity to take a garrisoned building, so shelters could change hands both ways. The real work is making slot-keeping and obstacle avoidance read well together rather than rigid or broken. Five weapons firing is also the loudest thing in the design, so a squad probably cannot win by force for long.
 
 ## Open questions
 
-- [ ] What fraction of starting population triggers promotion, and how long the tick-based fallback waits.
-- [ ] Panic thresholds: how high it must run to switch off pathfinding, how fast it decays, and the damping factor on transmission.
-- [ ] City scale. Roughly 2,000 people across a 40x40 block grid is a placeholder.
-- [ ] Coordinates: continuous or grid cells?
-- [ ] Where history counters live — on the sim, or in a parallel structure indexed by sim id.
-- [ ] Rescue trigger: off-map timer or earned by a surviving group, and what the fallback is.
-- [ ] Promotion count. A dozen named survivors is a guess; the right number is however many the camera can meaningfully visit.
-- [ ] The salience scoring function for the ticker.
-- [ ] Whether the dispatcher role is worth having, given it needs a weapon and weapons are loud. Depends on how common quiet melee is.
-- [ ] How an infected sim decides whether to seek shelter or move away from its group.
-- [ ] Stalemate controller thresholds: how long a settled map is tolerated, and what fraction of dormant zombies is promoted per step.
-- [ ] Whether information spreading by contact collapses route variety, since a group converging on shared beliefs will tend to walk the same streets.
+All but one of the questions raised here have been answered in the build; each answer is in the reference.
+
+- [x] Promotion trigger and fallback — two stages, 50% and 30% of the living, ticks 10,000 and 18,000 (reference, "Promotion").
+- [x] Panic thresholds and transmission damping — `config.panic` (reference, "Panic gating", "Encounters").
+- [x] City scale — 6,000 people (about 1,700 agents on the map at the peak) on a generated 3,520 m map with an empty margin (reference, "Space", "The city's edge").
+- [x] Coordinates — continuous, in metres.
+- [x] History counters — on the sim.
+- [x] Rescue trigger — a timer, at fourteen hours (reference, "The rescue").
+- [x] Promotion count — 12 alive at a time, topped up, at most 96 in all.
+- [x] Salience scoring — reference, "Salience".
+- [x] The dispatcher role — kept: an armed engager holding the door while the threat is under its threshold (reference, "The shelter economy").
+- [x] How an infected sim decides — the bitten choose once, by archetype, to conceal or go off alone (reference, History, "Survivor behaviour revisions").
+- [x] Stalemate controller thresholds — `config.stalemate` (reference, "The stalemate controller").
+- [ ] Whether information spreading by contact collapses route variety. Not measured directly; talk now trades memory only when people stop, and hearsay is discounted by trust.

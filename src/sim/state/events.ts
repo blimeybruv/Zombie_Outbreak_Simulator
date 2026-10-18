@@ -261,7 +261,7 @@ export interface RescueEvent extends EventBase, Located {
 }
 
 export interface BodyRoseEvent extends EventBase, Located {
-  /** Someone the dead killed gets up again (systems/rising.ts). Null for an anonymous resident, inside. @range literal @unit — @readBy event consumers */
+  /** Someone the dead killed gets up again (systems/dead/rising.ts). Null for an anonymous resident, inside. @range literal @unit — @readBy event consumers */
   type: 'bodyRose';
   /** @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
