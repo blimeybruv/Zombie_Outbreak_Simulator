@@ -66,6 +66,26 @@ export function nearBarrier(world: World, e: Exit, x: number, y: number): boolea
   return Math.hypot(x - b.x, y - b.y) <= world.config.cordon.warnRadius;
 }
 
+/** The closed, firing exit whose barrier a point is within warning distance of; or null. */
+export function barrierNear(world: World, sim: Sim): Exit | null {
+  for (let i = 0; i < world.exits.length; i++) {
+    const e = world.exits[i]!;
+    if (shut(e) && !holdsFire(world, i) && nearBarrier(world, e, sim.x, sim.y)) return e;
+  }
+  return null;
+}
+
+/** Whether a shot at (x, y) is the cordon's: fired from a closed barrier's post (the post lies outside it, within reach of the soldiers' line). */
+export function cordonShot(world: World, x: number, y: number): boolean {
+  const cc = world.config.cordon;
+  for (const e of world.exits) {
+    if (e.closedAt === null) continue;
+    const b = barrierAt(world, e);
+    if (Math.hypot(x - b.x - e.dx * cc.post, y - b.y - e.dy * cc.post) <= cc.postReach + world.config.squads.size * world.config.squads.lineSpacing) return true;
+  }
+  return false;
+}
+
 /** Whether the soldiers at exit `i` hold their fire: at the rescue's exit, once the rescue has come, people are waited for, not warned off. */
 export function holdsFire(world: World, i: number): boolean {
   return i === world.rescueExit;

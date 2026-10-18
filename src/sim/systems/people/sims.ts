@@ -42,7 +42,7 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from '../buildings/sh
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '../services/squads';
 import { callAmbulance, decideEmt, decidePatient } from '../services/emt';
 import { rideToCall } from '../services/dispatch';
-import { barrierAt, flank, holdsFire, inRescueQueue, nearBarrier, pastBarrier, queueAt, shut } from '../outside/cordon';
+import { barrierAt, barrierNear, cordonShot, flank, holdsFire, inRescueQueue, nearBarrier, pastBarrier, queueAt, shut } from '../outside/cordon';
 import { answersRescue } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
 
@@ -149,6 +149,8 @@ function shotHeard(world: World, sim: Sim): { x: number; y: number } | null {
   for (const st of world.stimuli) {
     if (st.createdAt < tick - 1 || !isFirearm(st.kind)) continue;
     if (Math.hypot(st.x - sim.x, st.y - sim.y) <= config.police.shotIgnoreRadius) continue;
+    // Not the cordon's: its soldiers firing at the barrier drew officers into their aimed fire.
+    if (cordonShot(world, st.x, st.y)) continue;
     const i = intensityAt(st, sim.x, sim.y);
     if (i > loudest) {
       loudest = i;
@@ -695,6 +697,24 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 
   if (mode === 'flight') {
     sim.gait = 'sprint';
+    // Fired on at a barrier: it runs from the guns, back the way it came. Running from the dead as anywhere else, with no door out on the
+    // road, the frightened sprinted straight into the soldiers' aimed fire.
+    // Going round it already, it keeps going, at a sprint: panic does not undo the choice.
+    if (sim.crossing !== null && sim.destinationKind === 'leave' && sim.destination !== null) {
+      const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
+      const f = flank(world, e, sim.crossing);
+      const to = pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
+      steerToward(sim, to.x, to.y);
+      return;
+    }
+    if (sim.crossing === null && sim.firedOnAt !== null && tick - sim.firedOnAt <= config.cordon.warnEvery) {
+      const e = barrierNear(world, sim);
+      if (e !== null) {
+        const b = barrierAt(world, e);
+        steerToward(sim, b.x - e.dx * 2 * config.cordon.warnRadius, b.y - e.dy * 2 * config.cordon.warnRadius);
+        return;
+      }
+    }
     // Not choosing a shelter: running for a door in sight, preferring one that does not
     // lie toward what it is running from — and, once chosen, keeping to it while it is
     // near, unless the danger comes squarely between (wayBlocked picks another).
