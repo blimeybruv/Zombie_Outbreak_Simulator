@@ -568,11 +568,11 @@ export function carProcesses(world: World, ctx: Context): void {
       alight(world, ctx, car);
       continue;
     }
-    // At a closed barrier (cordon.ts): left where it stopped, and they go on on foot to
-    // wait at it. The cars behind stop behind it.
+    // Near a closed barrier (cordon.ts): left where the soldiers' warnings begin, and
+    // they go on on foot, to be warned off like anyone. The cars behind stop behind it.
     if (car.exit !== null && world.exits[car.exit]!.closedAt !== null) {
       const b = barrierAt(world, world.exits[car.exit]!);
-      if (Math.hypot(b.x - car.x, b.y - car.y) <= config.cordon.barrierReach) {
+      if (Math.hypot(b.x - car.x, b.y - car.y) <= config.cordon.warnRadius) {
         car.state = 'abandoned';
         ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });
         alight(world, ctx, car);

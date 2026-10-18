@@ -51,7 +51,7 @@ const ARCHETYPES: Record<string, string> = {
   police: 'A police officer: does not panic, answers calls, runs toward gunfire, and falls back only when outmatched.',
   reservist: 'A reservist: an ordinary person until the call-up, then makes for the armory to draw a rifle and deploy in a squad.',
   'Army Ranger': 'Part of the rescue company: sweeps a corridor up from the exit and sends back anyone it meets.',
-  soldier: 'Holds the cordon at a road out of the city. Will fire on those getting round the barrier, if their unit decides to.',
+  soldier: 'Holds the cordon at a road out of the city. Fires warning shots at anyone who comes near the barrier, and to wound or kill at anyone who comes close.',
 };
 
 /** A trait as a word, by fifths of its range; the number stays in the tooltip. */

@@ -274,6 +274,20 @@ export interface CordonEvadedEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface CordonWarnedEvent extends EventBase, Located {
+  /** Cordon soldiers fired a warning shot at someone come within cordon.warnRadius of their barrier. @range literal @unit — @readBy event consumers */
+  type: 'cordonWarned';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
+export interface CordonWoundedEvent extends EventBase, Located {
+  /** Cordon soldiers' aimed fire struck someone within cordon.fireRadius without killing it: it turns back. @range literal @unit — @readBy event consumers */
+  type: 'cordonWounded';
+  /** @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export interface CordonClosedEvent extends EventBase, Located {
   /** Soldiers from outside close an exit: a barrier across the highway, for good. @range literal @unit — @readBy event consumers */
   type: 'cordonClosed';
@@ -287,6 +301,8 @@ export type SimEvent =
   | ReservistsCalledUpEvent
   | CordonClosedEvent
   | CordonEvadedEvent
+  | CordonWarnedEvent
+  | CordonWoundedEvent
   | SimLeftEvent
   | PoliceRadioEvent
   | SwatDeployedEvent

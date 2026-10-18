@@ -16,7 +16,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return n.name ? `${n.name} turned on ${n.place}.` : `A survivor turned on ${n.place}.`;
     case 'simDied':
       if (e.cause === 'mistaken') return `Rangers shot ${n.name ?? 'a survivor'} on ${n.place}, taking them for one of the dead.`;
-      if (e.cause === 'shot') return `Soldiers shot ${n.name ?? 'a survivor'} trying to get around the cordon on ${n.place}.`;
+      if (e.cause === 'shot') return `Soldiers at the cordon on ${n.place} shot ${n.name ?? 'someone'} dead at their barrier.`;
       if (e.cause === 'returned') return `A soldier at the cordon on ${n.place} was shot by someone getting around it.`;
       if (e.cause === 'crash') return `${n.name ?? 'A survivor'} died in a car crash on ${n.place}.`;
       if (!n.name) return `A survivor died on ${n.place}.`;
@@ -75,6 +75,10 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return e.count > 0 ? `A truck has left ${n.place} with ${e.count} aboard.` : null;
     case 'bodyRose':
       return n.name ? `${n.name}, killed on ${n.place}, has got up again.` : null;
+    case 'cordonWarned':
+      return null; // heard, not read: the shots are the message, and there are many
+    case 'cordonWounded':
+      return `Soldiers at the cordon on ${n.place} shot ${n.name ?? 'someone'} near their barrier. Wounded, they turned back.`;
     case 'cordonEvaded':
       return `${n.name ?? 'Someone'} got around the soldiers on ${n.place} and out of the city.`;
     case 'simLeft':

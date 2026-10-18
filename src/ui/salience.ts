@@ -35,8 +35,8 @@ export const BASE = {
   outOfAmmo: 20, // not in the reference: why a squad member is walking away from the fight
   cordonBreached: 70, // not in the reference: a way out open again, nobody left to hold it
   bodyRose: 40, // not in the reference: a named survivor, dead, walking again
-  cordonShot: 70, // not in the reference: the cordon firing on the city's own people
-  cordonEvaded: 50, // not in the reference: someone through a cordon that held its fire
+  cordonShot: 70, // not in the reference: the cordon firing on the city's own people (killed or wounded)
+  cordonEvaded: 50, // not in the reference: someone through the cordon's fire and out
   simLeft: 30, // not in the reference: a named survivor out of the city (only they make a line)
   ambulanceDispatched: 20, // not in the reference: help on the way
   patientAdmitted: 45, // not in the reference: the vector delivered
@@ -76,7 +76,7 @@ export function dropsTo1x(kind: Kind, n: EventNote): boolean {
 
 function kindOf(e: SimEvent, n: EventNote): Kind | null {
   if (e.type === 'simDied' && (e.cause === 'shot' || e.cause === 'mistaken' || e.cause === 'returned')) return 'cordonShot';
-  if (e.type === 'cordonFiredOn') return 'cordonShot';
+  if (e.type === 'cordonFiredOn' || e.type === 'cordonWounded') return 'cordonShot';
   if (e.type === 'districtEvacuating' && e.first) return 'firstEvacuation';
   if ((e.type === 'simDied' || e.type === 'simTurned') && n.name !== null) return 'promotedLoss';
   return e.type in BASE ? (e.type as Kind) : null;

@@ -538,21 +538,22 @@ export const config = {
 
   // The cordon (cordon.ts): the world outside sealing the city. It notices when the
   // first district evacuates, and `delay` ticks later — that district through, the
-  // next not — a squad of squads.size
-  // soldiers comes in at every exit, armed with the rifle and `ammo` rounds. Each walks
-  // to its post `post` metres outside a barrier `setback` metres in from the edge; once
-  // the leader is within postReach of it, the barrier closes: the highway's last
-  // segment is impassable, and nobody passes. Those making for it queue `queueGap`
-  // metres inside it, believing they will be screened and let through, and wait —
-  // patience × (½ + their trust) ticks — before giving the exit up for another, or for
-  // shelter — or, at `cross` × (1 − trust), try to get round it instead: along the
-  // kerb, `kerb` metres outside the road's edge, past the barrier and out at the edge.
-  // Whether a unit fires on them is its own (fireShare of units do, drawn once each,
-  // never shown): those that do shoot at anyone getting round, once within fireLine
-  // metres of the barrier, in rifle range —
-  // gunfire, which the dead come to; those that do not let them bleed out round the
-  // flanks, bitten or not. A car reaching a closed barrier is left there; the cars
-  // behind it stop. Soldiers are outsiders: the invariant counts them on top of the
+  // next not — a squad of squads.size soldiers comes in at every exit, armed with the
+  // rifle and `ammo` rounds. Each walks to its post `post` metres outside a barrier
+  // `setback` metres in from the edge; once the leader is within postReach of it, the
+  // barrier closes: the highway's last segment is impassable, and nobody passes.
+  // The soldiers fire at everyone who comes near it (the user's design): anyone on foot
+  // within `warnRadius` metres of the barrier, in sight, draws a warning shot — no
+  // roll, the noise as any shot, once per person each `warnEvery` ticks — and anyone
+  // within `fireRadius`, aimed fire: the rifle's ordinary roll, of whose hits `killShare`
+  // kill and the rest wound (no wound state: the wounded turn back). Warned, a person
+  // making for the exit gives it up for another, or for shelter — or, at
+  // `defy` × (1 − trust), presses on round the barrier: along the kerb, `kerb` metres
+  // outside the road's edge, and out at the edge, under fire. A car making for a closed
+  // exit is left `warnRadius` metres short of the barrier; the cars behind it stop.
+  // At the rescue's exit, once the rescue has come, nobody is fired on: those answering
+  // the broadcast wait `queueGap` metres inside the barrier (within queueRadius) for a
+  // truck, a step apart (queueSpacing m). Soldiers are outsiders: the invariant counts them on top of the
   // population — guesses
   // breachRadius: a closed barrier with no living soldier within this many metres is
   // breached, and people on foot pass it (vehicles still stop) — guess
@@ -565,7 +566,7 @@ export const config = {
   // facing back into the city. Stood stock still, a line read as frozen; ambling about
   // its place, as jittery (the user's notes) — guess. soldierAge: the age range of every
   // soldier from outside (the cordon and the Rangers), shown by rank, not profession.
-  cordon: { delay: 600, ammo: 40, setback: 40, post: 8, postReach: 6, queueGap: 10, queueRadius: 20, patience: 900, barrierReach: 15, cross: 0.5, kerb: 1.5, fireShare: 0.5, fireLine: 2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, soldierAge: [19, 40] as [number, number], atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
+  cordon: { delay: 600, ammo: 120, setback: 40, post: 8, postReach: 6, warnRadius: 75, fireRadius: 25, warnEvery: 20, killShare: 0.5, defy: 0.5, kerb: 1.5, queueGap: 10, queueRadius: 20, queueSpacing: 1.2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, soldierAge: [19, 40] as [number, number], atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

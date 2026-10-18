@@ -4,7 +4,7 @@
 
 import { isOutdoorLiving, type Context } from '../../context';
 import { noteStreet } from '../../navigation/memory';
-import { isLiving } from '../shared/common';
+import { clearDestination, isLiving } from '../shared/common';
 import { transfer, simLeaf } from '../../counters';
 import { chance, nextInt } from '../../lib/rng';
 import type { Sim, World, Zombie } from '../../state';
@@ -16,8 +16,8 @@ import { cornered } from '../people/sims';
 import { modeOf } from '../people/panic';
 import { recognisedWithin, viewFactor } from '../shared/perception';
 import { emitStimulus } from '../shared/stimuli';
-import { pastBarrier } from '../outside/cordon';
-import { nearestExit } from '../outside/exits';
+import { barrierAt, holdsFire } from '../outside/cordon';
+import { headForExit, nearestExit } from '../outside/exits';
 
 /** Kills a zombie: it stays in the array, destroyed. */
 export function destroyZombie(world: World, z: Zombie, by: Sim): void {
@@ -136,7 +136,7 @@ function sims(world: World, ctx: Context): void {
     }
     if (target === null) {
       if (usable && sim.id % cc.armedTargetStagger === tick % cc.armedTargetStagger) {
-        if (sim.firesOnCrossers) cordonFire(world, ctx, sim, ranged);
+        if (sim.outsider && !sim.sweep) cordonFire(world, ctx, sim, ranged); // the cordon's soldiers
         else if (sim.sweep) sweepFire(world, ctx, sim, ranged);
         else if (sim.crossing !== null && !sim.outsider) crosserFire(world, ctx, sim, ranged);
       }
@@ -183,31 +183,55 @@ function sims(world: World, ctx: Context): void {
   }
 }
 
-/**
- * A cordon soldier whose unit fires on those getting round its barrier, with no dead
- * in reach: at the nearest come within fireLine of the barrier — trying to pass it,
- * not just stepping out of the queue — in range and in sight; the ordinary ranged
- * roll, and the ordinary noise, which the dead come to. The one place a survivor is
- * shot at by anyone, and only here.
- */
 type RangedProfile = World['config']['combat']['ranged']['rifle'];
 
+/**
+ * A cordon soldier with no dead in reach fires at the person nearest its barrier (the
+ * user's design): within cordon.fireRadius, aimed — the rifle's ordinary roll, of whose
+ * hits killShare kill and the rest wound; within warnRadius, a warning shot, no roll,
+ * at someone not warned in the last warnEvery ticks. In sight either way, the noise of
+ * any shot, which the dead come to. Not at the rescue's exit once the rescue has come.
+ * The one place a survivor is fired on by anyone outside the rescue (CLAUDE.md).
+ */
 function cordonFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile): void {
   const { config, tick } = world;
+  const cc = config.cordon;
+  const i = nearestExit(world, sim.x, sim.y)!;
+  if (holdsFire(world, i)) return;
+  const b = barrierAt(world, world.exits[i]!);
   let target: Sim | null = null;
   let targetD = Infinity;
-  for (const s of world.sims) {
-    if (s.crossing === null || s.destinationKind !== 'leave' || !isOutdoorLiving(s) || s.car !== null) continue;
-    const e = world.exits[nearestExit(world, s.destination!.x, s.destination!.y)!]!;
-    if (pastBarrier(world, e, s.x, s.y) < -config.cordon.fireLine) continue; // not yet trying to pass
-    const d = Math.hypot(s.x - sim.x, s.y - sim.y);
-    if (d > ranged.range || d >= targetD || !ctx.map.lineOfSight(sim.x, sim.y, s.x, s.y)) continue;
+  ctx.simHash.query(b.x, b.y, cc.warnRadius, ctx.ids2);
+  for (const id of ctx.ids2) {
+    const s = world.sims[id]!;
+    if (s.outsider || !isOutdoorLiving(s) || s.car !== null) continue;
+    const d = Math.hypot(s.x - b.x, s.y - b.y);
+    if (d > cc.warnRadius || d >= targetD) continue;
+    if (d > cc.fireRadius && s.firedOnAt !== null && tick - s.firedOnAt < cc.warnEvery) continue; // warned already
+    if (!ctx.map.lineOfSight(sim.x, sim.y, s.x, s.y)) continue;
     target = s;
     targetD = d;
   }
   if (target === null) return;
   target.firedOnAt = tick;
-  if (chance(world.rng, ranged.baseKill * (1 - (config.combat.rangedFalloff * targetD) / ranged.range) * seen(world, ctx, target.x, target.y))) killSim(world, ctx, target, 'shot');
+  const aimed = targetD <= cc.fireRadius;
+  if (!aimed) ctx.events.push({ type: 'cordonWarned', tick, sim: target.id, x: target.x, y: target.y });
+  else {
+    const d = Math.hypot(target.x - sim.x, target.y - sim.y);
+    if (chance(world.rng, ranged.baseKill * Math.max(0, 1 - (config.combat.rangedFalloff * d) / ranged.range) * seen(world, ctx, target.x, target.y))) {
+      if (chance(world.rng, cc.killShare)) killSim(world, ctx, target, 'shot');
+      else {
+        // Wounded: struck, it turns back — no wound state; it gives this way out up.
+        target.knownClosed |= 1 << i;
+        target.crossing = null;
+        if (target.destinationKind === 'leave' && !headForExit(world, target)) {
+          clearDestination(target);
+          target.destinationKind = null;
+        }
+        ctx.events.push({ type: 'cordonWounded', tick, sim: target.id, x: target.x, y: target.y });
+      }
+    }
+  }
   sim.ammo -= ranged.ammoPerAttack;
   sim.nextAttackAt = tick + ranged.cooldown;
   emitStimulus(world, sim.x, sim.y, sim.weapon!, ranged.noise, false);

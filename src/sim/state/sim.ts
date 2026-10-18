@@ -395,15 +395,13 @@ export interface Sim {
   outsider: boolean;
   /** Where a cordon squad's leader stands, by its barrier; null for everyone else. @range 0–3200 each axis | null @unit m @readBy sim decisions (squad leader), cordon */
   post: Vec2 | null;
-  /** Waiting at a closed exit since this tick, believing it will be let through; null otherwise. @range tick | null @unit tick @readBy leaving (patience) */
+  /** Waiting in the rescue's queue for a truck since this tick; null otherwise. @range tick | null @unit tick @readBy the rescue (who boards first) */
   queuedSince: Tick | null;
   /** Exits this sim has found closed, as bits (1 << exit index). @range 0–7 @unit bits @readBy leaving (choice of exit) */
   knownClosed: number;
-  /** Getting round a closed exit's barrier along the kerb, on this side of the road (1 or -1, across it from the exit's outward direction); null otherwise. @range 1 | -1 | null @unit side @readBy leaving (crossing), combat (cordon fire) */
+  /** Pressing on round a closed exit's barrier along the kerb, warned off and defying it, on this side of the road (1 or -1, across it from the exit's outward direction); null otherwise. @range 1 | -1 | null @unit side @readBy leaving (crossing), combat (firing back) */
   crossing: 1 | -1 | null;
-  /** A cordon soldier whose unit fires on those getting round its barrier (drawn once per unit, cordon.fireShare); false for everyone else, and never shown. @range true/false @unit — @readBy combat (cordon fire) */
-  firesOnCrossers: boolean;
-  /** The last tick a cordon soldier fired on this sim, getting round its barrier; null if never. @range tick | null @unit tick @readBy combat (returning fire) */
+  /** The last tick a cordon soldier fired at this sim — a warning shot or aimed fire; null if never. @range tick | null @unit tick @readBy leaving (warned off), combat (warning cadence, returning fire) */
   firedOnAt: Tick | null;
   /** When it last went into a building; null before it ever has. @range tick | null @unit tick @readBy building exits (panic expulsion settles) */
   enteredAt: Tick | null;

@@ -42,7 +42,7 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from '../buildings/sh
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '../services/squads';
 import { callAmbulance, decideEmt, decidePatient } from '../services/emt';
 import { rideToCall } from '../services/dispatch';
-import { atClosedExit, flank, pastBarrier, queueAt, shut } from '../outside/cordon';
+import { barrierAt, flank, holdsFire, inRescueQueue, nearBarrier, pastBarrier, queueAt, shut } from '../outside/cordon';
 import { answersRescue } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
 
@@ -580,6 +580,32 @@ function policeStationFor(world: World, sim: Sim): Building | null {
   return best;
 }
 
+/** Waiting in a queue: still, facing the way out, unless someone stands closer than cordon.queueSpacing — then a step away from the nearest (the lower id on a tie). */
+function giveRoom(world: World, ctx: Context, sim: Sim, e: World['exits'][number]): void {
+  const gap = world.config.cordon.queueSpacing;
+  let near: Sim | null = null;
+  let nearD = gap;
+  ctx.simHash.query(sim.x, sim.y, gap, ctx.ids2);
+  for (const id of ctx.ids2) {
+    const o = world.sims[id]!;
+    if (o === sim || !isOutdoorLiving(o)) continue;
+    const d = Math.hypot(o.x - sim.x, o.y - sim.y);
+    if (d < nearD) {
+      near = o;
+      nearD = d;
+    }
+  }
+  if (near === null) {
+    sim.gait = 'still';
+    steerToward(sim, e.x, e.y);
+    return;
+  }
+  sim.gait = 'walk';
+  // Directly on top of each other, the lower id steps one way across the road and the higher the other.
+  if (nearD === 0) sim.heading = Math.atan2(e.dx, -e.dy) + (sim.id < near.id ? 0 : Math.PI);
+  else sim.heading = Math.atan2(sim.y - near.y, sim.x - near.x);
+}
+
 function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const { config, buildings, zombies, tick } = world;
   const arch = config.archetypes[sim.archetype];
@@ -818,20 +844,10 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // The rescue's broadcast heard: for its exit, once calm (rescue.ts).
   if (answersRescue(world, sim)) headForExit(world, sim); // (in flight it has already run for a door, above)
 
-  // At a closed exit, whatever brought it there: a way out, shut, with people waiting
-  // at it. It joins them — and may try the flank, like anyone who set out to leave —
-  // unless it has already given this one up. Not those on duty or in someone's care.
-  if (sim.destinationKind !== 'leave' && sim.archetype !== 'police' && sim.crew === null && sim.carriedBy === null && !sim.outsider) {
-    const i = atClosedExit(world, sim);
-    if (i !== null) {
-      const e = world.exits[i]!;
-      sim.destinationKind = 'leave';
-      sim.destinationBuilding = null;
-      sim.destination = { x: e.x, y: e.y };
-      sim.crossing = null;
-      sim.route = [];
-      sim.routeIndex = 0;
-    }
+  // In the rescue's queue, whatever brought it there: it joins those waiting for a truck,
+  // unless on duty or in someone's care.
+  if (sim.destinationKind !== 'leave' && sim.archetype !== 'police' && sim.crew === null && sim.carriedBy === null && !sim.outsider && inRescueQueue(world, sim)) {
+    headForExit(world, sim);
   }
 
   // Leaving the city (exits.ts): on to the way off the map, in a car if one is at hand,
@@ -839,31 +855,31 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   if (sim.destinationKind === 'leave' && sim.destination !== null) {
     const i = nearestExit(world, sim.destination.x, sim.destination.y)!;
     const e = world.exits[i]!;
-    // Closed by the cordon: stop short of the barrier and wait to be let through, until
-    // patience gives out — the trusting wait longest — then try another way, or none.
     if (shut(e)) {
-      // Getting round it: along the kerb to beside the barrier's end, then out (exits.ts).
+      // Pressing on round it: along the kerb to beside the barrier's end, then out (exits.ts).
       if (sim.crossing !== null) {
         const f = flank(world, e, sim.crossing);
         const to = pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
-        sim.gait = threat > 0 ? 'run' : 'walk';
+        sim.gait = threat > 0 || sim.firedOnAt !== null ? 'run' : 'walk';
         steerToward(sim, to.x, to.y);
         return;
       }
-      const q = queueAt(world, e);
-      if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
-        sim.queuedSince ??= tick;
-        // At the rescue's exit the wait is for a truck, among soldiers: it does not end (rescue.ts).
-        // Elsewhere the dead in sight end it at once: nobody stands in a queue to be caught.
-        if (i === world.rescueExit || (threat === 0 && tick - sim.queuedSince < config.cordon.patience * (0.5 + sim.trust))) {
-          sim.gait = 'still';
-          steerToward(sim, e.x, e.y);
+      // The rescue's exit, once the rescue has come: wait for a truck, a step apart, and
+      // the wait does not end (rescue.ts). All arriving by one road, the waiting stood
+      // on top of one another.
+      if (holdsFire(world, i)) {
+        const q = queueAt(world, e);
+        if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
+          sim.queuedSince ??= tick;
+          giveRoom(world, ctx, sim, e);
           return;
         }
-        sim.queuedSince = null;
-        // Patience out: the less trusting try to get round it; the rest give it up.
-        if (chance(world.rng, config.cordon.cross * (1 - sim.trust))) {
-          sim.crossing = (q.x - sim.x) * -e.dy + (q.y - sim.y) * e.dx > 0 ? -1 : 1; // the side it is already on
+      } else if (sim.firedOnAt !== null && tick - sim.firedOnAt <= config.cordon.warnEvery && nearBarrier(world, e, sim.x, sim.y)) {
+        // Warned off: shots over its head. The less trusting press on round the barrier
+        // under fire; the rest give this way out up, for another or for none.
+        if (chance(world.rng, config.cordon.defy * (1 - sim.trust))) {
+          const b = barrierAt(world, e);
+          sim.crossing = (b.x - sim.x) * -e.dy + (b.y - sim.y) * e.dx > 0 ? -1 : 1; // the side it is already on
           return;
         }
         sim.knownClosed |= 1 << i;
@@ -874,8 +890,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
         }
         return;
       }
-      // Not there yet: on toward it by the streets, the way it would go out — the route
-      // runs down the exit's road past the queue. Straight for the queue, anyone not
+      // Not there yet, or not yet warned: on toward it by the streets, the way it would go
+      // out — the route runs down the exit's road. Straight for the barrier, anyone not
       // already on that road walked into the empty ground beside it and stayed there.
       sim.gait = threat > 0 || mode === 'direct' ? 'run' : 'walk';
       travel(world, ctx, sim, mode);

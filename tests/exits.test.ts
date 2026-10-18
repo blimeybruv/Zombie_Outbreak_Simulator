@@ -5,7 +5,7 @@ import { createWorld } from '../src/sim/setup';
 import { transfer } from '../src/sim/counters';
 import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/outside/exits';
 import { assertInvariant, step } from '../src/sim/tick';
-import { flank, queueAt, updateCordon } from '../src/sim/systems/outside/cordon';
+import { barrierAt, flank, queueAt, updateCordon } from '../src/sim/systems/outside/cordon';
 import { killSim } from '../src/sim/systems/fighting/combat';
 
 describe('leaving the city', () => {
@@ -101,60 +101,101 @@ describe('the cordon', () => {
     assertInvariant(world);
   });
 
-  // A unit that fires shoots at someone trying to pass its barrier; one that holds its fire lets them by.
-  for (const fires of [true, false]) {
-    it(`a cordon unit that ${fires ? 'fires' : 'holds its fire'} on those getting round it`, () => {
-      const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
-      world.noticedAt = world.tick;
-      world.tick += config.cordon.delay - 1;
-      step(world, ctx, { checkInvariant: true });
-      for (const x of world.sims) if (x.outsider) x.firesOnCrossers = fires;
-      for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
-      const e = world.exits[0]!;
-      expect(e.closedAt).not.toBeNull();
-      const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian')!;
-      const q = queueAt(world, e);
-      s.x = q.x;
-      s.y = q.y;
-      headForExit(world, s);
-      s.crossing = 1;
-      for (let k = 0; k < 120 && (s.condition === 'healthy' || s.condition === 'infected'); k++) step(world, ctx, { checkInvariant: true });
-      // Fired on, they are hit or run for it — either way not out; let be, they are out.
-      if (fires) {
-        expect(s.condition).not.toBe('evacuated');
-        expect(world.sims.some((x) => x.outsider && x.ammo < config.cordon.ammo)).toBe(true);
-      } else expect(s.condition).toBe('evacuated');
-    }, 60_000);
+  /** A world whose cordon has arrived and closed every exit, with one civilian on foot to place. */
+  function closed() {
+    const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
+    world.noticedAt = world.tick;
+    world.tick += config.cordon.delay - 1;
+    step(world, ctx, { checkInvariant: true });
+    for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
+    const e = world.exits[0]!;
+    expect(e.closedAt).not.toBeNull();
+    const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian' && x.crew === null && x.squadLeader === null)!;
+    return { world, ctx, e, s };
+  }
+  /** Stands a sim on the road in, `d` metres short of the barrier. */
+  function standAt(world: ReturnType<typeof closed>['world'], s: ReturnType<typeof closed>['s'], e: ReturnType<typeof closed>['e'], d: number) {
+    const b = barrierAt(world, e);
+    s.x = b.x - e.dx * d;
+    s.y = b.y - e.dy * d;
   }
 
-  // The third exception: an armed crosser fires back when fired on, or first if very sceptical.
-  for (const [fires, trust] of [[false, 0.05], [true, 0.9]] as const) {
-    it(`an armed crosser ${fires ? 'fired on fires back' : 'who trusts nobody fires first'}`, () => {
-      const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
-      world.noticedAt = world.tick;
-      world.tick += config.cordon.delay - 1;
+  it('one making for a closed exit is warned off with a shot, not hit, and gives the exit up', () => {
+    const { world, ctx, e, s } = closed();
+    s.trust = 1; // the trusting never defy
+    standAt(world, s, e, (config.cordon.warnRadius + config.cordon.fireRadius) / 2);
+    headForExit(world, s);
+    let warned = false;
+    for (let k = 0; k < 60 && !warned; k++) {
       step(world, ctx, { checkInvariant: true });
-      for (const x of world.sims) if (x.outsider) x.firesOnCrossers = fires;
-      for (let k = 0; k < 120; k++) step(world, ctx, { checkInvariant: true });
-      const e = world.exits[0]!;
-      const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian')!;
-      s.weapon = 'pistol';
-      s.ammo = 12;
-      s.trust = trust;
-      const q = queueAt(world, e);
-      s.x = q.x;
-      s.y = q.y;
-      headForExit(world, s);
-      s.crossing = 1;
-      let opened: boolean | null = null;
-      for (let k = 0; k < 120 && opened === null && (s.condition === 'healthy' || s.condition === 'infected'); k++) {
-        step(world, ctx, { checkInvariant: true });
-        for (const ev of world.events) if (ev.type === 'cordonFiredOn' && ev.sim === s.id) opened = ev.first;
-      }
-      if (fires) expect(opened === false || s.condition === 'dead' || s.condition === 'evacuated').toBe(true); // fired back, unless hit or past first
-      else expect(opened).toBe(true);
-    }, 60_000);
-  }
+      warned = world.events.some((ev) => ev.type === 'cordonWarned' && ev.sim === s.id);
+    }
+    expect(warned).toBe(true);
+    expect(s.condition).toBe('healthy');
+    for (let k = 0; k < 5; k++) step(world, ctx, { checkInvariant: true });
+    expect(s.knownClosed & 1).toBe(1);
+    expect(s.destinationKind === 'leave' ? s.destination!.x !== e.x || s.destination!.y !== e.y : true).toBe(true);
+  }, 60_000);
+
+  it('one standing close to the barrier is fired on, to wound or kill', () => {
+    const { world, ctx, e, s } = closed();
+    standAt(world, s, e, config.cordon.fireRadius / 2);
+    s.stand = 'freeze';
+    s.standUntil = 1e9;
+    let hit = false;
+    for (let k = 0; k < 300 && !hit; k++) {
+      step(world, ctx, { checkInvariant: true });
+      hit = s.condition === 'dead' || world.events.some((ev) => ev.type === 'cordonWounded' && ev.sim === s.id);
+    }
+    expect(hit).toBe(true);
+  }, 60_000);
+
+  it('one on the far side of the barrier, hugging the edge, is fired on too', () => {
+    const { world, ctx, e, s } = closed();
+    const out = flank(world, e, 1);
+    s.x = (out.beside.x + out.out.x) / 2;
+    s.y = (out.beside.y + out.out.y) / 2;
+    s.stand = 'freeze';
+    s.standUntil = 1e9;
+    for (let k = 0; k < 60 && s.firedOnAt === null; k++) step(world, ctx, { checkInvariant: true });
+    expect(s.firedOnAt).not.toBeNull();
+  }, 60_000);
+
+  it("at the rescue's exit, once the rescue has come, those waiting are not fired on, and keep a step apart", () => {
+    const { world, ctx, e, s } = closed();
+    world.rescueExit = 0;
+    const q = queueAt(world, e);
+    const others = world.sims.filter((x) => x !== s && x.condition === 'healthy' && x.insideBuilding === null && x.car === null && !x.outsider).slice(0, 5);
+    for (const x of [s, ...others]) {
+      x.x = q.x;
+      x.y = q.y;
+      headForExit(world, x);
+    }
+    for (let k = 0; k < 120; k++) {
+      step(world, ctx, { checkInvariant: true });
+      expect(world.events.some((ev) => (ev.type === 'cordonWarned' || ev.type === 'cordonWounded') && ev.sim === s.id)).toBe(false);
+    }
+    expect(s.condition).toBe('healthy');
+    const waiting = [s, ...others].filter((x) => x.condition === 'healthy' && x.queuedSince !== null);
+    for (const x of waiting) for (const y of waiting) if (x !== y) expect(Math.hypot(x.x - y.x, x.y - y.y)).toBeGreaterThan(config.cordon.queueSpacing * 0.5);
+  }, 60_000);
+
+  // The third exception: an armed sim pressing on round the barrier, fired on, fires back.
+  it('an armed sim pressing on round the barrier, fired on, fires back', () => {
+    const { world, ctx, e, s } = closed();
+    s.weapon = 'pistol';
+    s.ammo = 12;
+    s.trust = 0.9;
+    standAt(world, s, e, config.cordon.fireRadius / 2);
+    headForExit(world, s);
+    s.crossing = 1;
+    let opened: boolean | null = null;
+    for (let k = 0; k < 120 && opened === null && (s.condition === 'healthy' || s.condition === 'infected'); k++) {
+      step(world, ctx, { checkInvariant: true });
+      for (const ev of world.events) if (ev.type === 'cordonFiredOn' && ev.sim === s.id) opened = ev.first;
+    }
+    expect(opened === false || s.condition === 'dead' || s.condition === 'evacuated' || s.destinationKind !== 'leave').toBe(true); // fired back, unless hit, wounded, or past
+  }, 60_000);
 
   it('a barrier nobody is left to hold is breached, and those waiting at it walk out', () => {
     const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
@@ -165,7 +206,7 @@ describe('the cordon', () => {
     const e = world.exits[0]!;
     expect(e.closedAt).not.toBeNull();
     expect(e.breachedAt).toBeNull();
-    const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian')!;
+    const s = world.sims.find((x) => x.condition === 'healthy' && x.insideBuilding === null && x.car === null && x.archetype === 'civilian' && x.crew === null && x.squadLeader === null)!;
     const q = queueAt(world, e);
     s.x = q.x;
     s.y = q.y;

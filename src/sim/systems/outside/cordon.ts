@@ -10,17 +10,18 @@
 //   barrier   each squad walks to its post; when its leader is there, the barrier
 //             closes — the highway's last segment is impassable for good, whether or
 //             not anyone is left to hold it
-//   the queue those making for it stop short of it and wait, believing they will be
-//             screened and let through (nobody is: there is no screening); they give
-//             it up one by one, as their patience runs out (exits.ts, sims.ts)
-//   the flank some, the less trusting, try to get round instead, along the kerb past
-//             the barrier's end and out at the edge. Whether the unit there fires on
-//             them is its own, drawn when it arrives and never shown: you find out
-//             when someone tries (combat.ts cordonFire)
+//   fire      the soldiers fire at everyone who comes near: a warning shot at anyone
+//             within warnRadius of the barrier, aimed fire within fireRadius, to wound
+//             or kill (combat.ts cordonFire). There is no screening and no queue
+//   warned    a person making for the exit gives it up, for another or for shelter;
+//             the less trusting may press on round the barrier along the kerb, under
+//             fire, and out at the edge (sims.ts, exits.ts)
+//   rescue    at the rescue's exit, once the rescue has come, nobody is fired on:
+//             those answering the broadcast wait at the barrier for a truck
 
 import type { Context } from '../../context';
 import { admit } from '../../counters';
-import { chance, nextInt } from '../../lib/rng';
+import { nextInt } from '../../lib/rng';
 import { spawnSim } from '../../spawn';
 import type { Exit, Sim, Vec2, World } from '../../state';
 
@@ -35,7 +36,7 @@ export function barrierAt(world: World, e: Exit): { x: number; y: number } {
   return { x: e.x - e.dx * s, y: e.y - e.dy * s };
 }
 
-/** Where those who mean to leave by it wait: queueGap metres inside the barrier. */
+/** Where those answering the rescue's broadcast wait for a truck: queueGap metres inside its barrier. */
 export function queueAt(world: World, e: Exit): { x: number; y: number } {
   const b = barrierAt(world, e);
   const g = world.config.cordon.queueGap;
@@ -59,15 +60,23 @@ export function pastBarrier(world: World, e: Exit, x: number, y: number): number
   return (x - b.x) * e.dx + (y - b.y) * e.dy;
 }
 
-/** The closed exit whose queue a sim is standing in (within cordon.queueRadius), and has not given up on; or null. */
-export function atClosedExit(world: World, sim: Sim): number | null {
-  for (let i = 0; i < world.exits.length; i++) {
-    const e = world.exits[i]!;
-    if (!shut(e) || sim.knownClosed & (1 << i)) continue;
-    const q = queueAt(world, e);
-    if (Math.hypot(q.x - sim.x, q.y - sim.y) <= world.config.cordon.queueRadius) return i;
-  }
-  return null;
+/** Whether a point is within the soldiers' warning distance of an exit's barrier. */
+export function nearBarrier(world: World, e: Exit, x: number, y: number): boolean {
+  const b = barrierAt(world, e);
+  return Math.hypot(x - b.x, y - b.y) <= world.config.cordon.warnRadius;
+}
+
+/** Whether the soldiers at exit `i` hold their fire: at the rescue's exit, once the rescue has come, people are waited for, not warned off. */
+export function holdsFire(world: World, i: number): boolean {
+  return i === world.rescueExit;
+}
+
+/** Whether a sim is standing in the rescue's queue (within cordon.queueRadius of it): it waits there for a truck. */
+export function inRescueQueue(world: World, sim: Sim): boolean {
+  const i = world.rescueExit;
+  if (i === null) return false;
+  const q = queueAt(world, world.exits[i]!);
+  return Math.hypot(q.x - sim.x, q.y - sim.y) <= world.config.cordon.queueRadius;
 }
 
 /** A squad of soldiers from outside, at (x, y), its leader bound for `post`: outsiders, counted on top of the population. */
@@ -105,8 +114,7 @@ export function updateCordon(world: World, ctx: Context): void {
     for (const e of exits) {
       const b = barrierAt(world, e);
       const post = { x: b.x + e.dx * cc.post, y: b.y + e.dy * cc.post };
-      const fires = chance(world.rng, cc.fireShare); // the unit's, not the soldier's
-      for (const s of spawnSquad(world, e.x, e.y, post, cc.ammo)) s.firesOnCrossers = fires;
+      spawnSquad(world, e.x, e.y, post, cc.ammo);
     }
   }
   // A closed barrier nobody is left to hold (no living soldier within breachRadius) is
