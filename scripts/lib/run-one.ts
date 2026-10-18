@@ -4,15 +4,15 @@ import { config as baseConfig, type Config } from '../../src/config';
 import { defaultScenario } from '../../src/sim/scenario';
 import { createWorld } from '../../src/sim/setup';
 import { turnedTotal, unturnedTotal, type Counters } from '../../src/sim/state';
-import { SCORED, scoreLiving, type Scored } from '../../src/sim/systems/promotion';
+import { SCORED, scoreLiving, type Scored } from '../../src/sim/systems/story/promotion';
 import { step } from '../../src/sim/tick';
 import { backstory } from '../../src/worker/backstory';
 import { noteFor } from '../../src/worker/notes';
 import { line } from '../../src/ui/copy';
 import { BASE, MAJOR, Salience } from '../../src/ui/salience';
 import { isFirearm, type Sim, type World } from '../../src/sim/state';
-import { isSwat } from '../../src/sim/systems/squads';
-import { rescueTally } from '../../src/sim/systems/rescue';
+import { isSwat } from '../../src/sim/systems/services/squads';
+import { rescueTally } from '../../src/sim/systems/outside/rescue';
 
 /**
  * What a sample window looked like beyond the counters: why a run smoulders or takes

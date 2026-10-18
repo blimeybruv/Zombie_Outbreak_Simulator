@@ -10,7 +10,7 @@
 // how many saw the end, which counter made them stand out, and the archetype mix.
 
 import { readFileSync } from 'node:fs';
-import { SCORED } from '../src/sim/systems/promotion';
+import { SCORED } from '../src/sim/systems/story/promotion';
 import type { RunSummary } from './lib/run-one';
 
 const file = process.argv[2];
