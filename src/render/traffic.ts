@@ -12,28 +12,14 @@
 import type { Camera } from './camera';
 import type { MapSnapshot } from '../worker/protocol';
 import * as P from './palette';
+import { BORDER, borderRun } from './border';
 
-/** The border's features, in metres: railway gauge, between tracks, sleeper pitch, fences either side of the centre; motorway between fences; the sound barrier on its city side (wall thickness, post width and pitch); a deck's overhang past what it crosses (and a crossing's gap past the road); the radius of a feature's curve round its own corner; the radius of its turn off the map, and how far short of the corner the turn begins. */
-export const BORDER = { gauge: 1.5, trackGap: 4.5, sleeperGap: 2, railFence: 8, motorway: 32, barrier: 0.8, postWidth: 0.5, postPitch: 4, overhang: 3, bend: 180, turn: 60, trail: 150 };
 
 /** The traffic, in metres and ticks: a carriageway's middle from the median; speed (about 80 km/h); the gaps between cars; how far past the map edge a car comes on and goes off. */
 const TRAFFIC = { lane: 8, speed: 22, gap: [30, 260] as const, beyond: 60 };
 const CAR_L = 4.5, CAR_W = 1.9;
 /** Off the map at each end: the route runs this far past the turn so cars come on from out of sight. */
 const OFF = 40;
-
-/** Each side's run across the middle of the margin, corner to corner: start, end, inward normal. */
-export function borderRun(size: number, margin: number, side: number): [number, number, number, number, number, number] {
-  const c = margin / 2;
-  return (
-    [
-      [c, c, size - c, c, 0, 1],
-      [size - c, c, size - c, size - c, -1, 0],
-      [size - c, size - c, c, size - c, 0, -1],
-      [c, size - c, c, c, 1, 0],
-    ] as const
-  )[side] as unknown as [number, number, number, number, number, number];
-}
 
 interface Route {
   /** The motorway's middle, x y pairs, in the forward direction. */

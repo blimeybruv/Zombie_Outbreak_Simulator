@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
-import { noteStreet, settleDanger, trim } from '../src/sim/memory';
+import { noteStreet, settleDanger, trim } from '../src/sim/navigation/memory';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import type { StreetId } from '../src/sim/state';

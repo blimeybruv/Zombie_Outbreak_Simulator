@@ -3,10 +3,10 @@ import { config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { transfer } from '../src/sim/counters';
-import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/exits';
+import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/outside/exits';
 import { assertInvariant, step } from '../src/sim/tick';
-import { flank, queueAt, updateCordon } from '../src/sim/systems/cordon';
-import { killSim } from '../src/sim/systems/combat';
+import { flank, queueAt, updateCordon } from '../src/sim/systems/outside/cordon';
+import { killSim } from '../src/sim/systems/fighting/combat';
 
 describe('leaving the city', () => {
   it('one on foot who reaches a way off the map is out of play, counted as evacuated', () => {

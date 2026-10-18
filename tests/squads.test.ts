@@ -5,9 +5,9 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { spawnSim, spawnZombie } from '../src/sim/spawn';
 import type { Building, Sim, World } from '../src/sim/state';
-import { computePerception, rebuildHashes } from '../src/sim/systems/perception';
-import { simDecisions } from '../src/sim/systems/sims';
-import { armAtDepot, mobilise, squadPass } from '../src/sim/systems/squads';
+import { computePerception, rebuildHashes } from '../src/sim/systems/shared/perception';
+import { simDecisions } from '../src/sim/systems/people/sims';
+import { armAtDepot, mobilise, squadPass } from '../src/sim/systems/services/squads';
 
 function fresh() {
   const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);

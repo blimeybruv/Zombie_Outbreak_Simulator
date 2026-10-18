@@ -3,9 +3,9 @@ import { config } from '../src/config';
 import { sizeContext } from '../src/sim/context';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { queueAt } from '../src/sim/systems/cordon';
-import { rebuildHashes } from '../src/sim/systems/perception';
-import { rescueTally, updateRescue } from '../src/sim/systems/rescue';
+import { queueAt } from '../src/sim/systems/outside/cordon';
+import { rebuildHashes } from '../src/sim/systems/shared/perception';
+import { rescueTally, updateRescue } from '../src/sim/systems/outside/rescue';
 import { assertInvariant } from '../src/sim/tick';
 
 const soon = { ...config, rescue: { ...config.rescue, at: 10, broadcast: 100, truckEvery: 50, truckLoad: 20 } };

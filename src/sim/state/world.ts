@@ -7,7 +7,7 @@
 // population (scenario.population), and the map RNG (consumed during generation).
 
 import type { Config } from '../../config';
-import type { RngState } from '../rng';
+import type { RngState } from '../lib/rng';
 import type { Building } from './building';
 import type { Car } from './car';
 import type { Counters } from './counters';

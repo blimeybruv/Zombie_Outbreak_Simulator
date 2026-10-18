@@ -2,10 +2,10 @@
 // the spatial hashes, the per-tick perception snapshot and scratch buffers.
 // Rebuildable from a World at any time, so it is never serialised.
 
-import { CarIndex } from './systems/cars';
-import { Pathfinder } from './pathfinding';
-import { MapIndex } from './runtime';
-import { SpatialHash } from './spatial';
+import { CarIndex } from './systems/services/cars';
+import { Pathfinder } from './navigation/pathfinding';
+import { MapIndex } from './navigation/runtime';
+import { SpatialHash } from './lib/spatial';
 import type { BuildingId, SimEvent, SimId, StreetId, World } from './state';
 
 /** A shouted warning: a survivor who has just sighted a zombie tells those nearby which street it is on. */

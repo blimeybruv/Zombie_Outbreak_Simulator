@@ -6,9 +6,9 @@ import { createWorld } from '../src/sim/setup';
 import { spawnSim, spawnZombie } from '../src/sim/spawn';
 import { transfer } from '../src/sim/counters';
 import type { Building, BuildingId, World } from '../src/sim/state';
-import { buildingProcesses } from '../src/sim/systems/buildings';
-import { rebuildHashes } from '../src/sim/systems/perception';
-import { deliver, doorThreat, shelterWork } from '../src/sim/systems/shelter';
+import { buildingProcesses } from '../src/sim/systems/buildings/buildings';
+import { rebuildHashes } from '../src/sim/systems/shared/perception';
+import { deliver, doorThreat, shelterWork } from '../src/sim/systems/buildings/shelter';
 import { assertInvariant, step } from '../src/sim/tick';
 
 function fresh(cfg = config) {

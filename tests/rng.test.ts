@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cloneRng, createRng, nextFloat, nextInt, nextUint32, roundByChance } from '../src/sim/rng';
+import { cloneRng, createRng, nextFloat, nextInt, nextUint32, roundByChance } from '../src/sim/lib/rng';
 
 const draw = (seed: number, n: number) => {
   const s = createRng(seed);

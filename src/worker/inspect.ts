@@ -4,7 +4,7 @@
 
 import { functionalProfile } from '../sim/mapgen/generate';
 import type { Sim, World } from '../sim/state';
-import { scoreLiving } from '../sim/systems/promotion';
+import { scoreLiving } from '../sim/systems/story/promotion';
 import { backstory, callingOf } from './backstory';
 import { endingOf } from './endings';
 import { thoughts } from './thoughts';

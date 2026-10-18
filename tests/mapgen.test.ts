@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
 import { footprintArea, generateMap } from '../src/sim/mapgen/generate';
 import { pointPolylineDist, pointSegmentDist, segmentIntersection } from '../src/sim/mapgen/geom';
-import { MapIndex } from '../src/sim/runtime';
+import { MapIndex } from '../src/sim/navigation/runtime';
 import type { World } from '../src/sim/state';
 
 const map = generateMap(config, 1, true);

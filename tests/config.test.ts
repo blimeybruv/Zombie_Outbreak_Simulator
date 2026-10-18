@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
-import { breachChance } from '../src/sim/breach';
+import { breachChance } from '../src/sim/systems/buildings/breach';
 import { footprintArea } from '../src/sim/mapgen/generate';
 import { createWorld } from '../src/sim/setup';
 import { confidence, timeOfDay } from '../src/sim/derived';

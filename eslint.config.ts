@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 const restrictedReads = [
   {
     fields: ['released', 'releaseAt', 'evacuatedAt'],
-    allow: ['src/sim/systems/release.ts'],
+    allow: ['src/sim/systems/outside/release.ts'],
     message: 'Only the occupant release may read district release state.',
   },
   {
@@ -14,7 +14,7 @@ const restrictedReads = [
     // panic.ts: rise, decay, and the derived mode (informed/direct/flight) that
     // routing, memory use and gait read; encounters.ts: transmission;
     // buildings.ts: expulsion.
-    allow: ['src/sim/systems/panic.ts', 'src/sim/systems/encounters.ts', 'src/sim/systems/buildings.ts'],
+    allow: ['src/sim/systems/people/panic.ts', 'src/sim/systems/people/encounters.ts', 'src/sim/systems/buildings/buildings.ts'],
     message: 'panic gates only routing mode, memory use and expulsion; read the derived mode instead.',
   },
 ];

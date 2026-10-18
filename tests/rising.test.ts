@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { killSim } from '../src/sim/systems/combat';
-import { riseDue } from '../src/sim/systems/rising';
+import { killSim } from '../src/sim/systems/fighting/combat';
+import { riseDue } from '../src/sim/systems/dead/rising';
 import { assertInvariant } from '../src/sim/tick';
 
 const sure = { ...config, rising: { chance: 1, delay: [100, 100] as [number, number] } };

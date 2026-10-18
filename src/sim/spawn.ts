@@ -4,7 +4,7 @@
 
 import type { Config } from '../config';
 import { functionalProfile } from './mapgen/generate';
-import { chance, nextFloat, nextInt, type RngState } from './rng';
+import { chance, nextFloat, nextInt, type RngState } from './lib/rng';
 import {
   ARCHETYPES,
   type Archetype,

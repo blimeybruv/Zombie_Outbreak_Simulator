@@ -7,7 +7,7 @@
 
 import type { Config } from '../config';
 import type { Sim } from '../sim/state';
-import { SCORED, type ScoredCounter } from '../sim/systems/promotion';
+import { SCORED, type ScoredCounter } from '../sim/systems/story/promotion';
 
 /**
  * What a person does, as the viewer is told it: a soldier from outside (the cordon,

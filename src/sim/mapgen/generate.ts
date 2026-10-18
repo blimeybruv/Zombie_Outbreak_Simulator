@@ -16,7 +16,7 @@
 //      cut back to a driveway; parking in front, one large building behind.
 
 import type { Config } from '../../config';
-import { chance, cloneRng, createRng, nextFloat, nextInt, type RngState } from '../rng';
+import { chance, cloneRng, createRng, nextFloat, nextInt, type RngState } from '../lib/rng';
 import {
   FLAVOUR_TAGS,
   type Building,

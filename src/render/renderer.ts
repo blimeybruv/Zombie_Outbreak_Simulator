@@ -19,7 +19,8 @@ import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
 import * as P from './palette';
-import { BORDER, borderRun, Traffic } from './traffic';
+import { BorderLines } from './border';
+import { Traffic } from './traffic';
 import { Trails } from './trails';
 import { FIREARMS } from '../sim/state';
 
@@ -206,8 +207,8 @@ export class Renderer {
   private readonly riverPath: Path2D;
   /** Scenery cars on the border motorway, drawn from simulation time alone. */
   private readonly traffic: Traffic;
-  /** The border across the margin (buildBorder): water, rails and sleepers, motorway fences and median. */
-  private readonly border = { rails: new Path2D(), sleepers: new Path2D(), fences: new Path2D(), median: new Path2D(), barrier: new Path2D(), posts: new Path2D() };
+  /** The border across the margin: rails and sleepers, motorway fences, median and sound barrier (border.ts). */
+  private readonly border = new BorderLines();
   private readonly bridgeDecks = new Map<number, Path2D>(); // by street width, filled in background colour
   private readonly bridgeRails: Path2D;
   private readonly bridgeAbutments: Path2D;
@@ -351,7 +352,7 @@ export class Renderer {
         this.bridgeAbutments.lineTo(b[0] + (dx / l) * over, b[1] + (dy / l) * over);
       }
     }
-    this.buildBorder(map);
+    this.border.build(map, this.bridgeDecks, this.bridgeRails);
     this.traffic = new Traffic(map);
     // Doors: a step DOOR_W wide standing DOOR_D proud of the wall, so it shows where
     // people go in and out — a dot reaching a door otherwise simply vanishes.
@@ -494,7 +495,7 @@ export class Renderer {
       g.lineWidth = width;
       g.stroke(path);
     }
-    this.drawBorder(g, cam, dpr);
+    this.border.draw(g, cam, dpr);
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
@@ -552,167 +553,6 @@ export class Renderer {
     at.resize(c.width / dpr, c.height / dpr);
     at.apply(g, dpr);
     this.drawCars(g, frame, at, dpr, false);
-  }
-
-  /**
-   * The border, built once: across the middle of the empty margin, a fenced
-   * double-track railway (rails, sleepers, a fence either side) along two adjacent sides
-   * and a fenced motorway (a fence either side, a median barrier) along the other two,
-   * each curving round its own corner and, where it would meet the other, turning off
-   * the map — so the edge reads as a boundary rather than as absence. Where an exit's
-   * stub crosses it: an overpass over the motorway, a deck cut through it like a river
-   * bridge; over the railway a level crossing, the fences and sleepers broken for the
-   * road and the rails running on across it.
-   */
-  private buildBorder(map: MapSnapshot): void {
-    const { margin, sides } = map.border;
-    const size = map.size;
-    const c = margin / 2;
-    const b = this.border;
-    // Each side's band, corner to corner of the inner margin: start, end, and the offset direction across it.
-    const run = (side: number) => borderRun(size, margin, side);
-    // Where exits cross each side: [from, to] along the side's run, the road's width and a little.
-    const gaps: [number, number][][] = [[], [], [], []];
-    const e = map.exits;
-    const sideAt = (x: number, y: number) => [y < margin ? 0 : -1, x > size - margin ? 1 : -1, y > size - margin ? 2 : -1, x < margin ? 3 : -1].find((k) => k >= 0) ?? 0;
-    for (let i = 0; i < e.length; i += EXIT_STRIDE) {
-      const x = e[i]!, y = e[i + 1]!, half = e[i + 6]! / 2 + BORDER.overhang;
-      const side = sideAt(x, y);
-      const [ax, ay, bx, by] = run(side);
-      const l = Math.hypot(bx - ax, by - ay);
-      const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l;
-      gaps[side]!.push([t - half, t + half]);
-    }
-    // Each feature runs along two adjacent sides and turns the corner between them on a
-    // curve: its lines stop BORDER.bend short of the corner, and a quarter circle joins
-    // them. Where it would meet the other feature, it turns outward instead, BORDER.trail
-    // short of the corner, and runs on off the map.
-    const same = (side: number, next: number) => sides[side] === sides[(side + next + 4) % 4];
-    const trim = (side: number, next: number) => (same(side, next) ? BORDER.bend : BORDER.trail);
-    const line = (path: Path2D, side: number, off: number, broken = false) => {
-      const [ax, ay, bx, by, nx, ny] = run(side);
-      const l = Math.hypot(bx - ax, by - ay);
-      const ux = (bx - ax) / l, uy = (by - ay) / l;
-      const cuts = broken ? [...gaps[side]!].sort((p, q) => p[0] - q[0]) : [];
-      let from = trim(side, -1);
-      const end = l - trim(side, 1);
-      for (const [g0, g1] of [...cuts, [end, end] as [number, number]]) {
-        if (g0 > from) {
-          path.moveTo(ax + ux * from + nx * off, ay + uy * from + ny * off);
-          path.lineTo(ax + ux * g0 + nx * off, ay + uy * g0 + ny * off);
-        }
-        from = Math.max(from, g1);
-      }
-    };
-    /** Every line of a feature, as [path, offset inward from its middle]. */
-    const parts = (kind: 'rail' | 'motorway'): [Path2D, number][] =>
-      kind === 'rail'
-        ? [
-            ...[-1, 1].flatMap((t) => [-1, 1].map((r): [Path2D, number] => [b.rails, (t * BORDER.trackGap + r * BORDER.gauge) / 2])),
-            [b.sleepers, -BORDER.trackGap / 2],
-            [b.sleepers, BORDER.trackGap / 2],
-            [b.fences, -BORDER.railFence],
-            [b.fences, BORDER.railFence],
-          ]
-        : [
-            [b.fences, -BORDER.motorway / 2],
-            // On the city side, a sound barrier instead of the fence: a wall and its posts.
-            [b.barrier, BORDER.motorway / 2 + BORDER.barrier / 2],
-            [b.posts, BORDER.motorway / 2 + BORDER.barrier / 2],
-            [b.median, 0],
-          ];
-    sides.forEach((kind, side) => {
-      for (const [path, off] of parts(kind)) line(path, side, off, kind === 'rail' && path !== b.rails);
-      const [ax, ay, bx, by, nx, ny] = run(side);
-      const l = Math.hypot(bx - ax, by - ay);
-      const ux = (bx - ax) / l, uy = (by - ay) / l;
-      if (same(side, 1)) {
-        // Round the corner into the next side, about a centre inside it: a line offset
-        // `off` inward runs at radius bend − off.
-        const [, , , , mx, my] = run((side + 1) % 4);
-        const qx = bx + BORDER.bend * (nx + mx), qy = by + BORDER.bend * (ny + my);
-        const a0 = Math.atan2(-ny, -nx), a1 = Math.atan2(-my, -mx);
-        for (const [path, off] of parts(kind)) {
-          const r = BORDER.bend - off;
-          path.moveTo(qx + Math.cos(a0) * r, qy + Math.sin(a0) * r);
-          path.arc(qx, qy, r, a0, a1);
-        }
-      }
-      // Off the map at each end that would meet the other feature: travelling toward the
-      // corner (u), a quarter turn outward (toward −n) about a centre `turn` outside the
-      // middle, then straight on past the edge. A line offset `off` inward turns at turn + off.
-      for (const [atEnd, sx, sy, tx, ty] of [
-        [true, bx, by, ux, uy],
-        [false, ax, ay, -ux, -uy],
-      ] as const) {
-        if (same(side, atEnd ? 1 : -1)) continue;
-        const R = BORDER.turn;
-        const px = sx - tx * BORDER.trail, py = sy - ty * BORDER.trail; // where the turn begins
-        const qx = px - nx * R, qy = py - ny * R;
-        const a0 = Math.atan2(ny, nx), a1 = Math.atan2(ty, tx);
-        const ccw = nx * ty - ny * tx < 0;
-        for (const [path, off] of parts(kind)) {
-          const r = R + off;
-          path.moveTo(qx + Math.cos(a0) * r, qy + Math.sin(a0) * r);
-          path.arc(qx, qy, r, a0, a1, ccw);
-          const ex = qx + tx * r, ey = qy + ty * r;
-          path.lineTo(ex - nx * (c + R + BORDER.overhang * 10), ey - ny * (c + R + BORDER.overhang * 10));
-        }
-      }
-    });
-    // The exits' crossings.
-    for (let i = 0; i < e.length; i += EXIT_STRIDE) {
-      const x = e[i]!, y = e[i + 1]!, dx = e[i + 2]!, dy = e[i + 3]!, width = e[i + 6]!;
-      const mx = x - dx * c, my = y - dy * c; // where the stub crosses the band's middle
-      const side = sides[sideAt(x, y)]!;
-      if (side === 'rail') continue; // a level crossing: the gaps in the fences and sleepers are all it needs
-      const half = BORDER.motorway / 2 + BORDER.overhang;
-      const nx = -dy * (width / 2), ny = dx * (width / 2);
-      const corners: [number, number][] = [
-        [mx + dx * half + nx, my + dy * half + ny],
-        [mx - dx * half + nx, my - dy * half + ny],
-        [mx - dx * half - nx, my - dy * half - ny],
-        [mx + dx * half - nx, my + dy * half - ny],
-      ];
-      let deck = this.bridgeDecks.get(width);
-      if (!deck) this.bridgeDecks.set(width, (deck = new Path2D()));
-      deck.moveTo(...corners[0]!);
-      for (const k of corners.slice(1)) deck.lineTo(...k);
-      deck.closePath();
-      this.bridgeRails.moveTo(...corners[0]!);
-      this.bridgeRails.lineTo(...corners[1]!);
-      this.bridgeRails.moveTo(...corners[3]!);
-      this.bridgeRails.lineTo(...corners[2]!);
-    }
-  }
-
-  /** The border's features, into the static layer under the bridge decks. */
-  private drawBorder(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
-    const px = 1 / (cam.scale * dpr);
-    const b = this.border;
-    g.lineCap = 'butt';
-    g.strokeStyle = P.BORDER;
-    g.lineWidth = px;
-    g.stroke(b.rails);
-    g.setLineDash([BORDER.sleeperGap * 0.35, BORDER.sleeperGap * 0.65]);
-    g.lineWidth = BORDER.gauge + 1;
-    g.globalAlpha = 0.5;
-    g.stroke(b.sleepers);
-    g.globalAlpha = 1;
-    g.lineWidth = px;
-    g.setLineDash([4, 2.5]);
-    g.stroke(b.fences);
-    g.setLineDash([]);
-    g.lineWidth = Math.max(px, 1);
-    g.stroke(b.median);
-    // The sound barrier: a solid wall, its posts standing proud of it every few metres.
-    g.lineWidth = Math.max(1.5 * px, BORDER.barrier);
-    g.stroke(b.barrier);
-    g.setLineDash([BORDER.postWidth, BORDER.postPitch - BORDER.postWidth]);
-    g.lineWidth = Math.max(3 * px, BORDER.barrier * 2.2);
-    g.stroke(b.posts);
-    g.setLineDash([]);
-    g.lineCap = 'round';
   }
 
   /** A building's outline, as drawn: a church in plan, a hospital's L or a school's U, else its plot. */

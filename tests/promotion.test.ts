@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { config as baseConfig, type Config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { SCORED, rankByUnusualness, scoreLiving, updatePromotion } from '../src/sim/systems/promotion';
+import { SCORED, rankByUnusualness, scoreLiving, updatePromotion } from '../src/sim/systems/story/promotion';
 import { step } from '../src/sim/tick';
 
 // Early fallbacks so both stages fire within a short run.

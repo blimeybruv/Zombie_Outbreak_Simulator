@@ -9,7 +9,7 @@
 
 import { confidence } from '../sim/derived';
 import type { Sim, World } from '../sim/state';
-import { modeOf } from '../sim/systems/panic';
+import { modeOf } from '../sim/systems/people/panic';
 import { words } from './notes';
 
 /** At most this many, most pressing first. */

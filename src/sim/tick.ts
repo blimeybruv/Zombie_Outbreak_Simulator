@@ -6,18 +6,18 @@ import { sizeContext, type Context } from './context';
 import { populationTotal } from './state';
 import { recount } from './counters';
 import type { Counters, World } from './state';
-import { buildingProcesses } from './systems/buildings';
-import { resolveCombat } from './systems/combat';
-import { resolveEncounters } from './systems/encounters';
-import { convertDue } from './systems/infection';
-import { riseDue } from './systems/rising';
-import { integrateMovement } from './systems/movement';
-import { updatePanic } from './systems/panic';
-import { computePerception, rebuildHashes } from './systems/perception';
-import { updatePromotion } from './systems/promotion';
-import { simDecisions } from './systems/sims';
-import { expireStimuli } from './systems/stimuli';
-import { zombieDecisions } from './systems/zombies';
+import { buildingProcesses } from './systems/buildings/buildings';
+import { resolveCombat } from './systems/fighting/combat';
+import { resolveEncounters } from './systems/people/encounters';
+import { convertDue } from './systems/dead/infection';
+import { riseDue } from './systems/dead/rising';
+import { integrateMovement } from './systems/shared/movement';
+import { updatePanic } from './systems/people/panic';
+import { computePerception, rebuildHashes } from './systems/shared/perception';
+import { updatePromotion } from './systems/story/promotion';
+import { simDecisions } from './systems/people/sims';
+import { expireStimuli } from './systems/shared/stimuli';
+import { zombieDecisions } from './systems/dead/zombies';
 
 export interface StepOptions {
   /** Recount every leaf from entity state and assert the invariant. Harness only. */

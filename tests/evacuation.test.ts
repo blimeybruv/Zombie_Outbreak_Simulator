@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { buildingProcesses } from '../src/sim/systems/buildings';
+import { buildingProcesses } from '../src/sim/systems/buildings/buildings';
 import { assertInvariant } from '../src/sim/tick';
 
 describe('evacuation', () => {

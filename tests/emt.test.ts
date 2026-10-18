@@ -4,7 +4,7 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { spawnSim } from '../src/sim/spawn';
 import type { Building, Sim, World } from '../src/sim/state';
-import { callAmbulance, dispatchAmbulances, emtEnter } from '../src/sim/systems/emt';
+import { callAmbulance, dispatchAmbulances, emtEnter } from '../src/sim/systems/services/emt';
 
 const always = { ...config, emt: { ...config.emt, answer: 1, answerHalfLife: 1e12 } };
 

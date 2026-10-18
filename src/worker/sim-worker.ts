@@ -11,8 +11,8 @@ import { daylight, timeOfDay } from '../sim/derived';
 import { defaultScenario } from '../sim/scenario';
 import { createWorld } from '../sim/setup';
 import type { SimEvent, World } from '../sim/state';
-import { stageOf } from '../sim/systems/common';
-import { modeOf } from '../sim/systems/panic';
+import { stageOf } from '../sim/systems/shared/common';
+import { modeOf } from '../sim/systems/people/panic';
 
 const STAGES = ['open', 'barricaded', 'reinforced', 'fortified'] as const;
 import { step } from '../sim/tick';
@@ -58,8 +58,8 @@ import { clearEndings, noteEndings } from './endings';
 import { inspect } from './inspect';
 import { noteFor, centreOf } from './notes';
 import { isFirearm } from '../sim/state';
-import { barrierAt } from '../sim/systems/cordon';
-import { rescueTally } from '../sim/systems/rescue';
+import { barrierAt } from '../sim/systems/outside/cordon';
+import { rescueTally } from '../sim/systems/outside/rescue';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept

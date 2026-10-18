@@ -3,8 +3,8 @@ import { config } from '../src/config';
 import { sizeContext } from '../src/sim/context';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { rideToCall } from '../src/sim/systems/dispatch';
-import { rebuildHashes } from '../src/sim/systems/perception';
+import { rideToCall } from '../src/sim/systems/services/dispatch';
+import { rebuildHashes } from '../src/sim/systems/shared/perception';
 
 describe('police cars', () => {
   it('first responders sent to a far call get into their station car together and drive', () => {

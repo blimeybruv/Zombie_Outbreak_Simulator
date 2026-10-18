@@ -5,8 +5,8 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { spawnSim } from '../src/sim/spawn';
 import type { Sim, World } from '../src/sim/state';
-import { dropWeapon, loot, pickUpDrops } from '../src/sim/systems/arms';
-import { rebuildHashes } from '../src/sim/systems/perception';
+import { dropWeapon, loot, pickUpDrops } from '../src/sim/systems/fighting/arms';
+import { rebuildHashes } from '../src/sim/systems/shared/perception';
 
 const sure = { ...config, buildings: { ...config.buildings, lootChance: 1 } };
 

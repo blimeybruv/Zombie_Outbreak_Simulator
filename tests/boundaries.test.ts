@@ -58,17 +58,17 @@ describe('restricted reads', () => {
     ['panic', 'export const f = (s: { panic: number }) => s.panic > 0.5;'],
     ['destructured panic', 'export const f = ({ panic }: { panic: number }) => panic;'],
   ])('rejects %s outside its allowed files', async (_name, code) => {
-    expect(await ruleIds(code, 'src/sim/systems/shelter.ts')).toContain('no-restricted-syntax');
+    expect(await ruleIds(code, 'src/sim/systems/buildings/shelter.ts')).toContain('no-restricted-syntax');
   });
 
   it('lets the release read release state but not panic', async () => {
-    const file = 'src/sim/systems/release.ts';
+    const file = 'src/sim/systems/outside/release.ts';
     expect(await ruleIds('export const f = (d: { released: boolean }) => d.released;', file)).toEqual([]);
     expect(await ruleIds('export const f = (s: { panic: number }) => s.panic;', file)).toContain('no-restricted-syntax');
   });
 
   it('lets the panic system read panic but not release state', async () => {
-    const file = 'src/sim/systems/panic.ts';
+    const file = 'src/sim/systems/people/panic.ts';
     expect(await ruleIds('export const f = (s: { panic: number }) => s.panic;', file)).toEqual([]);
     expect(await ruleIds('export const f = (d: { released: boolean }) => d.released;', file)).toContain(
       'no-restricted-syntax',

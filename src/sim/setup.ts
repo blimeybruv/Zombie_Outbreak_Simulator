@@ -1,21 +1,21 @@
 // Building a world from a scenario: generate the map from mapSeed, then place the
 // population and the outbreak with the run RNG from runSeed.
 
-import { armAlarms, placeParkedCars } from './systems/cars';
+import { armAlarms, placeParkedCars } from './systems/services/cars';
 import type { Config } from '../config';
 import { createContext, type Context } from './context';
 import { add, transfer } from './counters';
 import { bandForHour } from './derived';
 import { footprintArea, functionalProfile, generateMap } from './mapgen/generate';
-import { createRng, nextFloat, nextInt } from './rng';
+import { createRng, nextFloat, nextInt } from './lib/rng';
 import { spawnSim, spawnZombie } from './spawn';
 import { emptyCounters, type Building, type Scenario, type World } from './state';
-import { occupierAppeared } from './systems/buildings';
-import { placeFirstResponders } from './systems/dispatch';
-import { designateArmouries, placeSwat } from './systems/squads';
-import { stockBuildings } from './systems/arms';
-import { placeEmts } from './systems/emt';
-import { scheduleRelease } from './systems/release';
+import { occupierAppeared } from './systems/buildings/buildings';
+import { placeFirstResponders } from './systems/services/dispatch';
+import { designateArmouries, placeSwat } from './systems/services/squads';
+import { stockBuildings } from './systems/fighting/arms';
+import { placeEmts } from './systems/services/emt';
+import { scheduleRelease } from './systems/outside/release';
 
 const MAX_RESIDENTS = 200;
 const ORIGIN_TAGS = new Set<string>(['hospital', 'office', 'school']);
