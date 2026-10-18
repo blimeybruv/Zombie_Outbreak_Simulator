@@ -892,9 +892,7 @@ export function decideCars(world: World, ctx: Context): void {
     // speed, and slowing for a sharp turn: it swung round on the spot at full speed.
     const err = Math.atan2(Math.sin(wantOf.get(car.id)! - car.heading), Math.cos(wantOf.get(car.id)! - car.heading));
     let target = 0;
-    if (blocked) car.blockedSince ??= tick;
-    else {
-      if (car.speed !== 0) car.blockedSince = null; // (one stopped by walls last tick stays blocked)
+    if (!blocked) {
       let near = 0;
       for (const o of moving) if (o !== car && Math.hypot(o.x - car.x, o.y - car.y) <= cc.congestionRadius) near++;
       target = cc.maxSpeed / (1 + cc.congestion * near);
@@ -913,19 +911,30 @@ export function decideCars(world: World, ctx: Context): void {
     // car's corners swung through the walls on the inside of the turn. The turn it wants,
     // or less of it, at its speed or less; stopped if nothing keeps it clear. (At speed,
     // hitting a building is a crash: moveCars.)
+    let held = false; // kept from the way it wants by walls
     if (car.speed >= cc.crashMin) car.heading += want;
     else {
       const now = inWalls(world, ctx, car.x, car.y, car.heading);
-      let done = false;
+      // The way it wants, if that keeps it clear; standing (waiting behind something, or
+      // at its spot), it stays put rather than casting about — trying other ways, cars
+      // waiting in a queue pivoted on the spot.
+      const h0 = car.heading + want;
+      let done = inWalls(world, ctx, car.x + Math.cos(h0) * car.speed, car.y + Math.sin(h0) * car.speed, h0) <= now;
+      if (done) car.heading = h0;
+      else if (car.speed <= 0) {
+        done = true;
+        held = true;
+      }
       // Turning toward where it is going, or less; failing that, away from the wall.
       const turns = [...[1, ...cc.wallTurn].map((f) => want * f), ...cc.wallTurn.filter((f) => f > 0).flatMap((f) => [turn * f, -turn * f]), turn, -turn];
-      for (const v of [1, ...cc.wallSpeed]) {
+      for (const v of done ? [] : [1, ...cc.wallSpeed]) {
         for (const t of turns) {
           const h = car.heading + t, sp = car.speed * v;
           if (h === car.heading && sp === 0) continue; // standing still is not a way out
           if (inWalls(world, ctx, car.x + Math.cos(h) * sp, car.y + Math.sin(h) * sp, h) > now) continue;
           car.heading = h;
           car.speed = sp;
+          held = v !== 1; // (steering away from a wall at its speed is still getting on)
           done = true;
           break;
         }
@@ -938,14 +947,20 @@ export function decideCars(world: World, ctx: Context): void {
         if (inWalls(world, ctx, car.x - Math.cos(h) * cc.reverseSpeed, car.y - Math.sin(h) * cc.reverseSpeed, h) > now) continue;
         car.heading = h;
         car.speed = -cc.reverseSpeed;
+        held = true;
         done = true;
         break;
       }
       if (!done) {
         car.speed = 0;
-        car.blockedSince ??= tick; // boxed in by walls: given up in time, like any blocked car
+        held = true;
       }
     }
+    // Held back by walls counts as blocked: near its spot it parks, and one that cannot
+    // work its way out is rerouted and in the end abandoned, like a car in a jam. Not
+    // counted, a car wedged between a kerb and a wall pivoted on the spot for 1,280 ticks.
+    if (blocked || held) car.blockedSince ??= tick;
+    else car.blockedSince = null;
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move sounds its siren too (features.sirens): sparse and modest, a thin wake
