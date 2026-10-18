@@ -591,6 +591,52 @@ describe('cars', () => {
     expect(ctx.events.some((e) => e.type === 'carCrashed' && e.car === car.id)).toBe(true);
   });
 
+  /** How many of a grid of points over the car's body lie inside buildings. */
+  function bodyInWalls(ctx: ReturnType<typeof driver>['ctx'], car: { x: number; y: number; heading: number }): number {
+    const l = baseConfig.cars.length / 2, w = baseConfig.cars.width / 2, c = Math.cos(car.heading), sn = Math.sin(car.heading);
+    let k = 0;
+    for (const u of [-l, -l / 2, 0, l / 2, l]) for (const v of [-w, 0, w]) if (ctx.map.buildingAt(car.x + c * u - sn * v, car.y + sn * u + c * v) !== null) k++;
+    return k;
+  }
+
+  it('a car never drives its body into a building below crash speed, whole trip long', () => {
+    const { world, ctx, s, car } = driver();
+    let drove = false, worst = 0;
+    for (let t = 0; t < 1200 && !(drove && s.car === null); t++) {
+      step(world, ctx, { checkInvariant: false });
+      if (car.state !== 'driving') continue;
+      drove = true;
+      worst = Math.max(worst, bodyInWalls(ctx, car));
+    }
+    expect(drove).toBe(true);
+    expect(worst).toBe(0);
+  });
+
+  it('nosed up to a wall, a car steers or backs away from it rather than through it', () => {
+    const { world, ctx, car } = inCar();
+    // Facing the nearest building's wall from just short of it, slowly, wanting to go on through.
+    const b = world.buildings.reduce((best, x) => (Math.hypot(x.outline[0]!.x - car.x, x.outline[0]!.y - car.y) < Math.hypot(best.outline[0]!.x - car.x, best.outline[0]!.y - car.y) ? x : best));
+    const cx = b.outline.reduce((a, p) => a + p.x / 4, 0), cy = b.outline.reduce((a, p) => a + p.y / 4, 0);
+    const h = Math.atan2(cy - car.y, cx - car.x);
+    let d = 0;
+    while (ctx.map.buildingAt(cx - Math.cos(h) * d, cy - Math.sin(h) * d) !== null) d += 0.5;
+    car.x = cx - Math.cos(h) * (d + baseConfig.cars.length / 2 + 0.3);
+    car.y = cy - Math.sin(h) * (d + baseConfig.cars.length / 2 + 0.3);
+    car.heading = h;
+    car.destination = { x: cx, y: cy };
+    car.route = [];
+    car.routeIndex = 0;
+    car.speed = 2;
+    expect(bodyInWalls(ctx, car)).toBe(0);
+    for (let t = 0; t < 20; t++) {
+      world.tick++;
+      rebuildHashes(world, ctx);
+      decideCars(world, ctx);
+      moveCars(world, ctx);
+      expect(bodyInWalls(ctx, car)).toBe(0);
+    }
+  });
+
   it('an armed alarm goes off once, as the car is taken, and frightens nobody', () => {
     const d = driver();
     const { world, ctx, s, car } = d;

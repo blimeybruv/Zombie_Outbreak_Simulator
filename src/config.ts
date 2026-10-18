@@ -713,6 +713,15 @@ export const config = {
     swerveClear: 1,
     crashMin: 6,
     crashKill: 0.5,
+    // Below crashMin a car keeps its body out of buildings: it takes the turn it wants, or
+    // failing that each fraction of it in `wallTurn`, or turns either way by those
+    // fractions of its full turn and then all of it — at its speed and then each fraction
+    // of it in `wallSpeed`; boxed in, it backs out. Checked at
+    // `bodySamples` points along its length by 3 across — guess
+    wallTurn: [0.5, 0] as number[],
+    wallSpeed: [0.5, 0] as number[], // (0: turning on the spot, at a crawl)
+    bodySamples: 5,
+    reverseSpeed: 1, // m/tick — guess
     congestion: 0.3,
     congestionRadius: 15, // m
     gap: 7, // m

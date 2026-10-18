@@ -776,7 +776,11 @@ export function decideCars(world: World, ctx: Context): void {
       // straight at the junction. Aiming at the junction, a car thrown wide by a turn, or
       // joining from a yard or a lot, closed on its lane over a whole street at a shallow
       // angle — and ran along the walls of alleys and into the buildings beside them.
-      const along = Math.max(0, Math.min(len, (car.x - far.x) * ux + (car.y - far.y) * uy)) + cc.lookahead;
+      // Off the street altogether (pulling out of a yard, a bay or a lot), it makes for the
+      // nearest of it first: aimed a lookahead along, the point lay past the corner of the
+      // building beside it, and it cut through the wall.
+      const lat = Math.abs(-(car.x - far.x) * uy + (car.y - far.y) * ux);
+      const along = Math.max(0, Math.min(len, (car.x - far.x) * ux + (car.y - far.y) * uy)) + (lat > st.width / 2 ? 0 : cc.lookahead);
       if (along >= len) {
         tx = jx;
         ty = jy;
@@ -890,7 +894,7 @@ export function decideCars(world: World, ctx: Context): void {
     let target = 0;
     if (blocked) car.blockedSince ??= tick;
     else {
-      car.blockedSince = null;
+      if (car.speed !== 0) car.blockedSince = null; // (one stopped by walls last tick stays blocked)
       let near = 0;
       for (const o of moving) if (o !== car && Math.hypot(o.x - car.x, o.y - car.y) <= cc.congestionRadius) near++;
       target = cc.maxSpeed / (1 + cc.congestion * near);
@@ -904,7 +908,44 @@ export function decideCars(world: World, ctx: Context): void {
     if (target === 0 && car.speed < cc.stopBelow) car.speed = 0;
     car.speed = Math.min(car.speed, room); // and never into anything
     const turn = Math.max(cc.turnMin, car.speed / cc.turnRadius);
-    car.heading += Math.max(-turn, Math.min(turn, err));
+    const want = Math.max(-turn, Math.min(turn, err));
+    // Below crash speed, never further into a building: turning tightly at a crawl, a
+    // car's corners swung through the walls on the inside of the turn. The turn it wants,
+    // or less of it, at its speed or less; stopped if nothing keeps it clear. (At speed,
+    // hitting a building is a crash: moveCars.)
+    if (car.speed >= cc.crashMin) car.heading += want;
+    else {
+      const now = inWalls(world, ctx, car.x, car.y, car.heading);
+      let done = false;
+      // Turning toward where it is going, or less; failing that, away from the wall.
+      const turns = [...[1, ...cc.wallTurn].map((f) => want * f), ...cc.wallTurn.filter((f) => f > 0).flatMap((f) => [turn * f, -turn * f]), turn, -turn];
+      for (const v of [1, ...cc.wallSpeed]) {
+        for (const t of turns) {
+          const h = car.heading + t, sp = car.speed * v;
+          if (h === car.heading && sp === 0) continue; // standing still is not a way out
+          if (inWalls(world, ctx, car.x + Math.cos(h) * sp, car.y + Math.sin(h) * sp, h) > now) continue;
+          car.heading = h;
+          car.speed = sp;
+          done = true;
+          break;
+        }
+        if (done) break;
+      }
+      // Nothing forward keeps it clear — nosed into a bay or a yard, its way out turning
+      // back past the wall beside it: it backs out, turning as it goes.
+      for (const t of done ? [] : turns) {
+        const h = car.heading + t;
+        if (inWalls(world, ctx, car.x - Math.cos(h) * cc.reverseSpeed, car.y - Math.sin(h) * cc.reverseSpeed, h) > now) continue;
+        car.heading = h;
+        car.speed = -cc.reverseSpeed;
+        done = true;
+        break;
+      }
+      if (!done) {
+        car.speed = 0;
+        car.blockedSince ??= tick; // boxed in by walls: given up in time, like any blocked car
+      }
+    }
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move sounds its siren too (features.sirens): sparse and modest, a thin wake
@@ -921,6 +962,19 @@ function cornersAt(world: World, x: number, y: number, heading: number): [number
   const l = world.config.cars.length / 2, w = world.config.cars.width / 2;
   const c = Math.cos(heading), s = Math.sin(heading);
   return [[l, w], [l, -w], [-l, -w], [-l, w]].map(([u, v]) => [x + c * u! - s * v!, y + s * u! + c * v!]);
+}
+
+/** How much of a car's body, at (x, y) heading `heading`, lies inside buildings: how many of a grid of points over it. */
+function inWalls(world: World, ctx: Context, x: number, y: number, heading: number): number {
+  const cc = world.config.cars;
+  const n = cc.bodySamples, l = cc.length / 2, w = cc.width / 2;
+  const c = Math.cos(heading), s = Math.sin(heading);
+  let k = 0;
+  for (let i = 0; i < n; i++) {
+    const u = -l + (2 * l * i) / (n - 1);
+    for (const v of [-w, 0, w]) if (ctx.map.buildingAt(x + c * u - s * v, y + s * u + c * v) !== null) k++;
+  }
+  return k;
 }
 
 /** Whether two convex quadrilaterals overlap (no separating axis among their edges). */
@@ -970,10 +1024,10 @@ function wouldHit(world: World, ctx: Context, car: Car, x: number, y: number): b
 /** Car movement (step 9): along its heading by its speed, everyone inside with it — unless it would hit something, when it stops where it is (car processes resolve the impact). */
 export function moveCars(world: World, ctx: Context): void {
   for (const car of world.cars) {
-    if (car.state !== 'driving' || car.speed <= 0) continue;
+    if (car.state !== 'driving' || car.speed === 0) continue; // (backing out of a bay, the speed is negative)
     const nx = car.x + Math.cos(car.heading) * car.speed, ny = car.y + Math.sin(car.heading) * car.speed;
     if (wouldHit(world, ctx, car, nx, ny)) {
-      car.impact = car.speed;
+      car.impact = Math.abs(car.speed);
       car.speed = 0;
       continue;
     }

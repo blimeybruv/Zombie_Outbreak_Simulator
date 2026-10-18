@@ -40,7 +40,7 @@ export interface Car {
   y: Metres;
   /** Which way it points. @range 0–2π @unit rad @readBy obstacles, car decisions, render */
   heading: Radians;
-  /** Distance moved this tick, set by its decision. @range 0–cars.maxSpeed @unit m/tick @readBy car movement */
+  /** Distance moved this tick, set by its decision; negative backing out of a bay. @range -cars.reverseSpeed–cars.maxSpeed @unit m/tick @readBy car movement */
   speed: Metres;
   /** Who is inside, the driver first. @range 0–cars.capacity sim ids @unit — @readBy car processes, inspector, render */
   occupants: SimId[];
