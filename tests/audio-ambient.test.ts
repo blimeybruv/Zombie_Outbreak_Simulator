@@ -3,17 +3,18 @@ import { cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groaned
 import { SIM_LIVING, SIM_PROMOTED } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
-  it('keeps the living day hum and a low rumble', () => {
-    expect(cityLevels(1, 1)).toEqual({ hum: 0.07, rumble: 0.032, traffic: 1 });
+  it('holds a quiet day drone and distant engines while people are alive', () => {
+    expect(cityLevels(1, 1)).toEqual({ drone: 0.032, traffic: 1 });
   });
 
-  it('drops the hum at night and keeps the rumble while people are alive', () => {
-    expect(cityLevels(0, 1)).toEqual({ hum: 0, rumble: 0.032, traffic: 0 });
+  it('lowers the drone at night and still allows distant engines', () => {
+    expect(cityLevels(0, 1).drone).toBeCloseTo(0.0128);
+    expect(cityLevels(0, 1).traffic).toBe(1);
   });
 
   it('goes quiet as the city empties, with no night wind', () => {
-    expect(cityLevels(1, 0)).toEqual({ hum: 0, rumble: 0, traffic: 0 });
-    expect(cityLevels(0, 0)).toEqual({ hum: 0, rumble: 0, traffic: 0 });
+    expect(cityLevels(1, 0)).toEqual({ drone: 0, traffic: 0 });
+    expect(cityLevels(0, 0)).toEqual({ drone: 0, traffic: 0 });
   });
 
   it('clamps daylight and the living share', () => {

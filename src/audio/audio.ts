@@ -14,16 +14,16 @@
 //              how far the dead hear it, so a fight just off screen is heard too.
 //   beds       loops whose levels follow what is in view: the dead (a moan), cars
 //              being driven (engines), police cars, SWAT vans and ambulances on the
-//              move (a siren), and the city itself (a low rumble and the hum of a
-//              living city, both falling away as it empties; the hum also at night).
+//              move (a siren), and the city itself (a steady low traffic drone that
+//              thins with the living and is quieter at night).
 //
 // Three more buses sit under the master — city, outbreak, cordon — each with its
 // own gain, so a layer can be mixed off without a click (setLayerEnabled). The
-// city bus carries that rumble and hum, an occasional traffic pass while the day
-// is alive, a murmur, a looped pavement of footsteps by day, and sparse life
-// sounds: phones by day, a door, a dog, a horn, a bell, birds by day. At night
-// the voices thin out, with the odd drunken shout or a bin going over. No wind,
-// and no insects. The outbreak bus adds a low groan and a rare
+// city bus carries that drone, distant engines now and then, a murmur, a looped
+// pavement of footsteps by day, and sparse life sounds: phones by day, a door, a
+// dog, a horn, a bell, birds by day. At night the voices thin out, with the odd
+// drunken shout or a bin going over. No wind, no surf-like noise bed, and no
+// insects. The outbreak bus adds a low groan and a rare
 // distant scream that follow how much of the city has turned, ducked under the
 // moan so the two do not stack. The cordon bus is short radio transmissions
 // (a squelch, garbled voices, a squelch tail, then silence) and a distant shot,
@@ -45,7 +45,7 @@ import type { FrameSnapshot } from '../worker/protocol';
 import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
 type Category = 'gun' | 'melee' | 'voice' | 'alarm';
-type Bed = 'moan' | 'engine' | 'siren' | 'rumble' | 'hum' | 'groan' | 'murmur' | 'steps';
+type Bed = 'moan' | 'engine' | 'siren' | 'drone' | 'groan' | 'murmur' | 'steps';
 const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
@@ -83,10 +83,10 @@ interface SampleCtx {
 /** Which ambient bus a toggle addresses. */
 export type AmbientLayer = 'city' | 'outbreak' | 'cordon';
 
-// Hum is the living day. Rumble is a low urban bed that follows the living share
-// by day and night, and is gone when the city is dead. `traffic` is a distant pass.
-const CITY_HUM = 0.07;
-const CITY_RUMBLE = 0.032;
+// A steady traffic drone. Day cap matches the old rumble; night is lower; a dead
+// city is silent. `traffic` is how present distant engines are (the living share).
+const CITY_DRONE = 0.032;
+const CITY_DRONE_NIGHT = 0.4;
 
 // The outbreak groan sits under the local moan bed (which reaches MOAN_PEAK). Most of it
 // ducks while that crowd is already loud, so the two do not stack.
@@ -105,14 +105,13 @@ export const EXIT_STRIDE = 7;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
-/** Day hum, the low rumble of a living city, and whether a distant traffic pass belongs. */
-export function cityLevels(daylight: number, living: number): { hum: number; rumble: number; traffic: number } {
+/** Steady drone level, and how present distant engines are. Both die with the living. */
+export function cityLevels(daylight: number, living: number): { drone: number; traffic: number } {
   const day = clamp01(daylight);
   const live = clamp01(living);
   return {
-    hum: CITY_HUM * live * day,
-    rumble: CITY_RUMBLE * live,
-    traffic: day * live,
+    drone: CITY_DRONE * live * (CITY_DRONE_NIGHT + (1 - CITY_DRONE_NIGHT) * day),
+    traffic: live,
   };
 }
 
@@ -351,39 +350,64 @@ function moan(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** Low brown noise and a faint traffic wash. No gusts: this is not wind. */
-function rumble(ctx: SampleCtx): AudioBuffer {
+/**
+ * Several rough low engines at fixed pitches, each wandering a fraction of a percent,
+ * plus a very thin constant band of tyre noise. No level swell: the join is a short
+ * crossfade so the loop does not thump.
+ */
+function trafficDrone(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
   const seconds = 8;
-  const buf = ctx.createBuffer(1, Math.floor(rate * seconds), rate);
+  const fade = Math.floor(rate * 0.04);
+  const n = Math.floor(rate * seconds);
+  const buf = ctx.createBuffer(1, n, rate);
   const d = buf.getChannelData(0);
-  const lp = Math.exp((-2 * Math.PI * 110) / rate);
-  const washLp = Math.exp((-2 * Math.PI * 260) / rate);
-  let brown = 0;
-  let low = 0;
-  let wash = 0;
-  for (let i = 0; i < d.length; i++) {
-    const n = rnd();
-    brown = 0.996 * brown + n * 0.04;
-    low = (1 - lp) * brown + lp * low;
-    wash = (1 - washLp) * n + washLp * wash;
-    const swell = 0.7 + 0.3 * Math.sin((2 * Math.PI * i) / d.length);
-    d[i] = low * 1.6 + wash * swell * 0.28;
+  const engines = [
+    { f: 41, width: 0.16, gain: 0.62, wander: 0.006, cycles: 1 },
+    { f: 48, width: 0.12, gain: 0.78, wander: 0.008, cycles: 2 },
+    { f: 55, width: 0.2, gain: 0.5, wander: 0.005, cycles: 1 },
+    { f: 67, width: 0.14, gain: 0.42, wander: 0.007, cycles: 3 },
+    { f: 86, width: 0.1, gain: 0.3, wander: 0.004, cycles: 2 },
+  ];
+  const phase = engines.map(() => 0);
+  const lpA = Math.exp((-2 * Math.PI * 220) / rate);
+  let lp = 0;
+  // One-pole highpass under the lowest fundamental, so the pulse's offset does not sit as a pressure.
+  const dcA = Math.exp((-2 * Math.PI * 25) / rate);
+  let dc = 0;
+  let prevLp = 0;
+  const tyreHp = Math.exp((-2 * Math.PI * 700) / rate);
+  const tyreLp = Math.exp((-2 * Math.PI * 1100) / rate);
+  let tyreState = 0;
+  let tyrePrev = 0;
+  let tyreBand = 0;
+  const total = n + fade;
+  const raw = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    const t = i / rate;
+    let mix = 0;
+    for (let e = 0; e < engines.length; e++) {
+      const eng = engines[e]!;
+      const wob = 1 + eng.wander * Math.sin((2 * Math.PI * eng.cycles * t) / seconds);
+      phase[e] = (phase[e]! + (eng.f * wob) / rate) % 1;
+      const p = phase[e]!;
+      const pulse = p < eng.width ? 1 : -0.22;
+      mix += (pulse * 0.7 + (2 * p - 1) * 0.3) * eng.gain;
+    }
+    lp = (1 - lpA) * mix + lpA * lp;
+    dc = dcA * (dc + lp - prevLp);
+    prevLp = lp;
+    const noise = rnd();
+    const hp = tyreHp * (tyreState + noise - tyrePrev);
+    tyreState = hp;
+    tyrePrev = noise;
+    tyreBand = (1 - tyreLp) * hp + tyreLp * tyreBand;
+    raw[i] = dc * 0.5 + tyreBand * 0.035;
   }
-  return buf;
-}
-
-/** The low, even murmur of a city going about its day: traffic and people, far off. */
-function hum(ctx: SampleCtx): AudioBuffer {
-  const rate = ctx.sampleRate;
-  const seconds = 6;
-  const buf = ctx.createBuffer(1, rate * seconds, rate);
-  const d = buf.getChannelData(0);
-  const a = Math.exp((-2 * Math.PI * 220) / rate);
-  let y = 0;
-  for (let i = 0; i < d.length; i++) {
-    y = (1 - a) * rnd() + a * y;
-    d[i] = y * 3;
+  for (let i = 0; i < n; i++) d[i] = raw[i]!;
+  for (let i = 0; i < fade; i++) {
+    const w = i / fade;
+    d[i] = raw[i]! * w + raw[n + i]! * (1 - w);
   }
   return buf;
 }
@@ -439,20 +463,26 @@ function alarm(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** A vehicle a few streets away: lowpassed noise and a low rumble, swelling then gone. */
-function trafficPass(ctx: SampleCtx): AudioBuffer {
+/** A distant car or bike: pitch falls through the pass, the low-pass opens as it nears. */
+function distantEngine(ctx: SampleCtx, fundamental: number, seconds: number, pullAway: boolean): AudioBuffer {
   const rate = ctx.sampleRate;
-  const seconds = 2.4;
   const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
   const d = buf.getChannelData(0);
-  const a = Math.exp((-2 * Math.PI * 380) / rate);
-  let y = 0;
+  let ph = 0;
+  let lp = 0;
   for (let i = 0; i < d.length; i++) {
     const t = i / rate;
-    y = (1 - a) * rnd() + a * y;
-    const env = Math.sin((Math.PI * t) / seconds) ** 1.5;
-    const rumble = Math.sin(2 * Math.PI * 68 * t) * 0.4 + Math.sin(2 * Math.PI * 136 * t) * 0.15;
-    d[i] = (y * 2.4 + rumble) * env;
+    const u = t / seconds;
+    const f = pullAway ? fundamental * (u < 0.35 ? 1 : 1 + (u - 0.35) * 0.85) : fundamental * (1.28 - 0.55 * u);
+    ph += f / rate;
+    const p = ph % 1;
+    const pulse = p < (pullAway ? 0.28 : 0.16) ? 1 : -0.25;
+    const open = pullAway ? Math.min(1, u / 0.3) : Math.sin(Math.PI * u);
+    const cut = 140 + (pullAway ? 80 : 260) * open;
+    const a = Math.exp((-2 * Math.PI * cut) / rate);
+    lp = (1 - a) * pulse + a * lp;
+    const env = pullAway ? Math.min(1, t / 0.15) * (u < 0.55 ? 0.7 : 0.7 + (u - 0.55) * 0.4) * Math.min(1, (1 - u) / 0.2) : Math.sin(Math.PI * u) ** 1.1;
+    d[i] = lp * env;
   }
   return buf;
 }
@@ -1045,10 +1075,9 @@ function binClatter(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** Rumble, hum, murmur and the daytime pavement ride the city bus. The groan rides the outbreak bus. */
+/** The drone, murmur and the daytime pavement ride the city bus. The groan rides the outbreak bus. */
 const BED_LAYER: Partial<Record<Bed, AmbientLayer>> = {
-  rumble: 'city',
-  hum: 'city',
+  drone: 'city',
   murmur: 'city',
   steps: 'city',
   groan: 'outbreak',
@@ -1116,7 +1145,7 @@ export class Audio {
     // Loops at one peak too: their levels are the bed gains in update().
     // The groan is built after the older beds so those keep their timbre.
     const loops: Record<Bed, AudioBuffer> = {
-      moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), rumble: rumble(ctx), hum: hum(ctx),
+      moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), drone: trafficDrone(ctx),
       groan: groan(ctx), murmur: murmur(ctx), steps: footstepBed(ctx),
     };
     for (const buffer of Object.values(loops)) normalise(buffer, 0.7);
@@ -1132,7 +1161,10 @@ export class Audio {
       src.start(0, Math.random() * buffer.duration); // out of step with each other
       this.beds.set(name, { gain, pan });
     }
-    this.buffers.set('traffic', normalise(trafficPass(ctx)));
+    this.buffers.set('pass', normalise(distantEngine(ctx, 78, 2.4, false)));
+    this.buffers.set('bike', normalise(distantEngine(ctx, 125, 1.8, false)));
+    this.buffers.set('truck', normalise(distantEngine(ctx, 36, 3.2, true)));
+    this.buffers.set('accel', normalise(distantEngine(ctx, 58, 1.3, true)));
     this.buffers.set('scream', normalise(scream(ctx)));
     this.buffers.set('steps', normalise(footsteps(ctx)));
     this.buffers.set('bark', normalise(dogBark(ctx)));
@@ -1241,18 +1273,17 @@ export class Audio {
     this.bed('engine', Math.min(0.3, 0.12 * Math.sqrt(engines)) * fast, engines > 0 ? panOf(ex / engines) * 0.7 : 0);
     this.bed('siren', Math.min(0.22, 0.25 * sirenNear) * fast, panOf(sirenX) * 0.8, 0.25);
 
-    // The city: a low rumble and the daytime hum, both gone when nobody is left alive.
-    // (The old wind bed, which rose at night and as the city emptied, is not played.
-    // Crickets were tried too, and stay out.) Murmur, pavement and life sounds follow
-    // who is outdoors near the camera, and duck under the groan and the cordon.
+    // The city: a steady traffic drone, quieter at night, silent when nobody is left.
+    // (The noise hum and the brown-noise rumble both read as surf, so neither is played.
+    // The old wind bed is not played either. Crickets stay out.) Murmur, pavement and
+    // life sounds follow who is outdoors near the camera, and duck under the groan and the cordon.
     const c = frame.counters;
     const livingCount = c.unturned.outdoors + c.unturned.indoors;
     const deadCount = c.unturned.dead + c.turned.symptomatic + c.turned.outdoors + c.turned.occupying + c.turned.destroyed;
     const population = livingCount + deadCount + c.unturned.evacuated;
     const livingShare = population > 0 ? livingCount / population : 0;
     const city = cityLevels(frame.daylight, livingShare);
-    this.bed('rumble', city.rumble, 0, 1);
-    this.bed('hum', city.hum, 0, 1);
+    this.bed('drone', city.drone, 0, 1.4);
     // Outbreak: a groan from how much of the city has turned, ducked while the local moan is already loud.
     const groanLevel = groanedUnderMoan(deadCount, livingCount, moan);
     this.bed('groan', groanLevel * fast, 0, 0.8);
@@ -1284,7 +1315,7 @@ export class Audio {
       this.play(n.kind, cat, d, Math.hypot(n.x - cam.x, n.y - cam.y), panOf(n.x));
       played++;
     }
-    this.scheduleAmbient(ctx.currentTime, speed, city.traffic, groanLevel, cordon, frame.daylight, lifeNear, crowd);
+    this.scheduleAmbient(ctx.currentTime, speed, livingShare, groanLevel, cordon, frame.daylight, lifeNear, crowd);
   }
 
   /**
@@ -1297,11 +1328,16 @@ export class Audio {
     const gap = speed > 4 ? 2 : 1;
     const shots = speed < 8;
     if (this.nextTraffic <= now) {
-      if (shots && traffic > 0.2 && this.layerOn.city) {
-        const from = Math.random() < 0.5 ? -0.7 : 0.7;
-        this.fireAmbient('traffic', 'city', 0.14 * traffic, from, -from);
+      if (shots && traffic > 0.05 && this.layerOn.city && this.flying < AMBIENT_VOICES) {
+        const roll = Math.random();
+        const kind = roll < 0.42 ? 'pass' : roll < 0.68 ? 'bike' : roll < 0.88 ? 'truck' : 'accel';
+        const from = Math.random() < 0.5 ? -0.6 : 0.6;
+        const to = kind === 'pass' || kind === 'bike' ? -from : from * 0.3;
+        const near = Math.random() < 0.15 ? 1.35 : 1;
+        this.fireAmbient(kind, 'city', 0.048 * near * traffic, from, to);
       }
-      this.nextTraffic = now + (9 + Math.random() * 12) * gap;
+      // 8–20 s by day; rarer after dark. Doubled again above 4×.
+      this.nextTraffic = now + (8 + Math.random() * 12) * gap * (daylight < 0.4 ? 2.4 : 1);
     }
     if (this.nextScream <= now) {
       if (shots && groan > 0.02 && this.layerOn.outbreak) {
@@ -1508,10 +1544,9 @@ export function renderAmbientPreview(layer: AmbientLayer, seconds = 14, sampleRa
   };
   if (layer === 'city') {
     const day = (t: number) => (t < 5 ? 1 : t < 8 ? 1 - (t - 5) / 3 : 0);
-    loop(normalise(rumble(ctx), 0.7), (t) => cityLevels(day(t), 0.85).rumble);
-    loop(normalise(hum(ctx), 0.7), (t) => cityLevels(day(t), 0.85).hum);
-    add(normalise(trafficPass(ctx)), 1.2, 0.14);
-    add(normalise(trafficPass(ctx)), 3.6, 0.12);
+    loop(normalise(trafficDrone(ctx), 0.7), (t) => cityLevels(day(t), 0.85).drone);
+    add(normalise(distantEngine(ctx, 78, 2.4, false)), 1.2, 0.05);
+    add(normalise(distantEngine(ctx, 36, 3.2, true)), 6, 0.045);
   } else if (layer === 'outbreak') {
     loop(normalise(groan(ctx), 0.7), (t) => outbreakLevel(t, seconds - t));
     add(normalise(scream(ctx)), 8, 0.1);
@@ -1548,17 +1583,18 @@ export function renderCityScene(scene: 'day' | 'night' | 'outbreak', seconds = 2
   const lifeAt = (t: number) => (scene === 'outbreak' ? Math.max(0, 1 - t / seconds) : scene === 'night' ? 0.55 : 0.9);
   const day = scene === 'night' ? 0 : 1;
   const groanAt = (t: number) => (scene === 'outbreak' ? outbreakLevel(t, Math.max(0.001, seconds - t)) : 0);
-  loop(normalise(rumble(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).rumble);
-  loop(normalise(hum(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).hum);
+  loop(normalise(trafficDrone(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).drone);
   loop(normalise(murmur(ctx), 0.7), (t) => crowdMix(lifeAt(t), day, groanAt(t), 0).murmur);
   if (scene === 'day') loop(normalise(footstepBed(ctx), 0.7), (t) => 0.05 * crowdMix(lifeAt(t), day, groanAt(t), 0).steps);
   if (scene === 'outbreak') loop(normalise(groan(ctx), 0.7), (t) => groanAt(t));
   if (scene === 'day') {
-    add(normalise(trafficPass(ctx)), 2.4, 0.14);
-    add(normalise(trafficPass(ctx)), 9, 0.12);
-    add(normalise(trafficPass(ctx)), 15.5, 0.13);
-  } else if (scene === 'outbreak') {
-    add(normalise(trafficPass(ctx)), 1.2, 0.12);
+    add(normalise(distantEngine(ctx, 78, 2.4, false)), 3.5, 0.05);
+    add(normalise(distantEngine(ctx, 125, 1.8, false)), 11, 0.045);
+    add(normalise(distantEngine(ctx, 36, 3.2, true)), 16.5, 0.04);
+  } else if (scene === 'night') {
+    add(normalise(distantEngine(ctx, 78, 2.4, false)), 8.5, 0.03);
+  } else {
+    add(normalise(distantEngine(ctx, 70, 2.2, false)), 1.4, 0.04);
   }
   const spots: [number, string][] = scene === 'night'
     ? [[1.6, 'phrase'], [4.2, 'drunk'], [7.5, 'door'], [11, 'bin'], [14.5, 'bark'], [17.2, 'steps']]
@@ -1593,5 +1629,15 @@ export function renderCityScene(scene: 'day' | 'night' | 'outbreak', seconds = 2
   let max = 0;
   for (const v of out) max = Math.max(max, Math.abs(v));
   if (max > 0) for (let i = 0; i < out.length; i++) out[i]! *= 0.9 / max;
+  return out;
+}
+
+/** The traffic drone alone, peak-normalised. No murmur, pavement, hum, rumble, or one-shots. */
+export function renderDroneOnly(seconds = 10, sampleRate = 22050): Float32Array {
+  const ctx = previewCtx(sampleRate);
+  const drone = normalise(trafficDrone(ctx), 0.9);
+  const d = drone.getChannelData(0);
+  const out = new Float32Array(Math.ceil(sampleRate * seconds));
+  for (let i = 0; i < out.length; i++) out[i] = d[i % d.length]!;
   return out;
 }

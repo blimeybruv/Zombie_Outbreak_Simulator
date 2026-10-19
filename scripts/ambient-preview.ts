@@ -6,7 +6,7 @@
 //   npx tsx scripts/ambient-preview.ts [out-dir]
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { renderAmbientPreview, renderCityScene, type AmbientLayer } from '../src/audio/audio';
+import { renderAmbientPreview, renderCityScene, renderDroneOnly, type AmbientLayer } from '../src/audio/audio';
 
 const outDir = process.argv[2] ?? '/opt/cursor/artifacts';
 const seconds = 14;
@@ -49,8 +49,8 @@ writeFileSync(chatterPath, wav(chatter));
 console.log(`${chatterPath}  ${chatterSeconds}s  ${rate} Hz  peak-normalised`);
 
 const scenes = [
-  ['ambient-city-day-v2.wav', 'day', 20],
-  ['ambient-city-night-v2.wav', 'night', 20],
+  ['ambient-city-day-v3.wav', 'day', 20],
+  ['ambient-city-night-v3.wav', 'night', 20],
   ['ambient-city-outbreak.wav', 'outbreak', 15],
 ] as const;
 for (const [name, scene, len] of scenes) {
@@ -59,3 +59,8 @@ for (const [name, scene, len] of scenes) {
   writeFileSync(path, wav(samples));
   console.log(`${path}  ${len}s  ${rate} Hz  peak-normalised`);
 }
+const droneSeconds = 10;
+const drone = renderDroneOnly(droneSeconds, rate);
+const dronePath = `${outDir}/ambient-city-drone-only.wav`;
+writeFileSync(dronePath, wav(drone));
+console.log(`${dronePath}  ${droneSeconds}s  ${rate} Hz  drone only, peak-normalised`);
