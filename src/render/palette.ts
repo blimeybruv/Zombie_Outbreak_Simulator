@@ -12,7 +12,10 @@ export const STREET = '#0d0e12'; // every street's surface, always: opaque, so c
 export const ROAD_FILL = '#101218'; // the carriageway, over the street surface: a shade above the ground, below building outlines
 export const ROAD_EDGE = 'rgba(180, 190, 200, 0.15)'; // the kerb, along the road's edge where it meets the ground
 export const CENTER_LINE = '#2a2e38'; // a wide road's dashed centre line, near zoom only
-export const STREET_LIGHT = 'rgba(255, 190, 120, 0.045)'; // night only
+export const LAMP_SPACING = 20; // metres between street lamps on lit streets
+export const LAMP_POST_HEIGHT = 3.5; // visual height of thin lamp posts
+export const LAMP_GLOW = 'rgba(255, 190, 120, 0.18)'; // local warm pool of light around lamps at night on lit streets
+export const LAMP_GLOW_RADIUS = 10; // metres, kept inside the road so it does not spill past the kerbs
 export const LIVING = '#dfe7ef';
 export const LIVING_RGB = [223, 231, 239] as const;
 /** Cars: parked (outline), driving (fill), abandoned (dark fill, crossed). */

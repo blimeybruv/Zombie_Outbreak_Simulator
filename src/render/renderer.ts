@@ -220,7 +220,8 @@ export class Renderer {
   private readonly bridgeAbutments: Path2D;
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
-  private readonly litPath: Path2D;
+  /** Lamp positions on lit streets, spaced as in the night draw. */
+  private readonly lamps: { x: number; y: number }[];
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
   private readonly roadFillPath: Path2D;
@@ -348,13 +349,22 @@ export class Renderer {
         }
       }
     }
-    this.litPath = new Path2D();
+    const lamps: { x: number; y: number }[] = [];
     for (let i = 0; i < map.streetLit.length; i++) {
       if (!map.streetLit[i]) continue;
       const s = i * 5;
-      this.litPath.moveTo(map.streets[s]!, map.streets[s + 1]!);
-      this.litPath.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
+      const x1 = map.streets[s]!, y1 = map.streets[s + 1]!;
+      const x2 = map.streets[s + 2]!, y2 = map.streets[s + 3]!;
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len < P.LAMP_SPACING) continue;
+      const steps = Math.floor(len / P.LAMP_SPACING);
+      for (let k = 1; k <= steps; k++) {
+        const t = k / (steps + 1);
+        lamps.push({ x: x1 + dx * t, y: y1 + dy * t });
+      }
     }
+    this.lamps = lamps;
     // Streets are read from the gaps between buildings, but a river has no buildings to
     // frame a crossing, so bridges are drawn: a deck that cuts the water from bank to bank,
     // a rail either side, and an abutment along each bank where it lands. The deck's ends
@@ -583,10 +593,20 @@ export class Renderer {
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
-      // Street lighting is a night-time thing, over the surface.
-      g.strokeStyle = P.STREET_LIGHT;
-      g.lineWidth = 14;
-      g.stroke(this.litPath);
+      // Local street lamps instead of the old wide STREET_LIGHT stroke.
+      // Only on streets marked lit (map.streetLit). Points were placed in the constructor.
+      g.fillStyle = P.LAMP_GLOW;
+      g.strokeStyle = 'rgba(180, 160, 120, 0.7)';
+      g.lineWidth = 0.4;
+      for (const lamp of this.lamps) {
+        g.beginPath();
+        g.moveTo(lamp.x, lamp.y);
+        g.lineTo(lamp.x, lamp.y - P.LAMP_POST_HEIGHT);
+        g.stroke();
+        g.beginPath();
+        g.arc(lamp.x, lamp.y, P.LAMP_GLOW_RADIUS, 0, Math.PI * 2);
+        g.fill();
+      }
     }
     // At far zoom single-pixel outlines turn into texture; let the density field lead.
     g.globalAlpha = far ? 0.45 : 1;
