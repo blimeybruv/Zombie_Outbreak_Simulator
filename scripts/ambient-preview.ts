@@ -6,7 +6,7 @@
 //   npx tsx scripts/ambient-preview.ts [out-dir]
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { renderAmbientPreview, renderCityScene, renderDroneOnly, type AmbientLayer } from '../src/audio/audio';
+import { renderAmbientPreview, renderCityScene, renderDroneOnly, renderOutbreakStage, type AmbientLayer, type OutbreakPreview } from '../src/audio/audio';
 
 const outDir = process.argv[2] ?? '/opt/cursor/artifacts';
 const seconds = 14;
@@ -64,3 +64,16 @@ const drone = renderDroneOnly(droneSeconds, rate);
 const dronePath = `${outDir}/ambient-city-drone-only.wav`;
 writeFileSync(dronePath, wav(drone));
 console.log(`${dronePath}  ${droneSeconds}s  ${rate} Hz  drone only, peak-normalised`);
+
+const outbreakStagesPreview = [
+  ['ambient-outbreak-first-signs.wav', 'first'],
+  ['ambient-outbreak-spreading.wav', 'spreading'],
+  ['ambient-outbreak-panic.wav', 'panic'],
+  ['ambient-outbreak-overrun.wav', 'overrun'],
+] as const satisfies readonly (readonly [string, OutbreakPreview])[];
+for (const [name, stage] of outbreakStagesPreview) {
+  const samples = renderOutbreakStage(stage, 12, rate);
+  const path = `${outDir}/${name}`;
+  writeFileSync(path, wav(samples));
+  console.log(`${path}  12s  ${rate} Hz  peak-normalised`);
+}

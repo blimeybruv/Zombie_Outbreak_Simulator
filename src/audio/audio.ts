@@ -23,9 +23,11 @@
 // pavement of footsteps by day, and sparse life sounds: phones by day, a door, a
 // dog, a horn, a bell, birds by day. At night the voices thin out, with the odd
 // drunken shout or a bin going over. No wind, no surf-like noise bed, and no
-// insects. The outbreak bus adds a low groan and a rare
-// distant scream that follow how much of the city has turned, ducked under the
-// moan so the two do not stack. The cordon bus is short radio transmissions
+// insects. The outbreak bus follows the zombie count and the dead: calm, then
+// first signs, spreading, panic and overrun, crossfaded rather than switched.
+// A groan scales with that and ducks under the moan. Shouts, screams and
+// panicked breathing are formant voices, denser as the stages rise, never past
+// the voice cap. The cordon bus is short radio transmissions
 // (a squelch, garbled voices, a squelch tail, then silence) and a distant shot,
 // silent until an exit is closed and louder when the view is near one.
 //
@@ -42,7 +44,7 @@
 
 import type { Camera } from '../render/camera';
 import type { FrameSnapshot } from '../worker/protocol';
-import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
+import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
 type Category = 'gun' | 'melee' | 'voice' | 'alarm';
 type Bed = 'moan' | 'engine' | 'siren' | 'drone' | 'groan' | 'murmur' | 'steps';
@@ -128,10 +130,143 @@ export function outbreakLevel(dead: number, living: number): number {
   return OUTBREAK_GROAN_PEAK * ratio * ratio;
 }
 
+/** Any outbreak level after ducking under the moan already playing in view. */
+export function duckedUnderMoan(level: number, moan: number): number {
+  const duck = 1 - OUTBREAK_MOAN_DUCK * Math.min(1, Math.max(0, moan) / MOAN_PEAK);
+  return Math.max(0, level) * Math.max(0, duck);
+}
+
 /** The groan after ducking under the moan already playing in view (`moan` is that bed's gain). */
 export function groanedUnderMoan(dead: number, living: number, moan: number): number {
-  const duck = 1 - OUTBREAK_MOAN_DUCK * Math.min(1, Math.max(0, moan) / MOAN_PEAK);
-  return outbreakLevel(dead, living) * Math.max(0, duck);
+  return duckedUnderMoan(outbreakLevel(dead, living), moan);
+}
+
+export type OutbreakStageName = 'calm' | 'first' | 'spreading' | 'panic' | 'overrun';
+
+export interface OutbreakStages {
+  calm: number;
+  first: number;
+  spreading: number;
+  panic: number;
+  overrun: number;
+  /** Groan before the moan duck. 0 in calm, the peak when nobody is left. */
+  groan: number;
+  /** How present shouts, screams and breath are. 0 in calm and when nobody is left. */
+  voices: number;
+  dominant: OutbreakStageName;
+}
+
+// Seed-1 (map 1, 6,000 people) still has ten zombies shut inside buildings at tick 0.
+// They are the outbreak's origin, not a street. Pressure ignores that handful, then
+// blends bodies and the horde (absolute, scaled to that run) with the fallen share.
+const OUTBREAK_SEED_ZOMBIES = 10;
+const OUTBREAK_PRESSURE_FULL = 4200;
+const OUTBREAK_HORDE_BODIES = 1.55;
+const OUTBREAK_ABSOLUTE = 0.72;
+
+const smoothstep = (a: number, b: number, x: number) => {
+  if (b <= a) return x >= b ? 1 : 0;
+  const t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+
+/** A lobe that rises across [enter0, enter1] and falls across [exit0, exit1]. No fall when exit0 >= exit1. */
+function stageLobe(p: number, enter0: number, enter1: number, exit0: number, exit1: number): number {
+  const up = enter0 >= enter1 ? 1 : smoothstep(enter0, enter1, p);
+  const down = exit0 >= exit1 ? 1 : 1 - smoothstep(exit0, exit1, p);
+  return clamp01(up * down);
+}
+
+/**
+ * Outbreak stages from the living, the dead (people and destroyed zombies) and the
+ * zombies still on the map or shut inside. Weights crossfade; they sum to 1.
+ * On runSeed 1, mapSeed 1, population 6000, a stage's weight first passes one half at
+ * tick 12 (first signs), 918 (spreading), 6136 (panic) and 11276 (overrun). Tick 0,
+ * with only the ten seed zombies indoors, is calm. A city with nobody left is overrun,
+ * and only the groan remains.
+ */
+export function outbreakStages(living: number, dead: number, zombies: number): OutbreakStages {
+  const live = Math.max(0, living);
+  const bodies = Math.max(0, dead);
+  const horde = Math.max(0, zombies);
+  const names: OutbreakStageName[] = ['calm', 'first', 'spreading', 'panic', 'overrun'];
+  const weights = { calm: 0, first: 0, spreading: 0, panic: 0, overrun: 0 };
+  if (live <= 0 && bodies <= 0 && horde <= 0) {
+    return { ...weights, calm: 1, groan: 0, voices: 0, dominant: 'calm' };
+  }
+  if (live <= 0) {
+    return { ...weights, overrun: 1, groan: OUTBREAK_GROAN_PEAK, voices: 0, dominant: 'overrun' };
+  }
+  const z = Math.max(0, horde - OUTBREAK_SEED_ZOMBIES);
+  const base = Math.max(1, live + bodies + horde);
+  const fallen = (bodies + horde) / base;
+  const absolute = (bodies + OUTBREAK_HORDE_BODIES * z) / OUTBREAK_PRESSURE_FULL;
+  const pressure = clamp01(OUTBREAK_ABSOLUTE * absolute + (1 - OUTBREAK_ABSOLUTE) * fallen);
+  const lobes: [OutbreakStageName, number, number, number, number][] = [
+    ['calm', 0, 0, 0.02, 0.055],
+    ['first', 0.02, 0.055, 0.07, 0.12],
+    ['spreading', 0.07, 0.12, 0.38, 0.52],
+    ['panic', 0.38, 0.52, 0.6, 0.74],
+    ['overrun', 0.6, 0.74, 1, 0],
+  ];
+  let sum = 0;
+  for (const [name, a, b, c, d] of lobes) {
+    const w = stageLobe(pressure, a, b, c, d);
+    weights[name] = w;
+    sum += w;
+  }
+  if (sum <= 0) weights.calm = 1;
+  else for (const name of names) weights[name] /= sum;
+  const liveShare = live / base;
+  if (liveShare < 0.08) {
+    const pull = 1 - liveShare / 0.08;
+    for (const name of names) weights[name] *= 1 - pull;
+    weights.overrun += pull;
+  }
+  let dominant: OutbreakStageName = 'calm';
+  let best = -1;
+  for (const name of names) {
+    if (weights[name] > best) {
+      best = weights[name];
+      dominant = name;
+    }
+  }
+  const hordeHeard = 1 - Math.exp(-z / 640);
+  const body = 0.15 * weights.first + 0.4 * weights.spreading + 0.75 * weights.panic + weights.overrun;
+  const groan = OUTBREAK_GROAN_PEAK * body * (0.55 + 0.45 * hordeHeard);
+  const thin = clamp01(liveShare / 0.12);
+  const voices = (weights.first * 0.22 + weights.spreading * 0.72 + weights.panic + weights.overrun * 0.24) * thin;
+  return { ...weights, groan, voices, dominant };
+}
+
+const BREATH_FLEE_M = 110;
+const BREATH_ZOMBIE_M = 46;
+
+/**
+ * 0–1 from the snapshot: outdoor living people near the camera who are already
+ * fleeing, or a zombie close to the camera. 0 when the view cannot see either,
+ * and the stage decides the breath on its own.
+ */
+export function outbreakBreathDrive(camX: number, camY: number, simXY: ArrayLike<number>, simKind: ArrayLike<number>, simFlags: ArrayLike<number>, zombieXY: ArrayLike<number>, zombieKind: ArrayLike<number>): number {
+  const n = Math.min(simKind.length, simFlags.length, Math.floor(simXY.length / 2));
+  let flee = 0;
+  for (let i = 0; i < n; i++) {
+    const kind = simKind[i]!;
+    if (kind !== SIM_LIVING && kind !== SIM_PROMOTED) continue;
+    if ((simFlags[i]! & SIM_FLEEING) === 0) continue;
+    const d = Math.hypot(camX - simXY[i * 2]!, camY - simXY[i * 2 + 1]!);
+    if (d >= BREATH_FLEE_M) continue;
+    flee += 1 - d / BREATH_FLEE_M;
+  }
+  const nz = Math.min(zombieKind.length, Math.floor(zombieXY.length / 2));
+  let close = 0;
+  for (let i = 0; i < nz; i++) {
+    if (zombieKind[i] === 0) continue;
+    const d = Math.hypot(camX - zombieXY[i * 2]!, camY - zombieXY[i * 2 + 1]!);
+    if (d >= BREATH_ZOMBIE_M) continue;
+    close = Math.max(close, 1 - d / BREATH_ZOMBIE_M);
+  }
+  return clamp01(Math.max(Math.min(1, flee / 2), close));
 }
 
 /** Proximity gain from metres to the nearest closed exit or its barrier. Open cordons are silent. */
@@ -487,57 +622,210 @@ function distantEngine(ctx: SampleCtx, fundamental: number, seconds: number, pul
   return buf;
 }
 
-/** Fewer, lower voices than the moan, so it sits under that crowd instead of doubling it. */
+/**
+ * A steady groan: low formant voices at fixed pitches, with a little pitch drift
+ * and no level swell. The gain node is what makes it rise with the outbreak.
+ */
 function groan(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
   const seconds = 8;
-  const buf = ctx.createBuffer(1, rate * seconds, rate);
+  const fade = Math.floor(rate * 0.04);
+  const n = Math.floor(rate * seconds);
+  const buf = ctx.createBuffer(1, n, rate);
   const d = buf.getChannelData(0);
-  for (let v = 0; v < 3; v++) {
-    const pitch = 42 + Math.random() * 36;
-    const drift = 0.03 + Math.random() * 0.04;
-    const phase0 = Math.random() * seconds;
-    const swells = 1;
-    const formants = [[280 + Math.random() * 80, 0.985], [560 + Math.random() * 120, 0.96]] as const;
-    const st = formants.map(() => ({ y1: 0, y2: 0 }));
-    let ph = 0;
-    for (let i = 0; i < d.length; i++) {
-      const t = i / rate;
-      const f = pitch * (1 + drift * Math.sin((2 * Math.PI * (t + phase0)) / seconds));
-      ph += f / rate;
-      const glottal = (ph % 1) * 2 - 1 + rnd() * 0.45;
+  const voices = [
+    { f: 46, gain: 0.72, wander: 0.02, cycles: 1 },
+    { f: 53, gain: 0.55, wander: 0.025, cycles: 2 },
+    { f: 67, gain: 0.42, wander: 0.018, cycles: 1 },
+  ];
+  const formants = [[280, 0.986], [560, 0.965]] as const;
+  const phase = voices.map(() => 0);
+  const st = voices.map(() => formants.map(() => ({ y1: 0, y2: 0 })));
+  const total = n + fade;
+  const raw = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    const t = i / rate;
+    let mix = 0;
+    for (let v = 0; v < voices.length; v++) {
+      const voice = voices[v]!;
+      const wob = 1 + voice.wander * Math.sin((2 * Math.PI * voice.cycles * t) / seconds);
+      phase[v] = (phase[v]! + (voice.f * wob) / rate) % 1;
+      const p = phase[v]!;
+      const glottal = p < 0.3 ? Math.sin((Math.PI * p) / 0.3) : -0.15 * Math.exp(-(p - 0.3) / 0.1);
       let out = 0;
       formants.forEach(([ff, r], k) => {
         const c = 2 * r * Math.cos((2 * Math.PI * ff) / rate);
-        const y = glottal * (1 - r) + c * st[k]!.y1 - r * r * st[k]!.y2;
-        st[k]!.y2 = st[k]!.y1;
-        st[k]!.y1 = y;
+        const y = glottal * (1 - r) + c * st[v]![k]!.y1 - r * r * st[v]![k]!.y2;
+        st[v]![k]!.y2 = st[v]![k]!.y1;
+        st[v]![k]!.y1 = y;
         out += y;
       });
-      const env = Math.max(0, Math.sin((2 * Math.PI * swells * (t + phase0)) / seconds)) ** 2;
-      d[i]! += out * env * 0.55;
+      mix += out * voice.gain;
+    }
+    raw[i] = mix * 0.45;
+  }
+  for (let i = 0; i < n; i++) d[i] = raw[i]!;
+  for (let i = 0; i < fade; i++) {
+    const w = i / fade;
+    d[i] = raw[i]! * w + raw[n + i]! * (1 - w);
+  }
+  return buf;
+}
+
+/** A scream: one held vowel, heavy vibrato, a sharp attack and a ragged decay. Distance is a lowpass. */
+function formantScream(ctx: SampleCtx, pitch: number, lowpassHz: number): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 1.15;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const vowel = [860, 1400, 2760];
+  const bw = [100, 130, 170];
+  const st = vowel.map(() => ({ y1: 0, y2: 0 }));
+  const coef = vowel.map((f, k) => {
+    const r = Math.exp((-Math.PI * bw[k]!) / rate);
+    return { r, c: 2 * r * Math.cos((2 * Math.PI * f) / rate) };
+  });
+  const lpA = Math.exp((-2 * Math.PI * lowpassHz) / rate);
+  let lp = 0;
+  let ph = 0;
+  const vibRate = 5.5 + Math.random() * 1.8;
+  const vibDepth = 0.06 + Math.random() * 0.03;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    ph += (pitch * (1 + vibDepth * Math.sin(2 * Math.PI * vibRate * t)) * (1 - 0.07 * (t / seconds))) / rate;
+    const p = ph % 1;
+    const pulse = p < 0.28 ? Math.sin((Math.PI * p) / 0.28) : -0.1 * Math.exp(-(p - 0.28) / 0.08);
+    let voiced = 0;
+    coef.forEach(({ r, c }, k) => {
+      const y = pulse * (1 - r) + c * st[k]!.y1 - r * r * st[k]!.y2;
+      st[k]!.y2 = st[k]!.y1;
+      st[k]!.y1 = y;
+      voiced += y * (k === 0 ? 1 : 0.55);
+    });
+    const attack = Math.min(1, t / 0.012);
+    const decay = Math.exp(-Math.max(0, t - 0.06) / 0.4);
+    const rag = 0.76 + 0.24 * Math.sin(2 * Math.PI * 11 * t + Math.sin(2 * Math.PI * 3 * t));
+    const dropout = (t > 0.55 && t < 0.61) || (t > 0.9 && t < 0.95) ? 0.4 : 1;
+    lp = (1 - lpA) * voiced + lpA * lp;
+    d[i] = lp * attack * decay * Math.max(0.2, rag) * dropout;
+  }
+  return buf;
+}
+
+/** An urgent unintelligible call, rising, vowel-heavy. Male, female or child by pitch. */
+function outbreakShout(ctx: SampleCtx, pitch: number): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.42 + Math.random() * 0.2;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  garbleInto(buf.getChannelData(0), rate, 0.012, seconds - 0.05, pitch, false, 6.5 + Math.random() * 1.5, 1, 1.15, 0.18, 0.5);
+  return buf;
+}
+
+/** Fast ragged breaths: short band-passed bursts, with the odd whimper. Not a noise bed. */
+function panickedBreath(ctx: SampleCtx, close: boolean): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = close ? 1.45 : 1.9;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const gap = close ? 0.24 : 0.38;
+  const starts: number[] = [];
+  for (let t = 0.04; t < seconds - 0.12; t += gap * (0.85 + Math.random() * 0.3)) starts.push(t);
+  const hpA = Math.exp((-2 * Math.PI * (close ? 260 : 400)) / rate);
+  const lpA = Math.exp((-2 * Math.PI * (close ? 2200 : 1300)) / rate);
+  let hp = 0;
+  let prev = 0;
+  let lp = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    let env = 0;
+    for (const start of starts) {
+      const u = t - start;
+      if (u < 0 || u > 0.14) continue;
+      const x = u < 0.045 ? u / 0.045 : 1 - (u - 0.045) / 0.095;
+      env = Math.max(env, Math.max(0, x) ** (u < 0.045 ? 0.65 : 1.25));
+    }
+    const nse = rnd();
+    const high = hpA * (hp + nse - prev);
+    hp = high;
+    prev = nse;
+    lp = (1 - lpA) * high + lpA * lp;
+    d[i] = lp * env * (close ? 1.5 : 1);
+  }
+  if (starts.length > 1 && Math.random() < 0.7) {
+    const when = starts[1 + Math.floor(Math.random() * (starts.length - 1))]! + 0.02;
+    const pitch = close ? 220 + Math.random() * 90 : 170 + Math.random() * 50;
+    garbleInto(d, rate, when, 0.16, pitch, false, 7, close ? 0.5 : 0.28, 1.4, 0.05, 0.15);
+  }
+  return buf;
+}
+
+/** Someone running past: quicker than a walk, a handful of paces. */
+function runningSteps(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const nSteps = 7;
+  const stride = 0.26;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * (nSteps * stride + 0.06)), rate);
+  const d = buf.getChannelData(0);
+  const a = Math.exp((-2 * Math.PI * 620) / rate);
+  for (let s = 0; s < nSteps; s++) {
+    const i0 = Math.floor(s * stride * rate);
+    let y = 0;
+    const len = Math.floor(0.05 * rate);
+    for (let i = 0; i < len && i0 + i < d.length; i++) {
+      const t = i / rate;
+      y = (1 - a) * rnd() + a * y;
+      const click = t < 0.0025 ? rnd() * (1 - t / 0.0025) : 0;
+      d[i0 + i]! += (click * 0.85 + y * 2.4 * Math.exp(-t / 0.014)) * (s % 2 === 0 ? 1 : 0.7);
     }
   }
   return buf;
 }
 
-/** A distant scream: higher than a shout, falling, and mostly noise. */
-function scream(ctx: SampleCtx): AudioBuffer {
+/** Several people running past together. The envelope is the pass, then they are gone. */
+function fleeingCrowd(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
-  const seconds = 0.75;
+  const seconds = 1.7;
   const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
   const d = buf.getChannelData(0);
-  let y1 = 0, y2 = 0;
+  const runners = [
+    { stride: 0.23, phase: 0.02, gain: 0.8 },
+    { stride: 0.27, phase: 0.11, gain: 0.55 },
+    { stride: 0.21, phase: 0.18, gain: 0.4 },
+    { stride: 0.3, phase: 0.05, gain: 0.3 },
+  ];
+  const a = Math.exp((-2 * Math.PI * 700) / rate);
+  for (const r of runners) {
+    for (let t0 = r.phase; t0 < seconds; t0 += r.stride) {
+      const i0 = Math.floor(t0 * rate);
+      let y = 0;
+      const len = Math.floor(0.045 * rate);
+      for (let i = 0; i < len && i0 + i < d.length; i++) {
+        const t = i / rate;
+        y = (1 - a) * rnd() + a * y;
+        const click = t < 0.002 ? rnd() * (1 - t / 0.002) : 0;
+        const pass = Math.sin(Math.PI * Math.min(1, t0 / seconds)) ** 0.8;
+        d[i0 + i]! += (click * 0.7 + y * 2 * Math.exp(-t / 0.012)) * r.gain * pass;
+      }
+    }
+  }
+  return buf;
+}
+
+/** A door thrown shut: a crack and a low thud. */
+function doorSlam(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.4;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const a = Math.exp((-2 * Math.PI * 140) / rate);
+  let y = 0;
+  let ph = 0;
   for (let i = 0; i < d.length; i++) {
     const t = i / rate;
-    const f = 980 - (520 * t) / seconds;
-    const r = 0.97;
-    const c = 2 * r * Math.cos((2 * Math.PI * f) / rate);
-    const y = rnd() * 0.12 + c * y1 - r * r * y2;
-    y2 = y1;
-    y1 = y;
-    const env = Math.min(1, t / 0.03) * Math.exp(-Math.max(0, t - 0.12) / 0.22);
-    d[i] = y * env;
+    y = (1 - a) * rnd() + a * y;
+    const click = t < 0.004 ? rnd() * (1 - t / 0.004) * 1.6 : 0;
+    ph += (78 * (1 - Math.min(1, t / 0.2))) / rate;
+    d[i] = click + y * Math.exp(-t / 0.05) * 2.2 + Math.sin(2 * Math.PI * ph) * Math.exp(-t / 0.09) * 0.45;
   }
   return buf;
 }
@@ -558,7 +846,7 @@ const VOWELS: readonly (readonly [number, number, number])[] = [
  * Unintelligible speech into `dest`. `radio` is the cordon chain: 300 Hz–3 kHz, hiss,
  * saturation and a light crush. Without it the band is wider and clean, for the crowd.
  */
-function garbleInto(dest: Float32Array, rate: number, start: number, dur: number, pitch: number, radio: boolean, syllableRate?: number, gain = 1, wobble = 1, consonant = 1): void {
+function garbleInto(dest: Float32Array, rate: number, start: number, dur: number, pitch: number, radio: boolean, syllableRate?: number, gain = 1, wobble = 1, consonant = 1, rise = 0): void {
   const syl = syllableRate ?? 4 + Math.random() * 3;
   const formants = Math.random() < 0.34 ? 2 : 3;
   const vowels: [number, number, number][] = [];
@@ -587,7 +875,7 @@ function garbleInto(dest: Float32Array, rate: number, start: number, dur: number
     const t = i / rate;
     if ((i & 31) === 0) wander = wander * 0.8 + (Math.random() - 0.5) * 0.035 * wobble;
     const glide = radio ? 0.045 : 0.045 * wobble;
-    const contour = 1 + glide * Math.sin((Math.PI * t) / Math.max(0.05, dur)) - 0.03 * (t / Math.max(0.05, dur)) + wander;
+    const contour = 1 + glide * Math.sin((Math.PI * t) / Math.max(0.05, dur)) - 0.03 * (t / Math.max(0.05, dur)) + wander + rise * (t / Math.max(0.05, dur));
     ph += (pitch * contour) / rate;
     const p = ph % 1;
     const pulse = p < 0.32 ? Math.sin((Math.PI * p) / 0.32) : -0.12 * Math.exp(-(p - 0.32) / 0.1);
@@ -1098,7 +1386,7 @@ export class Audio {
   private readonly layerOn: Record<AmbientLayer, boolean> = { city: true, outbreak: true, cordon: true };
   private exits: ArrayLike<number> = new Float32Array();
   private nextTraffic = Infinity;
-  private nextScream = Infinity;
+  private nextOutbreak = Infinity;
   private nextRadio = Infinity;
   private nextGun = Infinity;
   private nextLife = Infinity;
@@ -1165,7 +1453,17 @@ export class Audio {
     this.buffers.set('bike', normalise(distantEngine(ctx, 125, 1.8, false)));
     this.buffers.set('truck', normalise(distantEngine(ctx, 36, 3.2, true)));
     this.buffers.set('accel', normalise(distantEngine(ctx, 58, 1.3, true)));
-    this.buffers.set('scream', normalise(scream(ctx)));
+    this.buffers.set('oshoutM', normalise(outbreakShout(ctx, 128)));
+    this.buffers.set('oshoutF', normalise(outbreakShout(ctx, 198)));
+    this.buffers.set('oshoutC', normalise(outbreakShout(ctx, 305)));
+    this.buffers.set('screamFar', normalise(formantScream(ctx, 520, 880)));
+    this.buffers.set('screamMid', normalise(formantScream(ctx, 700, 2200)));
+    this.buffers.set('screamNear', normalise(formantScream(ctx, 860, 6200)));
+    this.buffers.set('breathFar', normalise(panickedBreath(ctx, false)));
+    this.buffers.set('breathNear', normalise(panickedBreath(ctx, true)));
+    this.buffers.set('run', normalise(runningSteps(ctx)));
+    this.buffers.set('slam', normalise(doorSlam(ctx)));
+    this.buffers.set('flee', normalise(fleeingCrowd(ctx)));
     this.buffers.set('steps', normalise(footsteps(ctx)));
     this.buffers.set('bark', normalise(dogBark(ctx)));
     this.buffers.set('door', normalise(doorClose(ctx)));
@@ -1191,7 +1489,7 @@ export class Audio {
     this.buffers.set('bin1', normalise(binClatter(ctx)));
     const t0 = ctx.currentTime;
     this.nextTraffic = t0 + 3 + Math.random() * 5;
-    this.nextScream = t0 + 6 + Math.random() * 6;
+    this.nextOutbreak = t0 + 4 + Math.random() * 6;
     this.nextRadio = t0 + 2 + Math.random() * 4;
     this.nextGun = t0 + 5 + Math.random() * 6;
     this.nextLife = t0 + 2 + Math.random() * 5;
@@ -1284,8 +1582,14 @@ export class Audio {
     const livingShare = population > 0 ? livingCount / population : 0;
     const city = cityLevels(frame.daylight, livingShare);
     this.bed('drone', city.drone, 0, 1.4);
-    // Outbreak: a groan from how much of the city has turned, ducked while the local moan is already loud.
-    const groanLevel = groanedUnderMoan(deadCount, livingCount, moan);
+    // Outbreak stages from who is still alive, the dead, and the zombies. The groan
+    // follows that and ducks while the local moan is already loud. Symptomatic people
+    // still count as living; the city drone above keeps its own living share.
+    const outbreakLiving = c.unturned.outdoors + c.unturned.indoors + c.turned.symptomatic;
+    const outbreakDead = c.unturned.dead + c.turned.destroyed;
+    const outbreakZombies = c.turned.outdoors + c.turned.occupying;
+    const stages = outbreakStages(outbreakLiving, outbreakDead, outbreakZombies);
+    const groanLevel = duckedUnderMoan(stages.groan, moan);
     this.bed('groan', groanLevel * fast, 0, 0.8);
     // Cordon proximity: scales the transmissions and the distant shots scheduled below.
     // There is no bed — between bursts the channel is silent.
@@ -1315,7 +1619,8 @@ export class Audio {
       this.play(n.kind, cat, d, Math.hypot(n.x - cam.x, n.y - cam.y), panOf(n.x));
       played++;
     }
-    this.scheduleAmbient(ctx.currentTime, speed, livingShare, groanLevel, cordon, frame.daylight, lifeNear, crowd);
+    const breathNear = outbreakBreathDrive(cam.x, cam.y, frame.simXY, frame.simKind, frame.simFlags, frame.zombieXY, frame.zombieKind);
+    this.scheduleAmbient(ctx.currentTime, speed, livingShare, stages, breathNear, cordon, frame.daylight, lifeNear, crowd);
   }
 
   /**
@@ -1324,7 +1629,7 @@ export class Audio {
    * a stalled frame cannot dump a queue. Randomness here is the audio clock's, never
    * the simulation's.
    */
-  private scheduleAmbient(now: number, speed: number, traffic: number, groan: number, cordon: number, daylight: number, lifeNear: number, crowd: { life: number; birds: number; phones: number; night: number }): void {
+  private scheduleAmbient(now: number, speed: number, traffic: number, stages: OutbreakStages, breathNear: number, cordon: number, daylight: number, lifeNear: number, crowd: { life: number; birds: number; phones: number; night: number }): void {
     const gap = speed > 4 ? 2 : 1;
     const shots = speed < 8;
     if (this.nextTraffic <= now) {
@@ -1339,11 +1644,8 @@ export class Audio {
       // 8–20 s by day; rarer after dark. Doubled again above 4×.
       this.nextTraffic = now + (8 + Math.random() * 12) * gap * (daylight < 0.4 ? 2.4 : 1);
     }
-    if (this.nextScream <= now) {
-      if (shots && groan > 0.02 && this.layerOn.outbreak) {
-        this.fireAmbient('scream', 'outbreak', 0.1 * Math.max(0.35, groan / OUTBREAK_GROAN_PEAK), 0, 0, 'voice');
-      }
-      this.nextScream = now + (14 + Math.random() * 20) * gap;
+    if (this.nextOutbreak <= now) {
+      this.nextOutbreak = now + this.playOutbreak(stages, breathNear, shots, gap);
     }
     if (this.nextRadio <= now) {
       let span = 0;
@@ -1448,6 +1750,80 @@ export class Audio {
     }
   }
 
+  /**
+   * One outbreak event, or none while the city is calm or already empty of the living.
+   * Returns the seconds until the next try. Panic may add a second voice when a slot
+   * is free; the caps inside fireAmbient are what stop a pile-up.
+   */
+  private playOutbreak(stages: OutbreakStages, breathNear: number, shots: boolean, gap: number): number {
+    const voice = stages.voices;
+    if (!shots || voice < 0.04 || !this.layerOn.outbreak) return (voice < 0.04 ? 1.5 : 4) * gap;
+    const room = this.flying < AMBIENT_VOICES && this.active.voice < VOICES.voice;
+    if (room) this.fireOutbreakOnce(stages, breathNear);
+    if (stages.panic > 0.55 && Math.random() < 0.45 && this.flying < AMBIENT_VOICES && this.active.voice < VOICES.voice) {
+      this.fireOutbreakOnce(stages, Math.max(breathNear, 0.2));
+    }
+    const parts: [number, number, number][] = [
+      [stages.first, 26, 18],
+      [stages.spreading, 8, 9],
+      [stages.panic, 2.4, 2.6],
+      [stages.overrun, 11, 12],
+    ];
+    let w = 0, lo = 0, span = 0;
+    for (const [k, a, b] of parts) {
+      w += k;
+      lo += k * a;
+      span += k * b;
+    }
+    let wait = w > 0.05 ? (lo + Math.random() * span) / w : 2;
+    if (breathNear > 0.45 && stages.spreading + stages.panic + stages.overrun > 0.35) wait = Math.min(wait, 3.2 + Math.random() * 2.4);
+    return wait * gap;
+  }
+
+  private fireOutbreakOnce(stages: OutbreakStages, breathNear: number): void {
+    const near = clamp01(breathNear);
+    const wShout = stages.first * 0.45 + stages.spreading * 0.34 + stages.panic * 0.28 + stages.overrun * 0.05;
+    const wScream = stages.first * 0.55 + stages.spreading * 0.32 + stages.panic * 0.28 + stages.overrun * 0.46;
+    const wRun = stages.spreading * 0.22 + stages.panic * 0.1;
+    const wDoor = stages.spreading * 0.12 + stages.panic * 0.05;
+    const wBreath = stages.panic * (0.16 + 0.2 * near) + stages.overrun * 0.4 + stages.spreading * near * 0.4;
+    const wFlee = stages.panic * 0.18 + stages.overrun * 0.06;
+    const roll = Math.random() * (wShout + wScream + wRun + wDoor + wBreath + wFlee);
+    let at = roll;
+    const pan = (Math.random() - 0.5) * 1.1;
+    if ((at -= wShout) < 0) {
+      const kind = Math.random() < 0.34 ? 'oshoutM' : Math.random() < 0.5 ? 'oshoutF' : 'oshoutC';
+      const far = stages.first > stages.panic;
+      this.fireAmbient(kind, 'outbreak', (far ? 0.04 : 0.062) * (0.7 + 0.3 * stages.voices), far ? pan * 0.35 : pan, far ? pan * 0.35 : pan, 'voice', 0.06);
+      return;
+    }
+    if ((at -= wScream) < 0) {
+      const farBias = stages.first * 0.85 + stages.overrun * 0.45 + stages.spreading * 0.35 + stages.panic * 0.15;
+      const nearBias = stages.panic * 0.45 + stages.spreading * 0.2 + near * 0.4;
+      const pick = Math.random() * (farBias + nearBias + 0.35);
+      const kind = pick < farBias ? 'screamFar' : pick < farBias + nearBias ? 'screamNear' : 'screamMid';
+      const level = kind === 'screamNear' ? 0.095 : kind === 'screamMid' ? 0.065 : 0.042;
+      this.fireAmbient(kind, 'outbreak', level * (0.65 + 0.35 * stages.voices), pan * (kind === 'screamFar' ? 0.4 : 1), pan * (kind === 'screamFar' ? 0.4 : 1), 'voice', 0.05);
+      return;
+    }
+    if ((at -= wRun) < 0) {
+      const from = Math.random() < 0.5 ? -0.7 : 0.7;
+      this.fireAmbient('run', 'outbreak', 0.04 * stages.voices, from, -from);
+      return;
+    }
+    if ((at -= wDoor) < 0) {
+      this.fireAmbient('slam', 'outbreak', 0.05 * (0.6 + 0.4 * stages.voices), pan * 0.6, pan * 0.6);
+      return;
+    }
+    if ((at -= wBreath) < 0) {
+      const close = near > 0.35 || (stages.panic > 0.5 && near > 0.12);
+      this.fireAmbient(close ? 'breathNear' : 'breathFar', 'outbreak', (close ? 0.075 : 0.038) * (0.55 + 0.45 * Math.max(near, stages.panic)), pan * (close ? 0.8 : 0.3), pan * (close ? 0.8 : 0.3), 'voice', 0.04);
+      return;
+    }
+    const from = Math.random() < 0.5 ? -0.85 : 0.85;
+    this.fireAmbient('flee', 'outbreak', 0.05 * stages.voices, from, -from * 0.4);
+  }
+
   /** One ambient voice onto a layer bus. No street echo: a distant shot should not bloom on the master. */
   private fireAmbient(kind: string, layer: AmbientLayer, level: number, panFrom = 0, panTo = 0, cat?: Category, rateJitter = JITTER): boolean {
     const buffer = this.buffers.get(kind);
@@ -1548,8 +1924,10 @@ export function renderAmbientPreview(layer: AmbientLayer, seconds = 14, sampleRa
     add(normalise(distantEngine(ctx, 78, 2.4, false)), 1.2, 0.05);
     add(normalise(distantEngine(ctx, 36, 3.2, true)), 6, 0.045);
   } else if (layer === 'outbreak') {
-    loop(normalise(groan(ctx), 0.7), (t) => outbreakLevel(t, seconds - t));
-    add(normalise(scream(ctx)), 8, 0.1);
+    const fallen = outbreakStages(2800, 2400, 700);
+    loop(normalise(groan(ctx), 0.7), () => fallen.groan);
+    add(normalise(formantScream(ctx, 520, 880)), 3.2, 0.05);
+    add(normalise(outbreakShout(ctx, 198)), 7.4, 0.05);
   } else {
     let t = 0.5;
     while (t < seconds - 0.3) {
@@ -1582,7 +1960,11 @@ export function renderCityScene(scene: 'day' | 'night' | 'outbreak', seconds = 2
   };
   const lifeAt = (t: number) => (scene === 'outbreak' ? Math.max(0, 1 - t / seconds) : scene === 'night' ? 0.55 : 0.9);
   const day = scene === 'night' ? 0 : 1;
-  const groanAt = (t: number) => (scene === 'outbreak' ? outbreakLevel(t, Math.max(0.001, seconds - t)) : 0);
+  const groanAt = (t: number) => {
+    if (scene !== 'outbreak') return 0;
+    const u = Math.min(1, t / seconds);
+    return outbreakStages((1 - u) * 5200, u * 2400, 10 + u * 700).groan;
+  };
   loop(normalise(trafficDrone(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).drone);
   loop(normalise(murmur(ctx), 0.7), (t) => crowdMix(lifeAt(t), day, groanAt(t), 0).murmur);
   if (scene === 'day') loop(normalise(footstepBed(ctx), 0.7), (t) => 0.05 * crowdMix(lifeAt(t), day, groanAt(t), 0).steps);
@@ -1595,6 +1977,8 @@ export function renderCityScene(scene: 'day' | 'night' | 'outbreak', seconds = 2
     add(normalise(distantEngine(ctx, 78, 2.4, false)), 8.5, 0.03);
   } else {
     add(normalise(distantEngine(ctx, 70, 2.2, false)), 1.4, 0.04);
+    add(normalise(formantScream(ctx, 700, 2200)), 3.2, 0.06);
+    add(normalise(outbreakShout(ctx, 128)), 6.8, 0.05);
   }
   const spots: [number, string][] = scene === 'night'
     ? [[1.6, 'phrase'], [4.2, 'drunk'], [7.5, 'door'], [11, 'bin'], [14.5, 'bark'], [17.2, 'steps']]
@@ -1639,5 +2023,61 @@ export function renderDroneOnly(seconds = 10, sampleRate = 22050): Float32Array 
   const d = drone.getChannelData(0);
   const out = new Float32Array(Math.ceil(sampleRate * seconds));
   for (let i = 0; i < out.length; i++) out[i] = d[i % d.length]!;
+  return out;
+}
+
+export type OutbreakPreview = 'first' | 'spreading' | 'panic' | 'overrun';
+
+/**
+ * One outbreak stage, about twelve seconds, peak-normalised for listening.
+ * Counts are the seed-1 bench where that stage is dominant, so the groan matches.
+ */
+export function renderOutbreakStage(stage: OutbreakPreview, seconds = 12, sampleRate = 22050): Float32Array {
+  const ctx = previewCtx(sampleRate);
+  const counts = {
+    first: [5623, 227, 121],
+    spreading: [4386, 1275, 285],
+    panic: [3676, 1787, 483],
+    overrun: [2791, 2447, 706],
+  } as const;
+  const [living, dead, zombies] = counts[stage];
+  const mix = outbreakStages(living, dead, zombies);
+  const out = new Float32Array(Math.ceil(sampleRate * seconds));
+  const groanBuf = normalise(groan(ctx), 0.7);
+  const g = groanBuf.getChannelData(0);
+  for (let i = 0; i < out.length; i++) out[i]! += g[i % g.length]! * mix.groan;
+  const add = (buf: AudioBuffer, start: number, gain: number) => {
+    const d = buf.getChannelData(0);
+    const from = Math.floor(start * sampleRate);
+    for (let i = 0; i < d.length && from + i < out.length; i++) out[from + i]! += d[i]! * gain;
+  };
+  if (stage === 'first') {
+    add(normalise(formantScream(ctx, 520, 880)), 2.1, 0.05);
+    add(normalise(outbreakShout(ctx, 198)), 8.4, 0.042);
+  } else if (stage === 'spreading') {
+    add(normalise(outbreakShout(ctx, 128)), 0.6, 0.06);
+    add(normalise(runningSteps(ctx)), 2.6, 0.045);
+    add(normalise(formantScream(ctx, 700, 2200)), 4.8, 0.065);
+    add(normalise(doorSlam(ctx)), 7.2, 0.05);
+    add(normalise(formantScream(ctx, 520, 880)), 9.5, 0.04);
+    add(normalise(outbreakShout(ctx, 305)), 11.1, 0.05);
+  } else if (stage === 'panic') {
+    add(normalise(outbreakShout(ctx, 198)), 0.35, 0.07);
+    add(normalise(formantScream(ctx, 860, 6200)), 1.15, 0.09);
+    add(normalise(panickedBreath(ctx, true)), 1.7, 0.08);
+    add(normalise(fleeingCrowd(ctx)), 3.3, 0.055);
+    add(normalise(outbreakShout(ctx, 305)), 4.6, 0.065);
+    add(normalise(formantScream(ctx, 700, 2200)), 5.5, 0.07);
+    add(normalise(panickedBreath(ctx, true)), 7.1, 0.07);
+    add(normalise(outbreakShout(ctx, 128)), 8.4, 0.06);
+    add(normalise(formantScream(ctx, 860, 6200)), 9.6, 0.08);
+    add(normalise(runningSteps(ctx)), 10.5, 0.04);
+  } else {
+    add(normalise(formantScream(ctx, 520, 880)), 2.4, 0.04);
+    add(normalise(panickedBreath(ctx, false)), 6.6, 0.035);
+  }
+  let max = 0;
+  for (const v of out) max = Math.max(max, Math.abs(v));
+  if (max > 0) for (let i = 0; i < out.length; i++) out[i]! *= 0.9 / max;
   return out;
 }

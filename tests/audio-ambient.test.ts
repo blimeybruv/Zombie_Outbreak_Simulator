@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, outbreakLevel, outdoorLifeNear } from '../src/audio/audio';
-import { SIM_LIVING, SIM_PROMOTED } from '../src/worker/protocol';
+import { cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear } from '../src/audio/audio';
+import { SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
   it('holds a quiet day drone and distant engines while people are alive', () => {
@@ -40,6 +40,81 @@ describe('outbreak groan', () => {
     expect(groanedUnderMoan(100, 0, 0.4)).toBeCloseTo(0.12 * 0.35);
     expect(groanedUnderMoan(100, 0, 0.8)).toBeCloseTo(0.12 * 0.35);
     expect(groanedUnderMoan(0, 10, 0)).toBe(0);
+  });
+});
+
+describe('outbreak stages', () => {
+  const sum = (s: ReturnType<typeof outbreakStages>) => s.calm + s.first + s.spreading + s.panic + s.overrun;
+
+  it('is calm before anyone has died, including the ten seed zombies indoors', () => {
+    const empty = outbreakStages(6000, 0, 0);
+    const seeded = outbreakStages(5990, 0, 10);
+    expect(empty.dominant).toBe('calm');
+    expect(seeded.dominant).toBe('calm');
+    expect(seeded.calm).toBeGreaterThan(0.9);
+    expect(empty.groan).toBe(0);
+    expect(seeded.voices).toBe(0);
+    expect(sum(empty)).toBeCloseTo(1);
+    expect(sum(seeded)).toBeCloseTo(1);
+  });
+
+  it('follows the seed-1 bench from first signs through overrun', () => {
+    const first = outbreakStages(5623, 227, 121);
+    const spreading = outbreakStages(4386, 1275, 285);
+    const panic = outbreakStages(3676, 1787, 483);
+    const overrun = outbreakStages(2791, 2447, 706);
+    expect(first.dominant).toBe('first');
+    expect(first.first).toBeGreaterThan(0.6);
+    expect(spreading.dominant).toBe('spreading');
+    expect(spreading.spreading).toBeGreaterThan(0.8);
+    expect(panic.dominant).toBe('panic');
+    expect(panic.panic).toBeGreaterThan(0.8);
+    expect(overrun.dominant).toBe('overrun');
+    expect(overrun.overrun).toBeGreaterThan(0.8);
+    expect(first.groan).toBeGreaterThan(0);
+    expect(spreading.groan).toBeGreaterThan(first.groan);
+    expect(panic.groan).toBeGreaterThan(spreading.groan);
+    expect(overrun.groan).toBeGreaterThan(panic.groan);
+    expect(overrun.groan).toBeLessThanOrEqual(0.12);
+    expect(overrun.voices).toBeLessThan(panic.voices);
+    expect(panic.voices).toBeGreaterThan(spreading.voices * 0.9);
+  });
+
+  it('crossfades neighbouring stages and leaves the others quiet', () => {
+    const mid = outbreakStages(5550, 250, 135);
+    expect(mid.first).toBeGreaterThan(0.3);
+    expect(mid.spreading).toBeGreaterThan(0.3);
+    expect(mid.calm).toBe(0);
+    expect(mid.panic).toBe(0);
+    expect(mid.overrun).toBe(0);
+    expect(mid.first + mid.spreading).toBeGreaterThan(0.95);
+    expect(sum(mid)).toBeCloseTo(1);
+  });
+
+  it('is groan only when nobody is left alive', () => {
+    const fallen = outbreakStages(0, 4000, 800);
+    expect(fallen.dominant).toBe('overrun');
+    expect(fallen.overrun).toBe(1);
+    expect(fallen.voices).toBe(0);
+    expect(fallen.groan).toBeCloseTo(0.12);
+    expect(outbreakStages(0, 0, 0).dominant).toBe('calm');
+  });
+});
+
+describe('outbreak breath near the camera', () => {
+  it('rises when someone fleeing is close or a zombie is close, and stays quiet otherwise', () => {
+    const xy = new Float32Array([0, 0, 80, 0, 400, 0]);
+    const kind = new Uint8Array([SIM_LIVING, SIM_PROMOTED, SIM_LIVING]);
+    const fleeing = new Uint8Array([SIM_FLEEING, 0, SIM_FLEEING]);
+    const quiet = outbreakBreathDrive(0, 0, xy, kind, new Uint8Array(3), new Float32Array(), new Uint8Array());
+    expect(quiet).toBe(0);
+    const chase = outbreakBreathDrive(0, 0, xy, kind, fleeing, new Float32Array(), new Uint8Array());
+    expect(chase).toBeGreaterThan(0.4);
+    expect(chase).toBeLessThanOrEqual(1);
+    const zombie = outbreakBreathDrive(0, 0, xy, kind, new Uint8Array(3), new Float32Array([20, 0]), new Uint8Array([ZOMBIE_AWAKE]));
+    expect(zombie).toBeCloseTo(1 - 20 / 46);
+    const hidden = outbreakBreathDrive(0, 0, xy, kind, new Uint8Array(3), new Float32Array([0, 0]), new Uint8Array([0]));
+    expect(hidden).toBe(0);
   });
 });
 
