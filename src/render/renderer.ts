@@ -65,7 +65,11 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of the carriageway
+const ROAD_MAIN_MIN_W = 16; // m: main roads and the highway
+const ROAD_ALLEY_MAX_W = 8; // m: alleys
+const ROAD_EDGE_W_MAIN = 1.8; // m
+const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of a standard carriageway
+const ROAD_EDGE_W_ALLEY = 0.7; // m
 const GLOW_MID_STOP = 0.22; // fraction of the glow radius: a tight core, then a long falloff
 const GLOW_PX_MIN = 32; // sprite pixels across; below this a downscale would look blocky
 const GLOW_PX_MAX = 384; // sprite pixels across; above this a near zoom is already 1:1
@@ -233,9 +237,8 @@ export class Renderer {
   private readonly litPath = new Path2D();
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
-  private readonly roadFillPath: Path2D;
-  private readonly leftEdgePath: Path2D; // one long side of each carriageway quad
-  private readonly rightEdgePath: Path2D; // the other long side
+  /** Carriageways by hierarchy, narrow to wide, so a wider fill covers a crossing. */
+  private readonly carriageways: { fill: Path2D; left: Path2D; right: Path2D; fillStyle: string; edgeStyle: string; edgeWidth: number }[];
   private readonly centerLinePath: Path2D; // wide streets only, dashed at near zoom
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
@@ -327,9 +330,15 @@ export class Renderer {
       for (const j of list) if (j !== self) w = Math.max(w, map.streets[j * 5 + 4]!);
       return w;
     };
-    this.roadFillPath = new Path2D();
-    this.leftEdgePath = new Path2D();
-    this.rightEdgePath = new Path2D();
+    const carriageway = (fillStyle: string, edgeStyle: string, edgeWidth: number) => ({
+      fill: new Path2D(), left: new Path2D(), right: new Path2D(), fillStyle, edgeStyle, edgeWidth,
+    });
+    // Narrow first. The second fill, in this order, lets a wider road cover the crossing.
+    this.carriageways = [
+      carriageway(P.ROAD_FILL_ALLEY, P.ROAD_EDGE_ALLEY, ROAD_EDGE_W_ALLEY),
+      carriageway(P.ROAD_FILL, P.ROAD_EDGE, ROAD_EDGE_W),
+      carriageway(P.ROAD_FILL_MAIN, P.ROAD_EDGE_MAIN, ROAD_EDGE_W_MAIN),
+    ];
     this.centerLinePath = new Path2D();
     for (let i = 0; i < map.streetLit.length; i++) {
       const s = i * 5;
@@ -341,15 +350,16 @@ export class Renderer {
       if (len > 0) {
         const hw = width / 2;
         const nx = -dy / len * hw, ny = dx / len * hw;
-        this.roadFillPath.moveTo(x1 + nx, y1 + ny);
-        this.roadFillPath.lineTo(x2 + nx, y2 + ny);
-        this.roadFillPath.lineTo(x2 - nx, y2 - ny);
-        this.roadFillPath.lineTo(x1 - nx, y1 - ny);
-        this.roadFillPath.closePath();
-        this.leftEdgePath.moveTo(x1 + nx, y1 + ny);
-        this.leftEdgePath.lineTo(x2 + nx, y2 + ny);
-        this.rightEdgePath.moveTo(x1 - nx, y1 - ny);
-        this.rightEdgePath.lineTo(x2 - nx, y2 - ny);
+        const road = width >= ROAD_MAIN_MIN_W ? this.carriageways[2]! : width <= ROAD_ALLEY_MAX_W ? this.carriageways[0]! : this.carriageways[1]!;
+        road.fill.moveTo(x1 + nx, y1 + ny);
+        road.fill.lineTo(x2 + nx, y2 + ny);
+        road.fill.lineTo(x2 - nx, y2 - ny);
+        road.fill.lineTo(x1 - nx, y1 - ny);
+        road.fill.closePath();
+        road.left.moveTo(x1 + nx, y1 + ny);
+        road.left.lineTo(x2 + nx, y2 + ny);
+        road.right.moveTo(x1 - nx, y1 - ny);
+        road.right.lineTo(x2 - nx, y2 - ny);
         if (width > CENTER_LINE_MIN_W) {
           // Stopped short of a junction by half the widest other road there: markings
           // stop at the crossing, they do not run through it.
@@ -591,15 +601,23 @@ export class Renderer {
       g.lineWidth = width;
       g.stroke(path);
     }
-    g.fillStyle = P.ROAD_FILL;
-    g.fill(this.roadFillPath);
-    g.strokeStyle = P.ROAD_EDGE;
-    g.lineWidth = ROAD_EDGE_W;
-    g.stroke(this.leftEdgePath);
-    g.stroke(this.rightEdgePath);
+    for (const road of this.carriageways) {
+      g.fillStyle = road.fillStyle;
+      g.fill(road.fill);
+    }
+    for (const road of this.carriageways) {
+      g.strokeStyle = road.edgeStyle;
+      g.lineWidth = road.edgeWidth;
+      g.stroke(road.left);
+      g.stroke(road.right);
+    }
     // Each side runs the full segment, so at a junction it crosses the other carriageway.
     // Filling again covers any edge that lies inside a road; the kerb outside the quads stays.
-    g.fill(this.roadFillPath);
+    // Wider last, so the overlap at a crossing takes the wider road's fill.
+    for (const road of this.carriageways) {
+      g.fillStyle = road.fillStyle;
+      g.fill(road.fill);
+    }
     // The static layer's cache key includes cam.mode, same as the parking stalls below,
     // so a near-only stroke here is baked into the near layer and left out of the others.
     if (cam.mode === 'near') {
