@@ -64,7 +64,7 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-const ROAD_EDGE_W = 1; // m: a faint line along each long side of the carriageway
+const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of the carriageway
 const CENTER_LINE_W = 1.5; // m
 const CENTER_LINE_MIN_W = 14; // m: wider than a standard street (main roads and the highway)
 const CENTER_DASH: [number, number] = [8, 6]; // m on, m off
@@ -222,7 +222,8 @@ export class Renderer {
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
   private readonly roadFillPath: Path2D;
-  private readonly roadEdgePath: Path2D; // the two long sides of each carriageway quad
+  private readonly leftEdgePath: Path2D; // one long side of each carriageway quad
+  private readonly rightEdgePath: Path2D; // the other long side
   private readonly centerLinePath: Path2D; // wide streets only, dashed at near zoom
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
@@ -292,7 +293,8 @@ export class Renderer {
       path.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
     }
     this.roadFillPath = new Path2D();
-    this.roadEdgePath = new Path2D();
+    this.leftEdgePath = new Path2D();
+    this.rightEdgePath = new Path2D();
     this.centerLinePath = new Path2D();
     for (let i = 0; i < map.streetLit.length; i++) {
       const s = i * 5;
@@ -309,10 +311,10 @@ export class Renderer {
         this.roadFillPath.lineTo(x2 - nx, y2 - ny);
         this.roadFillPath.lineTo(x1 - nx, y1 - ny);
         this.roadFillPath.closePath();
-        this.roadEdgePath.moveTo(x1 + nx, y1 + ny);
-        this.roadEdgePath.lineTo(x2 + nx, y2 + ny);
-        this.roadEdgePath.moveTo(x1 - nx, y1 - ny);
-        this.roadEdgePath.lineTo(x2 - nx, y2 - ny);
+        this.leftEdgePath.moveTo(x1 + nx, y1 + ny);
+        this.leftEdgePath.lineTo(x2 + nx, y2 + ny);
+        this.rightEdgePath.moveTo(x1 - nx, y1 - ny);
+        this.rightEdgePath.lineTo(x2 - nx, y2 - ny);
         if (width > CENTER_LINE_MIN_W) {
           this.centerLinePath.moveTo(x1, y1);
           this.centerLinePath.lineTo(x2, y2);
@@ -536,7 +538,11 @@ export class Renderer {
     g.fill(this.roadFillPath);
     g.strokeStyle = P.ROAD_EDGE;
     g.lineWidth = ROAD_EDGE_W;
-    g.stroke(this.roadEdgePath);
+    g.stroke(this.leftEdgePath);
+    g.stroke(this.rightEdgePath);
+    // Each side runs the full segment, so at a junction it crosses the other carriageway.
+    // Filling again covers any edge that lies inside a road; the kerb outside the quads stays.
+    g.fill(this.roadFillPath);
     // The static layer's cache key includes cam.mode, same as the parking stalls below,
     // so a near-only stroke here is baked into the near layer and left out of the others.
     if (cam.mode === 'near') {
