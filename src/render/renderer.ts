@@ -220,7 +220,7 @@ export class Renderer {
   private readonly bridgeAbutments: Path2D;
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
-  /** Lamp positions on lit streets, spaced as in the night draw. */
+  /** Lamp positions on lit streets, placed once: spacing, then the min-distance cull. */
   private readonly lamps: { x: number; y: number }[];
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
@@ -349,7 +349,7 @@ export class Renderer {
         }
       }
     }
-    const lamps: { x: number; y: number }[] = [];
+    const placed: { x: number; y: number }[] = [];
     for (let i = 0; i < map.streetLit.length; i++) {
       if (!map.streetLit[i]) continue;
       const s = i * 5;
@@ -358,13 +358,37 @@ export class Renderer {
       const dx = x2 - x1, dy = y2 - y1;
       const len = Math.hypot(dx, dy);
       if (len < P.LAMP_SPACING) continue;
-      const steps = Math.floor(len / P.LAMP_SPACING);
-      for (let k = 1; k <= steps; k++) {
-        const t = k / (steps + 1);
-        lamps.push({ x: x1 + dx * t, y: y1 + dy * t });
+      const steps = Math.max(1, Math.floor(len / P.LAMP_SPACING));
+      for (let k = 1; k < steps; k++) {
+        const t = k / steps;
+        placed.push({ x: x1 + dx * t, y: y1 + dy * t });
       }
     }
-    this.lamps = lamps;
+    // Same kept set as scanning every earlier lamp with hypot >= LAMP_MIN_DISTANCE.
+    // Cells are that distance wide, so only the neighbouring cells can be too close.
+    const cell = P.LAMP_MIN_DISTANCE;
+    const grid = new Map<string, { x: number; y: number }[]>();
+    const kept: { x: number; y: number }[] = [];
+    for (const lamp of placed) {
+      const cx = Math.floor(lamp.x / cell), cy = Math.floor(lamp.y / cell);
+      let ok = true;
+      for (let ix = cx - 1; ix <= cx + 1 && ok; ix++) {
+        for (let iy = cy - 1; iy <= cy + 1 && ok; iy++) {
+          const near = grid.get(`${ix},${iy}`);
+          if (!near) continue;
+          for (const k of near) {
+            if (Math.hypot(lamp.x - k.x, lamp.y - k.y) < P.LAMP_MIN_DISTANCE) { ok = false; break; }
+          }
+        }
+      }
+      if (!ok) continue;
+      kept.push(lamp);
+      const key = `${cx},${cy}`;
+      const list = grid.get(key);
+      if (list) list.push(lamp);
+      else grid.set(key, [lamp]);
+    }
+    this.lamps = kept;
     // Streets are read from the gaps between buildings, but a river has no buildings to
     // frame a crossing, so bridges are drawn: a deck that cuts the water from bank to bank,
     // a rail either side, and an abutment along each bank where it lands. The deck's ends
@@ -593,18 +617,18 @@ export class Renderer {
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
-      // Local street lamps instead of the old wide STREET_LIGHT stroke.
-      // Only on streets marked lit (map.streetLit). Points were placed in the constructor.
-      g.fillStyle = P.LAMP_GLOW;
-      g.strokeStyle = 'rgba(180, 160, 120, 0.7)';
-      g.lineWidth = 0.4;
+      // Soft pools on lit streets. Positions were culled once in the constructor.
       for (const lamp of this.lamps) {
-        g.beginPath();
-        g.moveTo(lamp.x, lamp.y);
-        g.lineTo(lamp.x, lamp.y - P.LAMP_POST_HEIGHT);
-        g.stroke();
+        const grd = g.createRadialGradient(lamp.x, lamp.y, 0, lamp.x, lamp.y, P.LAMP_GLOW_RADIUS);
+        grd.addColorStop(0, P.LAMP_GLOW_INNER);
+        grd.addColorStop(1, P.LAMP_GLOW_OUTER);
+        g.fillStyle = grd;
         g.beginPath();
         g.arc(lamp.x, lamp.y, P.LAMP_GLOW_RADIUS, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = P.LAMP_CENTER;
+        g.beginPath();
+        g.arc(lamp.x, lamp.y, 0.6, 0, Math.PI * 2);
         g.fill();
       }
     }
