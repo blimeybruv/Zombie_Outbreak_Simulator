@@ -6,7 +6,7 @@
 //   npx tsx scripts/ambient-preview.ts [out-dir]
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { renderAmbientPreview, type AmbientLayer } from '../src/audio/audio';
+import { renderAmbientPreview, renderCityScene, type AmbientLayer } from '../src/audio/audio';
 
 const outDir = process.argv[2] ?? '/opt/cursor/artifacts';
 const seconds = 14;
@@ -47,3 +47,15 @@ const chatter = renderAmbientPreview('cordon', chatterSeconds, rate);
 const chatterPath = `${outDir}/ambient-cordon-chatter.wav`;
 writeFileSync(chatterPath, wav(chatter));
 console.log(`${chatterPath}  ${chatterSeconds}s  ${rate} Hz  peak-normalised`);
+
+const scenes = [
+  ['ambient-city-day.wav', 'day', 20],
+  ['ambient-city-night.wav', 'night', 15],
+  ['ambient-city-outbreak.wav', 'outbreak', 15],
+] as const;
+for (const [name, scene, len] of scenes) {
+  const samples = renderCityScene(scene, len, rate);
+  const path = `${outDir}/${name}`;
+  writeFileSync(path, wav(samples));
+  console.log(`${path}  ${len}s  ${rate} Hz  peak-normalised`);
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cityLevels, cordonDistance, cordonLevel, EXIT_STRIDE, groanedUnderMoan, outbreakLevel } from '../src/audio/audio';
+import { cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, outbreakLevel, outdoorLifeNear } from '../src/audio/audio';
+import { SIM_LIVING, SIM_PROMOTED } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
   it('keeps the living day hum and a low wind', () => {
@@ -63,5 +64,39 @@ describe('cordon presence', () => {
     expect(cordonDistance(0, 0, exits, 0b10)).toBeCloseTo(500);
     expect(cordonDistance(500, 40, exits, 0b10)).toBeCloseTo(0);
     expect(cordonDistance(0, 0, exits, 0b01)).toBeCloseTo(0);
+  });
+});
+
+describe('crowd near the camera', () => {
+  it('counts outdoor living and promoted people, and ignores anyone hidden', () => {
+    const xy = new Float32Array([0, 0, 10, 0, 500, 0]);
+    const kind = new Uint8Array([SIM_LIVING, SIM_PROMOTED, 0]);
+    expect(outdoorLifeNear(0, 0, xy, kind)).toBeCloseTo((1 + (1 - 10 / 140)) / 6);
+    expect(outdoorLifeNear(0, 0, xy, new Uint8Array([0, 0, 0]))).toBe(0);
+    expect(outdoorLifeNear(0, 0, new Float32Array([500, 500]), new Uint8Array([SIM_LIVING]))).toBe(0);
+  });
+
+  it('is full once six people are on top of the camera', () => {
+    const xy = new Float32Array(12);
+    const kind = new Uint8Array(6).fill(SIM_LIVING);
+    expect(outdoorLifeNear(0, 0, xy, kind)).toBe(1);
+  });
+
+  it('is busy by day, a few late voices at night, and birds only by day', () => {
+    const day = crowdMix(1, 1, 0, 0);
+    const night = crowdMix(1, 0, 0, 0);
+    expect(day.murmur).toBeCloseTo(0.045);
+    expect(night.murmur).toBeCloseTo(0.045 * 0.22);
+    expect(night.murmur).toBeGreaterThan(0);
+    expect(day.birds).toBeCloseTo(1);
+    expect(night.birds).toBe(0);
+    expect(night.life).toBeCloseTo(0.35);
+    expect(crowdMix(0, 1, 0, 0)).toEqual({ murmur: 0, life: 0, birds: 0 });
+  });
+
+  it('ducks under the outbreak groan and the cordon', () => {
+    const open = crowdMix(1, 1, 0, 0).murmur;
+    expect(crowdMix(1, 1, 0.12, 0).murmur).toBeCloseTo(open * 0.4);
+    expect(crowdMix(1, 1, 0, 0.16).murmur).toBeCloseTo(open * 0.45);
   });
 });
