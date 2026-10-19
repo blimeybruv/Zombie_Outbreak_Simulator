@@ -217,6 +217,7 @@ export class Renderer {
   private readonly litPath: Path2D;
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
+  private readonly roadFillPath: Path2D;
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
@@ -283,6 +284,24 @@ export class Renderer {
       if (!path) this.streetPaths.set(width, (path = new Path2D()));
       path.moveTo(map.streets[s]!, map.streets[s + 1]!);
       path.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
+    }
+    this.roadFillPath = new Path2D();
+    for (let i = 0; i < map.streetLit.length; i++) {
+      const s = i * 5;
+      const x1 = map.streets[s]!, y1 = map.streets[s + 1]!;
+      const x2 = map.streets[s + 2]!, y2 = map.streets[s + 3]!;
+      const width = map.streets[s + 4]!;
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len > 0) {
+        const hw = width / 2;
+        const nx = -dy / len * hw, ny = dx / len * hw;
+        this.roadFillPath.moveTo(x1 + nx, y1 + ny);
+        this.roadFillPath.lineTo(x2 + nx, y2 + ny);
+        this.roadFillPath.lineTo(x2 - nx, y2 - ny);
+        this.roadFillPath.lineTo(x1 - nx, y1 - ny);
+        this.roadFillPath.closePath();
+      }
     }
     this.litPath = new Path2D();
     for (let i = 0; i < map.streetLit.length; i++) {
@@ -488,6 +507,8 @@ export class Renderer {
     g.strokeStyle = P.RIVER;
     g.lineWidth = this.map.river.width;
     g.stroke(this.riverPath);
+    g.fillStyle = P.ROAD_FILL;
+    g.fill(this.roadFillPath);
     // Streets first, opaque so that where two widths meet they do not add up: under the
     // border (a level crossing's rails run across the road) and the bridge decks.
     g.strokeStyle = P.STREET;
