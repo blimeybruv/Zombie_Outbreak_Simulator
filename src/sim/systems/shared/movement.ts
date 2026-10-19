@@ -5,6 +5,7 @@ import { isOutdoorLiving, type Context } from '../../context';
 import { moveCars } from '../services/driving';
 import { modeOf } from '../people/panic';
 import type { Gait, World } from '../../state';
+import { barrierAt, shut } from '../outside/cordon';
 
 /** Age's toll on speed: mild for walking, steep for running and sprinting. */
 function ageFactor(age: number, gait: Gait, world: World): number {
@@ -30,10 +31,42 @@ interface Mover {
   slide: -1 | 0 | 1;
 }
 
+/** A closed barrier across a road out: its middle, the road's outward direction, and its half-span. */
+interface Fence {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  half: number;
+}
+
+/**
+ * The closed barriers a step may not cross outward. Barriers stop people on foot, not
+ * just routes: with no wall there, the frightened ran from the dead straight past the
+ * rescue's line to the end of the road and piled up against the map's edge.
+ */
+let fences: Fence[] = [];
+
+/** Whether the step from (x0, y0) to (x1, y1) crosses a closed barrier outward, within its span. */
+function crossesFence(x0: number, y0: number, x1: number, y1: number): boolean {
+  for (const f of fences) {
+    const p0 = (x0 - f.x) * f.dx + (y0 - f.y) * f.dy, p1 = (x1 - f.x) * f.dx + (y1 - f.y) * f.dy;
+    if (!(p0 < 0 && p1 >= 0)) continue;
+    const t = p0 / (p0 - p1);
+    const cx = x0 + (x1 - x0) * t, cy = y0 + (y1 - y0) * t;
+    if (Math.abs(-(cx - f.x) * f.dy + (cy - f.y) * f.dx) <= f.half) return true;
+  }
+  return false;
+}
+
+/** Whether this mover is held by the barriers: everyone living but soldiers, those let through to a tent, and those pressing on round. */
+let fenced = false;
+
 function tryMove(ctx: Context, e: Mover, heading: number, distance: number): boolean {
   const nx = e.x + Math.cos(heading) * distance;
   const ny = e.y + Math.sin(heading) * distance;
   if (!ctx.map.walkable(nx, ny) || ctx.cars.blocks(nx, ny)) return false;
+  if (fenced && crossesFence(e.x, e.y, nx, ny)) return false;
   e.x = nx;
   e.y = ny;
   return true;
@@ -44,6 +77,7 @@ function climbOver(ctx: Context, e: Mover, heading: number, distance: number): b
   const nx = e.x + Math.cos(heading) * distance;
   const ny = e.y + Math.sin(heading) * distance;
   if (!ctx.map.walkable(nx, ny) || ctx.cars.drivingAt(nx, ny)) return false;
+  if (fenced && crossesFence(e.x, e.y, nx, ny)) return false;
   e.x = nx;
   e.y = ny;
   return true;
@@ -102,6 +136,10 @@ export function integrateMovement(world: World, ctx: Context): void {
   const { config } = world;
   const mv = config.movement;
   const drag = config.combat.drag;
+  fences = world.exits.filter(shut).map((e) => {
+    const b = barrierAt(world, e);
+    return { x: b.x, y: b.y, dx: e.dx, dy: e.dy, half: world.streets[e.street]!.width / 2 + config.cordon.kerb };
+  });
 
   for (const sim of world.sims) {
     if (!isOutdoorLiving(sim)) {
@@ -118,8 +156,10 @@ export function integrateMovement(world: World, ctx: Context): void {
     const rate = target < sim.pace ? inertia.decel : modeOf(sim, config) === 'flight' ? inertia.flightAccel : inertia.accel;
     sim.pace += (target - sim.pace) * rate;
     if (target === 0 && sim.pace < inertia.rest) sim.pace = 0;
+    fenced = fences.length > 0 && !sim.outsider && sim.tent === null && sim.crossing === null;
     step(ctx, sim, sim.heading, sim.pace, mv.slideSpeed, mv.climb);
   }
+  fenced = false;
 
   for (const z of world.zombies) {
     if (z.state === 'destroyed' || z.state === 'occupying') continue;

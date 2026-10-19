@@ -673,6 +673,12 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     sim.gait = 'sprint';
     // Fired on at a barrier: it runs from the guns, back the way it came. Running from the dead as anywhere else, with no door out on the
     // road, the frightened sprinted straight into the soldiers' aimed fire.
+    // In the rescue's queue: it keeps its place, cowering, among the soldiers. Bolting,
+    // the frightened left the queue for the end of the road.
+    if (sim.queuedSince !== null && sim.destinationKind === 'leave' && world.rescueExit !== null) {
+      sim.gait = 'still';
+      return;
+    }
     // Going round it already, it keeps going, at a sprint: panic does not undo the choice.
     if (sim.crossing !== null && sim.destinationKind === 'leave' && sim.destination !== null) {
       const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
