@@ -42,3 +42,8 @@ for (const layer of ['city', 'outbreak', 'cordon'] as const satisfies readonly A
   writeFileSync(path, wav(samples));
   console.log(`${path}  ${seconds}s  ${rate} Hz  peak-normalised`);
 }
+const chatterSeconds = 18;
+const chatter = renderAmbientPreview('cordon', chatterSeconds, rate);
+const chatterPath = `${outDir}/ambient-cordon-chatter.wav`;
+writeFileSync(chatterPath, wav(chatter));
+console.log(`${chatterPath}  ${chatterSeconds}s  ${rate} Hz  peak-normalised`);

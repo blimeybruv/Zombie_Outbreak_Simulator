@@ -2,8 +2,9 @@
 // snapshot is the same stimulus that draws the dead, so the shot you hear is the
 // one the horde heard.
 //
-// Web Audio throughout, all of it synthesised into AudioBuffers once at start: no
-// assets. Two kinds of sound:
+// Web Audio throughout, all of it synthesised: no assets. Beds and the short
+// one-shots are built once at start. A cordon transmission is built when it
+// plays, so each one has its own voice. Two kinds of sound:
 //
 //   one-shots  each noise in the snapshot (shots, blows, shouts; car alarms once the
 //              simulation makes them) is a throwaway source through its own chain:
@@ -22,8 +23,9 @@
 // city bus carries the wind and hum already described, plus an occasional traffic
 // pass while the day is alive. The outbreak bus adds a low groan and a rare
 // distant scream that follow how much of the city has turned, ducked under the
-// moan so the two do not stack. The cordon bus is radio static and a distant
-// shot, silent until an exit is closed and louder when the view is near one.
+// moan so the two do not stack. The cordon bus is short radio transmissions
+// (a squelch, garbled voices, a squelch tail, then silence) and a distant shot,
+// silent until an exit is closed and louder when the view is near one.
 //
 // The funnel is the work: loudest first, a few per frame, voice caps per category,
 // thinner above 4× and only the loudest at 8×. Ambient one-shots share those caps,
@@ -41,7 +43,7 @@ import type { FrameSnapshot } from '../worker/protocol';
 import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
 type Category = 'gun' | 'melee' | 'voice' | 'alarm';
-type Bed = 'moan' | 'engine' | 'siren' | 'wind' | 'hum' | 'groan' | 'static';
+type Bed = 'moan' | 'engine' | 'siren' | 'wind' | 'hum' | 'groan';
 const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
@@ -92,7 +94,7 @@ const MOAN_PEAK = 0.4;
 const OUTBREAK_GROAN_PEAK = 0.12;
 const OUTBREAK_MOAN_DUCK = 0.65;
 
-// Cordon static: full beside a closed barrier, a trace from far off, silent until one closes.
+// Cordon proximity: full beside a closed barrier, a trace from far off, silent until one closes.
 const CORDON_NEAR_M = 250;
 const CORDON_FAR_M = 1800;
 const CORDON_NEAR_GAIN = 0.16;
@@ -133,7 +135,7 @@ export function groanedUnderMoan(dead: number, living: number, moan: number): nu
   return outbreakLevel(dead, living) * Math.max(0, duck);
 }
 
-/** Static level from metres to the nearest closed exit or its barrier. Open cordons are silent. */
+/** Proximity gain from metres to the nearest closed exit or its barrier. Open cordons are silent. */
 export function cordonLevel(distanceM: number, closed: boolean): number {
   if (!closed || !Number.isFinite(distanceM)) return 0;
   if (distanceM <= CORDON_NEAR_M) return CORDON_NEAR_GAIN;
@@ -457,58 +459,146 @@ function scream(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** The band a radio leaves: a light low-pass minus a heavy one, looped as a bed. */
-function radioStatic(ctx: SampleCtx): AudioBuffer {
+/** Vowel-like formant targets (Hz). Jumped between, never smoothed into a word. */
+const VOWELS: readonly (readonly [number, number, number])[] = [
+  [730, 1090, 2440],
+  [270, 2290, 3010],
+  [300, 870, 2240],
+  [530, 1840, 2480],
+  [570, 840, 2410],
+  [500, 1500, 2500],
+  [390, 1990, 2550],
+  [640, 1190, 2390],
+];
+
+/**
+ * One radio transmission, 1–4 s: squelch in, garbled speech, squelch out.
+ * Sometimes a second voice answers. Hiss is only inside this buffer.
+ */
+function radioChatter(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
-  const seconds = 4;
-  const buf = ctx.createBuffer(1, rate * seconds, rate);
-  const d = buf.getChannelData(0);
-  const light = Math.exp((-2 * Math.PI * 2800) / rate);
-  const heavy = Math.exp((-2 * Math.PI * 350) / rate);
-  let hi = 0, lo = 0;
-  for (let i = 0; i < d.length; i++) {
-    const n = rnd();
-    hi = (1 - light) * n + light * hi;
-    lo = (1 - heavy) * n + heavy * lo;
-    d[i] = (hi - lo) * 4;
+  const reply = Math.random() < 0.4;
+  let talkA = 0.85 + Math.random() * 1.5;
+  let talkB = reply ? 0.5 + Math.random() * 1.05 : 0;
+  const mid = reply ? 0.12 + Math.random() * 0.16 : 0;
+  const open = 0.07;
+  const close = 0.11;
+  let total = open + talkA + mid + talkB + close;
+  if (total > 3.95) {
+    const scale = (3.95 - open - mid - close) / (talkA + talkB);
+    talkA *= scale;
+    talkB *= scale;
+    total = open + talkA + mid + talkB + close;
   }
+  const buf = ctx.createBuffer(1, Math.ceil(rate * total), rate);
+  const d = buf.getChannelData(0);
+  const noiseA = Math.exp((-2 * Math.PI * 2400) / rate);
+
+  const squelch = (start: number, seconds: number, beepHz: number, kind: 'open' | 'close') => {
+    const n = Math.ceil(seconds * rate);
+    const i0 = Math.floor(start * rate);
+    let ph = 0;
+    let nse = 0;
+    for (let i = 0; i < n && i0 + i < d.length; i++) {
+      const t = i / rate;
+      nse = (1 - noiseA) * rnd() + noiseA * nse;
+      ph += beepHz / rate;
+      const tone = Math.sin(2 * Math.PI * ph);
+      if (kind === 'open') {
+        const click = t < 0.006 ? (1 - t / 0.006) * rnd() * 1.3 : 0;
+        d[i0 + i]! += click + tone * Math.exp(-t / 0.018) * 0.4 + nse * Math.exp(-t / 0.022) * 1.1;
+      } else {
+        const beepT = Math.max(0, t - 0.025);
+        const beep = tone * Math.min(1, beepT / 0.006) * Math.exp(-beepT / 0.028) * 0.55;
+        const tail = nse * Math.min(1, t / 0.012) * Math.exp(-t / 0.035) * 1.15;
+        d[i0 + i]! += beep + tail;
+      }
+    }
+  };
+
+  const speak = (start: number, dur: number, pitch: number) => {
+    const syl = 4 + Math.random() * 3;
+    const formants = Math.random() < 0.34 ? 2 : 3;
+    const vowels: [number, number, number][] = [];
+    const vowelCount = 3 + Math.floor(Math.random() * 3);
+    for (let v = 0; v < vowelCount; v++) {
+      const src = VOWELS[Math.floor(Math.random() * VOWELS.length)]!;
+      vowels.push([src[0], src[1], src[2]]);
+    }
+    const bw = [90 + Math.random() * 40, 120 + Math.random() * 50, 160 + Math.random() * 50];
+    const st = [{ y1: 0, y2: 0 }, { y1: 0, y2: 0 }, { y1: 0, y2: 0 }];
+    const coef = [0, 0, 0];
+    const rad = [0, 0, 0];
+    let lastSyl = -1;
+    let ph = Math.random();
+    let wander = 0;
+    let xPrev = 0;
+    let hp = 0;
+    let lp = 0;
+    let hiss = 0;
+    const hpA = Math.exp((-2 * Math.PI * 300) / rate);
+    const lpA = Math.exp((-2 * Math.PI * 3000) / rate);
+    const hissA = Math.exp((-2 * Math.PI * 2000) / rate);
+    const i0 = Math.floor(start * rate);
+    const n = Math.floor(dur * rate);
+    for (let i = 0; i < n && i0 + i < d.length; i++) {
+      const t = i / rate;
+      if ((i & 31) === 0) wander = wander * 0.8 + (Math.random() - 0.5) * 0.035;
+      const contour = 1 + 0.045 * Math.sin((Math.PI * t) / dur) - 0.03 * (t / dur) + wander;
+      ph += (pitch * contour) / rate;
+      const p = ph % 1;
+      const pulse = p < 0.32 ? Math.sin((Math.PI * p) / 0.32) : -0.12 * Math.exp(-(p - 0.32) / 0.1);
+      const sylPhase = (t * syl) % 1;
+      const sylIndex = Math.floor(t * syl);
+      if (sylIndex !== lastSyl) {
+        lastSyl = sylIndex;
+        const vowel = vowels[sylIndex % vowels.length]!;
+        for (let k = 0; k < formants; k++) {
+          const r = Math.exp((-Math.PI * bw[k]!) / rate);
+          rad[k] = r;
+          coef[k] = 2 * r * Math.cos((2 * Math.PI * vowel[k]!) / rate);
+        }
+      }
+      let voiced = 0;
+      for (let k = 0; k < formants; k++) {
+        const r = rad[k]!;
+        const y = pulse * (1 - r) + coef[k]! * st[k]!.y1 - r * r * st[k]!.y2;
+        st[k]!.y2 = st[k]!.y1;
+        st[k]!.y1 = y;
+        voiced += y * (k === 0 ? 1 : 0.65);
+      }
+      const gap = sylPhase < 0.7 ? Math.sin((Math.PI * sylPhase) / 0.7) ** 1.15 : 0;
+      const cons = sylPhase < 0.09 ? rnd() * (1 - sylPhase / 0.09) * 0.8 : 0;
+      const edge = Math.min(1, t / 0.028) * Math.min(1, (dur - t) / 0.045);
+      hiss = (1 - hissA) * rnd() + hissA * hiss;
+      const x = (voiced * 0.85 + cons) * gap * edge + hiss * 0.04 * edge;
+      const hpOut = hpA * (hp + x - xPrev);
+      hp = hpOut;
+      xPrev = x;
+      lp = (1 - lpA) * hpOut + lpA * lp;
+      const crushed = Math.round(Math.tanh(lp * 1.7) * 64) / 64;
+      d[i0 + i]! += crushed;
+    }
+  };
+
+  const pitchA = 90 + Math.random() * 70;
+  squelch(0, open, 1750 + Math.random() * 400, 'open');
+  speak(open, talkA, pitchA);
+  if (reply) {
+    squelch(open + talkA, mid, 1900 + Math.random() * 500, 'open');
+    let pitchB = 90 + Math.random() * 70;
+    if (Math.abs(pitchB - pitchA) < 18) pitchB = Math.min(160, Math.max(90, pitchA + (pitchA < 125 ? 28 : -28)));
+    speak(open + talkA + mid, talkB, pitchB);
+  }
+  squelch(open + talkA + mid + talkB, close, 2000 + Math.random() * 300, 'close');
   return buf;
 }
 
-/** A short burst of clicks, the crackle in that static. */
-function crackle(ctx: SampleCtx): AudioBuffer {
-  const rate = ctx.sampleRate;
-  const seconds = 0.05;
-  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
-  const d = buf.getChannelData(0);
-  for (const at of [0.004, 0.012, 0.021, 0.033]) {
-    const i0 = Math.floor(at * rate);
-    for (let k = 0; k < 8 && i0 + k < d.length; k++) d[i0 + k]! += rnd() * (1 - k / 8) * 1.5;
-  }
-  return buf;
-}
-
-/** The squelch as a channel opens: a brief tone buried in noise. */
-function squelch(ctx: SampleCtx): AudioBuffer {
-  const rate = ctx.sampleRate;
-  const seconds = 0.12;
-  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
-  const d = buf.getChannelData(0);
-  let ph = 0;
-  for (let i = 0; i < d.length; i++) {
-    const t = i / rate;
-    ph += 1600 / rate;
-    d[i] = (Math.sin(2 * Math.PI * ph) * 0.5 + rnd() * 0.5) * Math.exp(-t / 0.03);
-  }
-  return buf;
-}
-
-/** Wind and hum ride the city bus; the groan and the static ride their own. */
+/** Wind and hum ride the city bus; the groan rides the outbreak bus. The cordon is transmissions, not a bed. */
 const BED_LAYER: Partial<Record<Bed, AmbientLayer>> = {
   wind: 'city',
   hum: 'city',
   groan: 'outbreak',
-  static: 'cordon',
 };
 
 const AMBIENT_VOICES = 3;
@@ -564,10 +654,10 @@ export class Audio {
     this.buffers.set('shout', normalise(shout(ctx)));
     this.buffers.set('alarm', normalise(alarm(ctx)));
     // Loops at one peak too: their levels are the bed gains in update().
-    // Groan and static are built after the older beds so those keep their timbre.
+    // The groan is built after the older beds so those keep their timbre.
     const loops: Record<Bed, AudioBuffer> = {
       moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), wind: wind(ctx), hum: hum(ctx),
-      groan: groan(ctx), static: radioStatic(ctx),
+      groan: groan(ctx),
     };
     for (const buffer of Object.values(loops)) normalise(buffer, 0.7);
     for (const [name, buffer] of Object.entries(loops) as [Bed, AudioBuffer][]) {
@@ -584,8 +674,6 @@ export class Audio {
     }
     this.buffers.set('traffic', normalise(trafficPass(ctx)));
     this.buffers.set('scream', normalise(scream(ctx)));
-    this.buffers.set('crackle', normalise(crackle(ctx)));
-    this.buffers.set('squelch', normalise(squelch(ctx)));
     const t0 = ctx.currentTime;
     this.nextTraffic = t0 + 3 + Math.random() * 5;
     this.nextScream = t0 + 6 + Math.random() * 6;
@@ -679,9 +767,9 @@ export class Audio {
     // Outbreak: a groan from how much of the city has turned, ducked while the local moan is already loud.
     const groanLevel = groanedUnderMoan(deadCount, livingCount, moan);
     this.bed('groan', groanLevel * fast, 0, 0.8);
-    // Cordon: static only once an exit has closed, rising as the view nears its mouth or barrier.
+    // Cordon proximity: scales the transmissions and the distant shots scheduled below.
+    // There is no bed — between bursts the channel is silent.
     const cordon = cordonLevel(cordonDistance(cam.x, cam.y, this.exits, frame.closedExits), frame.closedExits !== 0);
-    this.bed('static', cordon * fast, 0, 0.6);
 
     // One-shots: heard out to their own reach (how far the dead hear them) or the view,
     // loudest at the listener first, a few per frame.
@@ -725,12 +813,16 @@ export class Audio {
       this.nextScream = now + (14 + Math.random() * 20) * gap;
     }
     if (this.nextRadio <= now) {
-      if (shots && cordon > 0 && this.layerOn.cordon) {
+      let span = 0;
+      const room = this.flying < AMBIENT_VOICES && this.active.voice < VOICES.voice;
+      if (shots && cordon > 0 && this.layerOn.cordon && room && this.ctx) {
         const near = cordon / CORDON_NEAR_GAIN;
-        const kind = Math.random() < 0.7 ? 'crackle' : 'squelch';
-        this.fireAmbient(kind, 'cordon', (kind === 'crackle' ? 0.05 : 0.04) * near);
+        const pan = (Math.random() - 0.5) * 0.4;
+        const chatter = normalise(radioChatter(this.ctx));
+        if (this.playAmbient(chatter, 'cordon', 0.22 * near, pan, pan, 'voice', 0.03)) span = chatter.duration;
       }
-      this.nextRadio = now + (6 + Math.random() * 10) * gap;
+      // The burst is the buffer; what follows is several seconds of silence, doubled above 4×.
+      this.nextRadio = now + span + (4 + Math.random() * 5) * gap;
     }
     if (this.nextGun <= now) {
       if (shots && cordon > 0 && this.layerOn.cordon) {
@@ -743,15 +835,20 @@ export class Audio {
   }
 
   /** One ambient voice onto a layer bus. No street echo: a distant shot should not bloom on the master. */
-  private fireAmbient(kind: string, layer: AmbientLayer, level: number, panFrom = 0, panTo = 0, cat?: Category): void {
+  private fireAmbient(kind: string, layer: AmbientLayer, level: number, panFrom = 0, panTo = 0, cat?: Category): boolean {
+    const buffer = this.buffers.get(kind);
+    if (!buffer) return false;
+    return this.playAmbient(buffer, layer, level, panFrom, panTo, cat, JITTER);
+  }
+
+  private playAmbient(buffer: AudioBuffer, layer: AmbientLayer, level: number, panFrom: number, panTo: number, cat: Category | undefined, rateJitter: number): boolean {
     const ctx = this.ctx;
     const bus = this.layerGains.get(layer);
-    const buffer = this.buffers.get(kind);
-    if (!ctx || !bus || !buffer || !this.layerOn[layer] || this.flying >= AMBIENT_VOICES) return;
-    if (cat && this.active[cat] >= VOICES[cat]) return;
+    if (!ctx || !bus || !this.layerOn[layer] || this.flying >= AMBIENT_VOICES) return false;
+    if (cat && this.active[cat] >= VOICES[cat]) return false;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    src.playbackRate.value = 1 + (Math.random() - 0.5) * JITTER;
+    src.playbackRate.value = 1 + (Math.random() - 0.5) * rateJitter;
     const gain = ctx.createGain();
     gain.gain.value = level;
     const pan = ctx.createStereoPanner();
@@ -765,6 +862,7 @@ export class Audio {
       if (cat) this.active[cat]--;
     };
     src.start(ctx.currentTime);
+    return true;
   }
 
   /**
@@ -840,13 +938,15 @@ export function renderAmbientPreview(layer: AmbientLayer, seconds = 14, sampleRa
     loop(normalise(groan(ctx), 0.7), (t) => outbreakLevel(t, seconds - t));
     add(normalise(scream(ctx)), 8, 0.1);
   } else {
-    loop(normalise(radioStatic(ctx), 0.7), () => CORDON_NEAR_GAIN);
-    add(normalise(crackle(ctx)), 2, 0.05);
-    add(normalise(crackle(ctx)), 5.5, 0.05);
-    add(normalise(squelch(ctx)), 7, 0.04);
-    add(normalise(crackle(ctx)), 9.5, 0.05);
-    add(normalise(gunshot(ctx, SHOTS.rifle!)), 4, 0.07);
-    add(normalise(gunshot(ctx, SHOTS.rifle!)), 11, 0.07);
+    let t = 0.5;
+    while (t < seconds - 0.3) {
+      const buf = normalise(radioChatter(ctx));
+      if (t + 0.2 >= seconds) break;
+      add(buf, t, 0.22);
+      t += buf.duration + 3.4 + Math.random() * 2.2;
+    }
+    if (seconds > 8) add(normalise(gunshot(ctx, SHOTS.rifle!)), Math.min(6.2, seconds * 0.35), 0.07);
+    if (seconds > 12) add(normalise(gunshot(ctx, SHOTS.pistol!)), Math.min(13.2, seconds * 0.72), 0.06);
   }
   let max = 0;
   for (const v of out) max = Math.max(max, Math.abs(v));
