@@ -240,6 +240,7 @@ export class Renderer {
   /** Carriageways by hierarchy, narrow to wide, so a wider fill covers a crossing. */
   private readonly carriageways: { fill: Path2D; left: Path2D; right: Path2D; fillStyle: string; edgeStyle: string; edgeWidth: number }[];
   private readonly centerLinePath: Path2D; // wide streets only, dashed at near zoom
+  private readonly openGroundPath: Path2D; // lot polygons (mall grounds and service yards), filled under the streets
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
@@ -464,11 +465,17 @@ export class Renderer {
     }
     // Malls: the grounds' edge, broken where the driveway enters, and rows of stalls
     // either side of it.
+    this.openGroundPath = new Path2D();
     this.groundsPath = new Path2D();
     this.stallPath = new Path2D();
     for (let i = 0; i < map.lots.length; i += 10) {
       const l = map.lots;
       const x0 = l[i]!, y0 = l[i + 1]!;
+      this.openGroundPath.moveTo(x0, y0);
+      this.openGroundPath.lineTo(l[i + 2]!, l[i + 3]!);
+      this.openGroundPath.lineTo(l[i + 4]!, l[i + 5]!);
+      this.openGroundPath.lineTo(l[i + 6]!, l[i + 7]!);
+      this.openGroundPath.closePath();
       const w = Math.hypot(l[i + 2]! - x0, l[i + 3]! - y0) || 1;
       const dx = (l[i + 2]! - x0) / w, dy = (l[i + 3]! - y0) / w; // along the front
       const depth = Math.hypot(l[i + 6]! - x0, l[i + 7]! - y0) || 1;
@@ -587,6 +594,9 @@ export class Renderer {
     g.fillStyle = P.BACKGROUND;
     g.fillRect(0, 0, c.width, c.height);
     cam.apply(g, dpr);
+    // Lot polygons, under the streets: the street stroke is opaque and would cover a fill drawn later.
+    g.fillStyle = P.OPEN_GROUND;
+    g.fill(this.openGroundPath);
     g.lineCap = 'round';
     g.lineJoin = 'round';
     g.strokeStyle = P.RIVER;
