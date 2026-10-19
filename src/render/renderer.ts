@@ -64,6 +64,10 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
+const ROAD_EDGE_W = 1; // m: a faint line along each long side of the carriageway
+const CENTER_LINE_W = 1.5; // m
+const CENTER_LINE_MIN_W = 14; // m: wider than a standard street (main roads and the highway)
+const CENTER_DASH: [number, number] = [8, 6]; // m on, m off
 const THROWN_MS = 650; // a struck zombie's flight
 const THROWN_LIFT = 2.5; // m: how high it seems to go, drawn as a lift up the screen
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
@@ -218,6 +222,8 @@ export class Renderer {
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
   private readonly roadFillPath: Path2D;
+  private readonly roadEdgePath: Path2D; // the two long sides of each carriageway quad
+  private readonly centerLinePath: Path2D; // wide streets only, dashed at near zoom
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
@@ -286,6 +292,8 @@ export class Renderer {
       path.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
     }
     this.roadFillPath = new Path2D();
+    this.roadEdgePath = new Path2D();
+    this.centerLinePath = new Path2D();
     for (let i = 0; i < map.streetLit.length; i++) {
       const s = i * 5;
       const x1 = map.streets[s]!, y1 = map.streets[s + 1]!;
@@ -301,6 +309,14 @@ export class Renderer {
         this.roadFillPath.lineTo(x2 - nx, y2 - ny);
         this.roadFillPath.lineTo(x1 - nx, y1 - ny);
         this.roadFillPath.closePath();
+        this.roadEdgePath.moveTo(x1 + nx, y1 + ny);
+        this.roadEdgePath.lineTo(x2 + nx, y2 + ny);
+        this.roadEdgePath.moveTo(x1 - nx, y1 - ny);
+        this.roadEdgePath.lineTo(x2 - nx, y2 - ny);
+        if (width > CENTER_LINE_MIN_W) {
+          this.centerLinePath.moveTo(x1, y1);
+          this.centerLinePath.lineTo(x2, y2);
+        }
       }
     }
     this.litPath = new Path2D();
@@ -507,14 +523,28 @@ export class Renderer {
     g.strokeStyle = P.RIVER;
     g.lineWidth = this.map.river.width;
     g.stroke(this.riverPath);
-    g.fillStyle = P.ROAD_FILL;
-    g.fill(this.roadFillPath);
     // Streets first, opaque so that where two widths meet they do not add up: under the
     // border (a level crossing's rails run across the road) and the bridge decks.
+    // The stroke is the full carriageway, so the lighter fill, the edge and the centre
+    // line are drawn after it — anything before it would be covered.
     g.strokeStyle = P.STREET;
     for (const [width, path] of this.streetPaths) {
       g.lineWidth = width;
       g.stroke(path);
+    }
+    g.fillStyle = P.ROAD_FILL;
+    g.fill(this.roadFillPath);
+    g.strokeStyle = P.ROAD_EDGE;
+    g.lineWidth = ROAD_EDGE_W;
+    g.stroke(this.roadEdgePath);
+    // The static layer's cache key includes cam.mode, same as the parking stalls below,
+    // so a near-only stroke here is baked into the near layer and left out of the others.
+    if (cam.mode === 'near') {
+      g.strokeStyle = P.CENTER_LINE;
+      g.lineWidth = CENTER_LINE_W;
+      g.setLineDash(CENTER_DASH);
+      g.stroke(this.centerLinePath);
+      g.setLineDash([]);
     }
     this.border.draw(g, cam, dpr);
     g.fillStyle = P.BACKGROUND;
