@@ -9,8 +9,14 @@ export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars,
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
 export const CONTESTED = [192, 58, 67] as const; // a faint red rim, the dead's colour: the living and the dead both inside
 export const STREET = '#0d0e12'; // every street's surface, always: opaque, so crossings do not add up
-export const ROAD_FILL = '#101218'; // the carriageway, over the street surface: a shade above the ground, below building outlines
-export const ROAD_EDGE = 'rgba(180, 190, 200, 0.15)'; // the kerb, along the road's edge where it meets the ground
+// Road hierarchy — still near the noise floor; agents remain brightest.
+// Fills are spaced around the existing #101218, not around the lighter #1a1d26.
+export const ROAD_FILL_MAIN = '#12151a'; // wide streets: two or three levels above the standard
+export const ROAD_FILL = '#101218'; // the standard carriageway, over the street surface
+export const ROAD_FILL_ALLEY = '#0a0b0e'; // narrow alleys: several levels below the standard
+export const ROAD_EDGE_MAIN = '#3e4450'; // a stronger kerb on wide streets
+export const ROAD_EDGE = 'rgba(180, 190, 200, 0.15)'; // the standard kerb, where the road meets the ground
+export const ROAD_EDGE_ALLEY = '#1e2228'; // a faint kerb on alleys
 export const CENTER_LINE = '#2a2e38'; // a wide road's dashed centre line, near zoom only
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.10)'; // far zoom only: a faint warm stroke on lit streets
 export const LAMP_GLOW_CORE = 'rgba(255, 214, 150, 0.45)'; // bright warm centre of the stamped glow, still darker than an agent dot
