@@ -18,6 +18,7 @@ import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
+import { placeKerbLamps } from './lamps';
 import * as P from './palette';
 import { BorderLines } from './border';
 import { Traffic } from './traffic';
@@ -65,6 +66,8 @@ const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
 const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of the carriageway
+const LAMP_HEAD = 0.5; // m: the bright head, smaller than an agent dot
+const LAMP_GLOW_MID_STOP = 0.22; // fraction of the glow radius: a tight core, then a long falloff
 const CENTER_LINE_W = 1.5; // m
 const CENTER_LINE_MIN_W = 14; // m: wider than a standard street (main roads and the highway)
 const CENTER_DASH: [number, number] = [8, 6]; // m on, m off
@@ -220,7 +223,8 @@ export class Renderer {
   private readonly bridgeAbutments: Path2D;
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
-  private readonly litPath: Path2D;
+  /** Kerbside lamps on lit streets, placed once. */
+  private readonly lamps: { x: number; y: number }[];
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
   private readonly roadFillPath: Path2D;
@@ -348,13 +352,7 @@ export class Renderer {
         }
       }
     }
-    this.litPath = new Path2D();
-    for (let i = 0; i < map.streetLit.length; i++) {
-      if (!map.streetLit[i]) continue;
-      const s = i * 5;
-      this.litPath.moveTo(map.streets[s]!, map.streets[s + 1]!);
-      this.litPath.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
-    }
+    this.lamps = placeKerbLamps(map.streets, map.streetLit);
     // Streets are read from the gaps between buildings, but a river has no buildings to
     // frame a crossing, so bridges are drawn: a deck that cuts the water from bank to bank,
     // a rail either side, and an abutment along each bank where it lands. The deck's ends
@@ -583,10 +581,21 @@ export class Renderer {
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
     if (night) {
-      // Street lighting is a night-time thing, over the surface.
-      g.strokeStyle = P.STREET_LIGHT;
-      g.lineWidth = 14;
-      g.stroke(this.litPath);
+      // Kerbside pools on lit streets. Positions were placed once in the constructor.
+      for (const lamp of this.lamps) {
+        const grd = g.createRadialGradient(lamp.x, lamp.y, 0, lamp.x, lamp.y, P.LAMP_GLOW_RADIUS);
+        grd.addColorStop(0, P.LAMP_GLOW_CORE);
+        grd.addColorStop(LAMP_GLOW_MID_STOP, P.LAMP_GLOW_MID);
+        grd.addColorStop(1, P.LAMP_GLOW_EDGE);
+        g.fillStyle = grd;
+        g.beginPath();
+        g.arc(lamp.x, lamp.y, P.LAMP_GLOW_RADIUS, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = P.LAMP_CENTER;
+        g.beginPath();
+        g.arc(lamp.x, lamp.y, LAMP_HEAD, 0, Math.PI * 2);
+        g.fill();
+      }
     }
     // At far zoom single-pixel outlines turn into texture; let the density field lead.
     g.globalAlpha = far ? 0.45 : 1;
