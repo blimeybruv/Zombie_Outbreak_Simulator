@@ -10,7 +10,7 @@
 
 import { isOutdoorLiving, type Context } from '../../context';
 import { chance, nextFloat, nextInt } from '../../lib/rng';
-import type { World, Zombie } from '../../state';
+import type { Building, World, Zombie } from '../../state';
 import { entranceNearest } from '../shared/common';
 import { detectability } from '../shared/perception';
 import { intensityAt } from '../shared/stimuli';
@@ -95,6 +95,17 @@ function refreshScent(world: World, ctx: Context): void {
       }
     }
   }
+}
+
+/** The building whose door is at (x, y) — within zombie.arriveRadius of an entrance — with the living inside and none of the dead; or null. */
+function doorAt(world: World, ctx: Context, x: number, y: number): Building | null {
+  const r = world.config.zombie.arriveRadius;
+  for (const id of ctx.map.buildingsNear(x, y, r, ctx.buildingIds)) {
+    const b = world.buildings[id]!;
+    if (b.zombiesInside > 0 || b.residents + b.sheltered.length === 0) continue;
+    if (b.entrances.some((e) => Math.hypot(e.x - x, e.y - y) <= r)) return b;
+  }
+  return null;
 }
 
 /** Points a zombie at a place, reusing its existing point record. */
@@ -254,7 +265,16 @@ export function zombieDecisions(world: World, ctx: Context): void {
         pace = 0; // at the door: it stays
         z.heardAt = tick;
       } else if (d <= zc.arriveRadius && z.target === null) {
-        z.heardPoint = null;
+        // Come to a door the living are behind (shots fired from it, a scream from inside):
+        // it stays there, besieging, as if it had seen someone go in. Clearing the point
+        // instead, a crowd drifted off, was called back by the next shot, and went back and
+        // forth at the door for as long as the building held.
+        const b = doorAt(world, ctx, z.heardPoint.x, z.heardPoint.y);
+        if (b !== null) {
+          z.besieging = b.id;
+          z.besiegeUntil = tick + zc.besiegeTicks;
+          pace = 0;
+        } else z.heardPoint = null;
       } else if (d > 0) {
         gx = dx / d;
         gy = dy / d;
