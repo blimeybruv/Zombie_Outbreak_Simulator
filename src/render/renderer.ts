@@ -64,6 +64,10 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
+const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of the carriageway
+const CENTER_LINE_W = 1.5; // m
+const CENTER_LINE_MIN_W = 14; // m: wider than a standard street (main roads and the highway)
+const CENTER_DASH: [number, number] = [8, 6]; // m on, m off
 const THROWN_MS = 650; // a struck zombie's flight
 const THROWN_LIFT = 2.5; // m: how high it seems to go, drawn as a lift up the screen
 const EXIT_STRIDE = 7; // values per exit in the map snapshot
@@ -219,6 +223,10 @@ export class Renderer {
   private readonly litPath: Path2D;
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
+  private readonly roadFillPath: Path2D;
+  private readonly leftEdgePath: Path2D; // one long side of each carriageway quad
+  private readonly rightEdgePath: Path2D; // the other long side
+  private readonly centerLinePath: Path2D; // wide streets only, dashed at near zoom
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
@@ -285,6 +293,60 @@ export class Renderer {
       if (!path) this.streetPaths.set(width, (path = new Path2D()));
       path.moveTo(map.streets[s]!, map.streets[s + 1]!);
       path.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
+    }
+    // Per street end: the widest other street meeting there, if it is a junction (three or
+    // more streets) — a road merely continuing is not a crossing.
+    const ends = new Map<string, number[]>();
+    const endKey = (x: number, y: number) => `${Math.round(x * 10)},${Math.round(y * 10)}`;
+    for (let i = 0; i < map.streetLit.length; i++) {
+      for (const k of [0, 2]) {
+        const key = endKey(map.streets[i * 5 + k]!, map.streets[i * 5 + k + 1]!);
+        let list = ends.get(key);
+        if (!list) ends.set(key, (list = []));
+        list.push(i);
+      }
+    }
+    const crossing = (x: number, y: number, self: number): number => {
+      const list = ends.get(endKey(x, y))!;
+      if (list.length < 3) return 0;
+      let w = 0;
+      for (const j of list) if (j !== self) w = Math.max(w, map.streets[j * 5 + 4]!);
+      return w;
+    };
+    this.roadFillPath = new Path2D();
+    this.leftEdgePath = new Path2D();
+    this.rightEdgePath = new Path2D();
+    this.centerLinePath = new Path2D();
+    for (let i = 0; i < map.streetLit.length; i++) {
+      const s = i * 5;
+      const x1 = map.streets[s]!, y1 = map.streets[s + 1]!;
+      const x2 = map.streets[s + 2]!, y2 = map.streets[s + 3]!;
+      const width = map.streets[s + 4]!;
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len > 0) {
+        const hw = width / 2;
+        const nx = -dy / len * hw, ny = dx / len * hw;
+        this.roadFillPath.moveTo(x1 + nx, y1 + ny);
+        this.roadFillPath.lineTo(x2 + nx, y2 + ny);
+        this.roadFillPath.lineTo(x2 - nx, y2 - ny);
+        this.roadFillPath.lineTo(x1 - nx, y1 - ny);
+        this.roadFillPath.closePath();
+        this.leftEdgePath.moveTo(x1 + nx, y1 + ny);
+        this.leftEdgePath.lineTo(x2 + nx, y2 + ny);
+        this.rightEdgePath.moveTo(x1 - nx, y1 - ny);
+        this.rightEdgePath.lineTo(x2 - nx, y2 - ny);
+        if (width > CENTER_LINE_MIN_W) {
+          // Stopped short of a junction by half the widest other road there: markings
+          // stop at the crossing, they do not run through it.
+          const ux = dx / len, uy = dy / len;
+          const a = Math.min(len / 2, crossing(x1, y1, i) / 2), b = Math.min(len / 2, crossing(x2, y2, i) / 2);
+          if (a + b < len) {
+            this.centerLinePath.moveTo(x1 + ux * a, y1 + uy * a);
+            this.centerLinePath.lineTo(x2 - ux * b, y2 - uy * b);
+          }
+        }
+      }
     }
     this.litPath = new Path2D();
     for (let i = 0; i < map.streetLit.length; i++) {
@@ -492,10 +554,30 @@ export class Renderer {
     g.stroke(this.riverPath);
     // Streets first, opaque so that where two widths meet they do not add up: under the
     // border (a level crossing's rails run across the road) and the bridge decks.
+    // The stroke is the full carriageway, so the lighter fill, the edge and the centre
+    // line are drawn after it — anything before it would be covered.
     g.strokeStyle = P.STREET;
     for (const [width, path] of this.streetPaths) {
       g.lineWidth = width;
       g.stroke(path);
+    }
+    g.fillStyle = P.ROAD_FILL;
+    g.fill(this.roadFillPath);
+    g.strokeStyle = P.ROAD_EDGE;
+    g.lineWidth = ROAD_EDGE_W;
+    g.stroke(this.leftEdgePath);
+    g.stroke(this.rightEdgePath);
+    // Each side runs the full segment, so at a junction it crosses the other carriageway.
+    // Filling again covers any edge that lies inside a road; the kerb outside the quads stays.
+    g.fill(this.roadFillPath);
+    // The static layer's cache key includes cam.mode, same as the parking stalls below,
+    // so a near-only stroke here is baked into the near layer and left out of the others.
+    if (cam.mode === 'near') {
+      g.strokeStyle = P.CENTER_LINE;
+      g.lineWidth = CENTER_LINE_W;
+      g.setLineDash(CENTER_DASH);
+      g.stroke(this.centerLinePath);
+      g.setLineDash([]);
     }
     this.border.draw(g, cam, dpr);
     g.fillStyle = P.BACKGROUND;
