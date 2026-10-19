@@ -67,6 +67,10 @@ export interface Context {
   cars: CarIndex;
   /** Per conversation, by the id that names it: people in it (encounters), and where it stands and whether anyone in it sees danger (decisions). */
   talkSize: Int32Array;
+  /** Per sim: its place in the rescue's queue (0 at the front), or -1 (sims.ts rankQueue, at the start of sim decisions). */
+  queueRank: Int32Array;
+  /** How many stand in the rescue's queue this tick. */
+  queueLength: number;
   /** Per squad, by leader id: its living members' engagement capacity, summed (squads.ts squadPass). */
   squadCap: Float64Array;
   /** Per squad, by leader id: a follower is far behind its slot, so the leader waits. */
@@ -117,6 +121,8 @@ export function createContext(world: World): Context {
     queued: new Uint8Array(0),
     cars: new CarIndex(),
     talkSize: new Int32Array(0),
+    queueRank: new Int32Array(0),
+    queueLength: 0,
     squadCap: new Float64Array(0),
     squadLag: new Uint8Array(0),
     slotX: new Float64Array(0),
@@ -151,6 +157,7 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.contacts = new Int32Array(cap);
     ctx.dark = new Uint8Array(cap);
     ctx.talkSize = new Int32Array(cap);
+    ctx.queueRank = new Int32Array(cap);
     ctx.squadCap = new Float64Array(cap);
     ctx.squadLag = new Uint8Array(cap);
     ctx.slotX = new Float64Array(cap);

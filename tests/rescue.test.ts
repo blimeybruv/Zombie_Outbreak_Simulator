@@ -3,10 +3,9 @@ import { config } from '../src/config';
 import { sizeContext } from '../src/sim/context';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
-import { queueAt } from '../src/sim/systems/outside/cordon';
 import { rebuildHashes } from '../src/sim/systems/shared/perception';
-import { rescueTally, updateRescue } from '../src/sim/systems/outside/rescue';
-import { assertInvariant } from '../src/sim/tick';
+import { queueSlot, rescueTally, updateRescue } from '../src/sim/systems/outside/rescue';
+import { assertInvariant, step } from '../src/sim/tick';
 
 const soon = { ...config, rescue: { ...config.rescue, at: 10, broadcast: 100, truckEvery: 50, truckLoad: 20 } };
 
@@ -45,24 +44,47 @@ describe('the rescue', () => {
     expect(went.length).toBeLessThan(free.length);
     expect(went.every((s) => s.trust >= soon.rescue.trustFloor)).toBe(true);
     for (const s of free) expect(s.destination === null || s.destinationKind !== 'leave' || (s.destination.x === e.x && s.destination.y === e.y)).toBe(true);
-    // A queue at the barrier, and a truck.
-    const q = queueAt(world, e);
-    const waiting = free.filter((s) => s.insideBuilding === null && s.car === null).slice(0, soon.rescue.truckCapacity + 5);
-    for (const s of waiting) {
-      s.x = q.x;
-      s.y = q.y;
-      s.queuedSince = world.tick;
+    // A queue behind the line, let through in order to the tents, and a truck from them.
+    // (The cordon has closed the road by now in a run; here it is closed by hand.)
+    e.closedAt = world.tick;
+    world.streets[e.street]!.blocked = 1;
+    const waiting = free.filter((s) => s.insideBuilding === null && s.car === null && s.crew === null && s.squadLeader === null).slice(0, 8);
+    waiting.forEach((s, k) => {
+      const p = queueSlot(world, e, k);
+      s.x = p.x;
+      s.y = p.y;
+      s.queuedSince = world.tick + k; // in this order
       s.destinationKind = 'leave';
-    }
+      s.destination = { x: e.x, y: e.y };
+      s.panic = 0;
+    });
     const before = world.counters.unturned.evacuated;
-    for (let t = 0; t < soon.rescue.truckEvery + soon.rescue.truckLoad + 2; t++) {
-      world.tick++;
-      updateRescue(world, ctx);
+    const order: number[] = [];
+    for (let t = 0; t < soon.rescue.passEvery * 4 + 60; t++) {
+      step(world, ctx, { checkInvariant: true });
+      for (const s of waiting) if (s.tent !== null && !order.includes(s.id)) order.push(s.id);
     }
-    expect(world.counters.unturned.evacuated - before).toBe(soon.rescue.truckCapacity);
-    expect(ctx.events.some((e) => e.type === 'truckLeft' && e.count === soon.rescue.truckCapacity)).toBe(true);
-    assertInvariant(world);
-  });
+    expect(order.length).toBeGreaterThanOrEqual(3);
+    expect(order.slice(0, 3)).toEqual(waiting.filter((s) => order.includes(s.id)).map((s) => s.id).slice(0, 3)); // the front first
+    const inTents = waiting.filter((s) => s.condition === 'evacuated').length; // (others may leave the city by other ways meanwhile)
+    expect(inTents).toBeGreaterThan(0);
+    expect(world.tented + world.trucked).toBeGreaterThanOrEqual(inTents); // in the tents, or already on a truck
+    expect(world.counters.unturned.evacuated - before).toBeGreaterThanOrEqual(inTents);
+    // Those still waiting each stand in a place of their own.
+    const still = waiting.filter((s) => s.queuedSince !== null && (s.condition === 'healthy' || s.condition === 'infected'));
+    for (const p of still) for (const q of still) if (p !== q) expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(0.5);
+    // A truck takes the tents' people, up to its capacity.
+    const trucked = world.trucked, tented = world.tented;
+    let left = -1;
+    for (let t = 0; t < soon.rescue.truckEvery + soon.rescue.truckLoad + 2 && left < 0; t++) {
+      step(world, ctx, { checkInvariant: true });
+      for (const ev of world.events) if (ev.type === 'truckLeft') left = ev.count;
+    }
+    expect(left).toBeGreaterThan(0);
+    expect(left).toBeLessThanOrEqual(soon.rescue.truckCapacity);
+    expect(world.trucked - trucked).toBe(left);
+    expect(left).toBeGreaterThanOrEqual(Math.min(tented, soon.rescue.truckCapacity));
+  }, 120_000);
 
   it('counts what became of those who answered the broadcast', () => {
     const { world, ctx } = fresh();

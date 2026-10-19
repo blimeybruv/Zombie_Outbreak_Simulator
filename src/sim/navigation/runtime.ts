@@ -155,6 +155,20 @@ export class MapIndex {
     return !this.bridges.some((br) => pointSegmentDistance(x, y, br.ax, br.ay, br.bx, br.by) <= br.half);
   }
 
+  /** Whether segment a→b crosses the river's middle anywhere off a bridge. */
+  private crossesWater(ax: number, ay: number, bx: number, by: number): boolean {
+    if (Math.max(ay, by) < this.riverMinY || Math.min(ay, by) > this.riverMaxY) return false;
+    const line = this.riverLine;
+    const a = { x: ax, y: ay }, b = { x: bx, y: by };
+    for (let i = 0; i + 1 < line.length; i++) {
+      const hit = segmentIntersection(a, b, line[i]!, line[i + 1]!);
+      if (hit === null) continue;
+      const x = ax + (bx - ax) * hit.t, y = ay + (by - ay) * hit.t;
+      if (!this.bridges.some((br) => pointSegmentDistance(x, y, br.ax, br.ay, br.bx, br.by) <= br.half)) return true;
+    }
+    return false;
+  }
+
   private forCells(cell: number, cols: number, minX: number, minY: number, maxX: number, maxY: number, fn: (c: number) => void) {
     const max = cols - 1;
     const c0x = Math.max(0, Math.floor(minX / cell));
@@ -249,8 +263,14 @@ export class MapIndex {
     return out;
   }
 
-  /** Whether a straight sight line between two points is clear of every building. */
+  /**
+   * Whether a straight sight line between two points is clear of every building, and does
+   * not cross the river but by a bridge. Seeing across the water what could not be reached
+   * there, Rangers fired across it now and then and otherwise went back and forth along
+   * the bank looking for a way to their target; the dead did the same for the living.
+   */
   lineOfSight(ax: number, ay: number, bx: number, by: number): boolean {
+    if (this.crossesWater(ax, ay, bx, by)) return false;
     const s = ++this.stampValue;
     let clear = true;
     this.forCells(BUILDING_CELL, this.buildingCols, Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by), (c) => {

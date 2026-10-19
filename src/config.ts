@@ -274,7 +274,15 @@ export const config = {
   // of those waiting; nobody is screened. The squads' line moves up in bounds of `bound`
   // m and holds between them; a squad whose place in the line has no street within
   // `snapReach` m (the river) holds where it is until the line is past — guesses
-  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, bound: 30, snapReach: 30, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25 },
+  // The rescue's queue and tents: at its exit those waiting stand in rows across the road
+  // behind the cordon line, cordon.queueSpacing m apart across it and queueRow m apart
+  // along it, in the order they came. Every passEvery ticks (truckCapacity a truck's worth
+  // each truckEvery) the soldiers let the front one through, to a tent: tents.count of
+  // them, half each side of the road beyond the line, `length` × `width` m, `gap` m apart,
+  // the nearest `from` m out from the barrier. Inside one (within `reach` of its door at
+  // the road's edge) it is out of the city; the trucks take the tents' people away —
+  // guesses
+  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, bound: 30, snapReach: 30, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25, passEvery: 24, queueRow: 1.5, tents: { count: 6, length: 7, width: 4, gap: 3, from: 8, reach: 2 } },
 
   rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
 
@@ -552,8 +560,9 @@ export const config = {
   // outside the road's edge, and out at the edge, under fire. A car making for a closed
   // exit is left `warnRadius` metres short of the barrier; the cars behind it stop.
   // At the rescue's exit, once the rescue has come, nobody is fired on: those answering
-  // the broadcast wait `queueGap` metres inside the barrier (within queueRadius) for a
-  // truck, a step apart (queueSpacing m). Soldiers are outsiders: the invariant counts them on top of the
+  // the broadcast queue behind the line for the trucks, the front row `queueGap` metres
+  // inside the barrier, in rows queueSpacing m apart across the road (rescue.queueRow
+  // along it); they join it within queueRadius m of its last row. Soldiers are outsiders: the invariant counts them on top of the
   // population — guesses
   // breachRadius: a closed barrier with no living soldier within this many metres is
   // breached, and people on foot pass it (vehicles still stop) — guess

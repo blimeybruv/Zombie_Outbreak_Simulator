@@ -127,6 +127,8 @@ export interface World {
   rescueFront: Metres;
   /** People the rescue's trucks have taken out. @range 0–population @unit people @readBy end stats */
   trucked: Count;
+  /** People in the rescue's tents, out of the city, waiting for a truck. @range 0–population @unit people @readBy rescue (trucks), render (the tents) */
+  tented: Count;
 
   /** Active noise. @range 0–hundreds @unit — @readBy zombie hearing, panic, audio */
   stimuli: Stimulus[];

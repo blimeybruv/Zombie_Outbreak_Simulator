@@ -7,7 +7,8 @@
 // The motorway runs along two adjacent sides of the map, round the corner between
 // them, and off the map at both ends (renderer.ts buildBorder draws it from the same
 // figures, BORDER). Cars come on at either end, keep to the right-hand carriageway, and
-// go off at the other; where an exit crosses on an overpass, they pass under it.
+// go off at the other; where an exit crosses on an overpass, they pass under it. About a
+// quarter are articulated trucks: a cab and a trailer, some trailers carrying a container.
 
 import type { Camera } from './camera';
 import type { MapSnapshot } from '../worker/protocol';
@@ -18,6 +19,11 @@ import { BORDER, borderRun } from './border';
 /** The traffic, in metres and ticks: a carriageway's middle from the median; speed (about 80 km/h); the gaps between cars; how far past the map edge a car comes on and goes off. */
 const TRAFFIC = { lane: 8, speed: 22, gap: [30, 260] as const, beyond: 60 };
 const CAR_L = 4.5, CAR_W = 1.9;
+/** A truck: its cab, the gap to the trailer, the trailer, all one width; the share of vehicles that are trucks, and of trucks that carry a container. */
+const TRUCK = { cab: 2.6, gap: 0.6, trailer: 13, width: 2.5, share: 0.25, container: 0.6 };
+const TRUCK_L = TRUCK.cab + TRUCK.gap + TRUCK.trailer;
+/** What a vehicle is: a car, a truck with an empty flatbed, or a truck with a container. */
+const enum Kind { Car, Flatbed, Container }
 /** Off the map at each end: the route runs this far past the turn so cars come on from out of sight. */
 const OFF = 40;
 
@@ -112,20 +118,23 @@ function hash(i: number): number {
 export class Traffic {
   private readonly route: Route | null;
   /** Each direction's cars: where each is along a loop of the given length at time 0. */
-  private readonly lanes: { phase: Float64Array; loop: number }[] = [];
+  private readonly lanes: { phase: Float64Array; kind: Uint8Array; loop: number }[] = [];
 
   constructor(map: MapSnapshot) {
     this.route = motorwayRoute(map);
     if (!this.route) return;
     for (let dir = 0; dir < 2; dir++) {
       const phase: number[] = [];
+      const kind: number[] = [];
       let s = 0;
-      // Enough cars to fill the motorway and its run-on past both ends, spaced at random.
+      // Enough vehicles to fill the motorway and its run-on past both ends, spaced at random.
       for (let i = 0; s < this.route.length + 2 * TRAFFIC.beyond; i++) {
+        const k = hash(dir * 7919 + i + 104729) < TRUCK.share ? (hash(dir * 6271 + i) < TRUCK.container ? Kind.Container : Kind.Flatbed) : Kind.Car;
         phase.push(s);
-        s += TRAFFIC.gap[0] + (TRAFFIC.gap[1] - TRAFFIC.gap[0]) * hash(dir * 7919 + i);
+        kind.push(k);
+        s += TRAFFIC.gap[0] + (TRAFFIC.gap[1] - TRAFFIC.gap[0]) * hash(dir * 7919 + i) + (k === Kind.Car ? 0 : TRUCK_L);
       }
-      this.lanes.push({ phase: new Float64Array(phase), loop: s });
+      this.lanes.push({ phase: new Float64Array(phase), kind: new Uint8Array(kind), loop: s });
     }
   }
 
@@ -144,33 +153,51 @@ export class Traffic {
     return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, (x1 - x0) / seg, (y1 - y0) / seg];
   }
 
-  /** The cars at simulation time `time` (ticks, fractional between them), at mid and near zoom. */
+  /** The vehicles at simulation time `time` (ticks, fractional between them), at mid and near zoom. */
   draw(g: CanvasRenderingContext2D, cam: Camera, dpr: number, time: number): void {
     const route = this.route;
     if (!route || cam.mode === 'far') return;
     cam.apply(g, dpr);
-    const path = new Path2D();
-    const hl = CAR_L / 2, hw = CAR_W / 2;
+    const cars = new Path2D(); // cars and cabs, filled
+    const containers = new Path2D(); // filled, in the container colour
+    const flatbeds = new Path2D(); // outlined: an empty trailer
+    /** One rectangle of a vehicle: `back` and `front` metres along its own direction from where the vehicle's front is, `half` its half-width. */
+    const part = (path: Path2D, dir: number, front: number, back: number, half: number) => {
+      // Hidden under an overpass by its middle (a long trailer goes under a piece at a time).
+      const mid = (front + back) / 2;
+      const along = dir === 0 ? mid : route.length - mid;
+      if (along < 0 || along > route.length || route.under.some(([a, b]) => along > a && along < b)) return;
+      const [x, y, ux0, uy0] = this.point(along);
+      const ux = dir === 0 ? ux0 : -ux0, uy = dir === 0 ? uy0 : -uy0; // its heading
+      // Keep right: the carriageway to the right of its heading (y runs down the screen).
+      const cx = x - uy * TRAFFIC.lane, cy = y + ux * TRAFFIC.lane;
+      const hl = (front - back) / 2;
+      path.moveTo(cx + ux * hl - uy * half, cy + uy * hl + ux * half);
+      path.lineTo(cx - ux * hl - uy * half, cy - uy * hl + ux * half);
+      path.lineTo(cx - ux * hl + uy * half, cy - uy * hl - ux * half);
+      path.lineTo(cx + ux * hl + uy * half, cy + uy * hl - ux * half);
+      path.closePath();
+    };
     this.lanes.forEach((lane, dir) => {
-      for (const p0 of lane.phase) {
-        // Along the loop, shifted so a car comes on `beyond` metres before the route begins.
-        const loopS = (p0 + TRAFFIC.speed * time) % lane.loop;
-        const s = loopS - TRAFFIC.beyond;
-        if (s < 0 || s > route.length) continue;
-        const along = dir === 0 ? s : route.length - s; // the other way on the other carriageway
-        if (route.under.some(([a, b]) => along > a && along < b)) continue;
-        const [x, y, ux0, uy0] = this.point(along);
-        const ux = dir === 0 ? ux0 : -ux0, uy = dir === 0 ? uy0 : -uy0; // its heading
-        // Keep right: the carriageway to the right of its heading (y runs down the screen).
-        const cx = x - uy * TRAFFIC.lane, cy = y + ux * TRAFFIC.lane;
-        path.moveTo(cx + ux * hl - uy * hw, cy + uy * hl + ux * hw);
-        path.lineTo(cx - ux * hl - uy * hw, cy - uy * hl + ux * hw);
-        path.lineTo(cx - ux * hl + uy * hw, cy - uy * hl - ux * hw);
-        path.lineTo(cx + ux * hl + uy * hw, cy + uy * hl - ux * hw);
-        path.closePath();
+      for (let i = 0; i < lane.phase.length; i++) {
+        // Along the loop, shifted so a vehicle comes on `beyond` metres before the route begins.
+        const front = ((lane.phase[i]! + TRAFFIC.speed * time) % lane.loop) - TRAFFIC.beyond;
+        const k = lane.kind[i]! as Kind;
+        if (k === Kind.Car) {
+          part(cars, dir, front, front - CAR_L, CAR_W / 2);
+          continue;
+        }
+        part(cars, dir, front, front - TRUCK.cab, TRUCK.width / 2);
+        const t0 = front - TRUCK.cab - TRUCK.gap;
+        part(k === Kind.Container ? containers : flatbeds, dir, t0, t0 - TRUCK.trailer, TRUCK.width / 2);
       }
     });
     g.fillStyle = P.CAR_DRIVING;
-    g.fill(path);
+    g.fill(cars);
+    g.fillStyle = P.CONTAINER;
+    g.fill(containers);
+    g.strokeStyle = P.CAR_DRIVING;
+    g.lineWidth = Math.max(0.3, 1 / (cam.scale * dpr));
+    g.stroke(flatbeds);
   }
 }

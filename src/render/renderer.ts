@@ -12,7 +12,7 @@
 
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
-import { BUILDING_CALL_WAITING } from '../worker/protocol';
+import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE } from '../worker/protocol';
 import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
@@ -71,6 +71,8 @@ const EXIT_ARROW_SCALE = 0.7; // the exit arrow, smaller than its spacing: signa
 const EXIT_ALPHA = 0.4;
 const EXIT_LABEL_ALPHA = 0.6;
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
+const DNC_SIZE = 0.12; // DO NOT CROSS: letter height as a share of the road's width
+const DNC_KERB = 1; // m: the underline stops short of each kerb
 const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
@@ -635,6 +637,7 @@ export class Renderer {
     this.drawCars(g, frame, cam, dpr, true);
     this.drawVanLights(g, frame, cam, dpr, wallMs);
     this.drawBarriers(g, frame, cam, dpr, wallMs);
+    this.drawTents(g, frame, cam, dpr);
     this.drawTalk(g, frame, cam, dpr);
     if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
@@ -832,8 +835,62 @@ export class Renderer {
       g.moveTo(bx - nx * half, by - ny * half);
       g.lineTo(bx + nx * half, by + ny * half);
       g.stroke();
+      if (cam.mode !== 'far') this.drawDoNotCross(g, e[i + 2]!, e[i + 3]!, bx, by, e[i + 6]!, px);
     }
     g.globalAlpha = 1;
+  }
+
+  /** The rescue's tents beside the road beyond its barrier: an outline and a ridge along it, filled faintly while anyone waits in them for a truck. */
+  private drawTents(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+    const t = frame.tents;
+    if (t.length === 0 || cam.mode === 'far') return;
+    const outline = new Path2D(), ridges = new Path2D();
+    for (let i = 0; i < t.length; i += TENT_STRIDE) {
+      const x = t[i]!, y = t[i + 1]!, dx = t[i + 2]!, dy = t[i + 3]!, hl = t[i + 4]! / 2, hw = t[i + 5]! / 2;
+      const nx = -dy, ny = dx;
+      outline.moveTo(x + dx * hl + nx * hw, y + dy * hl + ny * hw);
+      outline.lineTo(x - dx * hl + nx * hw, y - dy * hl + ny * hw);
+      outline.lineTo(x - dx * hl - nx * hw, y - dy * hl - ny * hw);
+      outline.lineTo(x + dx * hl - nx * hw, y + dy * hl - ny * hw);
+      outline.closePath();
+      ridges.moveTo(x + dx * hl, y + dy * hl);
+      ridges.lineTo(x - dx * hl, y - dy * hl);
+    }
+    if (frame.tented > 0) {
+      g.fillStyle = P.TENT_FILL;
+      g.fill(outline);
+    }
+    g.strokeStyle = P.TENT;
+    g.lineWidth = Math.max(1 / (cam.scale * dpr), 0.3);
+    g.stroke(outline);
+    g.stroke(ridges);
+  }
+
+  /**
+   * DO NOT CROSS, painted across the road where the soldiers' warnings begin, underlined:
+   * read by whoever comes up the road toward the barrier, the line nearest them.
+   */
+  private drawDoNotCross(g: CanvasRenderingContext2D, dx: number, dy: number, bx: number, by: number, width: number, px: number): void {
+    const at = this.map.cordonWarn;
+    const x = bx - dx * at, y = by - dy * at;
+    const size = width * DNC_SIZE; // m: letter height, so the words span most of the road
+    g.save();
+    g.translate(x, y);
+    // Upright for someone facing the barrier: the barrier is "up" the letters.
+    g.rotate(Math.atan2(dy, dx) + Math.PI / 2);
+    g.fillStyle = P.POLICE;
+    g.strokeStyle = P.POLICE;
+    g.font = `bold ${size}px sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'alphabetic';
+    g.fillText('DO NOT CROSS', 0, 0);
+    const w = Math.min(g.measureText('DO NOT CROSS').width, width - 2 * DNC_KERB);
+    g.lineWidth = Math.max(px, size * 0.12);
+    g.beginPath();
+    g.moveTo(-w / 2, size * 0.35);
+    g.lineTo(w / 2, size * 0.35);
+    g.stroke();
+    g.restore();
   }
 
   /** Squads: a thin line from each follower to its leader, so the unit reads as one. Near zoom. */

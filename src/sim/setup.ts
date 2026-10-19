@@ -214,6 +214,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     rescueTruckAt: 0,
     rescueFront: 0,
     trucked: 0,
+    tented: 0,
     cars: [],
     stimuli: [],
     events: [],

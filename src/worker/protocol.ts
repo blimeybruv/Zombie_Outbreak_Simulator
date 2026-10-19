@@ -27,6 +27,8 @@ export interface MapSnapshot {
   river: { centreline: { x: number; y: number }[]; width: number };
   /** The empty margin round the city, and the feature across it on each side (top, right, bottom, left). */
   border: { margin: number; sides: ('rail' | 'motorway')[] };
+  /** How far in from a closed barrier the soldiers' warnings begin (cordon.warnRadius), m: where DO NOT CROSS is painted. */
+  cordonWarn: number;
   /** Per mall: its grounds' four corners (front edge first), parking depth, and where the driveway enters along the front. */
   lots: Float32Array;
   /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand, and the road's width there (x, y, dx, dy, bx, by, width). */
@@ -46,6 +48,8 @@ export const SIM_PROMOTED = 2;
  */
 export const SIM_INFECTED = 1;
 export const SIM_FROZEN = 2; // cornered and keeping still
+/** Values per tent in FrameSnapshot.tents. */
+export const TENT_STRIDE = 6;
 export const SIM_FIGHTING = 4; // standing its ground, or has struck or fired within its weapon's cooldown: a bright outline
 export const SIM_ARMED = 8; // carries a firearm with ammunition: shoots back (drawn as a triangle)
 export const SIM_POLICE = 16; // drawn light blue
@@ -184,6 +188,10 @@ export interface FrameSnapshot {
   closedExits: number;
   /** Closed exits nobody is left to hold, as bits: their barriers are drawn abandoned. */
   breachedExits: number;
+  /** The rescue's tents, once it has come: middle x, y, the road's direction dx, dy, length along it and width across, per tent (TENT_STRIDE values); empty before. */
+  tents: Float32Array;
+  /** People in the tents waiting for a truck. */
+  tented: number;
   /** Day of the week, 0 Monday … 6 Sunday (time.startWeekday, then a day each dayLength ticks past midnight). */
   weekday: number;
   /** Game seconds since the outbreak began (tick 0): the clock's own rate, not wall time. */

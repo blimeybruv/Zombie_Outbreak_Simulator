@@ -91,14 +91,6 @@ export function holdsFire(world: World, i: number): boolean {
   return i === world.rescueExit;
 }
 
-/** Whether a sim is standing in the rescue's queue (within cordon.queueRadius of it): it waits there for a truck. */
-export function inRescueQueue(world: World, sim: Sim): boolean {
-  const i = world.rescueExit;
-  if (i === null) return false;
-  const q = queueAt(world, world.exits[i]!);
-  return Math.hypot(q.x - sim.x, q.y - sim.y) <= world.config.cordon.queueRadius;
-}
-
 /** A squad of soldiers from outside, at (x, y), its leader bound for `post`: outsiders, counted on top of the population. */
 export function spawnSquad(world: World, x: number, y: number, post: Vec2, ammo: number): Sim[] {
   const { config } = world;

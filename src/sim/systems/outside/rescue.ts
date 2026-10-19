@@ -20,17 +20,69 @@
 //   broadcast  rescue.broadcast later (rescueBroadcast): everyone tracked and outdoors
 //              or sheltering makes for the exit; buildings still held let out
 //              broadcastShare of their residents
+//   the queue  at the exit those who answered stand in rows across the road behind the
+//              cordon line, in the order they came (queueSlot); every passEvery ticks
+//              the soldiers let the front one through
+//   tents      beside the road beyond the line, half each side (tentsAt): through the
+//              line, a person walks to one and is out of the city in it
 //   trucks     every truckEvery ticks one pulls up beyond the barrier, loads for
-//              truckLoad, and takes up to truckCapacity of those waiting, longest first
+//              truckLoad, and takes up to truckCapacity of those in the tents
 
 import type { Context } from '../../context';
 import { roundByChance } from '../../lib/rng';
 import type { Exit, Sim, Vec2, World } from '../../state';
 import { parkTruck } from '../services/cars';
-import { barrierAt, queueAt, spawnSquad } from './cordon';
+import { barrierAt, spawnSquad } from './cordon';
 import { headForExit, leaveMap } from './exits';
 import { exitTicks, isLiving } from '../shared/common';
 import { modeOf } from '../people/panic';
+
+/** Rows across the road the rescue's queue stands in: as many as fit a step apart, a step in from each kerb. */
+function files(world: World, e: Exit): number {
+  const sp = world.config.cordon.queueSpacing;
+  return Math.max(1, Math.floor((world.streets[e.street]!.width - sp) / sp));
+}
+
+/** Where the one `rank` places from the front of the rescue's queue stands: in rows across the road, the front row queueGap in from the barrier. */
+export function queueSlot(world: World, e: Exit, rank: number): Vec2 {
+  const { cordon, rescue } = world.config;
+  const n = files(world, e);
+  const along = cordon.queueGap + Math.floor(rank / n) * rescue.queueRow;
+  const across = ((rank % n) - (n - 1) / 2) * cordon.queueSpacing;
+  const b = barrierAt(world, e);
+  return { x: b.x - e.dx * along - e.dy * across, y: b.y - e.dy * along + e.dx * across };
+}
+
+/** Whether a sim on its way to the rescue's exit has reached the queue: within queueRadius of its last row, on the city side of the barrier. */
+export function reachesQueue(world: World, ctx: Context, sim: Sim): boolean {
+  const i = world.rescueExit;
+  if (i === null) return false;
+  const e = world.exits[i]!;
+  const { cordon, rescue } = world.config;
+  const b = barrierAt(world, e);
+  const inward = (b.x - sim.x) * e.dx + (b.y - sim.y) * e.dy;
+  const last = cordon.queueGap + Math.ceil((ctx.queueLength + 1) / files(world, e)) * rescue.queueRow;
+  return inward >= 0 && inward <= last + cordon.queueRadius && Math.hypot(sim.x - b.x, sim.y - b.y) <= last + cordon.queueRadius + world.streets[e.street]!.width;
+}
+
+/** The rescue's tents, beside the road beyond the line, half each side: middle, the door at the road's edge, and the direction along the road. */
+export function tentsAt(world: World, e: Exit): { x: number; y: number; doorX: number; doorY: number }[] {
+  const t = world.config.rescue.tents;
+  const b = barrierAt(world, e);
+  const half = world.streets[e.street]!.width / 2;
+  const out: { x: number; y: number; doorX: number; doorY: number }[] = [];
+  const per = Math.ceil(t.count / 2);
+  for (let k = 0; k < t.count; k++) {
+    const side = k % 2 === 0 ? 1 : -1;
+    const along = t.from + t.length / 2 + Math.floor(k / 2) * (t.length + t.gap);
+    if (Math.floor(k / 2) >= per) break;
+    const ax = b.x + e.dx * along, ay = b.y + e.dy * along; // on the road's middle, outward of the barrier
+    const nx = -e.dy * side, ny = e.dx * side;
+    const off = half + world.config.cordon.kerb + t.width / 2;
+    out.push({ x: ax + nx * off, y: ay + ny * off, doorX: ax + nx * (half - t.reach / 2), doorY: ay + ny * (half - t.reach / 2) });
+  }
+  return out;
+}
 
 /** The corridor's axis from an exit: toward the middle of the map. */
 function axisOf(world: World, e: Exit): Vec2 {
@@ -64,15 +116,13 @@ function snap(world: World, ctx: Context, x: number, y: number): Vec2 {
  */
 export function rescueTally(world: World): { answered: number; out: number; dead: number; turned: number; waiting: number; elsewhere: number } {
   const t = { answered: 0, out: 0, dead: 0, turned: 0, waiting: 0, elsewhere: 0 };
-  const i = world.rescueExit;
-  const q = i === null ? null : queueAt(world, world.exits[i]!);
   for (const s of world.sims) {
     if (s.answeredAt === null) continue;
     t.answered++;
     if (s.condition === 'evacuated') t.out++;
     else if (s.condition === 'dead') t.dead++;
     else if (s.condition === 'turned') t.turned++;
-    else if (q !== null && s.insideBuilding === null && Math.hypot(s.x - q.x, s.y - q.y) <= world.config.cordon.queueRadius) t.waiting++;
+    else if (s.insideBuilding === null && (s.queuedSince !== null || s.tent !== null)) t.waiting++;
     else t.elsewhere++;
   }
   return t;
@@ -214,6 +264,27 @@ export function updateRescue(world: World, ctx: Context): void {
     }
   }
 
+  // Through the line: every passEvery ticks the front of the queue, if it is at its
+  // place, is let through, to a tent; and whoever reaches a tent's door is out.
+  if (tick % rc.passEvery === 0) {
+    for (const s of sims) {
+      if (ctx.queueRank[s.id] !== 0 || !isLiving(s) || s.insideBuilding !== null) continue;
+      const p = queueSlot(world, e, 0);
+      if (Math.hypot(p.x - s.x, p.y - s.y) > rc.tents.reach) break;
+      s.queuedSince = null;
+      s.tent = s.id % rc.tents.count;
+      break;
+    }
+  }
+  const tents = tentsAt(world, e);
+  for (const s of sims) {
+    if (s.tent === null || !isLiving(s) || s.insideBuilding !== null || s.car !== null) continue;
+    const t = tents[s.tent % tents.length]!;
+    if (Math.hypot(t.doorX - s.x, t.doorY - s.y) > rc.tents.reach) continue;
+    leaveMap(world, ctx, s);
+    world.tented++;
+  }
+
   // The trucks.
   if (tick < world.rescueTruckAt) return;
   const b = barrierAt(world, e);
@@ -224,17 +295,13 @@ export function updateRescue(world: World, ctx: Context): void {
     world.rescueTruckAt = tick + rc.truckLoad;
     return;
   }
-  // Loaded: the longest waiting first (lower id on a tie), up to its capacity.
-  const q = queueAt(world, e);
-  const waiting = sims
-    .filter((s) => isLiving(s) && s.queuedSince !== null && s.insideBuilding === null && s.car === null && s.destinationKind === 'leave' && Math.hypot(s.x - q.x, s.y - q.y) <= config.cordon.queueRadius)
-    .sort((p, r) => p.queuedSince! - r.queuedSince! || p.id - r.id)
-    .slice(0, rc.truckCapacity);
-  for (const s of waiting) leaveMap(world, ctx, s);
-  world.trucked += waiting.length;
+  // Loaded from the tents, up to its capacity.
+  const load = Math.min(world.tented, rc.truckCapacity);
+  world.tented -= load;
+  world.trucked += load;
   const truck = world.cars[world.rescueTruck]!;
   truck.state = 'gone';
-  ctx.events.push({ type: 'truckLeft', tick, count: waiting.length, sim: null, x: truck.x, y: truck.y });
+  ctx.events.push({ type: 'truckLeft', tick, count: load, sim: null, x: truck.x, y: truck.y });
   world.rescueTruck = null;
   world.rescueTruckAt = tick + rc.truckEvery;
 }

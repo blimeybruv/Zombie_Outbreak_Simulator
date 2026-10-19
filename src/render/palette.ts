@@ -16,6 +16,8 @@ export const LIVING_RGB = [223, 231, 239] as const;
 export const CAR = 'rgba(150, 160, 175, 0.45)';
 export const CAR_DRIVING = 'rgba(200, 208, 220, 0.75)';
 export const CAR_ABANDONED = 'rgba(70, 72, 80, 0.9)';
+/** A container on a truck's trailer, on the motorway: muted rust, a box among the cars. */
+export const CONTAINER = 'rgba(160, 112, 88, 0.7)';
 /** A conversation: the faint line joining the people in it. */
 export const TALK = 'rgba(223, 231, 239, 0.4)';
 export const PROMOTED = '#ffffff';
@@ -27,6 +29,9 @@ export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
 export const SIREN_BLUE_GLOW = 'rgba(59, 123, 255, 0.28)';
 export const AMBULANCE = '#f2f2ee'; // white
 export const EXIT = '#e8c35a'; // a way off the map: amber, like a road sign
+/** The rescue's tents: military canvas, an outline and ridge, filled faintly while people wait in them. */
+export const TENT = 'rgba(190, 200, 160, 0.7)';
+export const TENT_FILL = 'rgba(190, 200, 160, 0.18)';
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike

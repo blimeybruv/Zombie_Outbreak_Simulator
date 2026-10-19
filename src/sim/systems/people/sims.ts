@@ -42,8 +42,8 @@ import { alert, chooseShelter, evaluateRole, visibleFill } from '../buildings/sh
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '../services/squads';
 import { callAmbulance, decideEmt, decidePatient } from '../services/emt';
 import { rideToCall } from '../services/dispatch';
-import { barrierAt, barrierNear, cordonShot, flank, holdsFire, inRescueQueue, nearBarrier, pastBarrier, queueAt, shut } from '../outside/cordon';
-import { answersRescue } from '../outside/rescue';
+import { barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
+import { answersRescue, queueSlot, reachesQueue, tentsAt } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
 
 /**
@@ -582,32 +582,6 @@ function policeStationFor(world: World, sim: Sim): Building | null {
   return best;
 }
 
-/** Waiting in a queue: still, facing the way out, unless someone stands closer than cordon.queueSpacing — then a step away from the nearest (the lower id on a tie). */
-function giveRoom(world: World, ctx: Context, sim: Sim, e: World['exits'][number]): void {
-  const gap = world.config.cordon.queueSpacing;
-  let near: Sim | null = null;
-  let nearD = gap;
-  ctx.simHash.query(sim.x, sim.y, gap, ctx.ids2);
-  for (const id of ctx.ids2) {
-    const o = world.sims[id]!;
-    if (o === sim || !isOutdoorLiving(o)) continue;
-    const d = Math.hypot(o.x - sim.x, o.y - sim.y);
-    if (d < nearD) {
-      near = o;
-      nearD = d;
-    }
-  }
-  if (near === null) {
-    sim.gait = 'still';
-    steerToward(sim, e.x, e.y);
-    return;
-  }
-  sim.gait = 'walk';
-  // Directly on top of each other, the lower id steps one way across the road and the higher the other.
-  if (nearD === 0) sim.heading = Math.atan2(e.dx, -e.dy) + (sim.id < near.id ? 0 : Math.PI);
-  else sim.heading = Math.atan2(sim.y - near.y, sim.x - near.x);
-}
-
 function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const { config, buildings, zombies, tick } = world;
   const arch = config.archetypes[sim.archetype];
@@ -864,9 +838,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // The rescue's broadcast heard: for its exit, once calm (rescue.ts).
   if (answersRescue(world, sim)) headForExit(world, sim); // (in flight it has already run for a door, above)
 
-  // In the rescue's queue, whatever brought it there: it joins those waiting for a truck,
+  // At the rescue's queue, whatever brought it there: it joins those waiting for a truck,
   // unless on duty or in someone's care.
-  if (sim.destinationKind !== 'leave' && sim.archetype !== 'police' && sim.crew === null && sim.carriedBy === null && !sim.outsider && inRescueQueue(world, sim)) {
+  if (sim.destinationKind !== 'leave' && sim.archetype !== 'police' && sim.crew === null && sim.carriedBy === null && !sim.outsider && reachesQueue(world, ctx, sim)) {
     headForExit(world, sim);
   }
 
@@ -884,14 +858,28 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
         steerToward(sim, to.x, to.y);
         return;
       }
-      // The rescue's exit, once the rescue has come: wait for a truck, a step apart, and
-      // the wait does not end (rescue.ts). All arriving by one road, the waiting stood
-      // on top of one another.
+      // The rescue's exit, once the rescue has come: in the queue, each in its own place in
+      // the rows behind the cordon line, moving up as the front is let through, and the
+      // wait does not end; let through, on to its tent (rescue.ts). Pressing on the barrier
+      // instead, the waiting crowded its end and stood on one another.
       if (holdsFire(world, i)) {
-        const q = queueAt(world, e);
-        if (Math.hypot(q.x - sim.x, q.y - sim.y) <= config.cordon.queueRadius) {
-          sim.queuedSince ??= tick;
-          giveRoom(world, ctx, sim, e);
+        if (sim.tent !== null) {
+          const t = tentsAt(world, e)[sim.tent]!;
+          sim.gait = 'walk';
+          steerToward(sim, t.doorX, t.doorY);
+          return;
+        }
+        if (sim.queuedSince === null && reachesQueue(world, ctx, sim)) sim.queuedSince = tick;
+        const rank = ctx.queueRank[sim.id]!;
+        if (sim.queuedSince !== null && rank >= 0) {
+          const p = queueSlot(world, e, rank);
+          if (Math.hypot(p.x - sim.x, p.y - sim.y) <= config.rescue.tents.reach / 2) {
+            sim.gait = 'still';
+            steerToward(sim, e.x, e.y);
+          } else {
+            sim.gait = 'walk';
+            steerToward(sim, p.x, p.y);
+          }
           return;
         }
       } else if (sim.firedOnAt !== null && tick - sim.firedOnAt <= config.cordon.warnEvery && nearBarrier(world, e, sim.x, sim.y)) {
@@ -1100,6 +1088,17 @@ function drainRepathQueue(world: World, ctx: Context): void {
   }
 }
 
+/** Places in the rescue's queue, from the snapshot of who stands in it: in the order they joined, the lower id first on a tie. */
+function rankQueue(world: World, ctx: Context): void {
+  ctx.queueRank.fill(-1, 0, world.sims.length);
+  ctx.queueLength = 0;
+  if (world.rescueExit === null) return;
+  const waiting = world.sims.filter((s) => s.queuedSince !== null && s.tent === null && s.destinationKind === 'leave' && isOutdoorLiving(s) && s.car === null);
+  waiting.sort((a, b) => a.queuedSince! - b.queuedSince! || a.id - b.id);
+  waiting.forEach((s, k) => (ctx.queueRank[s.id] = k));
+  ctx.queueLength = waiting.length;
+}
+
 /** Where each conversation stands (the middle of those in it) and whether anyone in it sees danger, from the perception snapshot. */
 function locateTalks(world: World, ctx: Context): void {
   const { sims } = world;
@@ -1125,6 +1124,7 @@ function locateTalks(world: World, ctx: Context): void {
 
 export function simDecisions(world: World, ctx: Context): void {
   locateTalks(world, ctx);
+  rankQueue(world, ctx);
   squadPass(world, ctx);
   for (const sim of world.sims) {
     if (sim.condition !== 'healthy' && sim.condition !== 'infected') continue;
