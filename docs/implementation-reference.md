@@ -20,7 +20,9 @@ Everything else marked open further down has since been decided, resolved or mad
 
 - **Gate 3, by eye and on a real machine.** Whether the city is legible at a glance at mid zoom, including whether the occupancy fill is too faint for a block emptying to be seen. Whether 2,000 agents hold 30 fps at 8× (`scripts/fps.ts`).
 - **Recorded sounds** in place of the synthesised ones. Optional.
-- **Done:** a 20-seed sweep of the final state and the cost of the full run ("Final state", under the rescue).
+- **A sweep of everything since commit a3ad199** (the last 20-seed sweep, "Final state", under the rescue): the sealed city, the car work, the freeze and pong fixes and the cordon redesign have each been measured on a seed or two, not swept.
+- **Cars kept out of walls:** trips and abandoned cars moved both ways on two seeds; being measured ("Cars").
+- **What a cordon wound means:** for now it has no state (struck, the person turns back). Anything lasting would be the health system the design notes cut ("The cordon").
 - **Settled, not open:** the narrow spread at the end of a run is a stable system, not a determined one ("Sweep targets", restated). This city punishes grouping ("Grouping is punished in this city", under the rescue); the roster is a record (re-score, under promotion); civilian squads stay out, which that finding makes moot.
 
 ### Field lists live in code

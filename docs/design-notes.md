@@ -113,6 +113,8 @@ Agricultural land is cut: map area that costs simulation and render budget while
 
 **Terrain effects stay a small fixed set of modifiers** — sightline radius, traversability, light coverage, wander traffic — rather than each feature carrying bespoke behaviour. Otherwise every terrain type has to be checked separately against day-night, lighting and memory, and the interaction surface grows faster than the feature list.
 
+**Since built: the city is sealed.** An empty margin runs round it, a fenced railway along two sides and a fenced motorway along the other two, and the highways out are the only crossings — so blocking an exit blocks it on the street graph, not just on the map. That is what lets the world outside close the city: a cordon of soldiers at every exit once the first district has evacuated (reference, "The city's edge", "The cordon").
+
 ## Archetypes
 
 Few profiles, not many job titles. Labels are free and profiles are expensive: each needs tuning and each interacts with every other, so five profiles is ten pairwise interactions and twelve is sixty-six.
@@ -343,6 +345,8 @@ Full procedural variety is a later addition, not a hard one. The reason to defer
 
 Outbreak origin is the highest-leverage setting. A single patient zero in a dense block gives a slow visible bloom with a clear front; several simultaneous sources give a city already lost and a story about survival rather than spread. Those are nearly different scenarios, and flipping between them is probably the most useful control on screen.
 
+**Since built: leaving.** A district that comes to know sends a share of its people out by the highways together, and the first to go is what the world outside reacts to: soldiers close the roads behind it. They do not screen anyone; they fire warning shots at whoever comes near a barrier and aimed fire at whoever comes close, so a closed road is a decision — turn back for another way out, or for shelter, or press on round it under fire (reference, "Evacuation", "The cordon").
+
 **The demo has one terminal ending: the timer.** One in-game month elapses and the run stops. (**Since built:** the run is eighteen simulated hours, 64,800 ticks — fourteen of outbreak, then the rescue — and ends at the timer; reference, "Ending".)
 
 Stalemate is handled as a controller rather than an ending. If the map settles — no conversions for a sustained window — the wander rate is raised until movement resumes, promoting dormant zombies into wanderers a fraction at a time. Someone stepping out to scavenge then risks meeting one, which is not stalemate, it is a slow leak.
@@ -448,8 +452,8 @@ Recorded so they are not re-litigated.
 | --- | --- | --- |
 | Fire, petrol stations, tankers | Cut | Wants to be the star. A propagating terrain system with its own physics competes with the survivors rather than serving them, and produces spectacle rather than decisions. A different game. |
 | Z-levels, rooftop movement | Cut | Not a building attribute but a second map: multi-layer pathfinding, a level dimension on every proximity check, render ordering. A roof is also a place where nothing happens. Achievable cheaply as a shelter state or a perception bonus instead. |
-| Survivor-on-survivor combat, psychopath archetype | Cut | Introduces a second hostility relation, touching threat response, shelter entry, grouping and memory. Also invites expectations of motive that a dot cannot deliver. The cheap version is a sim that refuses to share shelter. |
-| Wounds, HP, bandages, healer archetype | Cut | Replaced by one infection flag and a witness check, which produces the interesting scene without the system. |
+| Survivor-on-survivor combat, psychopath archetype | Cut, with narrow exceptions | Introduces a second hostility relation, touching threat response, shelter entry, grouping and memory. Also invites expectations of motive that a dot cannot deliver. The cheap version is a sim that refuses to share shelter. **Since built**, the user's exceptions, all at the city's edge: the cordon fires on anyone approaching its barrier, someone armed it fires on may fire back, and the rescue company may shoot someone who does not identify itself. |
+| Wounds, HP, bandages, healer archetype | Cut | Replaced by one infection flag and a witness check, which produces the interesting scene without the system. The cordon's aimed fire "wounds" as well as kills, but a wound has no state: struck, the person turns back. |
 | Heavy weapons, grenades | Cut | Changes capability rather than decisions, and one sim able to clear crowds breaks the one-way infection curve. |
 | Building on Project Zomboid | Rejected | Wants the opposite half of that engine: mass agents and a spectator camera rather than one deep character. No headless harness, and the core parameters would not be reachable. |
 | Cars and traffic | Built (fourth round) | Brought forward at the user's request: gridlock as a vector, engines as a dinner bell. See the reference, "Cars". |
