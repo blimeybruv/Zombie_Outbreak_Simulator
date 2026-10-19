@@ -1,7 +1,8 @@
 // Kerbside lamps for lit streets. Positions only: the static layer paints them.
-// One pair per station, directly opposite, inset to the kerb. A short lit segment
-// still gets its midpoint pair. Same-kerb duplicates at a joint are dropped;
-// the opposite lamp of a pair is not.
+// Stations sit about LAMP_SPACING apart. Each station takes one kerb, and the
+// kerb alternates, so each side is at twice the spacing and offset by half a
+// station. A short lit segment still gets one lamp, at its midpoint, on the
+// side its single station falls on. Same-kerb duplicates at a joint are dropped.
 
 import * as P from './palette';
 
@@ -19,9 +20,9 @@ const SLIDE_STEP = 2; // m: how far to walk a blocked station along the kerb loo
 const JUNCTION_CULL = 3.5; // m, either kerb. An opposite pair is at least 5 m (a 6 m alley), so only piled heads at a joint go
 
 /**
- * Paired lamps, one on each kerb, directly opposite. Stations are about
- * LAMP_SPACING apart, and a lit segment of at least LAMP_MIN_LENGTH always
- * gets its midpoint pair.
+ * Staggered kerbside lamps. Station k is on side k % 2, so the two kerbs
+ * alternate. A lit segment of at least LAMP_MIN_LENGTH always gets its
+ * midpoint station: one lamp, on whichever side that station falls on.
  */
 export function placeKerbLamps(
   streets: ArrayLike<number>,
@@ -88,20 +89,19 @@ export function placeKerbLamps(
     };
     for (let k = 0; k < count; k++) {
       const t0 = (k + 0.5) / count;
-      for (const side of [0, 1]) {
-        // The station first. If that kerb point is inside a crossing road, walk
-        // along the segment for a clear one, so a medium segment is not left dark.
-        let spot = at(t0, side);
-        if (!spot) {
-          const step = SLIDE_STEP / len;
-          const reach = 0.5 / count;
-          for (let d = step; d <= reach + step && !spot; d += step) {
-            if (t0 - d > 0) spot = at(t0 - d, side);
-            if (!spot && t0 + d < 1) spot = at(t0 + d, side);
-          }
+      const side = k % 2;
+      // The station first. If that kerb point is inside a crossing road, walk
+      // along the segment for a clear one, so a medium segment is not left dark.
+      let spot = at(t0, side);
+      if (!spot) {
+        const step = SLIDE_STEP / len;
+        const reach = 0.5 / count;
+        for (let d = step; d <= reach + step && !spot; d += step) {
+          if (t0 - d > 0) spot = at(t0 - d, side);
+          if (!spot && t0 + d < 1) spot = at(t0 + d, side);
         }
-        if (spot) candidates[side]!.push(spot);
       }
+      if (spot) candidates[side]!.push(spot);
     }
   }
   // Per kerb. A global cull would delete the opposite lamp of a pair on a narrow street.
