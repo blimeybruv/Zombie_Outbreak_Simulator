@@ -14,17 +14,16 @@
 //              how far the dead hear it, so a fight just off screen is heard too.
 //   beds       loops whose levels follow what is in view: the dead (a moan), cars
 //              being driven (engines), police cars, SWAT vans and ambulances on the
-//              move (a siren), and the city itself (wind always; the hum of a living
-//              city thinning as it empties and falling away at night, the wind
-//              rising in its place).
+//              move (a siren), and the city itself (a low rumble and the hum of a
+//              living city, both falling away as it empties; the hum also at night).
 //
 // Three more buses sit under the master — city, outbreak, cordon — each with its
 // own gain, so a layer can be mixed off without a click (setLayerEnabled). The
-// city bus carries the wind and hum already described, plus an occasional traffic
-// pass while the day is alive, a murmur of a few unintelligible voices, and sparse
-// sounds of life (steps, a door, a dog, a horn, a bell; birds only by day). At
-// night the voices thin to a handful and the life sounds get rarer. No insects:
-// crickets were tried and sounded wrong. The outbreak bus adds a low groan and a rare
+// city bus carries that rumble and hum, an occasional traffic pass while the day
+// is alive, a murmur, a looped pavement of footsteps by day, and sparse life
+// sounds: phones by day, a door, a dog, a horn, a bell, birds by day. At night
+// the voices thin out, with the odd drunken shout or a bin going over. No wind,
+// and no insects. The outbreak bus adds a low groan and a rare
 // distant scream that follow how much of the city has turned, ducked under the
 // moan so the two do not stack. The cordon bus is short radio transmissions
 // (a squelch, garbled voices, a squelch tail, then silence) and a distant shot,
@@ -46,7 +45,7 @@ import type { FrameSnapshot } from '../worker/protocol';
 import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
 type Category = 'gun' | 'melee' | 'voice' | 'alarm';
-type Bed = 'moan' | 'engine' | 'siren' | 'wind' | 'hum' | 'groan' | 'murmur';
+type Bed = 'moan' | 'engine' | 'siren' | 'rumble' | 'hum' | 'groan' | 'murmur' | 'steps';
 const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
@@ -84,12 +83,10 @@ interface SampleCtx {
 /** Which ambient bus a toggle addresses. */
 export type AmbientLayer = 'city' | 'outbreak' | 'cordon';
 
-// The city's existing day/night beds, kept as they were: hum is the living day, wind
-// rises as the city empties and after dark. `traffic` is how much a distant pass belongs.
+// Hum is the living day. Rumble is a low urban bed that follows the living share
+// by day and night, and is gone when the city is dead. `traffic` is a distant pass.
 const CITY_HUM = 0.07;
-const CITY_WIND_BASE = 0.05;
-const CITY_WIND_EMPTY = 0.04;
-const CITY_WIND_NIGHT = 0.02;
+const CITY_RUMBLE = 0.032;
 
 // The outbreak groan sits under the local moan bed (which reaches MOAN_PEAK). Most of it
 // ducks while that crowd is already loud, so the two do not stack.
@@ -108,13 +105,13 @@ export const EXIT_STRIDE = 7;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
-/** Day hum, night wind, and whether a distant traffic pass belongs. Pure: no audio graph. */
-export function cityLevels(daylight: number, living: number): { hum: number; wind: number; traffic: number } {
+/** Day hum, the low rumble of a living city, and whether a distant traffic pass belongs. */
+export function cityLevels(daylight: number, living: number): { hum: number; rumble: number; traffic: number } {
   const day = clamp01(daylight);
   const live = clamp01(living);
   return {
     hum: CITY_HUM * live * day,
-    wind: CITY_WIND_BASE + CITY_WIND_EMPTY * (1 - live) + CITY_WIND_NIGHT * (1 - day),
+    rumble: CITY_RUMBLE * live,
     traffic: day * live,
   };
 }
@@ -190,7 +187,7 @@ export function outdoorLifeNear(camX: number, camY: number, simXY: ArrayLike<num
  * a few late voices and sparser one-shots. Birds are day only. Groan and cordon duck
  * the crowd so they stay in front.
  */
-export function crowdMix(lifeNear: number, daylight: number, groan: number, cordon: number): { murmur: number; life: number; birds: number } {
+export function crowdMix(lifeNear: number, daylight: number, groan: number, cordon: number): { murmur: number; life: number; birds: number; steps: number; phones: number; night: number } {
   const life = clamp01(lifeNear);
   const day = clamp01(daylight);
   const voices = MURMUR_NIGHT + (1 - MURMUR_NIGHT) * day;
@@ -201,6 +198,9 @@ export function crowdMix(lifeNear: number, daylight: number, groan: number, cord
     murmur: MURMUR_PEAK * life * voices * mask,
     life: life * (LIFE_NIGHT + (1 - LIFE_NIGHT) * day) * mask,
     birds: life * day * mask,
+    steps: life * day * mask,
+    phones: life * day * mask,
+    night: life * (1 - day) * mask,
   };
 }
 
@@ -351,18 +351,24 @@ function moan(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** Brown noise through a slow swell: wind between the buildings. */
-function wind(ctx: SampleCtx): AudioBuffer {
+/** Low brown noise and a faint traffic wash. No gusts: this is not wind. */
+function rumble(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
-  const seconds = 10;
-  const buf = ctx.createBuffer(1, rate * seconds, rate);
+  const seconds = 8;
+  const buf = ctx.createBuffer(1, Math.floor(rate * seconds), rate);
   const d = buf.getChannelData(0);
-  let y = 0;
+  const lp = Math.exp((-2 * Math.PI * 110) / rate);
+  const washLp = Math.exp((-2 * Math.PI * 260) / rate);
+  let brown = 0;
+  let low = 0;
+  let wash = 0;
   for (let i = 0; i < d.length; i++) {
-    y = 0.997 * y + 0.03 * rnd();
-    const t = i / rate;
-    const gust = 0.5 + 0.3 * Math.sin((2 * Math.PI * t) / seconds) + 0.2 * Math.sin((2 * Math.PI * 3 * t) / seconds);
-    d[i] = y * gust * 2;
+    const n = rnd();
+    brown = 0.996 * brown + n * 0.04;
+    low = (1 - lp) * brown + lp * low;
+    wash = (1 - washLp) * n + washLp * wash;
+    const swell = 0.7 + 0.3 * Math.sin((2 * Math.PI * i) / d.length);
+    d[i] = low * 1.6 + wash * swell * 0.28;
   }
   return buf;
 }
@@ -522,7 +528,7 @@ const VOWELS: readonly (readonly [number, number, number])[] = [
  * Unintelligible speech into `dest`. `radio` is the cordon chain: 300 Hz–3 kHz, hiss,
  * saturation and a light crush. Without it the band is wider and clean, for the crowd.
  */
-function garbleInto(dest: Float32Array, rate: number, start: number, dur: number, pitch: number, radio: boolean, syllableRate?: number, gain = 1): void {
+function garbleInto(dest: Float32Array, rate: number, start: number, dur: number, pitch: number, radio: boolean, syllableRate?: number, gain = 1, wobble = 1, consonant = 1): void {
   const syl = syllableRate ?? 4 + Math.random() * 3;
   const formants = Math.random() < 0.34 ? 2 : 3;
   const vowels: [number, number, number][] = [];
@@ -549,8 +555,9 @@ function garbleInto(dest: Float32Array, rate: number, start: number, dur: number
   const n = Math.floor(dur * rate);
   for (let i = 0; i < n && i0 + i < dest.length; i++) {
     const t = i / rate;
-    if ((i & 31) === 0) wander = wander * 0.8 + (Math.random() - 0.5) * 0.035;
-    const contour = 1 + 0.045 * Math.sin((Math.PI * t) / Math.max(0.05, dur)) - 0.03 * (t / Math.max(0.05, dur)) + wander;
+    if ((i & 31) === 0) wander = wander * 0.8 + (Math.random() - 0.5) * 0.035 * wobble;
+    const glide = radio ? 0.045 : 0.045 * wobble;
+    const contour = 1 + glide * Math.sin((Math.PI * t) / Math.max(0.05, dur)) - 0.03 * (t / Math.max(0.05, dur)) + wander;
     ph += (pitch * contour) / rate;
     const p = ph % 1;
     const pulse = p < 0.32 ? Math.sin((Math.PI * p) / 0.32) : -0.12 * Math.exp(-(p - 0.32) / 0.1);
@@ -574,7 +581,7 @@ function garbleInto(dest: Float32Array, rate: number, start: number, dur: number
       voiced += y * (k === 0 ? 1 : 0.65);
     }
     const gap = sylPhase < 0.7 ? Math.sin((Math.PI * sylPhase) / 0.7) ** 1.15 : 0;
-    const cons = sylPhase < 0.09 ? rnd() * (1 - sylPhase / 0.09) * (radio ? 0.8 : 0.35) : 0;
+    const cons = sylPhase < 0.09 ? rnd() * (1 - sylPhase / 0.09) * (radio ? 0.8 : 0.35) * consonant : 0;
     const edge = Math.min(1, t / 0.028) * Math.min(1, (dur - t) / 0.045);
     let x = (voiced * 0.85 + cons) * gap * edge;
     if (radio) {
@@ -829,11 +836,221 @@ function birdChirp(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** Wind, hum and the murmur ride the city bus; the groan rides the outbreak bus. The cordon is transmissions, not a bed. */
+/** Several walkers at once, different pace and shoe, looped as one pavement. */
+function footstepBed(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 6;
+  const buf = ctx.createBuffer(1, Math.floor(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const walkers = [
+    { pace: 0.44, phase: 0.05, heel: true, gain: 0.7 },
+    { pace: 0.51, phase: 0.6, heel: false, gain: 0.4 },
+    { pace: 0.39, phase: 1.3, heel: true, gain: 0.9 },
+    { pace: 0.57, phase: 0.2, heel: false, gain: 0.28 },
+    { pace: 0.48, phase: 2.1, heel: true, gain: 0.5 },
+    { pace: 0.62, phase: 1.7, heel: false, gain: 0.33 },
+  ];
+  const heelA = Math.exp((-2 * Math.PI * 700) / rate);
+  const softA = Math.exp((-2 * Math.PI * 280) / rate);
+  for (const w of walkers) {
+    for (let t = w.phase; t < seconds + w.pace; t += w.pace) {
+      const at = t % seconds;
+      const i0 = Math.floor(at * rate);
+      const len = Math.floor((w.heel ? 0.045 : 0.07) * rate);
+      let y = 0;
+      const a = w.heel ? heelA : softA;
+      for (let i = 0; i < len; i++) {
+        const u = i / rate;
+        y = (1 - a) * rnd() + a * y;
+        const click = w.heel && u < 0.003 ? rnd() * (1 - u / 0.003) * 0.8 : 0;
+        const idx = (i0 + i) % d.length;
+        d[idx]! += (click + y * (w.heel ? 2.2 : 1.5) * Math.exp(-u / (w.heel ? 0.014 : 0.028))) * w.gain;
+      }
+    }
+  }
+  return buf;
+}
+
+/** A short original pattern. Not a known product tune. */
+function ringtone(ctx: SampleCtx, notes: readonly number[]): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const note = 0.16;
+  const seconds = notes.length * note + 0.05;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  notes.forEach((f, n) => {
+    const i0 = Math.floor(n * note * rate);
+    let ph = 0;
+    const len = Math.floor(0.14 * rate);
+    for (let i = 0; i < len && i0 + i < d.length; i++) {
+      const t = i / rate;
+      ph += f / rate;
+      const s = Math.sin(2 * Math.PI * ph);
+      const edge = Math.min(1, t / 0.01) * Math.min(1, (0.14 - t) / 0.03);
+      d[i0 + i]! += Math.tanh(s * 1.4) * edge * 0.45;
+    }
+  });
+  return buf;
+}
+
+/** A phone buzzing in a pocket: ~150 Hz, a few short pulses. */
+function phoneBuzz(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const pulses = 5;
+  const on = 0.07;
+  const off = 0.05;
+  const seconds = pulses * (on + off);
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  let ph = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const slot = t % (on + off);
+    ph += 150 / rate;
+    const env = slot < on ? Math.sin((Math.PI * slot) / on) : 0;
+    d[i] = Math.sin(2 * Math.PI * ph) * env * 0.7;
+  }
+  return buf;
+}
+
+/** A message ping: one decaying tone, not a melody. */
+function messagePing(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * 0.28), rate);
+  const d = buf.getChannelData(0);
+  let ph = 0;
+  const f = 740 + Math.random() * 180;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    ph += f / rate;
+    d[i] = Math.sin(2 * Math.PI * ph) * Math.exp(-t / 0.07) * 0.5;
+  }
+  return buf;
+}
+
+/** A keypad or notification blip. */
+function notifyBlip(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * 0.06), rate);
+  const d = buf.getChannelData(0);
+  let ph = 0;
+  const f = 980 + Math.random() * 400;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    ph += f / rate;
+    d[i] = Math.sin(2 * Math.PI * ph) * (1 - t / 0.06) * 0.4;
+  }
+  return buf;
+}
+
+/** One slurred shout: slow syllables, a wobbly pitch, mostly vowel. */
+function drunkShout(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.9 + Math.random() * 0.5;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  garbleInto(buf.getChannelData(0), rate, 0.02, seconds - 0.08, 95 + Math.random() * 55, false, 2.1 + Math.random() * 1.1, 1.15, 4, 0.25);
+  return buf;
+}
+
+/** Two or three voices together, loose and short. */
+function drunkCheer(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.7;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  for (const [at, pitch] of [[0, 130], [0.05, 175], [0.09, 210]] as const) {
+    garbleInto(d, rate, at, 0.48, pitch + Math.random() * 15, false, 2.4, 0.7, 3, 0.3);
+  }
+  return buf;
+}
+
+/** A rising whoop. */
+function whoop(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.42;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  let ph = 0;
+  let y1 = 0;
+  let y2 = 0;
+  const r = 0.97;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const f = 160 + 340 * (t / seconds) * (1 + 0.04 * Math.sin(t * 28));
+    ph += f / rate;
+    const p = ph % 1;
+    const pulse = p < 0.3 ? Math.sin((Math.PI * p) / 0.3) : 0;
+    const c = 2 * r * Math.cos((2 * Math.PI * 640) / rate);
+    const y = pulse * (1 - r) + c * y1 - r * r * y2;
+    y2 = y1;
+    y1 = y;
+    d[i] = y * Math.sin(Math.PI * Math.min(1, t / seconds)) * 0.8;
+  }
+  return buf;
+}
+
+/** A few held notes, none of them in tune with each other. */
+function drunkSong(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const notes = [188, 241, 163, 214];
+  const step = 0.34;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * notes.length * step), rate);
+  const d = buf.getChannelData(0);
+  notes.forEach((pitch, n) => garbleInto(d, rate, n * step, 0.3, pitch, false, 1.8, 0.85, 2.2, 0.15));
+  return buf;
+}
+
+/** A bin going over: inharmonic hits, a lid that spins down, a scrape. */
+function binClatter(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 1.4;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const partials = [171, 263, 397, 548, 812];
+  for (const at of [0.02, 0.1, 0.18, 0.27]) {
+    const i0 = Math.floor(at * rate);
+    const phases = partials.map(() => Math.random() * Math.PI * 2);
+    const amps = partials.map(() => 0.35 + Math.random() * 0.65);
+    for (let i = i0; i < d.length; i++) {
+      const t = (i - i0) / rate;
+      let s = 0;
+      for (let k = 0; k < partials.length; k++) s += Math.sin(2 * Math.PI * partials[k]! * t + phases[k]!) * amps[k]!;
+      const tick = t < 0.008 ? rnd() * (1 - t / 0.008) : 0;
+      d[i]! += (s * 0.2 + tick) * Math.exp(-t / 0.16);
+    }
+  }
+  let t = 0.4;
+  let gap = 0.072;
+  while (t < 1.05 && gap > 0.014) {
+    const i0 = Math.floor(t * rate);
+    const f = 880 + Math.random() * 360;
+    let ph = 0;
+    const len = Math.min(d.length - i0, Math.floor(0.02 * rate));
+    for (let i = 0; i < len; i++) {
+      const u = i / rate;
+      ph += f / rate;
+      d[i0 + i]! += Math.sin(2 * Math.PI * ph) * Math.exp(-u / 0.007) * 0.32;
+    }
+    t += gap;
+    gap *= 0.84;
+  }
+  const scrapeA = Math.exp((-2 * Math.PI * 850) / rate);
+  let y = 0;
+  const s0 = Math.floor(0.98 * rate);
+  for (let i = s0; i < d.length; i++) {
+    const u = (i - s0) / rate;
+    y = (1 - scrapeA) * rnd() + scrapeA * y;
+    d[i]! += y * Math.sin(Math.PI * Math.min(1, u / 0.35)) * 1.1;
+  }
+  return buf;
+}
+
+/** Rumble, hum, murmur and the daytime pavement ride the city bus. The groan rides the outbreak bus. */
 const BED_LAYER: Partial<Record<Bed, AmbientLayer>> = {
-  wind: 'city',
+  rumble: 'city',
   hum: 'city',
   murmur: 'city',
+  steps: 'city',
   groan: 'outbreak',
 };
 
@@ -857,6 +1074,9 @@ export class Audio {
   private nextGun = Infinity;
   private nextLife = Infinity;
   private nextPhrase = Infinity;
+  private nextPhone = Infinity;
+  private nextDrunk = Infinity;
+  private nextBin = Infinity;
   private nextMurmurPan = 0;
   private murmurPan = 0;
   private flying = 0;
@@ -896,8 +1116,8 @@ export class Audio {
     // Loops at one peak too: their levels are the bed gains in update().
     // The groan is built after the older beds so those keep their timbre.
     const loops: Record<Bed, AudioBuffer> = {
-      moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), wind: wind(ctx), hum: hum(ctx),
-      groan: groan(ctx), murmur: murmur(ctx),
+      moan: moan(ctx), engine: engine(ctx), siren: siren(ctx), rumble: rumble(ctx), hum: hum(ctx),
+      groan: groan(ctx), murmur: murmur(ctx), steps: footstepBed(ctx),
     };
     for (const buffer of Object.values(loops)) normalise(buffer, 0.7);
     for (const [name, buffer] of Object.entries(loops) as [Bed, AudioBuffer][]) {
@@ -923,6 +1143,20 @@ export class Audio {
     this.buffers.set('laugh', normalise(laugh(ctx)));
     this.buffers.set('callout', normalise(callout(ctx)));
     for (let i = 0; i < 3; i++) this.buffers.set(`phrase${i}`, normalise(nearPhrase(ctx)));
+    // Original patterns: a small leap, a falling question, a wide odd interval. None is a product tune.
+    this.buffers.set('ring0', normalise(ringtone(ctx, [392, 466, 349, 415])));
+    this.buffers.set('ring1', normalise(ringtone(ctx, [523, 392, 440, 330])));
+    this.buffers.set('ring2', normalise(ringtone(ctx, [440, 622, 370, 494])));
+    this.buffers.set('buzz', normalise(phoneBuzz(ctx)));
+    this.buffers.set('ping', normalise(messagePing(ctx)));
+    this.buffers.set('blip', normalise(notifyBlip(ctx)));
+    this.buffers.set('drunk0', normalise(drunkShout(ctx)));
+    this.buffers.set('drunk1', normalise(drunkShout(ctx)));
+    this.buffers.set('cheer', normalise(drunkCheer(ctx)));
+    this.buffers.set('whoop', normalise(whoop(ctx)));
+    this.buffers.set('sung', normalise(drunkSong(ctx)));
+    this.buffers.set('bin0', normalise(binClatter(ctx)));
+    this.buffers.set('bin1', normalise(binClatter(ctx)));
     const t0 = ctx.currentTime;
     this.nextTraffic = t0 + 3 + Math.random() * 5;
     this.nextScream = t0 + 6 + Math.random() * 6;
@@ -930,6 +1164,9 @@ export class Audio {
     this.nextGun = t0 + 5 + Math.random() * 6;
     this.nextLife = t0 + 2 + Math.random() * 5;
     this.nextPhrase = t0 + 7 + Math.random() * 6;
+    this.nextPhone = t0 + 4 + Math.random() * 6;
+    this.nextDrunk = t0 + 8 + Math.random() * 8;
+    this.nextBin = t0 + 11 + Math.random() * 8;
     this.nextMurmurPan = t0 + 1;
   }
 
@@ -1004,19 +1241,17 @@ export class Audio {
     this.bed('engine', Math.min(0.3, 0.12 * Math.sqrt(engines)) * fast, engines > 0 ? panOf(ex / engines) * 0.7 : 0);
     this.bed('siren', Math.min(0.22, 0.25 * sirenNear) * fast, panOf(sirenX) * 0.8, 0.25);
 
-    // The city: wind always, a little more as it empties and after dark; the hum of the
-    // living city, thinning as it empties and falling away at night. (Crickets after dark
-    // were tried: high pulsed chirps that read as birdsong, and jarred. They stay out.)
-    // Wind, hum, the murmur and the life sounds all ride the city bus. The murmur follows
-    // who is outdoors near the camera, not the city-wide share, and ducks under the groan
-    // and the cordon.
+    // The city: a low rumble and the daytime hum, both gone when nobody is left alive.
+    // (The old wind bed, which rose at night and as the city emptied, is not played.
+    // Crickets were tried too, and stay out.) Murmur, pavement and life sounds follow
+    // who is outdoors near the camera, and duck under the groan and the cordon.
     const c = frame.counters;
     const livingCount = c.unturned.outdoors + c.unturned.indoors;
     const deadCount = c.unturned.dead + c.turned.symptomatic + c.turned.outdoors + c.turned.occupying + c.turned.destroyed;
     const population = livingCount + deadCount + c.unturned.evacuated;
     const livingShare = population > 0 ? livingCount / population : 0;
     const city = cityLevels(frame.daylight, livingShare);
-    this.bed('wind', city.wind, 0, 1);
+    this.bed('rumble', city.rumble, 0, 1);
     this.bed('hum', city.hum, 0, 1);
     // Outbreak: a groan from how much of the city has turned, ducked while the local moan is already loud.
     const groanLevel = groanedUnderMoan(deadCount, livingCount, moan);
@@ -1031,6 +1266,7 @@ export class Audio {
       this.nextMurmurPan = ctx.currentTime + 5 + Math.random() * 6;
     }
     this.bed('murmur', crowd.murmur * fast, this.murmurPan, 1.6);
+    this.bed('steps', 0.05 * crowd.steps * fast, 0, 1.2);
 
     // One-shots: heard out to their own reach (how far the dead hear them) or the view,
     // loudest at the listener first, a few per frame.
@@ -1057,7 +1293,7 @@ export class Audio {
    * a stalled frame cannot dump a queue. Randomness here is the audio clock's, never
    * the simulation's.
    */
-  private scheduleAmbient(now: number, speed: number, traffic: number, groan: number, cordon: number, daylight: number, lifeNear: number, crowd: { life: number; birds: number }): void {
+  private scheduleAmbient(now: number, speed: number, traffic: number, groan: number, cordon: number, daylight: number, lifeNear: number, crowd: { life: number; birds: number; phones: number; night: number }): void {
     const gap = speed > 4 ? 2 : 1;
     const shots = speed < 8;
     if (this.nextTraffic <= now) {
@@ -1096,33 +1332,41 @@ export class Audio {
     if (this.nextLife <= now) {
       if (shots && lifeNear > 0.12 && this.layerOn.city && this.flying < AMBIENT_VOICES) {
         const roll = Math.random();
-        const birds = daylight > 0.45 && crowd.birds > 0.08;
+        const day = daylight > 0.45;
         let kind = 'steps';
         let level = 0.042;
         let from = (Math.random() - 0.5) * 1.2;
         let to = from;
-        if (birds && roll < 0.22) {
+        if (!day) {
+          if (roll < 0.4) {
+            kind = 'steps';
+            from = Math.random() < 0.5 ? -0.55 : 0.55;
+            to = -from;
+          } else if (roll < 0.7) kind = 'door';
+          else kind = 'bark';
+          level = kind === 'door' ? 0.036 : kind === 'bark' ? 0.04 : 0.042;
+        } else if (day && crowd.birds > 0.08 && roll < 0.22) {
           kind = 'bird';
           level = 0.028;
-        } else if (roll < 0.44) {
+        } else if (roll < 0.4) {
+          kind = 'door';
+          level = 0.036;
+        } else if (roll < 0.55) {
+          kind = 'horn';
+          level = 0.03;
+        } else if (roll < 0.72) {
+          kind = 'bell';
+          level = 0.032;
+        } else if (roll < 0.88) {
+          kind = 'bark';
+          level = 0.04;
+        } else {
           kind = 'steps';
           level = 0.042;
           from = Math.random() < 0.5 ? -0.55 : 0.55;
           to = -from;
-        } else if (roll < 0.58) {
-          kind = 'door';
-          level = 0.036;
-        } else if (roll < 0.7) {
-          kind = 'horn';
-          level = 0.03;
-        } else if (roll < 0.84) {
-          kind = 'bell';
-          level = 0.032;
-        } else {
-          kind = 'bark';
-          level = 0.04;
         }
-        this.fireAmbient(kind, 'city', level * crowd.life, from, to);
+        this.fireAmbient(kind, 'city', level * (day ? crowd.life : Math.max(crowd.life, crowd.night)), from, to);
       }
       const night = daylight < 0.4 ? 2.5 : 1;
       const span = lifeNear > 0.12 ? ((7 + Math.random() * 8) * gap * night) / Math.max(0.35, lifeNear) : (16 + Math.random() * 10) * gap;
@@ -1137,6 +1381,34 @@ export class Audio {
         this.fireAmbient(kind, 'city', 0.065 * crowd.life, pan, pan, 'voice', 0.04);
       }
       this.nextPhrase = now + (14 + Math.random() * 12) * gap * (daylight < 0.4 ? 2.4 : 1);
+    }
+    if (this.nextPhone <= now) {
+      if (shots && daylight > 0.45 && lifeNear > 0.12 && this.layerOn.city && this.flying < AMBIENT_VOICES) {
+        const roll = Math.random();
+        const kind = roll < 0.45 ? `ring${Math.floor(Math.random() * 3)}` : roll < 0.7 ? 'buzz' : roll < 0.88 ? 'ping' : 'blip';
+        const near = Math.random() < 0.2;
+        const pan = (Math.random() - 0.5) * (near ? 0.7 : 0.35);
+        this.fireAmbient(kind, 'city', (near ? 0.055 : 0.022) * crowd.phones, pan, pan);
+      }
+      this.nextPhone = now + (12 + Math.random() * 10) * gap;
+    }
+    if (this.nextDrunk <= now) {
+      const room = this.flying < AMBIENT_VOICES && this.active.voice < VOICES.voice;
+      if (shots && daylight < 0.4 && lifeNear > 0.1 && this.layerOn.city && room) {
+        const roll = Math.random();
+        const kind = roll < 0.45 ? (Math.random() < 0.5 ? 'drunk0' : 'drunk1') : roll < 0.7 ? 'cheer' : roll < 0.85 ? 'whoop' : 'sung';
+        const pan = (Math.random() - 0.5) * 0.7;
+        this.fireAmbient(kind, 'city', 0.075 * crowd.night, pan, pan, 'voice', 0.05);
+      }
+      this.nextDrunk = now + (16 + Math.random() * 14) * gap;
+    }
+    if (this.nextBin <= now) {
+      if (shots && daylight < 0.4 && lifeNear > 0.08 && this.layerOn.city && this.flying < AMBIENT_VOICES) {
+        const near = 0.45 + Math.random() * 0.7;
+        const pan = (Math.random() - 0.5) * 0.85;
+        this.fireAmbient(Math.random() < 0.5 ? 'bin0' : 'bin1', 'city', 0.05 * near * crowd.night, pan, pan);
+      }
+      this.nextBin = now + (18 + Math.random() * 16) * gap;
     }
   }
 
@@ -1236,7 +1508,7 @@ export function renderAmbientPreview(layer: AmbientLayer, seconds = 14, sampleRa
   };
   if (layer === 'city') {
     const day = (t: number) => (t < 5 ? 1 : t < 8 ? 1 - (t - 5) / 3 : 0);
-    loop(normalise(wind(ctx), 0.7), (t) => cityLevels(day(t), 0.85).wind);
+    loop(normalise(rumble(ctx), 0.7), (t) => cityLevels(day(t), 0.85).rumble);
     loop(normalise(hum(ctx), 0.7), (t) => cityLevels(day(t), 0.85).hum);
     add(normalise(trafficPass(ctx)), 1.2, 0.14);
     add(normalise(trafficPass(ctx)), 3.6, 0.12);
@@ -1276,9 +1548,10 @@ export function renderCityScene(scene: 'day' | 'night' | 'outbreak', seconds = 2
   const lifeAt = (t: number) => (scene === 'outbreak' ? Math.max(0, 1 - t / seconds) : scene === 'night' ? 0.55 : 0.9);
   const day = scene === 'night' ? 0 : 1;
   const groanAt = (t: number) => (scene === 'outbreak' ? outbreakLevel(t, Math.max(0.001, seconds - t)) : 0);
-  loop(normalise(wind(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).wind);
+  loop(normalise(rumble(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).rumble);
   loop(normalise(hum(ctx), 0.7), (t) => cityLevels(day, lifeAt(t)).hum);
   loop(normalise(murmur(ctx), 0.7), (t) => crowdMix(lifeAt(t), day, groanAt(t), 0).murmur);
+  if (scene === 'day') loop(normalise(footstepBed(ctx), 0.7), (t) => 0.05 * crowdMix(lifeAt(t), day, groanAt(t), 0).steps);
   if (scene === 'outbreak') loop(normalise(groan(ctx), 0.7), (t) => groanAt(t));
   if (scene === 'day') {
     add(normalise(trafficPass(ctx)), 2.4, 0.14);
@@ -1288,18 +1561,33 @@ export function renderCityScene(scene: 'day' | 'night' | 'outbreak', seconds = 2
     add(normalise(trafficPass(ctx)), 1.2, 0.12);
   }
   const spots: [number, string][] = scene === 'night'
-    ? [[2, 'steps'], [5.5, 'phrase'], [9, 'door'], [12.2, 'bark']]
+    ? [[1.6, 'phrase'], [4.2, 'drunk'], [7.5, 'door'], [11, 'bin'], [14.5, 'bark'], [17.2, 'steps']]
     : scene === 'outbreak'
       ? [[1, 'bird'], [2.6, 'steps'], [4.4, 'laugh'], [6.5, 'bell']]
-      : [[1.4, 'bird'], [3.6, 'steps'], [6, 'laugh'], [8.4, 'door'], [11, 'bird'], [13.4, 'horn'], [16, 'bell'], [18.2, 'callout']];
+      : [[1.5, 'bird'], [3.2, 'ring'], [6.4, 'buzz'], [9, 'door'], [11.5, 'ping'], [14.2, 'laugh'], [16.8, 'bell'], [18.6, 'blip']];
   for (const [at, kind] of spots) {
     if (at >= seconds - 0.2) continue;
     const life = lifeAt(at);
     if (life < 0.12) continue;
     const mix = crowdMix(life, day, groanAt(at), 0);
     if (kind === 'bird' && mix.birds < 0.08) continue;
-    const made = kind === 'phrase' ? nearPhrase(ctx) : kind === 'laugh' ? laugh(ctx) : kind === 'callout' ? callout(ctx) : kind === 'steps' ? footsteps(ctx) : kind === 'door' ? doorClose(ctx) : kind === 'bark' ? dogBark(ctx) : kind === 'horn' ? carHorn(ctx) : kind === 'bell' ? bicycleBell(ctx) : birdChirp(ctx);
-    const level = (kind === 'bird' ? 0.028 : kind === 'laugh' || kind === 'callout' || kind === 'phrase' ? 0.065 : 0.04) * mix.life;
+    const made = kind === 'phrase' ? nearPhrase(ctx)
+      : kind === 'laugh' ? laugh(ctx)
+      : kind === 'callout' ? callout(ctx)
+      : kind === 'steps' ? footsteps(ctx)
+      : kind === 'door' ? doorClose(ctx)
+      : kind === 'bark' ? dogBark(ctx)
+      : kind === 'horn' ? carHorn(ctx)
+      : kind === 'bell' ? bicycleBell(ctx)
+      : kind === 'ring' ? ringtone(ctx, [392, 466, 349, 415])
+      : kind === 'buzz' ? phoneBuzz(ctx)
+      : kind === 'ping' ? messagePing(ctx)
+      : kind === 'blip' ? notifyBlip(ctx)
+      : kind === 'drunk' ? drunkShout(ctx)
+      : kind === 'bin' ? binClatter(ctx)
+      : birdChirp(ctx);
+    const weight = kind === 'drunk' || kind === 'bin' ? mix.night : kind === 'ring' || kind === 'buzz' || kind === 'ping' || kind === 'blip' ? mix.phones : mix.life;
+    const level = (kind === 'bird' ? 0.028 : kind === 'drunk' ? 0.08 : kind === 'bin' ? 0.055 : kind === 'laugh' || kind === 'callout' || kind === 'phrase' ? 0.065 : kind === 'ring' ? 0.04 : 0.035) * Math.max(weight, scene === 'night' && (kind === 'drunk' || kind === 'bin') ? 0.5 : 0);
     add(normalise(made), at, level);
   }
   let max = 0;

@@ -49,8 +49,8 @@ writeFileSync(chatterPath, wav(chatter));
 console.log(`${chatterPath}  ${chatterSeconds}s  ${rate} Hz  peak-normalised`);
 
 const scenes = [
-  ['ambient-city-day.wav', 'day', 20],
-  ['ambient-city-night.wav', 'night', 15],
+  ['ambient-city-day-v2.wav', 'day', 20],
+  ['ambient-city-night-v2.wav', 'night', 20],
   ['ambient-city-outbreak.wav', 'outbreak', 15],
 ] as const;
 for (const [name, scene, len] of scenes) {

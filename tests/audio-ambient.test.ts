@@ -3,17 +3,17 @@ import { cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groaned
 import { SIM_LIVING, SIM_PROMOTED } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
-  it('keeps the living day hum and a low wind', () => {
-    expect(cityLevels(1, 1)).toEqual({ hum: 0.07, wind: 0.05, traffic: 1 });
+  it('keeps the living day hum and a low rumble', () => {
+    expect(cityLevels(1, 1)).toEqual({ hum: 0.07, rumble: 0.032, traffic: 1 });
   });
 
-  it('drops the hum at night and puts that wind back', () => {
-    expect(cityLevels(0, 1)).toEqual({ hum: 0, wind: 0.07, traffic: 0 });
+  it('drops the hum at night and keeps the rumble while people are alive', () => {
+    expect(cityLevels(0, 1)).toEqual({ hum: 0, rumble: 0.032, traffic: 0 });
   });
 
-  it('lets the wind rise as the city empties, and further after dark', () => {
-    expect(cityLevels(1, 0)).toEqual({ hum: 0, wind: 0.09, traffic: 0 });
-    expect(cityLevels(0, 0)).toEqual({ hum: 0, wind: 0.11, traffic: 0 });
+  it('goes quiet as the city empties, with no night wind', () => {
+    expect(cityLevels(1, 0)).toEqual({ hum: 0, rumble: 0, traffic: 0 });
+    expect(cityLevels(0, 0)).toEqual({ hum: 0, rumble: 0, traffic: 0 });
   });
 
   it('clamps daylight and the living share', () => {
@@ -91,7 +91,12 @@ describe('crowd near the camera', () => {
     expect(day.birds).toBeCloseTo(1);
     expect(night.birds).toBe(0);
     expect(night.life).toBeCloseTo(0.35);
-    expect(crowdMix(0, 1, 0, 0)).toEqual({ murmur: 0, life: 0, birds: 0 });
+    expect(day.steps).toBeCloseTo(1);
+    expect(night.steps).toBe(0);
+    expect(night.night).toBeCloseTo(1);
+    expect(day.phones).toBeCloseTo(1);
+    expect(night.phones).toBe(0);
+    expect(crowdMix(0, 1, 0, 0)).toEqual({ murmur: 0, life: 0, birds: 0, steps: 0, phones: 0, night: 0 });
   });
 
   it('ducks under the outbreak groan and the cordon', () => {
