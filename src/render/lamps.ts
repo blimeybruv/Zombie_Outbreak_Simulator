@@ -4,7 +4,20 @@
 // station. A short lit segment still gets one lamp, at its midpoint, on the
 // side its single station falls on. Same-kerb duplicates at a joint are dropped.
 
-import * as P from './palette';
+/** Metres between stations along a lit street. Each kerb takes every other station, so a side is twice this. */
+export const LAMP_SPACING = 22;
+/** Metres in from the carriageway edge, so the head sits on the kerb. */
+export const LAMP_KERB_INSET = 0.5;
+/** Metres. A shorter lit segment stays dark. */
+export const LAMP_MIN_LENGTH = 10;
+/** Metres along one kerb. Drops a duplicate where two segments meet; shorter than any opposite pair. */
+export const LAMP_MIN_DISTANCE = 8;
+/** Metres. The two kerbs of a 20 m road are 19 m apart, so the falloff meets over the carriageway. */
+export const LAMP_GLOW_RADIUS = 16;
+/** Metres. The head at near zoom, smaller and dimmer than an agent dot. */
+export const LAMP_HEAD_RADIUS = 0.45;
+/** Metres. Far zoom draws lit streets as one stroke of this width instead of glows. */
+export const FAR_LIGHT_WIDTH = 6;
 
 interface Seg {
   x1: number;
@@ -78,10 +91,10 @@ export function placeKerbLamps(
     const g = segs[i]!;
     const dx = g.x2 - g.x1, dy = g.y2 - g.y1;
     const len = Math.hypot(dx, dy);
-    if (len < P.LAMP_MIN_LENGTH) continue;
-    const off = Math.max(0, g.hw - P.LAMP_KERB_INSET);
+    if (len < LAMP_MIN_LENGTH) continue;
+    const off = Math.max(0, g.hw - LAMP_KERB_INSET);
     const nx = -dy / len * off, ny = dx / len * off;
-    const count = Math.max(1, Math.round(len / P.LAMP_SPACING));
+    const count = Math.max(1, Math.round(len / LAMP_SPACING));
     const at = (t: number, side: number): { x: number; y: number } | null => {
       const sign = side === 0 ? 1 : -1;
       const x = g.x1 + dx * t + nx * sign, y = g.y1 + dy * t + ny * sign;
@@ -105,7 +118,7 @@ export function placeKerbLamps(
     }
   }
   // Per kerb. A global cull would delete the opposite lamp of a pair on a narrow street.
-  const cell = P.LAMP_MIN_DISTANCE;
+  const cell = LAMP_MIN_DISTANCE;
   const kept: { x: number; y: number }[] = [];
   for (const side of candidates) {
     const grid = new Map<string, { x: number; y: number }[]>();

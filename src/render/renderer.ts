@@ -18,7 +18,7 @@ import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
-import { placeKerbLamps } from './lamps';
+import { FAR_LIGHT_WIDTH, LAMP_GLOW_RADIUS, LAMP_HEAD_RADIUS, placeKerbLamps } from './lamps';
 import * as P from './palette';
 import { BorderLines } from './border';
 import { Traffic } from './traffic';
@@ -66,8 +66,9 @@ const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
 const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of the carriageway
-const LAMP_HEAD = 0.5; // m: the bright head, smaller than an agent dot
-const LAMP_GLOW_MID_STOP = 0.22; // fraction of the glow radius: a tight core, then a long falloff
+const GLOW_MID_STOP = 0.4; // fraction of the glow radius where the mid colour sits
+const GLOW_PX_MIN = 32; // sprite pixels across; below this a downscale would look blocky
+const GLOW_PX_MAX = 384; // sprite pixels across; above this a near zoom is already 1:1
 const CENTER_LINE_W = 1.5; // m
 const CENTER_LINE_MIN_W = 14; // m: wider than a standard street (main roads and the highway)
 const CENTER_DASH: [number, number] = [8, 6]; // m on, m off
@@ -223,8 +224,13 @@ export class Renderer {
   private readonly bridgeAbutments: Path2D;
   private readonly doorPath: Path2D; // a small step outside every entrance, drawn at near zoom
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
-  /** Kerbside lamps on lit streets, placed once. */
+  /** Kerbside lamps on lit streets, placed once. The set is the staggered layout. */
   private readonly lamps: { x: number; y: number }[];
+  /** One radial glow, redrawn when the static layer's pixels-per-metre changes. */
+  private readonly glow = document.createElement('canvas');
+  private glowPx = 0;
+  /** Lit streets, stroked only at far zoom. */
+  private readonly litPath = new Path2D();
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
   private readonly roadFillPath: Path2D;
@@ -297,6 +303,10 @@ export class Renderer {
       if (!path) this.streetPaths.set(width, (path = new Path2D()));
       path.moveTo(map.streets[s]!, map.streets[s + 1]!);
       path.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
+      if (map.streetLit[i]) {
+        this.litPath.moveTo(map.streets[s]!, map.streets[s + 1]!);
+        this.litPath.lineTo(map.streets[s + 2]!, map.streets[s + 3]!);
+      }
     }
     // Per street end: the widest other street meeting there, if it is a junction (three or
     // more streets) — a road merely continuing is not a crossing.
@@ -509,7 +519,29 @@ export class Renderer {
     if (this.sounds.length > 400) this.sounds = this.sounds.slice(-400);
   }
 
-  /** Redraws the static city when the view or the light has changed since last time. */
+  /**
+   * The glow bitmap for the current layer. Diameter tracks the layer's device pixels
+   * per metre, clamped, so a near zoom is one sprite pixel per screen pixel and a
+   * mid zoom is downscaled rather than a handful of blocks.
+   */
+  private glowSprite(pxPerMetre: number): HTMLCanvasElement {
+    const px = Math.max(GLOW_PX_MIN, Math.min(GLOW_PX_MAX, Math.ceil(LAMP_GLOW_RADIUS * 2 * pxPerMetre)));
+    if (px === this.glowPx) return this.glow;
+    this.glowPx = px;
+    this.glow.width = px;
+    this.glow.height = px;
+    const g = this.glow.getContext('2d')!;
+    const r = px / 2;
+    const grd = g.createRadialGradient(r, r, 0, r, r, r);
+    grd.addColorStop(0, P.LAMP_GLOW_CORE);
+    grd.addColorStop(GLOW_MID_STOP, P.LAMP_GLOW_MID);
+    grd.addColorStop(1, P.LAMP_GLOW_EDGE);
+    g.clearRect(0, 0, px, px);
+    g.fillStyle = grd;
+    g.fillRect(0, 0, px, px);
+    return this.glow;
+  }
+
   /**
    * The static city, drawn larger than the view by STATIC_MARGIN of it on every side and
    * kept while the camera only pans: following someone, or dragging, shifts the image
@@ -580,20 +612,34 @@ export class Renderer {
     this.border.draw(g, cam, dpr);
     g.fillStyle = P.BACKGROUND;
     for (const deck of this.bridgeDecks.values()) g.fill(deck);
-    if (night) {
-      // Kerbside pools on lit streets. Positions were placed once in the constructor.
+    if (night && far) {
+      // Individual pools are a few pixels at this scale and the layer covers the whole
+      // city, so lit streets are one faint stroke instead.
+      g.strokeStyle = P.STREET_LIGHT;
+      g.lineWidth = FAR_LIGHT_WIDTH;
+      g.stroke(this.litPath);
+    } else if (night) {
+      // The sprite is one device pixel per metre-pixel of this layer, so a near zoom
+      // stamps it 1:1. It is rebuilt only when that size changes.
+      const sprite = this.glowSprite(cam.scale * dpr);
+      const halfW = cam.width / 2 / cam.scale;
+      const halfH = cam.height / 2 / cam.scale;
+      const minX = cam.x - halfW, maxX = cam.x + halfW;
+      const minY = cam.y - halfH, maxY = cam.y + halfH;
+      const d = LAMP_GLOW_RADIUS * 2;
+      g.imageSmoothingEnabled = true;
       for (const lamp of this.lamps) {
-        const grd = g.createRadialGradient(lamp.x, lamp.y, 0, lamp.x, lamp.y, P.LAMP_GLOW_RADIUS);
-        grd.addColorStop(0, P.LAMP_GLOW_CORE);
-        grd.addColorStop(LAMP_GLOW_MID_STOP, P.LAMP_GLOW_MID);
-        grd.addColorStop(1, P.LAMP_GLOW_EDGE);
-        g.fillStyle = grd;
+        if (lamp.x < minX || lamp.x > maxX || lamp.y < minY || lamp.y > maxY) continue;
+        g.drawImage(sprite, lamp.x - LAMP_GLOW_RADIUS, lamp.y - LAMP_GLOW_RADIUS, d, d);
+      }
+      if (cam.mode === 'near') {
+        g.fillStyle = P.LAMP_HEAD;
         g.beginPath();
-        g.arc(lamp.x, lamp.y, P.LAMP_GLOW_RADIUS, 0, Math.PI * 2);
-        g.fill();
-        g.fillStyle = P.LAMP_CENTER;
-        g.beginPath();
-        g.arc(lamp.x, lamp.y, LAMP_HEAD, 0, Math.PI * 2);
+        for (const lamp of this.lamps) {
+          if (lamp.x < minX || lamp.x > maxX || lamp.y < minY || lamp.y > maxY) continue;
+          g.moveTo(lamp.x + LAMP_HEAD_RADIUS, lamp.y);
+          g.arc(lamp.x, lamp.y, LAMP_HEAD_RADIUS, 0, Math.PI * 2);
+        }
         g.fill();
       }
     }
