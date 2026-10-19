@@ -190,6 +190,8 @@ export interface FrameSnapshot {
   breachedExits: number;
   /** The rescue's tents, once it has come: middle x, y, the road's direction dx, dy, length along it and width across, per tent (TENT_STRIDE values); empty before. */
   tents: Float32Array;
+  /** Army Rangers of the rescue still outdoors: x, y pairs. Empty before the sweep and when none remain. */
+  rangers: Float32Array;
   /** People in the tents waiting for a truck. */
   tented: number;
   /** Day of the week, 0 Monday … 6 Sunday (time.startWeekday, then a day each dayLength ticks past midnight). */

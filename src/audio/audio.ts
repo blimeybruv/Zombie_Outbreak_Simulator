@@ -17,7 +17,7 @@
 //              move (a siren), and the city itself (a steady low traffic drone that
 //              thins with the living and is quieter at night).
 //
-// Three more buses sit under the master — city, outbreak, cordon — each with its
+// Four buses sit under the master — city, outbreak, cordon, army — each with its
 // own gain, so a layer can be mixed off without a click (setLayerEnabled). The
 // city bus carries that drone, distant engines now and then, a murmur, a looped
 // pavement of footsteps by day, and sparse life sounds: phones by day, a door, a
@@ -30,6 +30,8 @@
 // the voice cap. The cordon bus is short radio transmissions
 // (a squelch, garbled voices, a squelch tail, then silence) and a distant shot,
 // silent until an exit is closed and louder when the view is near one.
+// The army bus is the rescue's radio: clipped call-and-response, silent until
+// Rangers are outdoors, louder near them, and it ducks the cordon while it talks.
 //
 // The funnel is the work: loudest first, a few per frame, voice caps per category,
 // thinner above 4× and only the loudest at 8×. Ambient one-shots share those caps,
@@ -83,7 +85,7 @@ interface SampleCtx {
 }
 
 /** Which ambient bus a toggle addresses. */
-export type AmbientLayer = 'city' | 'outbreak' | 'cordon';
+export type AmbientLayer = 'city' | 'outbreak' | 'cordon' | 'army';
 
 // A steady traffic drone. Day cap matches the old rumble; night is lower; a dead
 // city is silent. `traffic` is how present distant engines are (the living share).
@@ -267,6 +269,91 @@ export function outbreakBreathDrive(camX: number, camY: number, simXY: ArrayLike
     close = Math.max(close, 1 - d / BREATH_ZOMBIE_M);
   }
   return clamp01(Math.max(Math.min(1, flee / 2), close));
+}
+
+// Army radio. Full beside a Ranger, a trace from past 250 m, silent with none on the map.
+const ARMY_NEAR_M = 150;
+const ARMY_FAR_M = 250;
+const ARMY_PEAK = 0.18;
+const ARMY_FLOOR = 0.35;
+const ARMY_COUNT = 8;
+const ARMY_THREAT_M = 80;
+const ARMY_SHOT_M = 140;
+
+export interface ArmyMix {
+  /** Transmission level. 0 when no Rangers are outdoors. */
+  gain: number;
+  /** 0–1, how often they talk. Engagement pushes it up. */
+  busy: number;
+  /** Multiplier on the cordon chatter while the army net is up. 1 when it is silent. */
+  cordonDuck: number;
+}
+
+/** Metres to the nearest Ranger. Infinity when the array is empty. */
+export function nearestRanger(camX: number, camY: number, rangers: ArrayLike<number>): number {
+  const n = Math.floor(rangers.length / 2);
+  let best = Infinity;
+  for (let i = 0; i < n; i++) best = Math.min(best, Math.hypot(camX - rangers[i * 2]!, camY - rangers[i * 2 + 1]!));
+  return best;
+}
+
+/** Pan toward the nearest Ranger, −1…1. 0 when none are out. */
+export function rangerPan(camX: number, camY: number, rangers: ArrayLike<number>): number {
+  const n = Math.floor(rangers.length / 2);
+  let best = Infinity;
+  let x = camX;
+  for (let i = 0; i < n; i++) {
+    const d = Math.hypot(camX - rangers[i * 2]!, camY - rangers[i * 2 + 1]!);
+    if (d < best) {
+      best = d;
+      x = rangers[i * 2]!;
+    }
+  }
+  if (!Number.isFinite(best)) return 0;
+  return Math.max(-1, Math.min(1, (x - camX) / Math.max(80, best)));
+}
+
+/**
+ * 0–1 from zombies and rifle shots already on the frame that fall near a Ranger.
+ * A pistol across the city does not count, and neither does a zombie far from the company.
+ */
+export function armyEngagement(rangers: ArrayLike<number>, zombieXY: ArrayLike<number>, zombieKind: ArrayLike<number>, noises: readonly { x: number; y: number; kind: string }[]): number {
+  const n = Math.floor(rangers.length / 2);
+  if (n === 0) return 0;
+  let zombies = 0;
+  const nz = Math.min(zombieKind.length, Math.floor(zombieXY.length / 2));
+  for (let i = 0; i < nz; i++) {
+    if (zombieKind[i] === 0) continue;
+    const x = zombieXY[i * 2]!;
+    const y = zombieXY[i * 2 + 1]!;
+    for (let r = 0; r < n; r++) {
+      if (Math.hypot(x - rangers[r * 2]!, y - rangers[r * 2 + 1]!) <= ARMY_THREAT_M) {
+        zombies++;
+        break;
+      }
+    }
+  }
+  let shots = 0;
+  for (const noise of noises) {
+    if (noise.kind !== 'rifle') continue;
+    for (let r = 0; r < n; r++) {
+      if (Math.hypot(noise.x - rangers[r * 2]!, noise.y - rangers[r * 2 + 1]!) <= ARMY_SHOT_M) {
+        shots++;
+        break;
+      }
+    }
+  }
+  return clamp01(zombies / 4 + shots / 2);
+}
+
+/** Gain, how busy the net is, and how far the cordon chatter ducks. Silent at ranger count 0. */
+export function armyMix(rangerCount: number, nearestM: number, engaged: number): ArmyMix {
+  if (rangerCount <= 0) return { gain: 0, busy: 0, cordonDuck: 1 };
+  const count = 1 - Math.exp(-rangerCount / ARMY_COUNT);
+  const near = !Number.isFinite(nearestM) ? ARMY_FLOOR : nearestM <= ARMY_NEAR_M ? 1 : nearestM >= ARMY_FAR_M ? ARMY_FLOOR : 1 + (ARMY_FLOOR - 1) * ((nearestM - ARMY_NEAR_M) / (ARMY_FAR_M - ARMY_NEAR_M));
+  const gain = ARMY_PEAK * count * near;
+  const busy = clamp01(0.28 + 0.72 * clamp01(engaged));
+  return { gain, busy, cordonDuck: 1 - 0.72 * (gain / ARMY_PEAK) };
 }
 
 /** Proximity gain from metres to the nearest closed exit or its barrier. Open cordons are silent. */
@@ -846,7 +933,7 @@ const VOWELS: readonly (readonly [number, number, number])[] = [
  * Unintelligible speech into `dest`. `radio` is the cordon chain: 300 Hz–3 kHz, hiss,
  * saturation and a light crush. Without it the band is wider and clean, for the crowd.
  */
-function garbleInto(dest: Float32Array, rate: number, start: number, dur: number, pitch: number, radio: boolean, syllableRate?: number, gain = 1, wobble = 1, consonant = 1, rise = 0): void {
+function garbleInto(dest: Float32Array, rate: number, start: number, dur: number, pitch: number, radio: boolean, syllableRate?: number, gain = 1, wobble = 1, consonant = 1, rise = 0, chain?: { hp: number; lp: number; crush: number; hiss: number }): void {
   const syl = syllableRate ?? 4 + Math.random() * 3;
   const formants = Math.random() < 0.34 ? 2 : 3;
   const vowels: [number, number, number][] = [];
@@ -866,15 +953,17 @@ function garbleInto(dest: Float32Array, rate: number, start: number, dur: number
   let hp = 0;
   let lp = 0;
   let hiss = 0;
-  const hpA = Math.exp((-2 * Math.PI * (radio ? 300 : 80)) / rate);
-  const lpA = Math.exp((-2 * Math.PI * (radio ? 3000 : 7000)) / rate);
+  const hpA = Math.exp((-2 * Math.PI * (radio ? (chain?.hp ?? 300) : 80)) / rate);
+  const lpA = Math.exp((-2 * Math.PI * (radio ? (chain?.lp ?? 3000) : 7000)) / rate);
+  const crush = chain?.crush ?? 64;
+  const hissG = chain?.hiss ?? 0.04;
   const hissA = Math.exp((-2 * Math.PI * 2000) / rate);
   const i0 = Math.floor(start * rate);
   const n = Math.floor(dur * rate);
   for (let i = 0; i < n && i0 + i < dest.length; i++) {
     const t = i / rate;
     if ((i & 31) === 0) wander = wander * 0.8 + (Math.random() - 0.5) * 0.035 * wobble;
-    const glide = radio ? 0.045 : 0.045 * wobble;
+    const glide = radio ? (chain ? 0.012 : 0.045) : 0.045 * wobble;
     const contour = 1 + glide * Math.sin((Math.PI * t) / Math.max(0.05, dur)) - 0.03 * (t / Math.max(0.05, dur)) + wander + rise * (t / Math.max(0.05, dur));
     ph += (pitch * contour) / rate;
     const p = ph % 1;
@@ -904,13 +993,13 @@ function garbleInto(dest: Float32Array, rate: number, start: number, dur: number
     let x = (voiced * 0.85 + cons) * gap * edge;
     if (radio) {
       hiss = (1 - hissA) * rnd() + hissA * hiss;
-      x += hiss * 0.04 * edge;
+      x += hiss * hissG * edge;
     }
     const hpOut = hpA * (hp + x - xPrev);
     hp = hpOut;
     xPrev = x;
     lp = (1 - lpA) * hpOut + lpA * lp;
-    dest[i0 + i]! += (radio ? Math.round(Math.tanh(lp * 1.7) * 64) / 64 : lp) * gain;
+    dest[i0 + i]! += (radio ? Math.round(Math.tanh(lp * 1.7) * crush) / crush : lp) * gain;
   }
 }
 
@@ -971,6 +1060,82 @@ function radioChatter(ctx: SampleCtx): AudioBuffer {
     speak(open + talkA + mid, talkB, pitchB);
   }
   squelch(open + talkA + mid + talkB, close, 2000 + Math.random() * 300, 'close');
+  return buf;
+}
+
+/** Narrower, more crushed than the cordon net: a digital radio rather than an analogue one. */
+const ARMY_CHAIN = { hp: 500, lp: 1900, crush: 16, hiss: 0.008 };
+
+/** A short digital burst: hard tones, not a noise bed. */
+function dataBurst(dest: Float32Array, rate: number, start: number, seconds: number): void {
+  const tones = [1120, 1480, 1760, 2040, 1360, 960];
+  const i0 = Math.floor(start * rate);
+  const n = Math.floor(seconds * rate);
+  const step = Math.max(1, Math.floor(n / tones.length));
+  let ph = 0;
+  const lpA = Math.exp((-2 * Math.PI * 2300) / rate);
+  let lp = 0;
+  for (let i = 0; i < n && i0 + i < dest.length; i++) {
+    const f = tones[Math.min(tones.length - 1, Math.floor(i / step))]!;
+    ph += f / rate;
+    const u = i % step;
+    const edge = Math.min(1, u / 6) * Math.min(1, (step - u) / 6);
+    lp = (1 - lpA) * Math.tanh(Math.sin(2 * Math.PI * ph) * 4) * edge + lpA * lp;
+    dest[i0 + i]! += Math.round(lp * 10) / 10 * 0.45;
+  }
+}
+
+/**
+ * One army transmission: a clipped call, a double roger that is not the cordon's beep,
+ * a short acknowledgement, and sometimes a data burst. Lower, flatter, faster.
+ */
+function armyChatter(ctx: SampleCtx, forceData = false): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const call = 0.34 + Math.random() * 0.28;
+  const ack = 0.18 + Math.random() * 0.16;
+  const gap = 0.06;
+  const open = 0.032;
+  const data = forceData || Math.random() < 0.28;
+  const burst = data ? 0.2 : 0;
+  const close = 0.045;
+  const total = open + call + gap + ack + (data ? 0.04 + burst : 0) + close;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * total), rate);
+  const d = buf.getChannelData(0);
+  const click = (at: number, seconds: number, hz: number) => {
+    const i0 = Math.floor(at * rate);
+    const n = Math.ceil(seconds * rate);
+    let ph = 0;
+    for (let i = 0; i < n && i0 + i < d.length; i++) {
+      const t = i / rate;
+      ph += hz / rate;
+      const attack = t < 0.003 ? rnd() * (1 - t / 0.003) * 1.1 : 0;
+      d[i0 + i]! += attack + Math.sin(2 * Math.PI * ph) * Math.exp(-t / 0.008) * 0.55;
+    }
+  };
+  const roger = (at: number) => {
+    click(at, 0.028, 1040);
+    click(at + 0.04, 0.028, 1560);
+  };
+  const pitch = 92 + Math.random() * 16;
+  click(0, open, 3400);
+  garbleInto(d, rate, open, call, pitch, true, 9.4, 1, 0.28, 0.4, 0, ARMY_CHAIN);
+  roger(open + call);
+  garbleInto(d, rate, open + call + gap, ack, Math.min(118, pitch + 8), true, 10.5, 0.85, 0.22, 0.35, 0, ARMY_CHAIN);
+  let cursor = open + call + gap + ack;
+  if (data) {
+    dataBurst(d, rate, cursor + 0.03, burst);
+    cursor += 0.04 + burst;
+  }
+  click(cursor, close, 2800);
+  return buf;
+}
+
+/** A distant shouted command: one sharp formant bark, not a radio transmission. */
+function commandBark(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.24;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  garbleInto(buf.getChannelData(0), rate, 0.008, 0.2, 125 + Math.random() * 20, false, 8.5, 1, 0.45, 0.7, 0.2);
   return buf;
 }
 
@@ -1383,11 +1548,13 @@ export class Audio {
   private readonly beds = new Map<Bed, { gain: GainNode; pan: StereoPannerNode }>();
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly active: Record<Category, number> = { gun: 0, melee: 0, voice: 0, alarm: 0 };
-  private readonly layerOn: Record<AmbientLayer, boolean> = { city: true, outbreak: true, cordon: true };
+  private readonly layerOn: Record<AmbientLayer, boolean> = { city: true, outbreak: true, cordon: true, army: true };
   private exits: ArrayLike<number> = new Float32Array();
   private nextTraffic = Infinity;
   private nextOutbreak = Infinity;
   private nextRadio = Infinity;
+  private nextArmy = Infinity;
+  private nextOrder = Infinity;
   private nextGun = Infinity;
   private nextLife = Infinity;
   private nextPhrase = Infinity;
@@ -1410,7 +1577,7 @@ export class Audio {
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.8;
     this.master.connect(ctx.destination);
-    for (const name of ['city', 'outbreak', 'cordon'] as const) {
+    for (const name of ['city', 'outbreak', 'cordon', 'army'] as const) {
       const g = ctx.createGain();
       g.gain.value = this.layerOn[name] ? 1 : 0;
       g.connect(this.master);
@@ -1491,6 +1658,8 @@ export class Audio {
     this.nextTraffic = t0 + 3 + Math.random() * 5;
     this.nextOutbreak = t0 + 4 + Math.random() * 6;
     this.nextRadio = t0 + 2 + Math.random() * 4;
+    this.nextArmy = t0 + 3 + Math.random() * 4;
+    this.nextOrder = t0 + 9 + Math.random() * 6;
     this.nextGun = t0 + 5 + Math.random() * 6;
     this.nextLife = t0 + 2 + Math.random() * 5;
     this.nextPhrase = t0 + 7 + Math.random() * 6;
@@ -1620,7 +1789,12 @@ export class Audio {
       played++;
     }
     const breathNear = outbreakBreathDrive(cam.x, cam.y, frame.simXY, frame.simKind, frame.simFlags, frame.zombieXY, frame.zombieKind);
-    this.scheduleAmbient(ctx.currentTime, speed, livingShare, stages, breathNear, cordon, frame.daylight, lifeNear, crowd);
+    const rangers = frame.rangers;
+    const rangerCount = Math.floor(rangers.length / 2);
+    const nearest = rangerCount > 0 ? nearestRanger(cam.x, cam.y, rangers) : Infinity;
+    const engaged = rangerCount > 0 ? armyEngagement(rangers, frame.zombieXY, frame.zombieKind, frame.noises) : 0;
+    const army = armyMix(rangerCount, nearest, engaged);
+    this.scheduleAmbient(ctx.currentTime, speed, livingShare, stages, breathNear, cordon, frame.daylight, lifeNear, crowd, army, rangerPan(cam.x, cam.y, rangers), nearest);
   }
 
   /**
@@ -1629,7 +1803,7 @@ export class Audio {
    * a stalled frame cannot dump a queue. Randomness here is the audio clock's, never
    * the simulation's.
    */
-  private scheduleAmbient(now: number, speed: number, traffic: number, stages: OutbreakStages, breathNear: number, cordon: number, daylight: number, lifeNear: number, crowd: { life: number; birds: number; phones: number; night: number }): void {
+  private scheduleAmbient(now: number, speed: number, traffic: number, stages: OutbreakStages, breathNear: number, cordon: number, daylight: number, lifeNear: number, crowd: { life: number; birds: number; phones: number; night: number }, army: ArmyMix, armyPan: number, nearestRangerM: number): void {
     const gap = speed > 4 ? 2 : 1;
     const shots = speed < 8;
     if (this.nextTraffic <= now) {
@@ -1654,10 +1828,30 @@ export class Audio {
         const near = cordon / CORDON_NEAR_GAIN;
         const pan = (Math.random() - 0.5) * 0.4;
         const chatter = normalise(radioChatter(this.ctx));
-        if (this.playAmbient(chatter, 'cordon', 0.22 * near, pan, pan, 'voice', 0.03)) span = chatter.duration;
+        if (this.playAmbient(chatter, 'cordon', 0.22 * near * army.cordonDuck, pan, pan, 'voice', 0.03)) span = chatter.duration;
       }
       // The burst is the buffer; what follows is several seconds of silence, doubled above 4×.
-      this.nextRadio = now + span + (4 + Math.random() * 5) * gap;
+      // While the army net is up the cordon waits longer, so the two do not talk together.
+      this.nextRadio = now + span + (4 + Math.random() * 5) * gap * (army.gain > 0.02 ? 1.8 : 1);
+    }
+    if (this.nextArmy <= now) {
+      let span = 0;
+      const room = this.flying < AMBIENT_VOICES && this.active.voice < VOICES.voice;
+      if (shots && army.gain > 0.004 && this.layerOn.army && room && this.ctx) {
+        const chatter = normalise(armyChatter(this.ctx));
+        if (this.playAmbient(chatter, 'army', army.gain, armyPan, armyPan, 'voice', 0.02)) span = chatter.duration;
+      }
+      const lo = army.gain > 0 ? 4 + (1 - army.busy) * 8 : 1.5;
+      const width = army.gain > 0 ? 3 + (1 - army.busy) * 5 : 0.4;
+      this.nextArmy = now + span + (lo + Math.random() * width) * gap;
+    }
+    if (this.nextOrder <= now) {
+      const room = this.flying < AMBIENT_VOICES && this.active.voice < VOICES.voice;
+      if (shots && army.gain > 0.02 && nearestRangerM < ARMY_FAR_M && this.layerOn.army && room && this.ctx) {
+        const bark = normalise(commandBark(this.ctx));
+        this.playAmbient(bark, 'army', 0.048 * (nearestRangerM <= ARMY_NEAR_M ? 1 : 0.62), armyPan, armyPan, 'voice', 0.04);
+      }
+      this.nextOrder = now + (16 + Math.random() * 14) * gap * (army.busy > 0.65 ? 0.7 : 1);
     }
     if (this.nextGun <= now) {
       if (shots && cordon > 0 && this.layerOn.cordon) {
@@ -1928,7 +2122,7 @@ export function renderAmbientPreview(layer: AmbientLayer, seconds = 14, sampleRa
     loop(normalise(groan(ctx), 0.7), () => fallen.groan);
     add(normalise(formantScream(ctx, 520, 880)), 3.2, 0.05);
     add(normalise(outbreakShout(ctx, 198)), 7.4, 0.05);
-  } else {
+  } else if (layer === 'cordon') {
     let t = 0.5;
     while (t < seconds - 0.3) {
       const buf = normalise(radioChatter(ctx));
@@ -1938,6 +2132,16 @@ export function renderAmbientPreview(layer: AmbientLayer, seconds = 14, sampleRa
     }
     if (seconds > 8) add(normalise(gunshot(ctx, SHOTS.rifle!)), Math.min(6.2, seconds * 0.35), 0.07);
     if (seconds > 12) add(normalise(gunshot(ctx, SHOTS.pistol!)), Math.min(13.2, seconds * 0.72), 0.06);
+  } else {
+    let t = 0.4;
+    let first = true;
+    while (t < seconds - 0.3) {
+      const buf = normalise(armyChatter(ctx, first));
+      first = false;
+      add(buf, t, 0.16);
+      t += buf.duration + 2.4;
+    }
+    add(normalise(commandBark(ctx)), Math.min(3.2, seconds * 0.18), 0.05);
   }
   let max = 0;
   for (const v of out) max = Math.max(max, Math.abs(v));
@@ -2076,6 +2280,30 @@ export function renderOutbreakStage(stage: OutbreakPreview, seconds = 12, sample
     add(normalise(formantScream(ctx, 520, 880)), 2.4, 0.04);
     add(normalise(panickedBreath(ctx, false)), 6.6, 0.035);
   }
+  let max = 0;
+  for (const v of out) max = Math.max(max, Math.abs(v));
+  if (max > 0) for (let i = 0; i < out.length; i++) out[i]! *= 0.9 / max;
+  return out;
+}
+
+/**
+ * Army net alone, about eighteen seconds, peak-normalised for listening.
+ * One transmission is forced to carry the data burst; a shouted command sits between them.
+ */
+export function renderArmyChatter(seconds = 18, sampleRate = 22050): Float32Array {
+  const ctx = previewCtx(sampleRate);
+  const out = new Float32Array(Math.ceil(sampleRate * seconds));
+  const add = (buf: AudioBuffer, start: number, gain: number) => {
+    const d = buf.getChannelData(0);
+    const from = Math.floor(start * sampleRate);
+    for (let i = 0; i < d.length && from + i < out.length; i++) out[from + i]! += d[i]! * gain;
+  };
+  add(normalise(armyChatter(ctx)), 0.4, 0.16);
+  add(normalise(commandBark(ctx)), 3.2, 0.05);
+  add(normalise(armyChatter(ctx, true)), 5.6, 0.16);
+  add(normalise(armyChatter(ctx)), 9.4, 0.14);
+  add(normalise(armyChatter(ctx)), 13.2, 0.15);
+  add(normalise(commandBark(ctx)), 16.4, 0.045);
   let max = 0;
   for (const v of out) max = Math.max(max, Math.abs(v));
   if (max > 0) for (let i = 0; i < out.length; i++) out[i]! *= 0.9 / max;

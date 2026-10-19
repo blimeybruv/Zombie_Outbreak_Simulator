@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear } from '../src/audio/audio';
+import { armyEngagement, armyMix, cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, nearestRanger, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear, rangerPan } from '../src/audio/audio';
 import { SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
@@ -179,5 +179,47 @@ describe('crowd near the camera', () => {
     const open = crowdMix(1, 1, 0, 0).murmur;
     expect(crowdMix(1, 1, 0.12, 0).murmur).toBeCloseTo(open * 0.4);
     expect(crowdMix(1, 1, 0, 0.16).murmur).toBeCloseTo(open * 0.45);
+  });
+});
+
+describe('army radio', () => {
+  it('maps ranger count, distance and engagement into gain, and ducks the cordon', () => {
+    expect(armyMix(0, 0, 1)).toEqual({ gain: 0, busy: 0, cordonDuck: 1 });
+    expect(armyMix(0, 40, 0)).toEqual({ gain: 0, busy: 0, cordonDuck: 1 });
+    const count = 1 - Math.exp(-16 / 8);
+    const close = armyMix(16, 40, 0);
+    const far = armyMix(16, 400, 0);
+    const mid = armyMix(16, 200, 1);
+    expect(close.gain).toBeCloseTo(0.18 * count);
+    expect(close.busy).toBeCloseTo(0.28);
+    expect(close.cordonDuck).toBeCloseTo(1 - 0.72 * count);
+    expect(far.gain).toBeCloseTo(0.18 * count * 0.35);
+    expect(far.gain).toBeLessThan(close.gain);
+    expect(mid.gain).toBeCloseTo(0.18 * count * (1 + (0.35 - 1) * 0.5));
+    expect(mid.busy).toBe(1);
+    expect(close.cordonDuck).toBeLessThan(mid.cordonDuck);
+    expect(mid.cordonDuck).toBeLessThan(far.cordonDuck);
+    expect(close.cordonDuck).toBeLessThan(1);
+    expect(armyMix(80, 0, 0).gain).toBeLessThanOrEqual(0.18);
+    expect(armyMix(80, 0, 0).gain).toBeGreaterThan(0.17);
+    expect(nearestRanger(0, 0, new Float32Array())).toBe(Infinity);
+    expect(nearestRanger(0, 0, new Float32Array([10, 0, 100, 0]))).toBeCloseTo(10);
+    expect(rangerPan(0, 0, new Float32Array())).toBe(0);
+    expect(rangerPan(0, 0, new Float32Array([10, 0, -200, 0]))).toBeCloseTo(10 / 80);
+  });
+
+  it('counts zombies and rifle shots near Rangers, and ignores pistols, hidden zombies and an empty company', () => {
+    const rangers = new Float32Array([0, 0, 30, 0]);
+    const zombies = new Float32Array([50, 0, 400, 0, 5, 0]);
+    const kinds = new Uint8Array([ZOMBIE_AWAKE, ZOMBIE_AWAKE, 0]);
+    const quiet = armyEngagement(rangers, zombies, kinds, []);
+    expect(quiet).toBeCloseTo(1 / 4);
+    const engaged = armyEngagement(rangers, zombies, kinds, [
+      { x: 20, y: 0, kind: 'rifle' },
+      { x: 900, y: 0, kind: 'rifle' },
+      { x: 0, y: 0, kind: 'pistol' },
+    ]);
+    expect(engaged).toBeCloseTo(1 / 4 + 1 / 2);
+    expect(armyEngagement(new Float32Array(), zombies, kinds, [{ x: 0, y: 0, kind: 'rifle' }])).toBe(0);
   });
 });

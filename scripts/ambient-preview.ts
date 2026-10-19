@@ -6,7 +6,7 @@
 //   npx tsx scripts/ambient-preview.ts [out-dir]
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { renderAmbientPreview, renderCityScene, renderDroneOnly, renderOutbreakStage, type AmbientLayer, type OutbreakPreview } from '../src/audio/audio';
+import { renderAmbientPreview, renderArmyChatter, renderCityScene, renderDroneOnly, renderOutbreakStage, type AmbientLayer, type OutbreakPreview } from '../src/audio/audio';
 
 const outDir = process.argv[2] ?? '/opt/cursor/artifacts';
 const seconds = 14;
@@ -77,3 +77,9 @@ for (const [name, stage] of outbreakStagesPreview) {
   writeFileSync(path, wav(samples));
   console.log(`${path}  12s  ${rate} Hz  peak-normalised`);
 }
+
+const armySeconds = 18;
+const army = renderArmyChatter(armySeconds, rate);
+const armyPath = `${outDir}/ambient-army-chatter.wav`;
+writeFileSync(armyPath, wav(army));
+console.log(`${armyPath}  ${armySeconds}s  ${rate} Hz  peak-normalised`);

@@ -41,7 +41,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') audio.toggleMute();
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-  const layer = e.key === 'c' || e.key === 'C' ? 'city' : e.key === 'o' || e.key === 'O' ? 'outbreak' : e.key === 'k' || e.key === 'K' ? 'cordon' : null;
+  const layer = e.key === 'c' || e.key === 'C' ? 'city' : e.key === 'o' || e.key === 'O' ? 'outbreak' : e.key === 'k' || e.key === 'K' ? 'cordon' : e.key === 'r' || e.key === 'R' ? 'army' : null;
   if (layer) audio.setLayerEnabled(layer, !audio.layerEnabled(layer));
 });
 let latest: FrameSnapshot | null = null;
