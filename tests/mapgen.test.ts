@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
 import { footprintArea, generateMap } from '../src/sim/mapgen/generate';
-import { pointPolylineDist, pointSegmentDist, segmentIntersection } from '../src/sim/mapgen/geom';
+import { pointPolylineDist, pointSegmentDist, segmentIntersection, segmentPolygonDist } from '../src/sim/mapgen/geom';
 import { MapIndex } from '../src/sim/navigation/runtime';
 import type { World } from '../src/sim/state';
 
@@ -171,6 +171,57 @@ describe('map generator', () => {
       return (r.x - q.x) * (p.y - q.y) - (r.y - q.y) * (p.x - q.x) <= 1e-6;
     });
     expect(mall.outline.every(inside)).toBe(true);
+  });
+
+  it.each([1, 2, 3, 4, 5])('keeps the mall lot and its stalls out of every carriageway but the driveway (map seed %i)', (seed) => {
+    const m = generateMap(config, seed, true);
+    const mall = m.buildings.find((b) => b.tag === 'mall');
+    expect(mall).toBeDefined();
+    const lot = m.lots.find((l) => l.home === null)!;
+    const st = config.cars.stall;
+    const o = lot.outline;
+    const w = Math.hypot(o[1]!.x - o[0]!.x, o[1]!.y - o[0]!.y) || 1;
+    const dx = (o[1]!.x - o[0]!.x) / w, dy = (o[1]!.y - o[0]!.y) / w;
+    const depth = Math.hypot(o[3]!.x - o[0]!.x, o[3]!.y - o[0]!.y) || 1;
+    const ix = (o[3]!.x - o[0]!.x) / depth, iy = (o[3]!.y - o[0]!.y) / depth;
+    const at = (u: number, v: number) => ({ x: o[0]!.x + dx * u + ix * v, y: o[0]!.y + dy * u + iy * v });
+    // Stall centres, the same rows cars.ts parks in.
+    const stalls: { x: number; y: number }[] = [];
+    for (let v = st.aisle / 2; v + 2 * st.depth <= lot.parkingDepth - st.aisle / 2; v += 2 * st.depth + st.aisle) {
+      for (let u = st.aisle / 2 + st.width / 2; u <= w - st.aisle / 2; u += st.width) {
+        if (Math.abs(u - lot.entry) < st.driveGap + st.width / 2) continue;
+        for (const row of [v + st.depth / 2, v + st.depth * 1.5]) stalls.push(at(u, row));
+      }
+    }
+    expect(stalls.length).toBeGreaterThan(0);
+    const insideQuad = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }, width: number) => {
+      const abx = b.x - a.x, aby = b.y - a.y;
+      const l2 = abx * abx + aby * aby;
+      if (l2 === 0) return false;
+      const t = ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2;
+      if (t < 0 || t > 1) return false;
+      const d = Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
+      return d < width / 2 - 1e-4;
+    };
+    for (const s of m.streets) {
+      if (s.id === mall!.street) continue;
+      const a = m.nodes[s.a]!, b = m.nodes[s.b]!;
+      // The whole rectangle, not only its corners: an edge can cross a quad without a corner landing inside.
+      expect(segmentPolygonDist(a, b, o)).toBeGreaterThanOrEqual(s.width / 2 - 1e-6);
+      for (const p of [...o, ...stalls]) expect(insideQuad(p, a, b, s.width)).toBe(false);
+    }
+    // The driveway still reaches the grounds: its dead end lies on them.
+    const drive = m.streets[mall!.street]!;
+    const degree = (n: number) => m.streets.filter((s) => s.a === n || s.b === n).length;
+    const end = m.nodes[degree(drive.a) === 1 ? drive.a : drive.b]!;
+    const onGrounds = o.every((q, i) => {
+      const r = o[(i + 1) % o.length]!;
+      return (r.x - q.x) * (end.y - q.y) - (r.y - q.y) * (end.x - q.x) <= 1e-6;
+    }) || o.every((q, i) => {
+      const r = o[(i + 1) % o.length]!;
+      return (r.x - q.x) * (end.y - q.y) - (r.y - q.y) * (end.x - q.x) >= -1e-6;
+    });
+    expect(onGrounds).toBe(true);
   });
 
   it('gives no power, no light', () => {

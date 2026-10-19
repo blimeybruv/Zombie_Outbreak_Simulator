@@ -559,9 +559,12 @@ describe('cars', () => {
     expect(car.speed).toBeLessThanOrEqual(6 - cc.length / 2 - cc.personGap + 1e-9);
     // In flight: no braking for it, and struck — destroyed at ramKill a blow.
     s.panic = 1;
-    z.x = car.x + Math.cos(car.heading) * 2;
-    z.y = car.y + Math.sin(car.heading) * 2;
     for (let t = 0; t < 30 && z.state !== 'destroyed'; t++) {
+      // A miss throws the zombie clear of the bonnet, so put it back in front. The
+      // kill itself is a roll (ramKill); thirty blows is enough that the seed's
+      // position in the stream does not decide the test.
+      z.x = car.x + Math.cos(car.heading) * 2;
+      z.y = car.y + Math.sin(car.heading) * 2;
       car.speed = 5;
       rebuildHashes(world, ctx);
       carProcesses(world, ctx);

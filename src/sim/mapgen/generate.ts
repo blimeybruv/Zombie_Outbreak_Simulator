@@ -592,6 +592,15 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       graph.nodes.push(end);
       graph.edges[id] = { a: from!, b: graph.nodes.length - 1, line: e.line };
       const merged = faces(graph).find((f) => f.edges.includes(id));
+      // Every street's carriageway, so the grounds can be held back by each one's own
+      // half-width. The driveway (this edge, already cut back) is the one that must
+      // still run into the lot.
+      const kerbs = graph.edges.map((e, i) => ({
+        a: graph.nodes[e.a]!,
+        b: graph.nodes[e.b]!,
+        half: widths[lines[e.line]!.kind] / 2,
+        drive: i === id,
+      }));
       const layout = merged
         ? mallLayout(
             merged.nodes.map((n) => graph.nodes[n]!).filter((q) => q !== end),
@@ -599,6 +608,8 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
             p,
             inward,
             mm,
+            kerbs,
+            mc.setback,
           )
         : null;
       if (layout && layout.building.every((q) => riverDist(q) > rc.width / 2 + 2)) {
@@ -859,21 +870,87 @@ interface MallLayout {
   lot: Lot;
 }
 
+/** One street centreline the grounds must stay clear of. `drive` is the mall's own driveway. */
+interface Kerb {
+  a: Pt;
+  b: Pt;
+  half: number;
+  drive: boolean;
+}
+
+/**
+ * Pulls a driveway-frame rectangle in, one edge at a time, until it sits `half + curb`
+ * clear of every kerb except the driveway. Edges only move inward. Null if the
+ * driveway would no longer reach the front, or the streets will not clear.
+ */
+function insetCarriageways(
+  u0: number, u1: number, v0: number, v1: number,
+  at: (u: number, v: number) => Pt,
+  dir: Pt, inward: Pt,
+  kerbs: readonly Kerb[],
+  curb: number,
+  driveway: number,
+): { u0: number; u1: number; v0: number; v1: number; grounds: Pt[] } | null {
+  let grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
+  // A few centimetres short of the curb still leaves the rectangle outside the carriageway.
+  const SLACK = 0.05;
+  for (let n = 0; n < 12; n++) {
+    let du0 = 0, du1 = 0, dv0 = 0, dv1 = 0;
+    const centre = at((u0 + u1) / 2, (v0 + v1) / 2);
+    for (const kerb of kerbs) {
+      if (kerb.drive) continue;
+      const gap = segmentPolygonDist(kerb.a, kerb.b, grounds);
+      const short = kerb.half + curb - gap;
+      if (short <= SLACK) continue;
+      const edge = sub(kerb.b, kerb.a);
+      if (len(edge) < 1e-6) continue;
+      // The line's normal that faces the rectangle, then whichever frame axis it
+      // mostly follows. Moving that edge by short/|component| gains `short` of clearance.
+      let normal = perp(unit(edge));
+      if (dot2(normal, sub(centre, scale(add(kerb.a, kerb.b), 0.5))) < 0) normal = scale(normal, -1);
+      const along = dot2(normal, dir);
+      const depth = dot2(normal, inward);
+      const comp = Math.abs(along) >= Math.abs(depth) ? along : depth;
+      const step = short / Math.max(Math.abs(comp), 1e-6);
+      if (Math.abs(along) >= Math.abs(depth)) {
+        if (along > 0) du0 = Math.max(du0, step);
+        else du1 = Math.max(du1, step);
+      } else if (depth > 0) dv0 = Math.max(dv0, step);
+      else dv1 = Math.max(dv1, step);
+    }
+    if (du0 === 0 && du1 === 0 && dv0 === 0 && dv1 === 0) return { u0, u1, v0, v1, grounds };
+    // The stub has to come in across the front edge. Past its end, this site cannot.
+    if (v0 + dv0 >= driveway || u0 + du0 >= 0 || u1 - du1 <= 0) return null;
+    u0 += du0;
+    u1 -= du1;
+    v0 += dv0;
+    v1 -= dv1;
+    if (v1 <= v0) return null;
+    grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
+  }
+  return null;
+}
+
 /**
  * The compound in a merged block (its outline, the driveway's far end left out):
- * grounds filling the block inside its streets (margin in from them); parking from the
- * front to the driveway's end; the building beyond, as wide as the grounds allow
- * (centred on the driveway where it can be) and at most maxDepth deep. Null if it does
- * not fit.
+ * grounds filling the block inside its streets; parking from the front to the
+ * driveway's end; the building beyond, as wide as the grounds allow (centred on the
+ * driveway where it can be) and at most maxDepth deep. The first inset is one margin,
+ * the widest bounding street, off the centreline polygon's bounding box. Streets that
+ * meet that frame at an angle still cut the corners, so each carriageway then pulls
+ * its own edge back by its own half-width plus the curb. Null if it does not fit.
  */
-function mallLayout(face: Pt[], margin: number, from: Pt, inward: Pt, mm: Config['map']['mall']): MallLayout | null {
+function mallLayout(
+  face: Pt[], margin: number, from: Pt, inward: Pt, mm: Config['map']['mall'],
+  kerbs: readonly Kerb[], curb: number,
+): MallLayout | null {
   // The driveway reaches in and back out: drop the repeated junction it leaves behind.
   const poly = face.filter((p, i, all) => p !== all[(i + 1) % all.length]);
   const dir = perp(inward);
   const us = poly.map((p) => dot2(sub(p, from), dir));
   const vs = poly.map((p) => dot2(sub(p, from), inward));
   let u0 = Math.min(...us) + margin, u1 = Math.max(...us) - margin;
-  const v0 = margin;
+  let v0 = margin;
   let v1 = Math.max(...vs) - margin;
   const at = (u: number, v: number) => add(add(from, scale(dir, u)), scale(inward, v));
   let grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
@@ -884,6 +961,9 @@ function mallLayout(face: Pt[], margin: number, from: Pt, inward: Pt, mm: Config
     grounds = rectFromFront(at(u0, v0), dir, u1 - u0, inward, v1 - v0);
   }
   if (!polygonInside(grounds, poly)) return null;
+  const cleared = insetCarriageways(u0, u1, v0, v1, at, dir, inward, kerbs, curb, mm.driveway);
+  if (!cleared || !polygonInside(cleared.grounds, poly)) return null;
+  ({ u0, u1, v0, v1, grounds } = cleared);
   const bv0 = mm.driveway + mm.apron;
   const depth = Math.min(mm.maxDepth, v1 - bv0);
   const width = Math.min(mm.maxWidth, u1 - u0 - 2 * mm.sideYard);
