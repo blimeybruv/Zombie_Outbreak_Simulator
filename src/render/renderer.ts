@@ -86,6 +86,8 @@ const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const DNC_SIZE = 0.12; // DO NOT CROSS: letter height as a share of the road's width
 const DNC_KERB = 1; // m: the underline stops short of each kerb
 const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
+const CORDON_TRUCK_IN = 16; // m: city side of the barrier to a parked truck's middle
+const CORDON_BAG_IN = 11; // m: city side of the barrier to a sandbag run, clear of the drawn bar
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
@@ -195,6 +197,17 @@ function shapedOutline(o: Float32Array, i: number, shape: number, doors: number[
 function addPolygon(path: Path2D, pts: number[]): void {
   path.moveTo(pts[0]!, pts[1]!);
   for (let j = 2; j < pts.length; j += 2) path.lineTo(pts[j]!, pts[j + 1]!);
+  path.closePath();
+}
+
+/** A filled box: `len` along (dx, dy), `wid` across it, centred at (x, y). (dx, dy) is a unit vector. */
+function addBox(path: Path2D, x: number, y: number, dx: number, dy: number, len: number, wid: number): void {
+  const nx = -dy, ny = dx;
+  const hl = len / 2, hw = wid / 2;
+  path.moveTo(x + dx * hl + nx * hw, y + dy * hl + ny * hw);
+  path.lineTo(x - dx * hl + nx * hw, y - dy * hl + ny * hw);
+  path.lineTo(x - dx * hl - nx * hw, y - dy * hl - ny * hw);
+  path.lineTo(x + dx * hl - nx * hw, y + dy * hl - ny * hw);
   path.closePath();
 }
 
@@ -677,6 +690,7 @@ export class Renderer {
     if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
     this.drawExits(g, cam, dpr);
+    this.drawCordonObstacles(g);
     cam = view;
     this.carKey = '';
     this.standingCars(cam, dpr, frame);
@@ -965,6 +979,59 @@ export class Renderer {
       g.restore();
     }
     g.globalAlpha = 1;
+  }
+
+  /**
+   * Parked trucks and a short sandbag run on the city side of every exit, just inside
+   * where the barrier stands. Drawn into the static layer from the map snapshot, so it
+   * costs nothing per frame. Placement comes from the exit's index: one truck near a
+   * kerb, a second angled part-way across on the odd exits, sandbags on the other side.
+   * The middle of the road stays open.
+   */
+  private drawCordonObstacles(g: CanvasRenderingContext2D): void {
+    const e = this.map.exits;
+    const trucks = new Path2D();
+    const windows = new Path2D();
+    const bags = new Path2D();
+    for (let i = 0, k = 0; i + 6 < e.length; i += EXIT_STRIDE, k++) {
+      const dx = e[i + 2]!, dy = e[i + 3]!;
+      const nx = -dy, ny = dx;
+      const bx = e[i + 4]!, by = e[i + 5]!;
+      const half = e[i + 6]! / 2;
+      const side = k % 2 === 0 ? 1 : -1;
+      const len = 6.4 + (k % 3) * 0.8;
+      const wid = 2.6 + (k % 2) * 0.3;
+      const along = CORDON_TRUCK_IN + (k % 3) * 0.5;
+      const lat = side * Math.max(0, half - wid / 2 - 1.6);
+      const ang = -side * (0.22 + (k % 3) * 0.04);
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const tdx = dx * c - dy * s, tdy = dx * s + dy * c;
+      const cx = bx - dx * along + nx * lat;
+      const cy = by - dy * along + ny * lat;
+      addBox(trucks, cx, cy, tdx, tdy, len, wid);
+      addBox(windows, cx - tdx * len * 0.28, cy - tdy * len * 0.28, tdx, tdy, 0.7, wid * 0.7);
+      if (k % 2 === 1) {
+        const len2 = 6.6, wid2 = 2.7;
+        const along2 = along + 3.5;
+        const lat2 = -side * Math.min(half * 0.32, Math.max(0, half - wid2));
+        const ang2 = side * 0.55;
+        const c2 = Math.cos(ang2), s2 = Math.sin(ang2);
+        const udx = dx * c2 - dy * s2, udy = dx * s2 + dy * c2;
+        const x2 = bx - dx * along2 + nx * lat2;
+        const y2 = by - dy * along2 + ny * lat2;
+        addBox(trucks, x2, y2, udx, udy, len2, wid2);
+        addBox(windows, x2 - udx * len2 * 0.28, y2 - udy * len2 * 0.28, udx, udy, 0.7, wid2 * 0.7);
+      }
+      const bagLen = 4.6 + (k % 3) * 0.7;
+      const bagLat = -side * Math.max(0, half - bagLen / 2 - 1.3);
+      addBox(bags, bx - dx * CORDON_BAG_IN + nx * bagLat, by - dy * CORDON_BAG_IN + ny * bagLat, nx, ny, bagLen, 1.05);
+    }
+    g.fillStyle = P.CORDON_VEHICLE;
+    g.fill(trucks);
+    g.fillStyle = P.BACKGROUND;
+    g.fill(windows);
+    g.fillStyle = P.CORDON_BARRIER;
+    g.fill(bags);
   }
 
   /**

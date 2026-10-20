@@ -42,6 +42,8 @@ export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
 export const SIREN_BLUE_GLOW = 'rgba(59, 123, 255, 0.28)';
 export const AMBULANCE = '#f2f2ee'; // white
 export const EXIT = '#e8c35a'; // a way off the map: amber, like a road sign
+export const CORDON_VEHICLE = '#2a3038'; // parked trucks / obstacles at cordon exits
+export const CORDON_BARRIER = '#3a342c'; // sandbags beside those trucks, muted so the agents stay brightest
 /** The rescue's tents: military canvas, an outline and ridge, filled faintly while people wait in them. */
 export const TENT = 'rgba(190, 200, 160, 0.7)';
 export const TENT_FILL = 'rgba(190, 200, 160, 0.18)';
