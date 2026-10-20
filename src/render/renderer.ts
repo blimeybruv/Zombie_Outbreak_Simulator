@@ -86,8 +86,9 @@ const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const DNC_SIZE = 0.12; // DO NOT CROSS: letter height as a share of the road's width
 const DNC_KERB = 1; // m: the underline stops short of each kerb
 const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
-const CORDON_TRUCK_IN = 16; // m: city side of the barrier to a parked truck's middle
-const CORDON_BAG_IN = 11; // m: city side of the barrier to a sandbag run, clear of the drawn bar
+const CORDON_VEHICLE_IN = 16; // m: city side of the barrier to a parked Humvee's middle
+const HMMWV_L = 4.6; // m
+const HMMWV_W = 2.2; // m, arches included
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
 const TALK_RING_PER = 0.4; // m per person
@@ -209,6 +210,29 @@ function addBox(path: Path2D, x: number, y: number, dx: number, dy: number, len:
   path.lineTo(x - dx * hl - nx * hw, y - dy * hl - ny * hw);
   path.lineTo(x + dx * hl - nx * hw, y + dy * hl - ny * hw);
   path.closePath();
+}
+
+/**
+ * A Humvee in plan, nose along (dx, dy). Hull, a lighter bonnet and roof, a dark
+ * windscreen and cargo well, a spare on the tail, and a flare at each wheel.
+ */
+function addHumvee(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: number, dx: number, dy: number): void {
+  const nx = -dy, ny = dx;
+  const hullW = 1.86;
+  addBox(body, x, y, dx, dy, HMMWV_L, hullW);
+  const arch = 0.22;
+  for (const u of [1.62, -1.62]) {
+    for (const s of [1, -1] as const) {
+      addBox(body, x + dx * u + nx * s * (hullW / 2 + arch / 2 - 0.06), y + dy * u + ny * s * (hullW / 2 + arch / 2 - 0.06), dx, dy, 0.9, arch);
+    }
+  }
+  addBox(panel, x + dx * 1.45, y + dy * 1.45, dx, dy, 1.15, 1.5);
+  addBox(panel, x - dx * 0.15, y - dy * 0.15, dx, dy, 1.35, 1.42);
+  addBox(shade, x + dx * 0.62, y + dy * 0.62, dx, dy, 0.26, 1.38);
+  addBox(shade, x - dx * 1.42, y - dy * 1.42, dx, dy, 0.78, 1.22);
+  const sx = x - dx * 1.95, sy = y - dy * 1.95;
+  shade.moveTo(sx + dx * 0.26, sy + dy * 0.26);
+  shade.arc(sx, sy, 0.26, 0, Math.PI * 2);
 }
 
 function addOutline(path: Path2D, o: Float32Array, i: number): void {
@@ -982,56 +1006,46 @@ export class Renderer {
   }
 
   /**
-   * Parked trucks and a short sandbag run on the city side of every exit, just inside
-   * where the barrier stands. Drawn into the static layer from the map snapshot, so it
-   * costs nothing per frame. Placement comes from the exit's index: one truck near a
-   * kerb, a second angled part-way across on the odd exits, sandbags on the other side.
-   * The middle of the road stays open.
+   * Parked Humvees on the city side of every exit, just inside where the barrier stands.
+   * Drawn into the static layer from the map snapshot, so it costs nothing per frame.
+   * Placement comes from the exit's index: one near a kerb, a second angled part-way
+   * across on the odd exits. The middle of the road stays open.
    */
   private drawCordonObstacles(g: CanvasRenderingContext2D): void {
     const e = this.map.exits;
-    const trucks = new Path2D();
-    const windows = new Path2D();
-    const bags = new Path2D();
+    const body = new Path2D();
+    const panel = new Path2D();
+    const shade = new Path2D();
     for (let i = 0, k = 0; i + 6 < e.length; i += EXIT_STRIDE, k++) {
       const dx = e[i + 2]!, dy = e[i + 3]!;
       const nx = -dy, ny = dx;
       const bx = e[i + 4]!, by = e[i + 5]!;
       const half = e[i + 6]! / 2;
       const side = k % 2 === 0 ? 1 : -1;
-      const len = 6.4 + (k % 3) * 0.8;
-      const wid = 2.6 + (k % 2) * 0.3;
-      const along = CORDON_TRUCK_IN + (k % 3) * 0.5;
-      const lat = side * Math.max(0, half - wid / 2 - 1.6);
+      const along = CORDON_VEHICLE_IN + (k % 3) * 0.5;
+      const lat = side * Math.max(0, half - HMMWV_W / 2 - 1.6);
       const ang = -side * (0.22 + (k % 3) * 0.04);
       const c = Math.cos(ang), s = Math.sin(ang);
       const tdx = dx * c - dy * s, tdy = dx * s + dy * c;
       const cx = bx - dx * along + nx * lat;
       const cy = by - dy * along + ny * lat;
-      addBox(trucks, cx, cy, tdx, tdy, len, wid);
-      addBox(windows, cx - tdx * len * 0.28, cy - tdy * len * 0.28, tdx, tdy, 0.7, wid * 0.7);
+      // Nose toward the city, the same way the old trucks faced.
+      addHumvee(body, panel, shade, cx, cy, -tdx, -tdy);
       if (k % 2 === 1) {
-        const len2 = 6.6, wid2 = 2.7;
         const along2 = along + 3.5;
-        const lat2 = -side * Math.min(half * 0.32, Math.max(0, half - wid2));
+        const lat2 = -side * Math.min(half * 0.32, Math.max(0, half - HMMWV_W));
         const ang2 = side * 0.55;
         const c2 = Math.cos(ang2), s2 = Math.sin(ang2);
         const udx = dx * c2 - dy * s2, udy = dx * s2 + dy * c2;
-        const x2 = bx - dx * along2 + nx * lat2;
-        const y2 = by - dy * along2 + ny * lat2;
-        addBox(trucks, x2, y2, udx, udy, len2, wid2);
-        addBox(windows, x2 - udx * len2 * 0.28, y2 - udy * len2 * 0.28, udx, udy, 0.7, wid2 * 0.7);
+        addHumvee(body, panel, shade, bx - dx * along2 + nx * lat2, by - dy * along2 + ny * lat2, -udx, -udy);
       }
-      const bagLen = 4.6 + (k % 3) * 0.7;
-      const bagLat = -side * Math.max(0, half - bagLen / 2 - 1.3);
-      addBox(bags, bx - dx * CORDON_BAG_IN + nx * bagLat, by - dy * CORDON_BAG_IN + ny * bagLat, nx, ny, bagLen, 1.05);
     }
     g.fillStyle = P.CORDON_VEHICLE;
-    g.fill(trucks);
-    g.fillStyle = P.BACKGROUND;
-    g.fill(windows);
-    g.fillStyle = P.CORDON_BARRIER;
-    g.fill(bags);
+    g.fill(body);
+    g.fillStyle = P.CORDON_VEHICLE_PANEL;
+    g.fill(panel);
+    g.fillStyle = P.CORDON_VEHICLE_SHADE;
+    g.fill(shade);
   }
 
   /**
