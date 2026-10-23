@@ -3,6 +3,11 @@
 
 /** Metres. A shorter longest-run is not labelled. */
 export const LABEL_MIN_LENGTH = 40;
+/**
+ * Metres. Main roads and the highway: the carriageway's `ROAD_FILL_MAIN` bucket
+ * (alleys 6, standard 12, main 20, highway 28). Mid zoom labels only these.
+ */
+export const ROAD_MAIN_MIN_W = 16;
 /** Metres past the kerb. The label's centre sits beside the road. */
 export const LABEL_KERB_GAP = 5;
 /** CSS pixels. Screen size, counter-scaled when the context is in metres. */
@@ -28,6 +33,8 @@ export interface StreetLabelCandidate {
   /** On the centreline, for culling to the static layer. */
   cx: number;
   cy: number;
+  /** Carriageway width, metres, of the segment the label sits on. */
+  width: number;
 }
 
 export interface StreetLabelSet {
@@ -121,9 +128,18 @@ export function streetLabelCandidates(streets: ArrayLike<number>, names: readonl
       angle,
       cx: mid.x,
       cy: mid.y,
+      width: mid.width,
     });
   }
   return { labels, named: byName.size, skippedLength, emptySegments };
+}
+
+/** Mid zoom labels main roads only. Near zoom labels every candidate. */
+export function streetLabelsForMode(
+  labels: readonly StreetLabelCandidate[],
+  mode: 'mid' | 'near',
+): readonly StreetLabelCandidate[] {
+  return mode === 'mid' ? labels.filter((l) => l.width >= ROAD_MAIN_MIN_W) : labels;
 }
 
 /** Greedy: longer runs first, the other kerb before a skip. Bounds cull to the static layer. */

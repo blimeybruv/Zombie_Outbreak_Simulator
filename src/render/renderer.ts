@@ -20,7 +20,7 @@ import { DensityField } from './density';
 import { Interpolator } from './interpolate';
 import { FAR_LIGHT_WIDTH, LAMP_GLOW_RADIUS, LAMP_HEAD_RADIUS, placeKerbLamps } from './lamps';
 import * as P from './palette';
-import { LABEL_FONT_MID, LABEL_FONT_NEAR, placeStreetLabels, streetLabelCandidates, type StreetLabelCandidate } from './street-labels';
+import { LABEL_FONT_MID, LABEL_FONT_NEAR, ROAD_MAIN_MIN_W, placeStreetLabels, streetLabelCandidates, streetLabelsForMode, type StreetLabelCandidate } from './street-labels';
 import { BorderLines } from './border';
 import { Traffic } from './traffic';
 import { Trails } from './trails';
@@ -66,7 +66,6 @@ const CAR_W = 1.9; // m
 const VAN_L = 6; // m: a SWAT van
 const VAN_FLASH_MS = 260; // each colour's half of the light bar's cycle
 const STATIC_MARGIN = 0.25;
-const ROAD_MAIN_MIN_W = 16; // m: main roads and the highway
 const ROAD_ALLEY_MAX_W = 8; // m: alleys
 const ROAD_EDGE_W_MAIN = 1.8; // m
 const ROAD_EDGE_W = 1.2; // m: a faint line along each long side of a standard carriageway
@@ -681,7 +680,7 @@ export class Renderer {
     if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
     // Names are fixed for a scale and a zoom mode, both of which are in the cache key,
-    // so they are baked here. Far zoom leaves them out.
+    // so they are baked here. Far zoom leaves them out. Mid zoom keeps main roads.
     if (cam.mode === 'mid' || cam.mode === 'near') this.drawStreetLabels(g, cam, dpr);
     this.drawExits(g, cam, dpr);
     cam = view;
@@ -947,7 +946,8 @@ export class Renderer {
     const halfW = cam.width / 2 / cam.scale;
     const halfH = cam.height / 2 / cam.scale;
     const margin = 250; // m: a neighbour just outside the layer can still overlap one inside it
-    const { placed } = placeStreetLabels(this.streetLabels, cam.scale, fontCss, {
+    const pool = streetLabelsForMode(this.streetLabels, cam.mode === 'near' ? 'near' : 'mid');
+    const { placed } = placeStreetLabels(pool, cam.scale, fontCss, {
       minX: cam.x - halfW - margin,
       minY: cam.y - halfH - margin,
       maxX: cam.x + halfW + margin,
