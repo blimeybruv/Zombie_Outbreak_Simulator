@@ -60,6 +60,7 @@ import { noteFor, centreOf } from './notes';
 import { isFirearm } from '../sim/state';
 import { barrierAt } from '../sim/systems/outside/cordon';
 import { rescueTally, tentsAt } from '../sim/systems/outside/rescue';
+import { rangerPositions } from './rangers';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
 const EVENT_CAP = 4000; // events held for one frame; beyond this they are counted, not kept
@@ -212,6 +213,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     closedExits: w.exits.reduce((bits, e, i) => (e.closedAt !== null ? bits | (1 << i) : bits), 0),
     breachedExits: w.exits.reduce((bits, e, i) => (e.breachedAt !== null ? bits | (1 << i) : bits), 0),
     tents: tentsFrame(w),
+    rangers: rangerPositions(w.sims),
     tented: w.tented,
     weekday: (w.config.time.startWeekday + Math.floor(w.scenario.startHour / 24 + w.tick / w.config.time.dayLength)) % 7,
     sinceOutbreak: (w.tick * 86400) / w.config.time.dayLength,
@@ -377,7 +379,7 @@ scope.onmessage = (e) => {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
     const f = frameSnapshot(world);
-    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.simTurnIn.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer]);
+    scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.simTurnIn.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer, f.rangers.buffer]);
     if (!ended && world.tick >= world.config.time.runLength) {
       ended = true;
       scope.postMessage({ type: 'ended', end: endSummary(world) });

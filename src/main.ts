@@ -39,6 +39,10 @@ const audio = new Audio();
 for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, () => audio.start(), { once: true });
 window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  const layer = e.key === 'c' || e.key === 'C' ? 'city' : e.key === 'o' || e.key === 'O' ? 'outbreak' : e.key === 'k' || e.key === 'K' ? 'cordon' : e.key === 'r' || e.key === 'R' ? 'army' : null;
+  if (layer) audio.setLayerEnabled(layer, !audio.layerEnabled(layer));
 });
 let latest: FrameSnapshot | null = null;
 /** Ticks per second now requested (0 paused): how long the ticks between two snapshots take. */
@@ -94,6 +98,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
   if (msg.type === 'map') {
     renderer = new Renderer(canvas, msg.map);
+    audio.setExits(msg.map.exits);
     // Open on where it began: the first building the dead started in, close enough to see the street.
     const origin = msg.map.origins[0];
     if (origin !== undefined) {
