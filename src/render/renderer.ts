@@ -20,6 +20,7 @@ import { DensityField } from './density';
 import { Interpolator } from './interpolate';
 import { FAR_LIGHT_WIDTH, LAMP_GLOW_RADIUS, LAMP_HEAD_RADIUS, placeKerbLamps } from './lamps';
 import * as P from './palette';
+import { LABEL_FONT_MID, LABEL_FONT_NEAR, placeStreetLabels, streetLabelCandidates, type StreetLabelCandidate } from './street-labels';
 import { BorderLines } from './border';
 import { Traffic } from './traffic';
 import { Trails } from './trails';
@@ -235,6 +236,8 @@ export class Renderer {
   private glowPx = 0;
   /** Lit streets, stroked only at far zoom. */
   private readonly litPath = new Path2D();
+  /** One label per named street, placed once. Drawn into the static layer at mid and near. */
+  private readonly streetLabels: StreetLabelCandidate[];
   /** Every street, by width: its surface, drawn always. */
   private readonly streetPaths = new Map<number, Path2D>();
   /** Carriageways by hierarchy, narrow to wide, so a wider fill covers a crossing. */
@@ -373,6 +376,7 @@ export class Renderer {
       }
     }
     this.lamps = placeKerbLamps(map.streets, map.streetLit);
+    this.streetLabels = streetLabelCandidates(map.streets, map.streetNames).labels;
     // Streets are read from the gaps between buildings, but a river has no buildings to
     // frame a crossing, so bridges are drawn: a deck that cuts the water from bank to bank,
     // a rail either side, and an abutment along each bank where it lands. The deck's ends
@@ -676,6 +680,9 @@ export class Renderer {
     g.stroke(this.groundsPath);
     if (cam.mode === 'near') g.stroke(this.stallPath);
     g.globalAlpha = 1;
+    // Names are fixed for a scale and a zoom mode, both of which are in the cache key,
+    // so they are baked here. Far zoom leaves them out.
+    if (cam.mode === 'mid' || cam.mode === 'near') this.drawStreetLabels(g, cam, dpr);
     this.drawExits(g, cam, dpr);
     cam = view;
     this.carKey = '';
@@ -928,6 +935,36 @@ export class Renderer {
         g.arc(lx, ly, r, 0, Math.PI * 2);
         g.fill();
       }
+    }
+  }
+
+  /**
+   * Street names, in screen pixels, rotated along the road and set off the kerb.
+   * Overlap is settled here because a label's size in metres depends on the zoom.
+   */
+  private drawStreetLabels(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
+    const fontCss = cam.mode === 'near' ? LABEL_FONT_NEAR : LABEL_FONT_MID;
+    const halfW = cam.width / 2 / cam.scale;
+    const halfH = cam.height / 2 / cam.scale;
+    const margin = 250; // m: a neighbour just outside the layer can still overlap one inside it
+    const { placed } = placeStreetLabels(this.streetLabels, cam.scale, fontCss, {
+      minX: cam.x - halfW - margin,
+      minY: cam.y - halfH - margin,
+      maxX: cam.x + halfW + margin,
+      maxY: cam.y + halfH + margin,
+    });
+    const px = 1 / (cam.scale * dpr); // one device pixel, in metres
+    g.fillStyle = P.STREET_LABEL;
+    g.font = `${Math.round(fontCss * dpr)}px system-ui, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (const label of placed) {
+      g.save();
+      g.translate(label.x, label.y);
+      g.rotate(label.angle);
+      g.scale(px, px);
+      g.fillText(label.name, 0, 0);
+      g.restore();
     }
   }
 

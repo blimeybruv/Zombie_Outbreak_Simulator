@@ -18,6 +18,7 @@ export const ROAD_EDGE_MAIN = '#3e4450'; // a stronger kerb on wide streets
 export const ROAD_EDGE = 'rgba(180, 190, 200, 0.15)'; // the standard kerb, where the road meets the ground
 export const ROAD_EDGE_ALLEY = '#1e2228'; // a faint kerb on alleys
 export const CENTER_LINE = '#2a2e38'; // a wide road's dashed centre line, near zoom only
+export const STREET_LABEL = 'rgba(190, 200, 210, 0.55)'; // street name labels at mid/near zoom — dim so agents stay brightest
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.10)'; // far zoom only: a faint warm stroke on lit streets
 export const LAMP_GLOW_CORE = 'rgba(255, 214, 150, 0.45)'; // bright warm centre of the stamped glow, still darker than an agent dot
 export const LAMP_GLOW_MID = 'rgba(255, 196, 130, 0.15)'; // the long falloff, at 22% of the radius
