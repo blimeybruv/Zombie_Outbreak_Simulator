@@ -85,6 +85,7 @@ const EXIT_LABEL_ALPHA = 0.6;
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const DNC_SIZE = 0.12; // DO NOT CROSS: letter height as a share of the road's width
 const DNC_KERB = 1; // m: the underline stops short of each kerb
+const GATE_MARK_M = 1.6; // m: how far each of the gate's marks reaches across the barrier's line
 const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
@@ -1028,8 +1029,24 @@ export class Renderer {
       g.lineTo(bx + nx * half, by + ny * half);
       g.stroke();
       if (cam.mode !== 'far') this.drawDoNotCross(g, e[i + 2]!, e[i + 3]!, bx, by, e[i + 6]!, px);
+      if (k === frame.rescueExit && cam.mode !== 'far') this.drawGate(g, e[i + 2]!, e[i + 3]!, bx, by, frame.rescueGate, px);
     }
     g.globalAlpha = 1;
+  }
+
+  /** The gate at the middle of the rescue's barrier: two short dark lines across it, `half` either side of the middle. */
+  private drawGate(g: CanvasRenderingContext2D, dx: number, dy: number, bx: number, by: number, half: number, px: number): void {
+    const nx = -dy, ny = dx, len = GATE_MARK_M / 2;
+    g.save();
+    g.strokeStyle = P.GATE;
+    g.lineWidth = Math.max(1.5, 2 * px);
+    g.beginPath();
+    for (const s of [-half, half]) {
+      g.moveTo(bx + nx * s - dx * len, by + ny * s - dy * len);
+      g.lineTo(bx + nx * s + dx * len, by + ny * s + dy * len);
+    }
+    g.stroke();
+    g.restore();
   }
 
   /** The rescue's tents beside the road beyond its barrier: an outline and a ridge along it, filled faintly while anyone waits in them for a truck. */

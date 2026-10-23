@@ -127,6 +127,21 @@ describe('squads', () => {
     expect(ctx.squadCap[all[0]!.id]).toBeGreaterThan(0);
   });
 
+  it('re-form from reservists stood down inside an armoury, arming the unarmed from its stock', () => {
+    const { world, ctx } = fresh();
+    const b = armoury(world);
+    const all = waitingAt(world, b, config.squads.size);
+    for (const s of all) s.muster = 'stoodDown';
+    all[0]!.weapon = null;
+    b.stock = [];
+    pass(world, ctx);
+    expect(all.every((s) => s.squadLeader === null)).toBe(true); // one unarmed, nothing to take: three, not a squad
+    b.stock.push({ item: 'pistol', ammo: 12 });
+    pass(world, ctx);
+    expect(all[0]!.weapon).toBe('pistol');
+    expect(all.every((s) => s.squadLeader === all[0]!.id && s.muster === 'deployed')).toBe(true);
+  });
+
   it('follow the lowest surviving id when the leader falls, and stand down below two, keeping their weapons', () => {
     const { world, ctx } = fresh();
     const b = armoury(world);

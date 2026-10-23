@@ -59,7 +59,7 @@ import { inspect } from './inspect';
 import { noteFor, centreOf } from './notes';
 import { isFirearm } from '../sim/state';
 import { barrierAt } from '../sim/systems/outside/cordon';
-import { rescueTally, tentsAt } from '../sim/systems/outside/rescue';
+import { rescueTally, tentsAt, truckStop } from '../sim/systems/outside/rescue';
 import { rangerPositions } from './rangers';
 
 const SLICE_MS = 10; // longest run of ticks between checks for messages
@@ -190,11 +190,17 @@ function frameSnapshot(w: World): FrameSnapshot {
     zombieXY[z.id * 2 + 1] = z.y;
     zombieKind[z.id] = z.state === 'dormant' ? ZOMBIE_DORMANT : z.intact ? ZOMBIE_INTACT : ZOMBIE_AWAKE;
   }
-  const carXYH = new Float32Array(w.cars.length * 3);
-  const carState = new Uint8Array(w.cars.length);
+  // The rescue's truck on its way in or out is drawn as one more van after the real cars.
+  const drive = truckOnRoad(w);
+  const carXYH = new Float32Array((w.cars.length + (drive ? 1 : 0)) * 3);
+  const carState = new Uint8Array(w.cars.length + (drive ? 1 : 0));
   for (const c of w.cars) {
     carXYH.set([c.x, c.y, c.heading], c.id * 3);
     carState[c.id] = (c.state === 'driving' ? CAR_DRIVING : c.state === 'abandoned' ? CAR_ABANDONED : c.state === 'gone' ? CAR_GONE : CAR_PARKED) | (c.kind === 'van' ? CAR_VAN : c.kind === 'ambulance' ? CAR_AMBULANCE : c.kind === 'cruiser' ? CAR_CRUISER : 0);
+  }
+  if (drive) {
+    carXYH.set([drive.x, drive.y, drive.heading], w.cars.length * 3);
+    carState[w.cars.length] = CAR_DRIVING | CAR_VAN;
   }
   const fill = new Uint16Array(w.buildings.length);
   const buildingFlags = new Uint8Array(w.buildings.length);
@@ -215,6 +221,8 @@ function frameSnapshot(w: World): FrameSnapshot {
     tents: tentsFrame(w),
     rangers: rangerPositions(w.sims),
     tented: w.tented,
+    rescueExit: w.rescueExit ?? -1,
+    rescueGate: w.config.rescue.gate,
     weekday: (w.config.time.startWeekday + Math.floor(w.scenario.startHour / 24 + w.tick / w.config.time.dayLength)) % 7,
     sinceOutbreak: (w.tick * 86400) / w.config.time.dayLength,
     simXY,
@@ -250,6 +258,37 @@ function frameSnapshot(w: World): FrameSnapshot {
 }
 
 let ended = false;
+
+/** How far past the map's edge the rescue's truck starts and ends its drive, m: out of sight. */
+const TRUCK_OFF_MAP = 12;
+
+/**
+ * The rescue's truck between the map's edge and its spot, while it backs in (the
+ * truckDrive ticks before it is due) or drives away (the truckDrive ticks after it left);
+ * null otherwise. Worked out from the rescue's schedule: the simulation's truck only
+ * stands at its spot while it loads.
+ */
+function truckOnRoad(w: World): { x: number; y: number; heading: number } | null {
+  const rc = w.config.rescue;
+  if (w.rescueExit === null || w.rescueTruck !== null) return null;
+  const e = w.exits[w.rescueExit]!;
+  const stop = truckStop(w, e);
+  const beyond = { x: e.x + e.dx * TRUCK_OFF_MAP, y: e.y + e.dy * TRUCK_OFF_MAP };
+  const heading = Math.atan2(e.dy, e.dx); // facing out: backed in, driven out
+  const ease = (t: number) => t * t * (3 - 2 * t);
+  const arriving = 1 - (w.rescueTruckAt - w.tick) / rc.truckDrive;
+  if (arriving >= 0 && arriving < 1) {
+    const t = ease(arriving);
+    return { x: beyond.x + (stop.x - beyond.x) * t, y: beyond.y + (stop.y - beyond.y) * t, heading };
+  }
+  const leftAt = w.rescueTruckAt - rc.truckEvery;
+  const leaving = (w.tick - leftAt) / rc.truckDrive;
+  if (leftAt > rc.at && leaving >= 0 && leaving < 1) {
+    const t = ease(leaving);
+    return { x: stop.x + (beyond.x - stop.x) * t, y: stop.y + (beyond.y - stop.y) * t, heading };
+  }
+  return null;
+}
 
 /** The rescue's tents for the frame (protocol TENT_STRIDE), once it has come. */
 function tentsFrame(w: World): Float32Array {

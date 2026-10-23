@@ -431,9 +431,24 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
   }
   // A cordon squad (cordon.ts): to its post by the barrier, and there it stays.
   if (sim.post !== null) {
-    if (Math.hypot(sim.post.x - sim.x, sim.post.y - sim.y) > world.config.cordon.postReach / 2) {
+    const p = sim.post;
+    if (Math.hypot(p.x - sim.x, p.y - sim.y) > world.config.cordon.postReach / 2) {
       sim.gait = 'walk';
-      headFor(world, ctx, sim, sim.post.x, sim.post.y);
+      // In sight, straight there; out of sight (across the river, round a block), by the
+      // streets. Walking straight at a post on the far bank, a Ranger leader met the
+      // water and slid back and forth along it, its squad with it.
+      if (ctx.map.lineOfSight(sim.x, sim.y, p.x, p.y)) headFor(world, ctx, sim, p.x, p.y);
+      else {
+        if (sim.destination === null || sim.destinationBuilding !== null || Math.hypot(sim.destination.x - p.x, sim.destination.y - p.y) > 0) {
+          sim.destination = { x: p.x, y: p.y };
+          sim.destinationBuilding = null;
+          sim.destinationKind = 'respond';
+          sim.route = ctx.paths.route(sim, p.x, p.y, true) ?? [];
+          sim.routeIndex = 0;
+          sim.nextRepathAt = tick + config.pathfinding.repathCooldown;
+        }
+        followRoute(world, ctx, sim);
+      }
     } else if (!atEase(world, ctx, sim)) {
       sim.gait = 'still';
       faceDanger(world, ctx, sim, sim.heading);
@@ -870,6 +885,22 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       // instead, the waiting crowded its end and stood on one another.
       if (holdsFire(world, i)) {
         if (sim.tent !== null) {
+          // Through the gate at the middle of the line, stopped there a moment as if
+          // screened, then on to the tent.
+          if (sim.screenedUntil === null) {
+            const g = barrierAt(world, e);
+            if (Math.hypot(g.x - sim.x, g.y - sim.y) > config.rescue.tents.reach / 2) {
+              sim.gait = 'walk';
+              steerToward(sim, g.x, g.y);
+              return;
+            }
+            sim.screenedUntil = tick + config.rescue.screenTicks;
+          }
+          if (tick < sim.screenedUntil) {
+            sim.gait = 'still';
+            steerToward(sim, e.x, e.y);
+            return;
+          }
           const t = tentsAt(world, e)[sim.tent]!;
           sim.gait = 'walk';
           steerToward(sim, t.doorX, t.doorY);

@@ -23,10 +23,14 @@
 //   the queue  at the exit those who answered stand in rows across the road behind the
 //              cordon line, in the order they came (queueSlot); every passEvery ticks
 //              the soldiers let the front one through
+//   the gate   at the middle of the barrier, rescue.gate either side: the one let
+//              through stops in it for screenTicks, then walks on; the cordon squad
+//              stands beside it as if screening (moved there when the rescue comes)
 //   tents      beside the road beyond the line, half each side (tentsAt): through the
 //              line, a person walks to one and is out of the city in it
 //   trucks     every truckEvery ticks one pulls up beyond the barrier, loads for
-//              truckLoad, and takes up to truckCapacity of those in the tents
+//              truckLoad, and takes up to truckCapacity of those in the tents (backing in
+//              from off the map and driving out again: drawn by the worker, truckDrive)
 
 import type { Context } from '../../context';
 import { roundByChance } from '../../lib/rng';
@@ -48,7 +52,9 @@ export function queueSlot(world: World, e: Exit, rank: number): Vec2 {
   const { cordon, rescue } = world.config;
   const n = files(world, e);
   const along = cordon.queueGap + Math.floor(rank / n) * rescue.queueRow;
-  const across = ((rank % n) - (n - 1) / 2) * cordon.queueSpacing;
+  // Middle out: the front one in each row stands at the gate, the next either side of it.
+  const k = rank % n;
+  const across = (k % 2 === 1 ? (k + 1) / 2 : -k / 2) * cordon.queueSpacing;
   const b = barrierAt(world, e);
   return { x: b.x - e.dx * along - e.dy * across, y: b.y - e.dy * along + e.dx * across };
 }
@@ -82,6 +88,13 @@ export function tentsAt(world: World, e: Exit): { x: number; y: number; doorX: n
     out.push({ x: ax + nx * off, y: ay + ny * off, doorX: ax + nx * (half - t.reach / 2), doorY: ay + ny * (half - t.reach / 2) });
   }
   return out;
+}
+
+/** Where the rescue's truck stands to load: beyond the barrier, on the road out. */
+export function truckStop(world: World, e: Exit): Vec2 {
+  const b = barrierAt(world, e);
+  const d = world.config.cordon.post * 2;
+  return { x: b.x + e.dx * d, y: b.y + e.dy * d };
 }
 
 /** The corridor's axis from an exit: toward the middle of the map. */
@@ -194,6 +207,14 @@ export function updateRescue(world: World, ctx: Context): void {
     const e = world.exits[best]!;
     for (let k = 0; k < rc.squads; k++) for (const s of spawnSquad(world, e.x, e.y, { x: e.x, y: e.y }, rc.ammo)) s.sweep = true;
     world.rescueTruckAt = tick + rc.truckEvery;
+    // The cordon's squad at this exit moves to stand beside the gate, beyond the line.
+    const b = barrierAt(world, e);
+    const post = { x: b.x + (e.dx - e.dy) * rc.gate * 2, y: b.y + (e.dy + e.dx) * rc.gate * 2 };
+    for (const s of sims) {
+      if (s.sweep || s.post === null || !isLiving(s)) continue;
+      if (Math.hypot(s.post.x - b.x, s.post.y - b.y) > config.cordon.post * 2) continue;
+      s.post = { ...post };
+    }
     ctx.events.push({ type: 'rescueSweep', tick, count: 0, sim: null, x: e.x, y: e.y });
   }
   const i = world.rescueExit;
@@ -287,10 +308,9 @@ export function updateRescue(world: World, ctx: Context): void {
 
   // The trucks.
   if (tick < world.rescueTruckAt) return;
-  const b = barrierAt(world, e);
   if (world.rescueTruck === null) {
-    const at = { x: b.x + e.dx * config.cordon.post * 2, y: b.y + e.dy * config.cordon.post * 2 };
-    const truck = parkTruck(world, ctx, at.x, at.y, Math.atan2(-e.dy, -e.dx));
+    const at = truckStop(world, e);
+    const truck = parkTruck(world, ctx, at.x, at.y, Math.atan2(e.dy, e.dx)); // backed in, facing the way out
     world.rescueTruck = truck?.id ?? null;
     world.rescueTruckAt = tick + rc.truckLoad;
     return;

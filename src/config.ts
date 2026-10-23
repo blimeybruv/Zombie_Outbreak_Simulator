@@ -274,6 +274,13 @@ export const config = {
   // of those waiting; nobody is screened. The squads' line moves up in bounds of `bound`
   // m and holds between them; a squad whose place in the line has no street within
   // `snapReach` m (the river) holds where it is until the line is past — guesses
+  // The rescue's line has a gate at the barrier's middle, `gate` m either side of it: the
+  // cordon's squad stands in line just outside it, two of them flanking the gate, and
+  // each person let through walks to the gate and stops there screenTicks ticks, being
+  // looked over, before going on to a tent — guesses
+  // A truck backs in from beyond the map's edge over truckDrive ticks before it is due, and
+  // drives out the same way after it leaves: drawn only (the worker), the simulation's
+  // truck stands at its spot while it loads — guess
   // The rescue's queue and tents: at its exit those waiting stand in rows across the road
   // behind the cordon line, cordon.queueSpacing m apart across it and queueRow m apart
   // along it, in the order they came. Every passEvery ticks (truckCapacity a truck's worth
@@ -282,7 +289,7 @@ export const config = {
   // the nearest `from` m out from the barrier. Inside one (within `reach` of its door at
   // the road's edge) it is out of the city; the trucks take the tents' people away —
   // guesses
-  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, bound: 30, snapReach: 30, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25, passEvery: 24, queueRow: 1.5, tents: { count: 6, length: 7, width: 4, gap: 3, from: 8, reach: 2 } },
+  rescue: { at: 50400, squads: 4, ammo: 120, halfWidth: 150, speed: 0.15, depth: 2200, lead: 60, bound: 30, snapReach: 30, sendRadius: 40, misidentify: 0.15, takeShare: 1, broadcast: 7200, trustFloor: 0.25, farFrom: 1500, riskTolerance: 0.3, broadcastShare: 0.5, truckEvery: 600, truckLoad: 180, truckCapacity: 25, truckDrive: 20, gate: 1.5, screenTicks: 6, passEvery: 24, queueRow: 1.5, tents: { count: 6, length: 7, width: 4, gap: 3, from: 8, reach: 2 } },
 
   rising: { chance: 0.25, delay: [1200, 2400] as [number, number] },
 

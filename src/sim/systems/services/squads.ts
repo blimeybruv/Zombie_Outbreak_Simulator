@@ -24,7 +24,7 @@ import type { Building, BuildingId, Sim, World } from '../../state';
 import { chance, nextFloat } from '../../lib/rng';
 import { makePolice, spawnSim, takeStaff } from '../../spawn';
 import { isFirearm } from '../../state';
-import { outOfAmmo } from '../fighting/arms';
+import { outOfAmmo, restock } from '../fighting/arms';
 import { capacity, isLiving, leaveTalk } from '../shared/common';
 import { boardSquad, parkVan } from './cars';
 import { intensityAt } from '../shared/stimuli';
@@ -242,17 +242,30 @@ export function armAtDepot(world: World, sim: Sim, b: Building): void {
   }
 }
 
-/** Squads form at depots: `squads.size` waiting there, in id order, the lowest leading. They wait inside for a target. */
+/**
+ * Squads form at depots: `squads.size` waiting there, in id order, the lowest leading.
+ * They wait inside for a target. Reservists stood down who are back inside an armoury
+ * (their squad gone, or no weapon left when they came) count too: each takes what it
+ * can of the armoury's stock (a firearm left there, rounds), and those armed join
+ * whoever else is waiting. Four reservists sitting in an armoury are a squad.
+ */
 function formSquads(world: World, ctx: Context): void {
   const { config, tick, buildings, sims } = world;
   const size = config.squads.size;
   for (const b of buildings) {
     if (b.weaponStock === null) continue;
-    const waiting = b.sheltered.map((id) => sims[id]!).filter((s) => s.muster === 'waiting' && isLiving(s) && s.insideBuilding === b.id).sort((p, q) => p.id - q.id);
+    const here = b.sheltered.map((id) => sims[id]!).filter((s) => (s.muster === 'waiting' || s.muster === 'stoodDown') && isLiving(s) && s.insideBuilding === b.id);
+    if (here.length < size) continue;
+    for (const s of here) if (s.muster === 'stoodDown') restock(world, s, b);
+    const waiting = here.filter((s) => s.weapon !== null).sort((p, q) => p.id - q.id);
     for (let at = 0; at + size <= waiting.length; at += size) {
       const leader = waiting[at]!;
       for (let i = 0; i < size; i++) {
         const m = waiting[at + i]!;
+        m.shelter = null;
+        m.destinationKind = null;
+        m.destinationBuilding = null;
+        m.destination = null;
         m.muster = 'deployed';
         m.squadLeader = leader.id;
         m.squadSlot = i;

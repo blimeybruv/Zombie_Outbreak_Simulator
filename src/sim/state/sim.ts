@@ -399,6 +399,8 @@ export interface Sim {
   queuedSince: Tick | null;
   /** Let through the rescue's cordon line, bound for this tent beside the road (rescue.ts tentsAt); null otherwise. @range 0–rescue.tents.count - 1 | null @unit index @readBy sim decisions (to the tent), rescue (arriving) */
   tent: number | null;
+  /** Let through to a tent, stopped at the rescue's gate being screened until this tick; null before it reaches the gate. @range tick | null @unit tick @readBy sim decisions (the gate) */
+  screenedUntil: Tick | null;
   /** Exits this sim has found closed, as bits (1 << exit index). @range 0–7 @unit bits @readBy leaving (choice of exit) */
   knownClosed: number;
   /** Pressing on round a closed exit's barrier along the kerb, warned off and defying it, on this side of the road (1 or -1, across it from the exit's outward direction); null otherwise. @range 1 | -1 | null @unit side @readBy leaving (crossing), combat (firing back) */

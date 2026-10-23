@@ -194,6 +194,10 @@ export interface FrameSnapshot {
   rangers: Float32Array;
   /** People in the tents waiting for a truck. */
   tented: number;
+  /** The rescue's exit (its barrier has the gate), or -1 before it comes. */
+  rescueExit: number;
+  /** Half the gate's width at the middle of that barrier, m (rescue.gate). */
+  rescueGate: number;
   /** Day of the week, 0 Monday … 6 Sunday (time.startWeekday, then a day each dayLength ticks past midnight). */
   weekday: number;
   /** Game seconds since the outbreak began (tick 0): the clock's own rate, not wall time. */

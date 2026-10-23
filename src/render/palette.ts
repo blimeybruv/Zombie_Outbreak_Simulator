@@ -46,6 +46,8 @@ export const EXIT = '#e8c35a'; // a way off the map: amber, like a road sign
 /** The rescue's tents: military canvas, an outline and ridge, filled faintly while people wait in them. */
 export const TENT = 'rgba(190, 200, 160, 0.7)';
 export const TENT_FILL = 'rgba(190, 200, 160, 0.18)';
+/** The gate in the rescue's barrier: two short black marks across the blue line. */
+export const GATE = '#0b0b0b';
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike
