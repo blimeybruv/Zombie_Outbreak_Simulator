@@ -6,6 +6,7 @@ import { transfer } from '../src/sim/counters';
 import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/outside/exits';
 import { assertInvariant, step } from '../src/sim/tick';
 import { barrierAt, flank, queueAt, updateCordon } from '../src/sim/systems/outside/cordon';
+import { queueSlot } from '../src/sim/systems/outside/rescue';
 import { killSim } from '../src/sim/systems/fighting/combat';
 
 describe('leaving the city', () => {
@@ -171,13 +172,24 @@ describe('the cordon', () => {
       x.y = q.y;
       headForExit(world, x);
     }
-    for (let k = 0; k < 120; k++) {
+    for (let k = 0; k < 300; k++) {
       step(world, ctx, { checkInvariant: true });
       expect(world.events.some((ev) => (ev.type === 'cordonWarned' || ev.type === 'cordonWounded') && ev.sim === s.id)).toBe(false);
     }
     expect(s.condition).toBe('healthy');
     const waiting = [s, ...others].filter((x) => x.condition === 'healthy' && x.queuedSince !== null);
-    for (const x of waiting) for (const y of waiting) if (x !== y) expect(Math.hypot(x.x - y.x, x.y - y.y)).toBeGreaterThan(config.cordon.queueSpacing * 0.5);
+    // Each stands on its own rank, within the arrival radius of that slot. The radius
+    // is most of the gap to the next person, so a pair can finish closer than half a
+    // step and still be on two different squares.
+    const reach = config.rescue.tents.reach / 2;
+    const ranks = new Set<number>();
+    for (const x of waiting) {
+      const rank = ctx.queueRank[x.id]!;
+      ranks.add(rank);
+      const p = queueSlot(world, e, rank);
+      expect(Math.hypot(p.x - x.x, p.y - x.y)).toBeLessThanOrEqual(reach + 1e-6);
+    }
+    expect(ranks.size).toBe(waiting.length);
   }, 60_000);
 
   // The third exception: an armed sim pressing on round the barrier, fired on, fires back.
