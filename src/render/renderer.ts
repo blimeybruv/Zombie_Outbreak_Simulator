@@ -13,7 +13,7 @@
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK } from '../worker/protocol';
 import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -85,7 +85,7 @@ const EXIT_LABEL_ALPHA = 0.6;
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const DNC_SIZE = 0.12; // DO NOT CROSS: letter height as a share of the road's width
 const DNC_KERB = 1; // m: the underline stops short of each kerb
-const GATE_MARK_M = 1.6; // m: how far each of the gate's marks reaches across the barrier's line
+const GATE_MARK_M = 5; // m: each of the gate's marks, across the barrier's line (3 m thick near) and a little past it
 const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
 // A gathering of three or more: a faint ring round it.
 const TALK_RING_M = 2.5; // m
@@ -825,7 +825,7 @@ export class Renderer {
     if (st.length === 0) return;
     const near = cam.mode === 'near';
     const hw = CAR_W / 2;
-    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), ambulances = new Path2D();
+    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), ambulances = new Path2D(), trucks = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
@@ -839,7 +839,7 @@ export class Renderer {
       const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
       // A van shows at mid zoom too, parked or not: it is a squad's way out, or its box.
       if ((state === CAR_DRIVING) !== moving || (state !== CAR_DRIVING && state !== CAR_ABANDONED && !near && !van)) continue;
-      const path = amb && state !== CAR_ABANDONED ? ambulances : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
+      const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : amb && state !== CAR_ABANDONED ? ambulances : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
       path.lineTo(...pt(-hl, -hw));
@@ -863,6 +863,8 @@ export class Renderer {
     g.fill(vans);
     g.fillStyle = P.AMBULANCE;
     g.fill(ambulances);
+    g.fillStyle = P.TENT;
+    g.fill(trucks);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);
@@ -916,7 +918,7 @@ export class Renderer {
     for (let i = 0; i < st.length; i++) {
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
       const cruiser = (st[i]! & CAR_CRUISER) !== 0;
-      if (((st[i]! & CAR_VAN) === 0 && !amb && !cruiser) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING) continue;
+      if (((st[i]! & CAR_VAN) === 0 && !amb && !cruiser) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING || (st[i]! & CAR_TRUCK) !== 0) continue;
       const len = cruiser ? CAR_L : VAN_L;
       if (amb && swap) continue; // off half the time
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
@@ -1039,7 +1041,7 @@ export class Renderer {
     const nx = -dy, ny = dx, len = GATE_MARK_M / 2;
     g.save();
     g.strokeStyle = P.GATE;
-    g.lineWidth = Math.max(1.5, 2 * px);
+    g.lineWidth = Math.max(0.35, 1.5 * px);
     g.beginPath();
     for (const s of [-half, half]) {
       g.moveTo(bx + nx * s - dx * len, by + ny * s - dy * len);

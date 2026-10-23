@@ -43,6 +43,7 @@ import {
   CAR_VAN,
   CAR_AMBULANCE,
   CAR_CRUISER,
+  CAR_TRUCK,
   CAR_GONE,
   SHAPE_BOX,
   SHAPE_CHURCH,
@@ -196,11 +197,11 @@ function frameSnapshot(w: World): FrameSnapshot {
   const carState = new Uint8Array(w.cars.length + (drive ? 1 : 0));
   for (const c of w.cars) {
     carXYH.set([c.x, c.y, c.heading], c.id * 3);
-    carState[c.id] = (c.state === 'driving' ? CAR_DRIVING : c.state === 'abandoned' ? CAR_ABANDONED : c.state === 'gone' ? CAR_GONE : CAR_PARKED) | (c.kind === 'van' ? CAR_VAN : c.kind === 'ambulance' ? CAR_AMBULANCE : c.kind === 'cruiser' ? CAR_CRUISER : 0);
+    carState[c.id] = (c.state === 'driving' ? CAR_DRIVING : c.state === 'abandoned' ? CAR_ABANDONED : c.state === 'gone' ? CAR_GONE : CAR_PARKED) | (c.kind === 'van' ? CAR_VAN : c.kind === 'ambulance' ? CAR_AMBULANCE : c.kind === 'cruiser' ? CAR_CRUISER : 0) | (c.id === w.rescueTruck ? CAR_TRUCK : 0);
   }
   if (drive) {
     carXYH.set([drive.x, drive.y, drive.heading], w.cars.length * 3);
-    carState[w.cars.length] = CAR_DRIVING | CAR_VAN;
+    carState[w.cars.length] = CAR_DRIVING | CAR_VAN | CAR_TRUCK;
   }
   const fill = new Uint16Array(w.buildings.length);
   const buildingFlags = new Uint8Array(w.buildings.length);
