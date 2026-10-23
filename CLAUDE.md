@@ -252,10 +252,33 @@ awareness and conversation, fight/flight/freeze, police and 911, EMTs, reservist
 SWAT squads, district evacuation, a sealed city with a cordon, and the rescue. Each is
 described in the reference; the order it happened in is its History appendix.
 
-Still open:
-- **Gate 3, by eye and on a real machine:** the city legible at a glance at mid zoom;
-  2,000 agents at 30 fps at 8× (`scripts/fps.ts`). The ticker gate (under 6 lines a
-  second at 1×) is measured and passes.
-- A sweep of everything since commit a3ad199 (the sealed city, the car work, the freeze
-  and pong fixes, the cordon redesign).
-- Cars kept out of walls: under measurement (reference, "Cars").
+Several teams work on this repository: render and audio work from other agents arrives as
+pull requests into this branch. Review each before it is merged — `npm run check`, a
+screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement — and record
+what was merged in the reference.
+
+Open, in priority order:
+1. **Sweep everything since commit a3ad199** (20 runSeeds, `npm run sweep`) and compare
+   with the a3ad199 sweep in the reference ("Bugs the user saw", the last "Swept" entry).
+   Simulation changes since: the sealed city, car inertia/crashes/walls, freeze and pong,
+   the cordon redesign, the rescue's queue and tents, barriers that stop people on foot,
+   the river blocking sight, the dead besieging a peopled door, and the mall lot fix
+   (which changes some maps, so seed numbers will not match old runs).
+2. **Cars kept out of walls: settle the side effects.** Clipping is gone (2.2% → 0.28% of
+   driving ticks), but to tick 12,000 trips fell on seed 1 (488 → 378) and abandoned cars
+   rose on seed 2 (100 → 146). Find why (cars held by walls, wedged, abandoned), fix, and
+   re-measure with a car-motion probe and `scripts/movement-check.ts`.
+3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
+   the ticker (the sweep's timeline, `scripts/lib/run-one.ts TimelineEntry`). Find where and
+   why the city goes quiet before changing anything.
+4. **Gate 3, on a real machine:** the city legible at a glance at mid zoom; 2,000 agents at
+   30 fps at 8×, by day and at night now there are street lamps (`scripts/fps.ts`). The
+   ticker gate (under 6 lines a second at 1×) is measured and passes. Also confirm the
+   late-game hitches when the Rangers arrive are gone.
+5. **The dead pulled back and forth between sounds** from two directions, away from any
+   door (reference, "The dead went back and forth at a store's door", open note).
+6. **Rangers across the river:** line of sight no longer crosses it; confirm by eye that
+   their back-and-forth along the bank is gone.
+7. **Decisions for the user:** what a cordon wound should mean (now: no state, the person
+   turns back); whether to add the story blurbs (an opening blurb, a chronicle per named
+   survivor — worker-side, from events).
