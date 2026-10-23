@@ -108,6 +108,17 @@ function doorAt(world: World, ctx: Context, x: number, y: number): Building | nu
   return null;
 }
 
+/** Whether another awake zombie is nearer (x, y) than `d`. */
+function crowdNearer(world: World, ctx: Context, z: Zombie, x: number, y: number, d: number): boolean {
+  ctx.zombieHash.query(x, y, d, ctx.ids2);
+  for (const id of ctx.ids2) {
+    if (id === z.id) continue;
+    const o = world.zombies[id]!;
+    if ((o.state === 'active' || o.state === 'wandering') && Math.hypot(o.x - x, o.y - y) < d) return true;
+  }
+  return false;
+}
+
 /** Points a zombie at a place, reusing its existing point record. */
 function setHeard(z: Zombie, x: number, y: number): void {
   if (z.heardPoint === null) z.heardPoint = { x, y };
@@ -257,10 +268,29 @@ export function zombieDecisions(world: World, ctx: Context): void {
     let gx = 0;
     let gy = 0;
     let pace = 1;
+    // A sound not heard again in heardForget is given up: without it, one the dead could
+    // not reach kept them circling it for the rest of the run, and never sleeping.
+    if (z.heardPoint !== null && z.target === null && z.besieging === null && tick - (z.heardAt ?? tick) > zc.heardForget) z.heardPoint = null;
     if (z.heardPoint !== null) {
       const dx = z.heardPoint.x - z.x;
       const dy = z.heardPoint.y - z.y;
-      const d = Math.hypot(dx, dy);
+      let d = Math.hypot(dx, dy);
+      // Come as close as the crowd allows to a point with nobody there: another of the
+      // dead nearer it, within crowdArrive, and it is there. Only the one at the front
+      // could get within arriveRadius of a door; the rest of a crowd went round and round
+      // behind it, the point never reached, for as long as the building stood empty
+      // (seed 1: 1,560 zombie-minutes to tick 20,000 at the doors of breached buildings,
+      // no sound there). A door the living are behind is pressed on as before, close
+      // enough to break in.
+      if (
+        z.target === null &&
+        z.besieging === null &&
+        d > zc.arriveRadius &&
+        d <= zc.crowdArrive &&
+        crowdNearer(world, ctx, z, z.heardPoint.x, z.heardPoint.y, d) &&
+        doorAt(world, ctx, z.heardPoint.x, z.heardPoint.y) === null
+      )
+        d = 0;
       if (d <= zc.arriveRadius && z.besieging !== null) {
         pace = 0; // at the door: it stays
         z.heardAt = tick;

@@ -832,6 +832,8 @@ export const config = {
     wanderSpeedFactor: 0.6, // of zombie speed — guess
     idleSpeedFactor: 0.3, // of zombie speed while awake with nothing to chase — guess
     arriveRadius: 2, // m; a heard point counts as reached within this
+    crowdArrive: 10, // m; within this of a heard point with another of the dead nearer it, it counts as reached: a crowd cannot all stand on one door
+    heardForget: 600, // ticks; a heard point not heard again this long is given up
     intactCompany: 5, // m: an intact zombie this near an ordinary one moving with it is seen for what it is, for good
     closeIn: 0.6, // closing on a target, it stops this share of contactRange short of it rather than overstep
     dormantCheckInterval: 4, // ticks between a dormant zombie's wake checks, staggered by id
