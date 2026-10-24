@@ -45,6 +45,12 @@ export const SIREN_BLUE = '#3b7bff';
 export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
 export const SIREN_BLUE_GLOW = 'rgba(59, 123, 255, 0.28)';
 export const AMBULANCE = '#f2f2ee'; // white
+/** An ambulance's bonnet and roofs: a step under the white hull, and under a living dot. */
+export const AMBULANCE_PANEL = '#d4d5cf';
+/** Windscreen, rear doors and the cab light bar. */
+export const AMBULANCE_SHADE = '#8e9088';
+/** The cross on the box roof: a quiet red, not the siren. */
+export const AMBULANCE_MARK = '#c45656';
 export const EXIT = '#e8c35a'; // a way off the map: amber, like a road sign
 /** The rescue's tents: military canvas, an outline and ridge, filled faintly while people wait in them. */
 export const TENT = 'rgba(190, 200, 160, 0.7)';
