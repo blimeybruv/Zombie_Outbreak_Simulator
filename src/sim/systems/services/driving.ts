@@ -36,6 +36,7 @@ export function decideCars(world: World, ctx: Context): void {
   const wantOf = new Map<number, number>(); // moving car → the heading it is turning toward
   const softOf = new Map<number, number>(); // moving car → room it eases off for (less what it is swerving round)
   const cornerOf = new Map<number, number>(); // moving car → the most it may do now to take the next junction's turn
+  const passing = new Map<number, number>(); // moving car → the abandoned car it is driving round
 
   for (const car of moving) {
     // Where to now: the next junction, offset right of the way there, or the kerb.
@@ -94,10 +95,34 @@ export function decideCars(world: World, ctx: Context): void {
     const stoppedBy: number[] = [];
     for (const o of moving) if (o !== car && ahead(car, o.x, o.y, reach, cc.width)) stoppedBy.push(o.id);
     blockers.set(car.id, stoppedBy);
+    // An abandoned car in its lane ahead: driven round on the other side of the road if
+    // the road there is clear, slowly. Stopping for it, the cars behind queued until each
+    // was abandoned in turn — half of all abandoned cars stood beside another.
+    // Once begun, the pass holds until it is a car's length past the wreck: let go when
+    // the wreck was no longer straight ahead, a car turned back into its lane early, at
+    // speed, and into the wreck.
+    const u = laneDir(world, car);
+    if (car.passing !== null) {
+      const w = cars[car.passing]!;
+      if (w.state !== 'abandoned' || (w.x - car.x) * u.x + (w.y - car.y) * u.y < -cc.length) {
+        car.passing = null;
+        car.passSide = 0;
+      }
+    }
+    const wreck = car.passing !== null ? cars[car.passing]! : wreckAhead(world, ctx, car);
+    if (wreck !== null) {
+      const p = passBy(world, ctx, car, wreck, u, car.passSide);
+      if (p !== null) {
+        car.passing = wreck.id;
+        car.passSide = p.side;
+        passing.set(car.id, wreck.id);
+        wantOf.set(car.id, Math.atan2(p.y - car.y, p.x - car.x));
+      } else if (car.passing !== null) other.add(car.id); // part-way round, the way on is taken: it waits there
+    }
     let blocked = false;
     for (const id of ctx.cars.near(car.x, car.y, reach, ctx.ids2)) {
       const o = cars[id]!;
-      if (o.state === 'abandoned' && ahead(car, o.x, o.y, reach, cc.width)) blocked = true;
+      if (o.state === 'abandoned' && o.id !== passing.get(car.id) && ahead(car, o.x, o.y, reach, cc.width)) blocked = true;
     }
     // Anyone on foot in its path, the living and (unless it rams them) the dead: how far
     // ahead, and how far to one side of its line.
@@ -147,8 +172,16 @@ export function decideCars(world: World, ctx: Context): void {
     // Parked cars stand at the kerb, clear of the lane (pullUpBy): counting them stopped
     // every car pulling out from the kerb behind the next one along, until abandoned.
     let room = Infinity;
+    const round = passing.get(car.id);
     const fit = (o: Car) => {
       if (o === car || o.state === 'gone' || o.state === 'parked') return;
+      // The wreck it is driving round: in the way only if the way it is turning toward
+      // (to the point it aims at) still runs into it.
+      if (o.id === round) {
+        const w = wantOf.get(car.id)!;
+        const along = (o.x - car.x) * Math.cos(w) + (o.y - car.y) * Math.sin(w);
+        if (along <= 0 || Math.abs(-(o.x - car.x) * Math.sin(w) + (o.y - car.y) * Math.cos(w)) >= cc.width) return;
+      }
       const dx = o.x - car.x, dy = o.y - car.y;
       const c = Math.cos(car.heading), sn = Math.sin(car.heading);
       const along = dx * c + dy * sn;
@@ -187,6 +220,7 @@ export function decideCars(world: World, ctx: Context): void {
       target *= Math.max(cc.turnSlow, Math.cos(err));
       target = Math.min(target, cornerOf.get(car.id) ?? Infinity);
       target = Math.min(target, softOf.get(car.id)! * cc.approach); // easing off as it closes on what is ahead
+      if (passing.has(car.id)) target = Math.min(target, cc.passSpeed);
     }
     // Inertia: speed closes on the target, braking harder than it picks up.
     car.speed += (target - car.speed) * (target > car.speed ? cc.accel : cc.brake);
@@ -257,6 +291,76 @@ export function decideCars(world: World, ctx: Context): void {
     if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
     if (config.features.sirens && car.home !== null && car.kind !== 'hmmwv' && (car.id + tick) % sr.every === 0) emitStimulus(world, car.x, car.y, 'siren', sr.noise, false, sr.intensity);
   }
+}
+
+/** The nearest abandoned car in this car's lane ahead, within a car's length and gap and its stopping distance; null if none. */
+function wreckAhead(world: World, ctx: Context, car: Car): Car | null {
+  const cc = world.config.cars;
+  const look = cc.maxSpeed + cc.length + cc.gap;
+  const c = Math.cos(car.heading), s = Math.sin(car.heading);
+  let best: Car | null = null, bestAlong = Infinity;
+  for (const id of ctx.cars.near(car.x, car.y, look, ctx.ids2)) {
+    const o = world.cars[id]!;
+    if (o.state !== 'abandoned') continue;
+    const dx = o.x - car.x, dy = o.y - car.y;
+    const along = dx * c + dy * s;
+    if (along <= 0 || along > look || along >= bestAlong || Math.abs(-dx * s + dy * c) >= cc.width) continue;
+    best = o;
+    bestAlong = along;
+  }
+  return best;
+}
+
+/** Along the street it is on, the way its route goes (toward the next junction, or the end nearer where it is going). */
+function laneDir(world: World, car: Car): { x: number; y: number } {
+  const i = Math.min(car.routeIndex, car.route.length - 1);
+  const st = world.streets[car.route[i]!];
+  if (st === undefined) return { x: Math.cos(car.heading), y: Math.sin(car.heading) };
+  const a = world.nodes[st.a]!, b = world.nodes[st.b]!;
+  const n = i < car.route.length - 1 ? sharedNode(world, car.route[i]!, car.route[i + 1]!) : null;
+  const d = car.destination ?? { x: b.x, y: b.y };
+  const toB = n !== null ? n === st.b : Math.hypot(b.x - d.x, b.y - d.y) <= Math.hypot(a.x - d.x, a.y - d.y);
+  const from = toB ? a : b, to = toB ? b : a;
+  const len = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+  return { x: (to.x - from.x) / len, y: (to.y - from.y) / len };
+}
+
+/**
+ * Where to aim to drive round a wreck: beside it and a car's length past it along the
+ * lane's way `u`, on `side` (or, with none chosen, the side away from it first, then the
+ * other), a car's width and passClear out from it; only on the carriageway of the
+ * street it is on, the way there too, with no other car standing or moving within a
+ * car's length of it. Null if no side will do.
+ */
+function passBy(world: World, ctx: Context, car: Car, wreck: Car, u: { x: number; y: number }, side0: number): { x: number; y: number; side: number } | null {
+  const cc = world.config.cars;
+  const street = world.streets[car.route[Math.min(car.routeIndex, car.route.length - 1)]!];
+  if (street === undefined) return null;
+  const sa = world.nodes[street.a]!, sb = world.nodes[street.b]!;
+  const onRoad = (x: number, y: number) => {
+    const dx = sb.x - sa.x, dy = sb.y - sa.y;
+    const t = Math.max(0, Math.min(1, ((x - sa.x) * dx + (y - sa.y) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(x - sa.x - dx * t, y - sa.y - dy * t) <= street.width / 2 - cc.width / 2;
+  };
+  const c = u.x, s = u.y;
+  const lat = -(wreck.x - car.x) * s + (wreck.y - car.y) * c;
+  const off = cc.width + cc.passClear;
+  for (const side of side0 !== 0 ? [side0] : lat >= 0 ? [-1, 1] : [1, -1]) {
+    const bx = wreck.x - s * side * off, by = wreck.y + c * side * off; // beside it
+    const px = bx + c * cc.length * 1.5, py = by + s * cc.length * 1.5; // and on past it, by more than it holds the pass for
+    if (!onRoad(bx, by) || !onRoad(px, py) || !onRoad((car.x + bx) / 2, (car.y + by) / 2)) continue;
+    // Out to beside it while still behind it; then on past. Aimed past it from close
+    // behind, the way there still ran through the wreck, and the car stood nose to it.
+    const behind = (wreck.x - car.x) * c + (wreck.y - car.y) * s > 0;
+    let clear = true;
+    for (const id of ctx.cars.near(bx, by, cc.length, ctx.ids2)) {
+      const o = world.cars[id]!;
+      if (o !== car && o !== wreck && o.state !== 'gone' && Math.hypot(o.x - bx, o.y - by) < cc.length) clear = false;
+    }
+    for (const o of ctx.cars.driving()) if (o !== car && Math.hypot(o.x - bx, o.y - by) < cc.length) clear = false;
+    if (clear) return behind ? { x: bx, y: by, side } : { x: px, y: py, side };
+  }
+  return null;
 }
 
 /** The four corners of a car's rectangle at (x, y), along `heading`. */

@@ -738,6 +738,11 @@ export const config = {
     lookahead: 12, // m: a car steers for a point this far ahead along its lane
     swerveFrom: 1.5,
     swerveClear: 1,
+    // An abandoned car in its lane ahead: a moving car drives round it on the other side,
+    // passClear m clear of it, at no more than passSpeed m/tick, if that side of the
+    // carriageway is clear — guess
+    passClear: 0.8,
+    passSpeed: 3,
     crashMin: 6,
     crashKill: 0.5,
     // Below crashMin a car keeps its body out of buildings: it takes the turn it wants, or
@@ -762,10 +767,13 @@ export const config = {
     clearance: 0.5, // m kept bumper to bumper: a car never moves closer than this to one ahead
     waypointRadius: 4, // m; a junction counts as passed within this
     jamTicks: 180,
-    // A car stopped rerouteAfter ticks turns back to the junction behind it and takes
-    // another way, at most maxReroutes times; then jamTicks stopped and it is abandoned — guess
+    // A car stopped rerouteAfter ticks behind a wreck (or in a stopped queue with one at its
+    // head) turns back to the junction behind it and takes another way — another way off
+    // the map, if it was leaving and there is none — at most maxReroutes times; then
+    // jamTicks stopped and it is abandoned — guess
     rerouteAfter: 60,
     maxReroutes: 2,
+    queueLook: 4, // cars along a stopped queue a car looks to see a wreck at its head — guess
     // Engines: a car being driven (moving or stuck) makes a noise every engineInterval
     // ticks, staggered by id, heard by the dead to engineNoise metres at
     // engineIntensity — a street of cars is a dinner bell. People ignore it.

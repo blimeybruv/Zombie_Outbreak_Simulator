@@ -172,6 +172,8 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
     route: [],
     routeIndex: 0,
     blockedSince: null,
+    passing: null,
+    passSide: 0,
     reroutes: 0,
     impact: null,
     alarm: false,
@@ -413,6 +415,8 @@ function alight(world: World, ctx: Context, car: Car): void {
   car.destinationBuilding = null;
   car.exit = null; // anyone making for an exit goes on, on foot
   car.blockedSince = null;
+  car.passing = null;
+  car.passSide = 0;
 }
 
 /** Gets in to drive, with any aware companions on foot beside it bound for the same building, up to capacity. */
@@ -452,6 +456,8 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
   car.route = route;
   car.routeIndex = 0;
   car.blockedSince = null;
+  car.passing = null;
+  car.passSide = 0;
   for (const id of car.occupants) {
     const s = sims[id]!;
     s.destinationKind = 'shelter';
@@ -488,6 +494,8 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
   car.route = route;
   car.routeIndex = 0;
   car.blockedSince = null;
+  car.passing = null;
+  car.passSide = 0;
   return true;
 }
 
@@ -635,16 +643,8 @@ export function carProcesses(world: World, ctx: Context): void {
   }
 }
 
-/**
- * Turns a car stopped behind a wreck back: out of the street it is on by the junction
- * behind it, on a route that never uses that street again. False, and nothing changed, with no other
- * way (or nowhere it is going). Counted, so a car boxed in is still abandoned in time.
- */
-function reroute(world: World, ctx: Context, car: Car): boolean {
-  if (car.destination === null || car.occupants.length === 0) return false;
-  // Only behind a wreck: the nearest car ahead in its lane is abandoned. In the back of a
-  // queue, turning round only blocked the cars beside it — in a city-wide jam it cost
-  // half the people who got out in the hour (seed 11, after the broadcast).
+/** The nearest car standing or moving in this car's lane ahead, within a car's length and gap; null if none. */
+function carAhead(world: World, ctx: Context, car: Car): Car | null {
   const cc = world.config.cars;
   const look = cc.length + cc.gap;
   const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
@@ -659,7 +659,27 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   };
   for (const id of ctx.cars.near(car.x, car.y, look, ctx.ids2)) ahead(world.cars[id]!);
   for (const o of ctx.cars.driving()) ahead(o);
-  if (nearest === null || (nearest as Car).state !== 'abandoned') return false;
+  return nearest;
+}
+
+/**
+ * Turns a car stopped behind a wreck — the wreck in front of it, or at the head of the
+ * stopped queue it is in, up to queueLook cars on — back: out of the street it is on by
+ * the junction behind it, on a route that never uses that street again. With no other
+ * way, a car making for a way off the map makes for the nearest other one still open,
+ * by the same junction. False, and nothing changed, with no other way (or nowhere it is
+ * going). Counted, so a car boxed in is still abandoned in time.
+ */
+function reroute(world: World, ctx: Context, car: Car): boolean {
+  if (car.destination === null || car.occupants.length === 0) return false;
+  // Only behind a wreck. Behind a queue that is merely moving slowly, turning round only
+  // blocked the cars beside it — in a city-wide jam it cost half the people who got out
+  // in the hour (seed 11, after the broadcast). Behind a queue stopped at a wreck, the
+  // cars in it waited their turn to be abandoned, and the street filled with them.
+  const cc = world.config.cars;
+  let head = carAhead(world, ctx, car);
+  for (let k = 0; head !== null && head.state === 'driving' && head.blockedSince !== null && k < cc.queueLook; k++) head = carAhead(world, ctx, head);
+  if (head === null || head.state !== 'abandoned') return false;
   const street = car.route[Math.min(car.routeIndex, car.route.length - 1)];
   if (street === undefined) return false;
   const st = world.streets[street]!;
@@ -668,12 +688,30 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   // Behind it: the end its heading points away from.
   const behind = (a.x - car.x) * c + (a.y - car.y) * s <= (b.x - car.x) * c + (b.y - car.y) * s ? st.a : st.b;
   const driver = world.sims[car.occupants[0]!]!;
-  const route = ctx.paths.route(driver, car.destination.x, car.destination.y, false, { node: behind, avoid: street });
   car.reroutes++;
+  let route = ctx.paths.route(driver, car.destination.x, car.destination.y, false, { node: behind, avoid: street });
+  if (route === null && car.exit !== null) {
+    // Another way off the map: the nearest still open, other than this one.
+    const other = nearestExit(world, car.x, car.y, (driver.knownClosed | (1 << car.exit)) >>> 0);
+    const e = other === null ? null : world.exits[other]!;
+    if (e !== null && e.closedAt === null) {
+      route = ctx.paths.route(driver, e.x, e.y, false, { node: behind, avoid: street });
+      if (route !== null) {
+        car.exit = other;
+        car.destination = { x: e.x, y: e.y };
+        for (const id of car.occupants) {
+          const o = world.sims[id]!;
+          if (o.destinationKind === 'leave') o.destination = { x: e.x, y: e.y };
+        }
+      }
+    }
+  }
   if (route === null) return false;
   car.route = route;
   car.routeIndex = 0;
   car.blockedSince = null;
+  car.passing = null;
+  car.passSide = 0;
   return true;
 }
 

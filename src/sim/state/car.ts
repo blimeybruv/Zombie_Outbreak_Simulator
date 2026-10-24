@@ -54,6 +54,10 @@ export interface Car {
   route: StreetId[];
   /** @range 0–route.length @unit — @readBy car decisions */
   routeIndex: number;
+  /** The abandoned car it is driving round (driving.ts passBy), held until it is a car's length past it; null otherwise. @range car id | null @unit id @readBy car decisions */
+  passing: CarId | null;
+  /** Which side of the road it is passing on: 1 left of its lane's way, -1 right; 0 when not passing. @range -1, 0, 1 @unit — @readBy car decisions */
+  passSide: number;
   /** Since when it has been stopped with something in front of it; null while moving. @range tick | null @unit tick @readBy abandonment */
   blockedSince: Tick | null;
   /** The speed it hit something at this tick (movement found it would move into a building or another car, and stopped it): resolved by car processes, then null. @range 0–cars.maxSpeed | null @unit m/tick @readBy car processes (crashes) */

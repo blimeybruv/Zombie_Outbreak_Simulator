@@ -521,6 +521,30 @@ describe('cars', () => {
     expect(s.car).toBeNull();
   });
 
+  it('a car drives round an abandoned car in its lane, without touching it, rather than stopping behind it', () => {
+    const { world, ctx, s, car } = inCar();
+    // Up to speed on its first street.
+    for (let t = 0; t < 8; t++) step(world, ctx, { checkInvariant: false });
+    expect(car.state).toBe('driving');
+    // A wreck in its lane a little way ahead, pointing the same way.
+    const wreck = world.cars.find((c) => c.state === 'parked' && c !== car && Math.hypot(c.x - car.x, c.y - car.y) > 200)!;
+    wreck.state = 'abandoned';
+    wreck.x = car.x + Math.cos(car.heading) * 18;
+    wreck.y = car.y + Math.sin(car.heading) * 18;
+    wreck.heading = car.heading;
+    (ctx.cars as unknown as { signature: string }).signature = ''; // standing cars do not move: the index is rebuilt only when the moving set changes
+    let passed = false, closest = Infinity;
+    for (let t = 0; t < 60 && car.state === 'driving' && !passed; t++) {
+      step(world, ctx, { checkInvariant: false });
+      closest = Math.min(closest, Math.hypot(wreck.x - car.x, wreck.y - car.y));
+      if ((wreck.x - car.x) * Math.cos(wreck.heading) + (wreck.y - car.y) * Math.sin(wreck.heading) < -baseConfig.cars.length) passed = true;
+    }
+    expect(passed).toBe(true);
+    expect(car.state).toBe('driving');
+    expect(s.car).toBe(car.id);
+    expect(closest).toBeGreaterThanOrEqual(baseConfig.cars.width);
+  });
+
   /** The driver() set-up, once it is in the car and facing the way it will go. */
   function inCar() {
     const d = driver();
