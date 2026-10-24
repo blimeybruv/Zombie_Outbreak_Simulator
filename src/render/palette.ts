@@ -60,6 +60,10 @@ export const DEPOT_FILL = 'rgba(191, 232, 180, 0.16)';
 /** A reservists' HMMWV: hull in their green, a lighter bonnet and roof, a darker windscreen, cargo well and spare. */
 export const HMMWV_PANEL = '#dcf3d4';
 export const HMMWV_SHADE = '#5e8a58';
+/** A police cruiser's bonnet and roof: lighter than the hull, still under a living dot. */
+export const CRUISER_PANEL = '#b4d9ff';
+/** Windscreen, rear glass and the roof light bar, held well under the hull. */
+export const CRUISER_SHADE = '#3d6ea6';
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only

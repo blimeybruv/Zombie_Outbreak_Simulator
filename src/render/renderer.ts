@@ -228,6 +228,34 @@ function addHumvee(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: num
   shade.arc(sx, sy, 0.26, 0, Math.PI * 2);
 }
 
+/** Roof light bar, forward of centre. The flashing spots in drawVanLights sit on its ends. */
+const CRUISER_BAR_U = 0.46;
+const CRUISER_BAR_V = 0.46;
+
+/**
+ * A police cruiser in plan, the same 4.5 × 1.9 m footprint as the rectangle it
+ * replaces: hull and wheel arches, a lighter bonnet, boot and roof, a darker
+ * windscreen and rear glass, and the light bar. Nose along (dx, dy).
+ */
+function addCruiser(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: number, dx: number, dy: number): void {
+  const nx = -dy, ny = dx;
+  const bodyW = 1.62;
+  addBox(body, x, y, dx, dy, CAR_L, bodyW);
+  const arch = 0.19;
+  for (const u of [1.38, -1.38]) {
+    for (const s of [1, -1] as const) {
+      const lat = bodyW / 2 + arch / 2 - 0.05;
+      addBox(body, x + dx * u + nx * s * lat, y + dy * u + ny * s * lat, dx, dy, 0.8, arch);
+    }
+  }
+  addBox(panel, x + dx * 1.48, y + dy * 1.48, dx, dy, 1.05, 1.36);
+  addBox(panel, x - dx * 1.58, y - dy * 1.58, dx, dy, 0.82, 1.36);
+  addBox(panel, x - dx * 0.08, y - dy * 0.08, dx, dy, 1.28, 1.3);
+  addBox(shade, x + dx * 0.78, y + dy * 0.78, dx, dy, 0.26, 1.26);
+  addBox(shade, x - dx * 0.98, y - dy * 0.98, dx, dy, 0.18, 1.16);
+  addBox(shade, x + dx * CRUISER_BAR_U, y + dy * CRUISER_BAR_U, dx, dy, 0.16, CRUISER_BAR_V * 2 + 0.2);
+}
+
 function addPolygon(path: Path2D, pts: number[]): void {
   path.moveTo(pts[0]!, pts[1]!);
   for (let j = 2; j < pts.length; j += 2) path.lineTo(pts[j]!, pts[j + 1]!);
@@ -914,6 +942,7 @@ export class Renderer {
     const hw = CAR_W / 2;
     const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), ambulances = new Path2D(), trucks = new Path2D();
     const hBody = new Path2D(), hPanel = new Path2D(), hShade = new Path2D();
+    const cBody = new Path2D(), cPanel = new Path2D(), cShade = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
@@ -930,6 +959,11 @@ export class Renderer {
       // A reservists' HMMWV: drawn as one, in their green, at mid zoom too (abandoned, crossed like any car).
       if ((st[i]! & CAR_HMMWV) !== 0 && state !== CAR_ABANDONED) {
         addHumvee(hBody, hPanel, hShade, x, y, c, s);
+        continue;
+      }
+      // A police cruiser: the plan-view car, police blue. Abandoned, the dark crossed rectangle, like any wreck.
+      if (cruiser && state !== CAR_ABANDONED) {
+        addCruiser(cBody, cPanel, cShade, x, y, c, s);
         continue;
       }
       const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : amb && state !== CAR_ABANDONED ? ambulances : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
@@ -964,6 +998,12 @@ export class Renderer {
     g.fill(hPanel);
     g.fillStyle = P.HMMWV_SHADE;
     g.fill(hShade);
+    g.fillStyle = P.POLICE;
+    g.fill(cBody);
+    g.fillStyle = P.CRUISER_PANEL;
+    g.fill(cPanel);
+    g.fillStyle = P.CRUISER_SHADE;
+    g.fill(cShade);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);
@@ -1022,9 +1062,11 @@ export class Renderer {
       if (amb && swap) continue; // off half the time
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
-      // Across the cab, a little forward of the middle.
+      // A cruiser's spots sit on the ends of its roof bar. A van's stay across the cab,
+      // a little forward of the middle — the van is still the old rectangle.
       for (const side of [1, -1]) {
-        const u = len * 0.15, v = side * CAR_W * 0.28;
+        const u = cruiser ? CRUISER_BAR_U : len * 0.15;
+        const v = side * (cruiser ? CRUISER_BAR_V : CAR_W * 0.28);
         const red = amb || (side === 1) !== swap;
         const lx = x + c * u - s * v, ly = y + s * u + c * v;
         g.fillStyle = red ? P.SIREN_RED_GLOW : P.SIREN_BLUE_GLOW;
