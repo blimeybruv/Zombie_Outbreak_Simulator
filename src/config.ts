@@ -969,11 +969,12 @@ export const config = {
   // buildings.carryCap feeds eight for about three hours: the user's choice). A scavenger
   // goes out once what is left would last under scavengeBelow ticks; builders spend
   // supplies on barricades only while they would last over buildAbove. Out of them
-  // leaveAfter ticks, the people move on: each roles.interval, leaveShare of the residents
+  // leaveAfter ticks (four hours: people go a good while hungry before they give a shelter
+  // up; at half an hour, nearly every shelter in the city had emptied by the end), the people move on: each roles.interval, leaveShare of the residents
   // and of those sheltering leave for another shelter (`suppliesRanOut`). Police
   // stations, hospitals and the armoury keep their own stores and are not eaten into
   // (`exempt`) — guesses
-  supplies: { personTicksPerUnit: 10800, scavengeBelow: 3600, buildAbove: 7200, leaveAfter: 1800, leaveShare: 0.1, exempt: ['policeStation', 'hospital'] as string[] },
+  supplies: { personTicksPerUnit: 10800, scavengeBelow: 3600, buildAbove: 7200, leaveAfter: 14400, leaveShare: 0.1, exempt: ['policeStation', 'hospital'] as string[] },
 
   buildings: {
     suppliesCap: 60, // per building
