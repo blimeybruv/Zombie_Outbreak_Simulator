@@ -1,5 +1,5 @@
 // The shelter economy: the only cycle in the design. Builders raise fortification
-// and consume supplies; supplies run out and fortification decays; someone goes
+// and consume supplies; supplies run out, and the dead wear fortification down; someone goes
 // out for more, and the trip is the danger. Also here: shelter desirability, roles,
 // migration, garrisons and the cascade outside them.
 //
@@ -371,7 +371,7 @@ function sendResident(world: World, ctx: Context, b: Building, queued: number): 
   if (target !== null) startScavenging(world, sim, b, target);
 }
 
-/** Fortification work and decay, alerting, resident scavengers, garrisons and the cascade. */
+/** Fortification work, alerting, resident scavengers, garrisons and the cascade. */
 /**
  * The people in an alerted building eat: a unit of supplies each personTicksPerUnit /
  * people ticks (eight people eat eight times as fast as one: the cost of a big group).
@@ -416,13 +416,6 @@ function eat(world: World, ctx: Context, b: Building, living: number, onCycle: b
   }
 }
 
-/** Unattended fortification decays toward nothing; below the floor it is gone. */
-function decay(b: Building, bc: World['config']['buildings']): void {
-  if (b.fortification === 0) return;
-  b.fortification -= b.fortification * bc.fortificationDecay;
-  if (b.fortification < bc.fortificationFloor) b.fortification = 0;
-}
-
 export function shelterWork(world: World, ctx: Context, b: Building, queued: number): void {
   const { config, tick } = world;
   const rc = config.roles;
@@ -431,7 +424,7 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
   const bc = config.buildings;
 
   // Empty: whoever knew has gone, so the building forgets; a garrison ends (falls, if
-  // occupiers are why); barricades left behind decay unattended.
+  // occupiers are why); barricades left behind stand until the dead break them.
   if (living === 0) {
     b.alertedAt = null;
     if (b.garrisonedAt !== null) {
@@ -441,14 +434,11 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
       b.garrisonedAt = null;
       b.cascadeAt = null;
     }
-    decay(b, bc);
     return;
   }
   // Unaware buildings only watch the door: only alerted ones fortify, send anyone out
-  // or become garrisons. Barricades an earlier household left still decay, since
-  // nobody here is working on them.
+  // or become garrisons. Barricades an earlier household left stand as they are.
   if (b.alertedAt === null) {
-    decay(b, bc);
     if (onCycle && doorThreat(world, ctx, b) > 0) alert(world, b);
     return;
   }
@@ -465,8 +455,6 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
     b.fortification += (1 - b.fortification) * Math.min(1, bc.fortifyRate * crew);
     if ((tick + b.id) % bc.fortifySupplyTicks === 0) b.supplies = Math.max(0, b.supplies - crew);
     if (b.breached) b.breached = false;
-  } else {
-    decay(b, bc);
   }
 
   // A resident goes out when the building needs supplies and nobody tracked is going.

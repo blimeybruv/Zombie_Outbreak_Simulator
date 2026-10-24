@@ -889,6 +889,9 @@ export const config = {
     // A tracked survivor who goes indoors leaves the zombie holding that door this long
     // (it is the zombies at a door that make a building's breach rolls) — guess
     besiegeTicks: 600,
+    // Battering a door it besieges: every `cycle` ticks it backs off for `back` ticks at
+    // `pace` of its speed, then comes on into the door again — guess
+    ram: { cycle: 8, back: 2, pace: 0.4 },
     // Turned from a single bite: survivors register it at intactSight × their sight
     // radius, but never nearer than intactGiveaway (its gait gives it away) — guess
     intactSight: 0.35,
@@ -990,8 +993,12 @@ export const config = {
     carryCap: 8, // per sim
     fortifyRate: 0.002, // /tick per builder
     fortifySupplyTicks: 50, // ticks of building per unit of supplies spent
-    fortificationDecay: 0.0005, // /tick when unattended
-    fortificationFloor: 0.001, // decayed below this, fortification is gone
+    // Barricades hold until the dead damage them (the user's call: they no longer wear
+    // away unattended). Each awake zombie at a door of a peopled building, each breach
+    // check, takes `damage` of what fortification is left; below `fortificationFloor` it
+    // is gone — guess
+    damage: 0.003,
+    fortificationFloor: 0.001,
     exitTicksPerFortification: 40, // exit costs fortification * this
     // Fortification stages. Barricaded: the people inside, knowing of the outbreak, have
     // shoved furniture against the door — `barricadeTicks` after anyone last came in or

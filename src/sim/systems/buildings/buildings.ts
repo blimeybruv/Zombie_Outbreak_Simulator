@@ -362,6 +362,12 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
     }
   }
   rollers.sort((a, c) => a - c);
+  // Each of the dead at the door wears the barricades down, crowd enough to break in or
+  // not: they hold until the dead damage them, and only then.
+  if (rollers.length > 0 && b.fortification > 0) {
+    b.fortification *= (1 - config.buildings.damage) ** rollers.length;
+    if (b.fortification < config.buildings.fortificationFloor) b.fortification = 0;
+  }
   // It takes a crowd to break a held door: one zombie cannot follow anyone through a barricade.
   if (rollers.length < config.buildings.stages.minCrowd[stageOf(world, b)]) return;
   for (const zid of rollers.slice(0, br.maxRolls)) {

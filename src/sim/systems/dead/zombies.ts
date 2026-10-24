@@ -292,7 +292,15 @@ export function zombieDecisions(world: World, ctx: Context): void {
       )
         d = 0;
       if (d <= zc.arriveRadius && z.besieging !== null) {
-        pace = 0; // at the door: it stays
+        // At the door: it stays, battering it — a step back, then into it again (beyond
+        // arriveRadius it comes on at its pace, below). Staggered by id, so a crowd
+        // heaves rather than marching in step (the user's picture of the dead ramming).
+        pace = 0;
+        if ((tick + z.id) % zc.ram.cycle < zc.ram.back && d > 0) {
+          gx = -dx / d;
+          gy = -dy / d;
+          pace = zc.ram.pace;
+        }
         z.heardAt = tick;
       } else if (d <= zc.arriveRadius && z.target === null) {
         // Come to a door the living are behind (shots fired from it, a scream from inside):

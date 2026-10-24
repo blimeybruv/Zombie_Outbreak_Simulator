@@ -36,7 +36,7 @@ function work(world: World, ctx: Context, b: Building, ticks: number): void {
 }
 
 describe('fortification', () => {
-  it('rises only once the building is alerted, consuming supplies, and decays without them', () => {
+  it('rises only once the building is alerted, consuming supplies, and holds without them', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, 2);
     b.supplies = 4;
@@ -55,7 +55,28 @@ describe('fortification', () => {
     b.residents = 1; // nobody can be spared, so nobody goes out
     b.sheltered = [];
     work(world, ctx, b, 600);
-    expect(b.fortification).toBeLessThan(peak);
+    expect(b.fortification).toBe(peak); // nobody to wear it down
+  });
+
+  it('is worn down by the dead at the door, each of them, a share of what is left', () => {
+    const { world, ctx } = fresh();
+    const b = quietHouse(world, ctx, 2);
+    b.fortification = 0.9;
+    const e = b.entrances[0]!;
+    for (let i = 0; i < 3; i++) spawnZombie(world, e.x, e.y, 'active', null, null);
+    let checks = 0;
+    for (let t = 0; t < config.buildings.breach.interval * 5 && b.zombiesInside === 0; t++) {
+      world.tick++;
+      rebuildHashes(world, ctx);
+      const before = b.fortification;
+      buildingProcesses(world, ctx);
+      if (b.fortification !== before) {
+        checks++;
+        expect(b.fortification).toBeCloseTo(before * (1 - config.buildings.damage) ** 3, 9);
+      }
+    }
+    expect(checks).toBeGreaterThan(0);
+    expect(b.fortification).toBeLessThan(0.9);
     expect(b.fortification).toBeGreaterThan(0); // asymptotic, never linear to zero
   });
 });
@@ -205,7 +226,7 @@ describe('garrisons', () => {
 });
 
 describe('alert state belongs to the people inside', () => {
-  it('is forgotten when the building empties, while the barricades left behind keep decaying', () => {
+  it('is forgotten when the building empties, while the barricades left behind stand', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, 1);
     b.alertedAt = 0;
@@ -216,13 +237,13 @@ describe('alert state belongs to the people inside', () => {
     work(world, ctx, b, 1);
     expect(b.alertedAt).toBeNull();
     const f = b.fortification;
-    expect(f).toBeLessThan(0.5);
+    expect(f).toBe(0.5);
     // A visitor who does not know (here, on a routine stop) brings no knowledge in, and does no work.
     const e = b.entrances[0]!;
     const v = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, initialPanic: 0, destinationKind: 'routine' });
     b.sheltered.push(v.id);
     work(world, ctx, b, 10);
-    expect(b.fortification).toBeLessThan(f);
+    expect(b.fortification).toBe(f);
   });
 
   it('passers-through do not make a garrison: only residents and those who made it home hold one', () => {

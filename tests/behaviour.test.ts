@@ -956,6 +956,26 @@ describe('the dead', () => {
     zombieDecisions(world, ctx);
     expect(z.target).toBeNull();
     expect(z.besieging).toBe(b.id);
+    // At the door, it batters it: backs off a step, then comes on into it again, over and over.
+    const door = z.heardPoint!;
+    const zc = baseConfig.zombie;
+    const dist: number[] = [];
+    for (let t = 0; t < 100 + 6 * zc.ram.cycle; t++) { // up to the door (some way off), then six cycles
+      world.tick++;
+      rebuildHashes(world, ctx);
+      computePerception(world, ctx);
+      zombieDecisions(world, ctx);
+      integrateMovement(world, ctx);
+      dist.push(Math.hypot(z.x - door.x, z.y - door.y));
+    }
+    expect(z.besieging).toBe(b.id);
+    const at = dist.findIndex((d) => d <= zc.arriveRadius);
+    expect(at).toBeGreaterThanOrEqual(0);
+    const after = dist.slice(at);
+    let lunges = 0;
+    for (let i = 1; i < after.length; i++) if (after[i]! < after[i - 1]! - 0.3) lunges++;
+    expect(lunges).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...after)).toBeLessThan(zc.arriveRadius + 2); // never far from it
   });
 });
 

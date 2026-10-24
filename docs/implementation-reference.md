@@ -161,7 +161,7 @@ Approach is asymptotic, never linear. `rate` is per tick, expressed as the fract
 | --- | --- | --- | --- |
 | `panic` | Witnessed conversion, nearby noise, panicked neighbours | 0.25 per event | 0.004 per tick |
 | `danger` | Observation writes `perceivedThreat` at that moment | Direct set | Confidence ages, value does not decay |
-| `fortification` | A builder working, consuming materials | 0.002 per tick per worker | 0.0005 per tick, unattended |
+| `fortification` | A builder working, consuming supplies | 0.002 per tick per worker | none unattended; 0.003 of itself per zombie at the door, each breach check (every 10 ticks) |
 
 **`danger` ages rather than decays.** The stored value stays as observed; what changes is confidence, derived from `tick - observedAt`. This matters: a street remembered as lethal an hour ago should still read as dangerous, just less certainly. Decaying the value toward zero would make old bad news look like good news, which is the wrong failure.
 
@@ -310,7 +310,7 @@ No archetype, no memory, no history counters, no shelter logic, no names. Defaul
 | `occupiedAt` | `int?` | Tick | When the occupation began |
 | `contested` | `bool` | — | A tracked sim is fighting the occupiers; drives render state |
 | `materials` | `int` | 0–60 | Stock available to builders |
-| `fortification` | `float` | 0–1 | Raised by builders, decays unattended |
+| `fortification` | `float` | 0–1 | Raised by builders; worn down only by the dead at the door (`buildings.damage`) |
 | `integrity` | `float` | 0–1 | Derived from tag; structural soundness |
 | `breached` | `bool` | — | A zombie has entered |
 | `lit` | `bool` | — | Interior light; visible from outside at night |
@@ -880,7 +880,7 @@ Archetype sets the weights, never the logic: preppers lean on integrity and stre
 
 **Believed occupancy is a belief.** The fill looks identical whether a building holds forty residents or forty zombies, so shelter choice inherits the occupation gamble rather than routing around it. A remembered-safe building may have fallen an hour ago.
 
-**Commit on choice.** Re-evaluating every tick makes sims oscillate between two similar buildings. Re-evaluation fires only on breach, the shelter falling, fortification decaying past a floor, or a migration trigger.
+**Commit on choice.** Re-evaluating every tick makes sims oscillate between two similar buildings. Re-evaluation fires only on breach, the shelter falling, fortification worn down past a floor, or a migration trigger.
 
 ### Fortification stages
 
@@ -888,7 +888,7 @@ Fortification was one number dividing the breach odds, and integrity multiplied 
 
 - **Open:** the people inside do not know of the outbreak, nobody is inside, or the door has been opened in the last `barricadeTicks` (60). One zombie may try.
 - **Barricaded:** they know, someone is inside, and nobody has come in or gone out for 60 ticks: furniture against the door. Time only, no materials. Undone whenever the door opens — anyone entering or leaving, a resident released or driven out (`Building.doorOpenedAt`) — so a scavenger coming home, or one leading the dead home, leaves the door open behind it. It takes two zombies at the door to try.
-- **Reinforced:** fortification at least 0.3. Takes five. This is where materials and decay belong, as before.
+- **Reinforced:** fortification at least 0.3. Takes five. This is where supplies belong, as before.
 - **Fortified:** fortification at least 0.8. Takes fifteen — the crowd a cascade means.
 
 Integrity no longer scales the odds; it caps the stage (the user's suggestion): reinforcible from 0.4, fortifiable from 0.7. Houses, warehouses, workshops, hardware stores, gun shops and police stations can be fortified; offices and hospitals stop at reinforced; supermarkets and schools, glass-fronted, at barricaded. Within a stage the odds per roll are `breach.base` / (1 + 2 × fortification), with `base` 0.06 so a bare house keeps its old odds. Leaving through a barricade takes 10 ticks more. A garrison now forms on a barricaded door (it was fortification 0.05).
@@ -1731,3 +1731,4 @@ Floated by the user after the survivor revisions; each was measured on seed 1 be
 - **Stuck standing on a car** (the user saw a cop frozen on a car beside a building; `movement.ts step`). Someone standing on a car only ever climbed straight on; with the wall dead ahead, they stood there for good. Now they try the other ways off it, as on foot. Movement check, seed 1: sims stuck 0.6% → 0.0%, zombies 1.3% → 1.4%.
 - **Squads of knives** (the user saw a white-dotted squad holding a checkpoint: reservists armed with knives; `squads.ts formSquads`). Reservists stood down in an armoury formed a squad with any weapon once its guns were gone. Now only those with a loaded firearm count.
 - **Supermarkets and the mall feed hundreds** (the user's call: they were picked clean at once; `tags.supermarket.supplies` 8–16 → 500–900, `mall` 80–150 → 1,500–2,500). The 89 supermarkets and the mall now hold about 62,000 units between them (a unit feeds one person three hours): 34,000 / 35,000 are left at tick 12,000 (was 146 / 156) and 1,700 / 5,800 at the end. **It costs survival**: seeds 1 / 2, full runs, against the same code with the old stocks — indoors at the end 433 → 306 / 488 → 269, dead 1,920 → 2,007 / 1,867 → 2,071; already by tick 12,000, seed 2, 3,042 → 2,413 indoors. Nearly all of it is in the supermarkets themselves: to tick 12,000 on seed 2, 86 → 445 bitten or killed inside one, and supermarket breaches 83 → 150. A supermarket that never runs out is never left; glass-fronted, it can only be barricaded, and its people stay and build until the dead break in. Before, they moved on when it ran dry, to stronger buildings. Open, for the user.
+- **Barricades hold until the dead damage them; the dead ram the door** (the user's call; `buildings.ts breachRolls`, `buildings.damage` 0.003, `zombies.ts`, `zombie.ram` { cycle 8, back 2, pace 0.4 }). Fortification no longer wears away by itself, attended or not (`buildings.fortificationDecay` removed). Each awake zombie within `entranceRadius` of a door of a building with people inside takes 0.003 of what is left at every breach check (every 10 ticks), whether or not there are enough of them to try a break-in. A crowd of ten halves a door in about 230 ticks; a builder adds 0.002 × (1 − f) a tick. A besieging zombie at the door backs off for 2 ticks of every 8 at 0.4 of its pace, then comes on into the door again, staggered by id. The movement check counts these as reversals. Full runs, seeds 1 / 2, against 33a7dcc (with the large supermarket stocks): indoors at the end 306 → 135 / 269 → 271; dead 2,007 → 2,155 / 2,071 → 2,116; breaches 3,429 → 3,393 / 3,431 → 3,126; shelters established 1,461 → 1,192 / 1,405 → 1,160; supplies running out 990 → 654 / 925 → 545. Mixed on two seeds; needs the sweep.
