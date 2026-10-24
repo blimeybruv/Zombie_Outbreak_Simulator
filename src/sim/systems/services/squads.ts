@@ -273,7 +273,9 @@ function formSquads(world: World, ctx: Context): void {
     const here = b.sheltered.map((id) => sims[id]!).filter((s) => (s.muster === 'waiting' || s.muster === 'stoodDown') && isLiving(s) && s.insideBuilding === b.id);
     if (here.length < size) continue;
     for (const s of here) if (s.muster === 'stoodDown') restock(world, s, b);
-    const waiting = here.filter((s) => s.weapon !== null).sort((p, q) => p.id - q.id);
+    // Only those with a loaded firearm: one that came in with a knife, the armoury's guns
+    // all taken, formed squads of knives that went out to hold checkpoints.
+    const waiting = here.filter((s) => isFirearm(s.weapon) && s.ammo > 0).sort((p, q) => p.id - q.id);
     for (let at = 0; at + size <= waiting.length; at += size) {
       const leader = waiting[at]!;
       for (let i = 0; i < size; i++) {

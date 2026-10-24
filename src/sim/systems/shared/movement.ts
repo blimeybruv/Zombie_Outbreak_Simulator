@@ -93,7 +93,21 @@ function climbOver(ctx: Context, e: Mover, heading: number, distance: number): b
 function step(ctx: Context, e: Mover, heading: number, distance: number, slideSpeed: number, climb = { share: 0, turn: 0 }): void {
   if (distance <= 0) return;
   if (climb.share > 0 && ctx.cars.standing(e.x, e.y)) {
-    if (climbOver(ctx, e, heading, distance * climb.share)) e.slide = 0;
+    if (climbOver(ctx, e, heading, distance * climb.share)) {
+      e.slide = 0;
+      return;
+    }
+    // Straight on is a wall (or a moving car): off the car another way. Only ever
+    // straight on, a cop on a car parked against a building stood on it for good.
+    const sides: (-1 | 1)[] = e.slide === -1 ? [-1, 1] : [1, -1];
+    for (const d of [...DEFLECT, ...SWEEP]) {
+      for (const side of sides) {
+        if (climbOver(ctx, e, heading + side * d, distance * climb.share)) {
+          e.slide = side;
+          return;
+        }
+      }
+    }
     return;
   }
   if (tryMove(ctx, e, heading, distance)) {

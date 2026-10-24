@@ -299,8 +299,15 @@ export function decideCars(world: World, ctx: Context): void {
     // Stopped by contact (movement marks it) stays stopped until a move goes ahead: cleared
     // whenever decisions saw nothing in the way, a car nosed against a wreck's corner bumped
     // it every tick for hours, never rerouted and never abandoned.
-    if (blocked || held) car.blockedSince ??= tick;
-    else if (moved) car.blockedSince = null;
+    // And it is moving again only once it has got somewhere — cars.unstuck from where it
+    // was first stopped: cleared by any move, a car backing off a metre and nosing in
+    // again, or shuffling against a wall, was stuck for hours and never rerouted,
+    // parked or abandoned.
+    if (blocked || held) stopped(car, tick);
+    else if (moved && (car.stuckAt === null || Math.hypot(car.x - car.stuckAt.x, car.y - car.stuckAt.y) > cc.unstuck)) {
+      car.blockedSince = null;
+      car.stuckAt = null;
+    }
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move (not the reservists' HMMWVs) sounds its siren too (features.sirens): sparse and modest, a thin wake
@@ -310,6 +317,13 @@ export function decideCars(world: World, ctx: Context): void {
     if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
     if (config.features.sirens && car.home !== null && car.kind !== 'hmmwv' && (car.id + tick) % sr.every === 0) emitStimulus(world, car.x, car.y, 'siren', sr.noise, false, sr.intensity);
   }
+}
+
+/** Marks a car stopped, from now and here, unless it already is. */
+function stopped(car: Car, tick: number): void {
+  if (car.blockedSince !== null) return;
+  car.blockedSince = tick;
+  car.stuckAt = { x: car.x, y: car.y };
 }
 
 /**
@@ -481,7 +495,7 @@ export function moveCars(world: World, ctx: Context): void {
     if (wouldHit(world, ctx, car, nx, ny)) {
       car.impact = Math.abs(car.speed);
       car.speed = 0;
-      car.blockedSince ??= world.tick;
+      stopped(car, world.tick);
       continue;
     }
     car.x = nx;

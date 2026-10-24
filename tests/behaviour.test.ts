@@ -20,6 +20,7 @@ import { believedDanger } from '../src/sim/navigation/pathfinding';
 import { convertDue } from '../src/sim/systems/dead/infection';
 import { carProcesses } from '../src/sim/systems/services/cars';
 import { decideCars, moveCars } from '../src/sim/systems/services/driving';
+import { integrateMovement } from '../src/sim/systems/shared/movement';
 import { step } from '../src/sim/tick';
 
 // Pinned to one zombie in one building, with no SWAT, EMTs, yards or exits: these tests set
@@ -510,6 +511,7 @@ describe('cars', () => {
     const blocker = walker(world, car.x + Math.cos(car.heading) * 4, car.y + Math.sin(car.heading) * 4);
     blocker.stand = 'freeze';
     blocker.standUntil = 1e9;
+    car.reroutes = baseConfig.cars.maxReroutes; // turned back as often as it may: no other way
     for (let t = 0; t <= baseConfig.cars.jamTicks + 1; t++) {
       world.tick++;
       sizeContext(ctx, world);
@@ -640,9 +642,10 @@ describe('cars', () => {
     expect(worst).toBe(0);
   });
 
-  it('nosed up to a wall, a car steers or backs away from it rather than through it', () => {
-    const { world, ctx, car } = inCar();
-    // Facing the nearest building's wall from just short of it, slowly, wanting to go on through.
+  /** In a car facing the nearest building's wall from just short of it, slowly, wanting to go on through. */
+  function nosed() {
+    const got = inCar();
+    const { world, ctx, car } = got;
     const b = world.buildings.reduce((best, x) => (Math.hypot(x.outline[0]!.x - car.x, x.outline[0]!.y - car.y) < Math.hypot(best.outline[0]!.x - car.x, best.outline[0]!.y - car.y) ? x : best));
     const cx = b.outline.reduce((a, p) => a + p.x / 4, 0), cy = b.outline.reduce((a, p) => a + p.y / 4, 0);
     const h = Math.atan2(cy - car.y, cx - car.x);
@@ -655,6 +658,11 @@ describe('cars', () => {
     car.route = [];
     car.routeIndex = 0;
     car.speed = 2;
+    return got;
+  }
+
+  it('nosed up to a wall, a car steers or backs away from it rather than through it', () => {
+    const { world, ctx, car } = nosed();
     expect(bodyInWalls(ctx, car)).toBe(0);
     for (let t = 0; t < 20; t++) {
       world.tick++;
@@ -663,6 +671,74 @@ describe('cars', () => {
       moveCars(world, ctx);
       expect(bodyInWalls(ctx, car)).toBe(0);
     }
+  });
+
+  it('shuffling against a wall, a car is stopped all along: its clock is not reset by a metre each way', () => {
+    const { world, ctx, car } = nosed();
+    let since: number | null = null;
+    for (let t = 0; t < 100; t++) {
+      world.tick++;
+      rebuildHashes(world, ctx);
+      decideCars(world, ctx);
+      moveCars(world, ctx);
+      if (since === null) since = car.blockedSince;
+      else expect(car.blockedSince).toBe(since);
+    }
+    expect(since).not.toBeNull();
+    expect(Math.hypot(car.x - car.stuckAt!.x, car.y - car.stuckAt!.y)).toBeLessThanOrEqual(baseConfig.cars.unstuck);
+  });
+
+  it('stuck rerouteAfter within parkStuck of where it is going, a car parks there and its people walk on', () => {
+    const { world, ctx, car, s } = nosed();
+    expect(Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y)).toBeLessThan(baseConfig.cars.parkStuck);
+    for (let t = 0; t < baseConfig.cars.rerouteAfter + 30 && car.state === 'driving'; t++) {
+      world.tick++;
+      rebuildHashes(world, ctx);
+      decideCars(world, ctx);
+      moveCars(world, ctx);
+      carProcesses(world, ctx);
+    }
+    expect(car.state).toBe('parked');
+    expect(s.car).toBeNull();
+  });
+
+  it('standing on a car with a wall straight ahead, someone gets off it another way', () => {
+    const { world, ctx } = fresh();
+    for (const z of world.zombies) z.state = 'destroyed';
+    // A parked car moved alongside a building, its side against the wall, and someone on it facing the wall.
+    const h = 0.3, off = baseConfig.cars.width / 2;
+    const centre = (x: (typeof world.buildings)[number]) => ({ x: x.outline.reduce((a, p) => a + p.x / x.outline.length, 0), y: x.outline.reduce((a, p) => a + p.y / x.outline.length, 0) });
+    const edge = (x: (typeof world.buildings)[number]) => {
+      const c = centre(x);
+      let d = 0;
+      while (ctx.map.buildingAt(c.x + Math.cos(h) * d, c.y + Math.sin(h) * d) !== null) d += 0.1;
+      return { x: c.x + Math.cos(h) * (d + off), y: c.y + Math.sin(h) * (d + off), c };
+    };
+    // One whose wall has open ground beside it, room for the car and to step off it.
+    const b = world.buildings.find((x) => {
+      const c = centre(x);
+      if (x.tag !== 'residential' || ctx.map.buildingAt(c.x, c.y) !== x.id) return false;
+      const e = edge(x);
+      return [0, 1, 2, 3, 4].every((k) => ctx.map.walkable(e.x + Math.cos(h) * k, e.y + Math.sin(h) * k));
+    })!;
+    const { x: ex, y: ey, c: { x: cx, y: cy } } = edge(b);
+    const car = world.cars[0]!;
+    car.x = ex;
+    car.y = ey;
+    car.heading = h + Math.PI / 2;
+    const s = walker(world, car.x, car.y);
+    const wall = h + Math.PI;
+    sizeContext(ctx, world);
+    (ctx.cars as unknown as { signature: string }).signature = ''; // a standing car moved by hand
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    expect(ctx.cars.standing(s.x, s.y)).toBe(true);
+    for (let t = 0; t < 60 && ctx.cars.standing(s.x, s.y); t++) {
+      s.heading = wall; // still wanting the wall
+      s.destination = { x: cx, y: cy };
+      integrateMovement(world, ctx);
+    }
+    expect(ctx.cars.standing(s.x, s.y)).toBe(false);
   });
 
   it('an armed alarm goes off once, as the car is taken, and frightens nobody', () => {

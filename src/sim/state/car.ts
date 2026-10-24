@@ -60,8 +60,15 @@ export interface Car {
   passing: CarId | null;
   /** Which side of the road it is passing on: 1 left of its lane's way, -1 right; 0 when not passing. @range -1, 0, 1 @unit — @readBy car decisions */
   passSide: number;
-  /** Since when it has been stopped with something in front of it; null while moving. @range tick | null @unit tick @readBy abandonment */
+  /** Since when it has been stopped with something in front of it (or made no headway, stuckAt); null while moving. @range tick | null @unit tick @readBy abandonment */
   blockedSince: Tick | null;
+  /**
+   * Where it was when it was first stopped (blockedSince); null while moving. It counts as
+   * moving again only once it is cars.unstuck from here: cleared by any move, a car
+   * shuffling a metre back and forth against a wall was never rerouted or abandoned.
+   * @range world coordinates | null @unit m @readBy car decisions (unsticking)
+   */
+  stuckAt: { x: number; y: number } | null;
   /** The speed it hit something at this tick (movement found it would move into a building or another car, and stopped it): resolved by car processes, then null. @range 0–cars.maxSpeed | null @unit m/tick @readBy car processes (crashes) */
   impact: number | null;
   /** Times it has turned back from a blocked street and taken another way; capped, so a car boxed in is still abandoned in the end. @range 0–cars.maxReroutes @unit count @readBy car processes (rerouting) */

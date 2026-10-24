@@ -785,6 +785,15 @@ export const config = {
     // jamTicks stopped and it is abandoned — guess
     rerouteAfter: 60,
     maxReroutes: 2,
+    // Stopped counts until the car has got unstuck metres from where it stopped: a car
+    // backing off and nosing in again, a metre each way, had its clock reset for hours.
+    // Held by walls (no car ahead: a kerb spot round a corner, an alley too tight for it, a
+    // street it has drifted off), it takes a fresh way from where it is; behind a queue
+    // that has stopped, a police car, SWAT van or ambulance turns back (a civilian waits —
+    // reroute). Stuck rerouteAfter within parkStuck of where it is going, it parks where it
+    // is and its people walk the rest — guesses
+    unstuck: 9, // m: two car lengths
+    parkStuck: 40, // m
     queueLook: 4, // cars along a stopped queue a car looks to see a wreck at its head — guess
     // Engines: a car being driven (moving or stuck) makes a noise every engineInterval
     // ticks, staggered by id, heard by the dead to engineNoise metres at
