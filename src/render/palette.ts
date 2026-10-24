@@ -70,6 +70,10 @@ export const HMMWV_SHADE = '#5e8a58';
 export const CRUISER_PANEL = '#b4d9ff';
 /** Windscreen, rear glass and the roof light bar, held well under the hull. */
 export const CRUISER_SHADE = '#3d6ea6';
+/** A SWAT van's cab and box: the same police blue, a step darker, under a living dot. */
+export const SWAT_PANEL = '#5f94c4';
+/** Windscreen, rear doors, roof rib and the cab light bar. */
+export const SWAT_SHADE = '#2f5274';
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only
