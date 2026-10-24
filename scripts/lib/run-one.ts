@@ -73,7 +73,7 @@ export interface StageStats {
 /** Raw totals in SCORED order, independent of promotion.scoring. */
 function rawHistory(s: World['sims'][number], tick: number): number[] {
   const h = s.history;
-  return [tick - h.spawnedAt, h.conversionsWitnessed, tick - h.lastCompanyAt, h.nearMisses, h.kills, h.streetsVisited, h.materialsDelivered, s.caution];
+  return [tick - h.spawnedAt, h.conversionsWitnessed, tick - h.lastCompanyAt, h.nearMisses, h.kills, h.streetsVisited, h.suppliesDelivered, s.caution];
 }
 
 function pearson(xs: number[], ys: number[]): number {
@@ -217,7 +217,7 @@ const survived = (s: { condition: string }) => s.condition === 'healthy' || s.co
 export const GATE_LOSS = { min: 0.4, max: 0.95 } as const;
 
 /** Events that count as something happening, for the stasis check. */
-const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'materialsDelivered', 'buildingBreached']);
+const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'suppliesDelivered', 'buildingBreached']);
 
 /** Deep-sets `a.b.c=value` overrides on a copy of the config. */
 export function withOverrides(overrides: Record<string, unknown>): Config {

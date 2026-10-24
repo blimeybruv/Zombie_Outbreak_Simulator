@@ -29,12 +29,14 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `The dead broke into ${n.place}.`;
     case 'shelterFell':
       return `The shelter in ${n.place} has fallen.`;
+    case 'suppliesRanOut':
+      return `The people in ${n.place} have run out of supplies and are moving on.`;
     case 'shelterEstablished':
       return `Survivors are holding ${n.place}.`;
     case 'buildingRetaken':
       return `${who(n)} cleared the dead out of ${n.place}.`;
-    case 'materialsDelivered':
-      return `${who(n)} brought ${e.amount} materials back to ${n.place}.`;
+    case 'suppliesDelivered':
+      return `${who(n)} brought ${e.amount} supplies back to ${n.place}.`;
     case 'weaponFound':
       return `${who(n)} found a ${e.weapon} in ${n.place}.`;
     case 'districtChanged':

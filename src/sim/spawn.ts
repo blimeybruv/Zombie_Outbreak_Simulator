@@ -218,7 +218,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     refusedBy: null,
     weapon,
     ammo,
-    materials: 0,
+    supplies: 0,
     nextAttackAt: tick,
     turnsAt: null,
     risesAt: null,
@@ -270,12 +270,12 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
       streetsVisited: 0,
       nearMisses: 0,
       kills: 0,
-      materialsDelivered: 0,
+      suppliesDelivered: 0,
     },
   };
   if (church !== null) {
     const b = world.buildings[church]!;
-    sim.buildingMemory.set(church, { believedOccupants: b.residents, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false });
+    sim.buildingMemory.set(church, { believedOccupants: b.residents, supplies: b.supplies, fortification: b.fortification, observedAt: tick, visited: false });
   }
   if (archetype === 'police') makePolice(world, sim);
   world.sims.push(sim);

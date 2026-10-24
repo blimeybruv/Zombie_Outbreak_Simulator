@@ -47,21 +47,21 @@ export interface ZombieDestroyedEvent extends EventBase, Located {
 
 export interface BuildingEvent extends EventBase {
   /** @range literal @unit — @readBy event consumers */
-  type: 'buildingBreached' | 'shelterEstablished' | 'shelterFell' | 'occupationContested' | 'buildingRetaken' | 'cascadeCrossed' | 'strangerRefused' | 'ambulanceDispatched' | 'patientAdmitted';
+  type: 'buildingBreached' | 'shelterEstablished' | 'shelterFell' | 'suppliesRanOut' | 'occupationContested' | 'buildingRetaken' | 'cascadeCrossed' | 'strangerRefused' | 'ambulanceDispatched' | 'patientAdmitted';
   /** @range building id @unit id @readBy ticker, building inspector history */
   building: BuildingId;
   /** The sim contesting, for occupationContested; the stranger, for strangerRefused; the patient, for patientAdmitted; otherwise null. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
 }
 
-export interface MaterialsDeliveredEvent extends EventBase {
+export interface SuppliesDeliveredEvent extends EventBase {
   /** @range literal @unit — @readBy event consumers */
-  type: 'materialsDelivered';
+  type: 'suppliesDelivered';
   /** @range sim id @unit id @readBy ticker */
   sim: SimId;
   /** @range building id @unit id @readBy ticker, building inspector history */
   building: BuildingId;
-  /** @range 1–8 @unit materials @readBy ticker copy */
+  /** @range 1–8 @unit supplies @readBy ticker copy */
   amount: Count;
 }
 
@@ -332,6 +332,6 @@ export type SimEvent =
   | SimTurnedEvent
   | ZombieDestroyedEvent
   | BuildingEvent
-  | MaterialsDeliveredEvent
+  | SuppliesDeliveredEvent
   | WeaponFoundEvent
   | DistrictChangedEvent;

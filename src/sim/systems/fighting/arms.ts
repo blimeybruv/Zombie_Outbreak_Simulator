@@ -18,7 +18,7 @@ import type { Arms, Building, Sim, Weapon, World } from '../../state';
 import { isFirearm } from '../../state';
 import { capacity, isLiving } from '../shared/common';
 
-type Table = Partial<Record<Weapon | 'ammo' | 'materials', number>>;
+type Table = Partial<Record<Weapon | 'ammo' | 'supplies', number>>;
 
 function tableOf(world: World, b: Building): Table {
   const { config } = world;
@@ -26,10 +26,10 @@ function tableOf(world: World, b: Building): Table {
   return config.tags[functionalProfile(b.tag, config)].loot as Table;
 }
 
-/** One item drawn from a loot table by its weights (materials aside), with rounds for a firearm or a box. */
+/** One item drawn from a loot table by its weights (supplies aside), with rounds for a firearm or a box. */
 function draw(world: World, rng: RngState, table: Table): Arms | null {
   const { config } = world;
-  const keys = (Object.keys(table) as (keyof Table)[]).filter((k) => k !== 'materials');
+  const keys = (Object.keys(table) as (keyof Table)[]).filter((k) => k !== 'supplies');
   if (keys.length === 0) return null;
   let total = 0;
   for (const k of keys) total += table[k]!;

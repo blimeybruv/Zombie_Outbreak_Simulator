@@ -58,10 +58,12 @@ export interface Building {
   /** When the current occupation began; null when unoccupied. @range tick | null @unit tick @readBy ticker, inspector */
   occupiedAt: Tick | null;
 
-  /** Stock available to builders. @range 0–150 @unit materials @readBy builders, scavenger choice, inspector */
-  materials: Count;
+  /** Stock available to builders. @range 0–150 @unit supplies @readBy builders, scavenger choice, inspector */
+  supplies: Count;
   /** @range 0–1 @unit scalar @readBy breach probability, exit cost, migration damping, desirability */
   fortification: Unit01;
+  /** When it ran out of supplies with people in it (shelter.ts); null while it has some, or nobody to eat them. @range tick | null @unit tick @readBy shelter (moving on), inspector */
+  outOfSuppliesAt: Tick | null;
   /** A zombie has entered; resets once fortification begins after it is retaken. @range true/false @unit — @readBy shelter re-evaluation, inspector, ticker */
   breached: boolean;
   /** Interior light, visible from outside at night. @range true/false @unit — @readBy render */
@@ -78,7 +80,7 @@ export interface Building {
    */
   alertedAt: Tick | null;
   /**
-   * The sim currently out fetching materials for this building. Checked lazily: it
+   * The sim currently out fetching supplies for this building. Checked lazily: it
    * counts only while that sim is alive, outdoors-bound for it and still a scavenger.
    * @range sim id | null @unit id @readBy role evaluation, resident scavengers
    */

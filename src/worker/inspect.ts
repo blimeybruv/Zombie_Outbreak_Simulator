@@ -2,6 +2,7 @@
 // person, refreshed with every frame while the panel is open. The viewer knows
 // more than the people do — that is the whole dramatic engine.
 
+import { suppliesLast } from '../sim/systems/buildings/shelter';
 import { functionalProfile } from '../sim/mapgen/generate';
 import type { Sim, World } from '../sim/state';
 import { scoreLiving } from '../sim/systems/story/promotion';
@@ -23,7 +24,8 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
       district: w.districts[b.district]!.name,
       integrity: w.config.tags[functionalProfile(b.tag, w.config)].integrity,
       fortification: b.fortification,
-      materials: b.materials,
+      supplies: b.supplies,
+      suppliesHours: Number.isFinite(suppliesLast(w, b)) ? suppliesLast(w, b) / 3600 : null,
       breached: b.breached,
       garrisoned: b.garrisonedAt !== null,
       residents: b.residents,
@@ -65,7 +67,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     insideBuilding: s.insideBuilding,
     weapon: s.weapon,
     ammo: s.ammo,
-    materials: s.materials,
+    supplies: s.supplies,
     role: s.role,
     doing: living ? doing(s) : null,
     home: place(s.home),

@@ -18,7 +18,7 @@ if (!file) throw new Error('usage: roster-eval.ts <sweep --json output>');
 const { results } = JSON.parse(readFileSync(file, 'utf8')) as { results: RunSummary[] };
 const COUNT = 12;
 const RATE_FLOOR = 1800;
-const ACCUMULATING = new Set([1, 3, 4, 5, 6]); // conversions, near misses, kills, streets, materials
+const ACCUMULATING = new Set([1, 3, 4, 5, 6]); // conversions, near misses, kills, streets, supplies
 const STREETS = 5;
 
 type Cand = RunSummary['stages'][number]['candidates'][number];

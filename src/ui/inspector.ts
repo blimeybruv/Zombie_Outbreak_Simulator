@@ -132,7 +132,8 @@ export class Inspector {
     r.append(el('div', 'head', `${b.what[0]!.toUpperCase()}${b.what.slice(1)}, ${b.street}`));
     r.append(el('div', 'sub', b.district));
     r.append(bar('integrity', b.integrity), bar('fortified', b.fortification));
-    const state = [`materials ${b.materials}`, b.garrisoned ? 'held' : '', b.breached ? 'breached' : '', b.occupiers > 0 && b.tracked.length > 0 ? 'contested' : ''].filter(Boolean);
+    const lasts = b.suppliesHours === null ? '' : b.suppliesHours < 0.5 ? b.supplies === 0 ? ', none left' : ', nearly gone' : `, about ${Math.round(b.suppliesHours)} h`;
+    const state = [`supplies ${b.supplies}${lasts}`, b.garrisoned ? 'held' : '', b.breached ? 'breached' : '', b.occupiers > 0 && b.tracked.length > 0 ? 'contested' : ''].filter(Boolean);
     r.append(el('div', 'sub', state.join(' · ')));
     const total = b.residents + b.tracked.length + b.occupiers;
     const grid = el('div', 'squares');
@@ -180,7 +181,7 @@ export class Inspector {
     if (s.ending !== null || (s.condition !== 'healthy' && s.condition !== 'infected')) return this.ended(s);
     const truth = [s.condition === 'infected' ? (s.bites > 1 ? `bitten ×${s.bites}` : 'bitten') : s.condition, s.insideBuilding !== null ? 'indoors' : 'outdoors', s.doing ?? '', s.role ? `role: ${s.role}` : ''].filter(Boolean);
     r.append(el('div', s.condition === 'infected' ? 'sub warn' : 'sub', truth.join(' · ')));
-    r.append(el('div', 'sub', [s.weapon ? `${s.weapon}${s.ammo > 0 ? ` (${s.ammo})` : ''}` : 'unarmed', s.materials > 0 ? `carrying ${s.materials}` : ''].filter(Boolean).join(' · ')));
+    r.append(el('div', 'sub', [s.weapon ? `${s.weapon}${s.ammo > 0 ? ` (${s.ammo})` : ''}` : 'unarmed', s.supplies > 0 ? `carrying ${s.supplies}` : ''].filter(Boolean).join(' · ')));
     if (s.home) r.append(el('div', 'sub', `lives at ${s.home}`));
     if (s.shelter && s.shelter !== s.home) r.append(el('div', 'sub', `sheltering at ${s.shelter}`));
     r.append(el('div', 'sub dim', `Knows ${s.streetsKnown} streets and ${s.buildingsKnown} buildings, from what they have seen and been told.`));

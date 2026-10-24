@@ -1,5 +1,5 @@
 // The shelter economy: the only cycle in the design. Builders raise fortification
-// and consume materials; materials run out and fortification decays; someone goes
+// and consume supplies; supplies run out and fortification decays; someone goes
 // out for more, and the trip is the danger. Also here: shelter desirability, roles,
 // migration, garrisons and the cascade outside them.
 //
@@ -12,6 +12,7 @@
 // Panic is not read here (lint-enforced): only the mode derived from it.
 
 import type { Context } from '../../context';
+import { chance, roundByChance } from '../../lib/rng';
 import { confidence } from '../../derived';
 import { functionalProfile } from '../../mapgen/generate';
 import { remember } from '../../navigation/memory';
@@ -77,7 +78,7 @@ export function desirability(world: World, sim: Sim, b: Building, belief: Buildi
     w.fortification * m.fortification * (belief ? belief.fortification : b.fortification) +
     w.streetQuiet * m.streetQuiet * (1 - danger) +
     w.group * m.group * groupTerm(occupants, config.shelter.groupPeak) +
-    w.materials * m.materials * Math.min(1, (belief ? belief.materials : b.materials) / config.shelter.materialsScale) -
+    w.supplies * m.supplies * Math.min(1, (belief ? belief.supplies : b.supplies) / config.shelter.suppliesScale) -
     w.distance * m.distance * (distance / 1000)
   );
 }
@@ -119,17 +120,17 @@ export function chooseShelter(world: World, ctx: Context, sim: Sim, exclude: Bui
 
 // Scavenging
 
-/** The best remembered source of materials: believed stock (up to a load) over distance. */
+/** The best remembered source of supplies: believed stock (up to a load) over distance. */
 export function pickScavengeTarget(world: World, sim: Sim, exclude: BuildingId | null): Building | null {
   const { config, buildings } = world;
   const carry = config.buildings.carryCap;
   let best: Building | null = null;
   let bestScore = 0;
   for (const [bid, belief] of [...sim.buildingMemory.entries()].sort((a, b) => a[0] - b[0])) {
-    if (bid === exclude || bid === sim.shelter || bid === sim.refusedBy || belief.materials <= 0) continue;
+    if (bid === exclude || bid === sim.shelter || bid === sim.refusedBy || belief.supplies <= 0) continue;
     const b = buildings[bid]!;
     const e = entranceNearest(b, sim.x, sim.y);
-    const score = Math.min(carry, belief.materials) / (1 + Math.hypot(e.x - sim.x, e.y - sim.y) / config.roles.scavengeDistanceScale);
+    const score = Math.min(carry, belief.supplies) / (1 + Math.hypot(e.x - sim.x, e.y - sim.y) / config.roles.scavengeDistanceScale);
     if (score > bestScore) {
       bestScore = score;
       best = b;
@@ -163,12 +164,12 @@ function startScavenging(world: World, sim: Sim, home: Building, target: Buildin
 /** Takes what it can carry from a scavenge target, then heads home. Called on entry. */
 export function scavenge(world: World, ctx: Context, sim: Sim, b: Building): void {
   const { config } = world;
-  const take = Math.min(config.buildings.carryCap - sim.materials, b.materials);
-  b.materials -= take;
-  sim.materials += take;
+  const take = Math.min(config.buildings.carryCap - sim.supplies, b.supplies);
+  b.supplies -= take;
+  sim.supplies += take;
   loot(world, ctx, sim, b);
   const home = sim.shelter === null ? null : world.buildings[sim.shelter]!;
-  const next = sim.materials === 0 ? pickScavengeTarget(world, sim, b.id) : null;
+  const next = sim.supplies === 0 ? pickScavengeTarget(world, sim, b.id) : null;
   if (next !== null) setDestination(sim, next, 'scavenge');
   else if (home !== null) setDestination(sim, home, 'shelter');
   else {
@@ -182,13 +183,13 @@ export function scavenge(world: World, ctx: Context, sim: Sim, b: Building): voi
 /** Hands over what the sim carries to the shelter it has just entered. */
 export function deliver(world: World, ctx: Context, sim: Sim, b: Building): void {
   const { config, tick } = world;
-  if (sim.materials > 0) {
-    const amount = Math.min(sim.materials, config.buildings.materialsCap - b.materials);
+  if (sim.supplies > 0) {
+    const amount = Math.min(sim.supplies, config.buildings.suppliesCap - b.supplies);
     if (amount > 0) {
-      b.materials += amount;
-      sim.materials -= amount;
-      sim.history.materialsDelivered += amount;
-      ctx.events.push({ type: 'materialsDelivered', tick, sim: sim.id, building: b.id, amount });
+      b.supplies += amount;
+      sim.supplies -= amount;
+      sim.history.suppliesDelivered += amount;
+      ctx.events.push({ type: 'suppliesDelivered', tick, sim: sim.id, building: b.id, amount });
     }
   }
   if (sim.role === 'scavenger' || sim.role === 'dispatcher') {
@@ -222,8 +223,26 @@ function leastUseful(world: World, b: Building): Sim | null {
   return best;
 }
 
-function needsMaterials(world: World, b: Building): boolean {
-  return b.materials === 0 && b.fortification < world.config.roles.scavengeFortificationFloor && b.zombiesInside === 0;
+/** Whether a building's people eat into its supplies: not a police station's, a hospital's or the armoury's, which keep their own stores. */
+function eats(world: World, b: Building): boolean {
+  return b.weaponStock === null && !world.config.supplies.exempt.includes(b.tag);
+}
+
+/** How long a building's supplies would last the people in it, ticks: Infinity with nobody to eat them, or none eaten. */
+export function suppliesLast(world: World, b: Building): number {
+  const n = b.residents + b.sheltered.length;
+  if (n === 0 || !eats(world, b)) return Infinity;
+  return (b.supplies * world.config.supplies.personTicksPerUnit) / n;
+}
+
+/** Short of supplies: what is left would last under supplies.scavengeBelow. */
+function needsSupplies(world: World, b: Building): boolean {
+  return b.zombiesInside === 0 && suppliesLast(world, b) < world.config.supplies.scavengeBelow;
+}
+
+/** Enough to spare for barricades: supplies that would last over supplies.buildAbove. */
+function canBuild(world: World, b: Building): boolean {
+  return b.supplies > 0 && suppliesLast(world, b) > world.config.supplies.buildAbove;
 }
 
 /** Room for one person to go out with someone left behind. */
@@ -238,7 +257,7 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
   const b = buildings[sim.insideBuilding!]!;
   const calm = modeOf(sim, config) === 'informed';
   if (!calm || b.zombiesInside > 0) {
-    if (sim.role !== 'builder' || b.materials === 0) sim.role = null;
+    if (sim.role !== 'builder' || !canBuild(world, b)) sim.role = null;
     return;
   }
 
@@ -286,7 +305,7 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
     return;
   }
 
-  if (needsMaterials(world, b) && door < rc.scavengeMaxDoorThreat && canSpare(world, b) && !scavengerOut(world, b) && leastUseful(world, b) === sim) {
+  if (needsSupplies(world, b) && door < rc.scavengeMaxDoorThreat && canSpare(world, b) && !scavengerOut(world, b) && leastUseful(world, b) === sim) {
     const target = pickScavengeTarget(world, sim, null);
     if (target !== null) {
       startScavenging(world, sim, b, target);
@@ -294,7 +313,7 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
     }
   }
 
-  const role = b.materials > 0 && b.fortification < 1 ? 'builder' : null;
+  const role = canBuild(world, b) && b.fortification < 1 ? 'builder' : null;
   if (role !== sim.role) {
     sim.role = role;
     sim.roleSince = tick;
@@ -330,13 +349,13 @@ function neighbourhood(world: World, ctx: Context, b: Building): BuildingId[] {
   return near;
 }
 
-/** A resident steps out for materials and becomes tracked, knowing the neighbourhood. */
+/** A resident steps out for supplies and becomes tracked, knowing the neighbourhood. */
 function sendResident(world: World, ctx: Context, b: Building, queued: number): void {
   const { config, tick } = world;
   if (b.residents - queued < 1) return;
   const e = b.entrances[0]!;
   const seed = neighbourhood(world, ctx, b).slice(0, config.memory.buildingCap);
-  if (!seed.some((id) => world.buildings[id]!.materials > 0)) return;
+  if (!seed.some((id) => world.buildings[id]!.supplies > 0)) return;
 
   b.residents--;
   const sim = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: null, aware: true });
@@ -345,7 +364,7 @@ function sendResident(world: World, ctx: Context, b: Building, queued: number): 
   sim.gait = 'still';
   sim.history.buildingsEntered = 1;
   const note = (o: Building, visited: boolean) =>
-    remember(sim.buildingMemory, o.id, { believedOccupants: visibleFill(o), materials: o.materials, fortification: o.fortification, observedAt: tick, visited }, config.memory.buildingCap);
+    remember(sim.buildingMemory, o.id, { believedOccupants: visibleFill(o), supplies: o.supplies, fortification: o.fortification, observedAt: tick, visited }, config.memory.buildingCap);
   note(b, true);
   for (const id of seed) note(world.buildings[id]!, false);
   const target = pickScavengeTarget(world, sim, null);
@@ -353,6 +372,50 @@ function sendResident(world: World, ctx: Context, b: Building, queued: number): 
 }
 
 /** Fortification work and decay, alerting, resident scavengers, garrisons and the cascade. */
+/**
+ * The people in an alerted building eat: a unit of supplies each personTicksPerUnit /
+ * people ticks (eight people eat eight times as fast as one: the cost of a big group).
+ * Out of them supplies.leaveAfter ticks with nobody bringing more, they move on, a
+ * share each roles.interval: residents step out (expelled, to find shelter elsewhere),
+ * and those sheltering go for the best other shelter they know of. A shelter fails with
+ * nothing breaking in.
+ */
+function eat(world: World, ctx: Context, b: Building, living: number, onCycle: boolean): void {
+  const { config, tick, sims } = world;
+  const sc = config.supplies;
+  if (!eats(world, b)) return;
+  const every = Math.max(1, Math.round(sc.personTicksPerUnit / living));
+  if (b.supplies > 0) {
+    b.outOfSuppliesAt = null;
+    if ((tick + b.id) % every === 0) b.supplies--;
+    return;
+  }
+  if (b.outOfSuppliesAt === null) {
+    b.outOfSuppliesAt = tick;
+    return;
+  }
+  if (!onCycle || tick - b.outOfSuppliesAt < sc.leaveAfter) return;
+  if (tick - b.outOfSuppliesAt < sc.leaveAfter + config.roles.interval) ctx.events.push({ type: 'suppliesRanOut', tick, building: b.id, sim: null });
+  const available = b.residents - b.pendingRelease - b.pendingEvacuate - b.pendingExpel - b.pendingTurn - b.pendingDie;
+  if (available > 0) b.pendingExpel += Math.max(1, roundByChance(world.rng, available * sc.leaveShare));
+  for (const id of b.sheltered) {
+    const s = sims[id]!;
+    if (s.insideBuilding !== b.id || s.exitingUntil !== null || s.role === 'scavenger' || s.squadLeader !== null || s.station === b.id || modeOf(s, config) !== 'informed') continue;
+    if (!chance(world.rng, sc.leaveShare)) continue;
+    const to = chooseShelter(world, ctx, s, b.id);
+    s.shelter = null;
+    s.role = null;
+    s.roleSince = tick;
+    if (to !== null) setDestination(s, to, 'shelter');
+    else {
+      s.destination = null;
+      s.destinationBuilding = null;
+      s.destinationKind = null;
+    }
+    goOut(world, s, b);
+  }
+}
+
 /** Unattended fortification decays toward nothing; below the floor it is gone. */
 function decay(b: Building, bc: World['config']['buildings']): void {
   if (b.fortification === 0) return;
@@ -390,22 +453,24 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
     return;
   }
 
-  // Work: tracked builders plus a few residents, while there are materials.
+  eat(world, ctx, b, living, onCycle);
+
+  // Work: tracked builders plus a few residents, while there are supplies to spare.
   let crew = 0;
   if (b.zombiesInside === 0) {
     for (const id of b.sheltered) if (world.sims[id]!.role === 'builder') crew++;
     crew += Math.min(Math.max(0, b.residents - queued), bc.residentBuilders);
   }
-  if (crew > 0 && b.materials > 0) {
+  if (crew > 0 && canBuild(world, b)) {
     b.fortification += (1 - b.fortification) * Math.min(1, bc.fortifyRate * crew);
-    if ((tick + b.id) % bc.fortifyMaterialTicks === 0) b.materials = Math.max(0, b.materials - crew);
+    if ((tick + b.id) % bc.fortifySupplyTicks === 0) b.supplies = Math.max(0, b.supplies - crew);
     if (b.breached) b.breached = false;
   } else {
     decay(b, bc);
   }
 
-  // A resident goes out when the building needs materials and nobody tracked is going.
-  if (onCycle && needsMaterials(world, b) && canSpare(world, b) && !scavengerOut(world, b)) {
+  // A resident goes out when the building needs supplies and nobody tracked is going.
+  if (onCycle && needsSupplies(world, b) && canSpare(world, b) && !scavengerOut(world, b)) {
     const candidate = leastUseful(world, b);
     const trackedCanGo = candidate !== null && pickScavengeTarget(world, candidate, null) !== null;
     if (!trackedCanGo && doorThreat(world, ctx, b) < rc.scavengeMaxDoorThreat) sendResident(world, ctx, b, queued);

@@ -39,7 +39,7 @@ const CLAUSE: Record<Exclude<ScoredCounter, 'caution'>, (v: number) => string> =
   nearMisses: (v) => (v === 0 ? 'never touched' : `${v} near ${v === 1 ? 'miss' : 'misses'}`),
   kills: (v) => (v === 0 ? 'has killed nothing' : `${v} ${v === 1 ? 'kill' : 'kills'}`),
   streetsVisited: (v) => `crossed ${v} ${v === 1 ? 'street' : 'streets'}`,
-  materialsDelivered: (v) => (v === 0 ? 'carried nothing home' : `carried in ${v} materials`),
+  suppliesDelivered: (v) => (v === 0 ? 'carried nothing home' : `carried in ${v} supplies`),
 };
 
 /**

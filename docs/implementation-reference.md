@@ -246,6 +246,14 @@ A living person. Zombies are a separate entity, not a Sim with a flag — the fi
 
 ### Shelter
 
+**Supplies** (the user's redesign, from here on; formerly *materials*: the one stock, renamed throughout the code — `Building.supplies`, `Sim.supplies` carried, `buildings.suppliesCap`, `suppliesDelivered`; History keeps the old word). One stock that the people sheltering eat and builders spend on barricades; fortification stays a separate, durable value (`shelter.ts eat`, `suppliesLast`; `config.supplies`; `Building.outOfSuppliesAt`):
+
+- **Eaten.** An alerted building's people — residents and those sheltering — get through a unit each `personTicksPerUnit` (10,800) ticks between them: a full load (`carryCap` 8) feeds eight for three hours (the user's choice). Eight eat eight times as fast as one: the cost of a big group. Police stations, hospitals and the armoury keep their own stores and are not eaten into (`exempt`). Unalerted buildings live as normal.
+- **Scavenging** goes out once what is left would last under `scavengeBelow` (3,600) ticks (was: only with none left). **Builders** spend supplies on barricades only while they would last over `buildAbove` (7,200): eating comes first.
+- **Running out moves people on** (the user's choice; no starvation): out of supplies `leaveAfter` (1,800) ticks with nobody bringing more, each `roles.interval` `leaveShare` (0.1) of the residents step out to find shelter elsewhere, and of those sheltering the same share go for the best other shelter they know of (`suppliesRanOut`, said once). A shelter can fail with nothing breaking in.
+- **Shown:** the building panel gives the stock and about how long it will last.
+
+
 | Field | Type | Range / unit | Meaning |
 | --- | --- | --- | --- |
 | `role` | `enum?` | 3 values | `builder`, `scavenger`, `dispatcher`; reassigned dynamically |
@@ -1717,3 +1725,4 @@ Floated by the user after the survivor revisions; each was measured on seed 1 be
 - **A cry when the dead attack** (the user saw someone killed in the rescue's queue a few metres behind soldiers who never turned): anyone the dead grab, bite or miss now cries out (`combat.ts`, a shout stimulus, heard by the dead as well), and a soldier at ease turns at once to a cry within shouting distance (`sims.ts atEase`), so what is there it sees the next tick. Dead and turned at tick 20,000, seeds 1 / 2: 2,267 → 2,051 / 1,650 → 1,794.
 - **One of the gate's squad stands inside the line** (the user's design; `rescue.ts gateUsher`): its last member takes a place beside the gate across the line from the squad's post, as if directing those coming up.
 - **The last leg to a door** (the user saw someone go round and round between a parked car and a building, short of the church it sheltered in; `steering.ts lastLeg`, `behaviour.doorStep` 1): with the route walked, a sim went straight for the door; with the door round the corner of its own building or behind another, it slid along the walls and the parked cars between. Now, unless a point a metre out from the door is in sight, it goes first to the street in front of the door. Movement check: sims stuck 0.3% → 0.1%.
+- **Supplies are eaten** (the user's redesign; "Shelter", Supplies). Materials renamed supplies; the people in alerted buildings eat them; running out moves them on. Seeds 1 / 2 to tick 30,000, against dedf8eb: shelters running out 1,979 / 1,962; shelters established 902 → 1,643 / 926 → 1,828 (people moving on and settling again), fallen 506 → 565 / 524 → 655; outdoors at the end 54 → 104 / 58 → 117; dead 1,453 → 1,654 / 1,448 → 1,640, turned 863 → 553 / 695 → 617. Needs the sweep, and tuning: the drain ratio is the economy.

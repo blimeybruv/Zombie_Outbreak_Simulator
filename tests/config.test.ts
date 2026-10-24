@@ -55,8 +55,8 @@ describe('config keys match the state enums', () => {
     expect(PROFESSIONS.filter((p) => !spawnable.has(p))).toEqual([]);
   });
 
-  it('loot names only weapons, ammo or materials', () => {
-    const allowed = new Set<string>([...WEAPONS, 'ammo', 'materials']);
+  it('loot names only weapons, ammo or supplies', () => {
+    const allowed = new Set<string>([...WEAPONS, 'ammo', 'supplies']);
     const loot = Object.values(config.tags).flatMap((t) => Object.keys(t.loot));
     expect(loot.filter((k) => !allowed.has(k))).toEqual([]);
   });

@@ -69,7 +69,7 @@ function fingerprint(world: ReturnType<typeof createWorld>['world']): string {
     mix(z.x);
     mix(z.y);
   }
-  for (const b of world.buildings) mix(b.fortification * 1000 + b.materials);
+  for (const b of world.buildings) mix(b.fortification * 1000 + b.supplies);
   const c = world.counters;
   return `${Object.values(c.unturned).join('/')}|${Object.values(c.turned).join('/')}|${world.sims.length}|${(h >>> 0).toString(16)}`;
 }

@@ -28,7 +28,7 @@ export const SCORED = [
   'nearMisses',
   'kills',
   'streetsVisited',
-  'materialsDelivered',
+  'suppliesDelivered',
   'caution',
 ] as const;
 export type ScoredCounter = (typeof SCORED)[number];
@@ -49,7 +49,7 @@ function historyOf(sim: Sim, tick: number, config: World['config']): number[] {
     h.nearMisses * per,
     h.kills * per,
     h.streetsVisited * per,
-    h.materialsDelivered * per,
+    h.suppliesDelivered * per,
     sim.caution,
   ];
 }

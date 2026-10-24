@@ -363,7 +363,7 @@ describe('objectives', () => {
       .filter((b) => b.tag === 'residential' && b.id !== s.home)
       .sort((m, n) => Math.hypot(m.entrances[0]!.x - p.x, m.entrances[0]!.y - p.y) - Math.hypot(n.entrances[0]!.x - p.x, n.entrances[0]!.y - p.y));
     const believe = (b: World['buildings'][number], occupants: number, fortification: number) =>
-      s.buildingMemory.set(b.id, { believedOccupants: occupants, materials: 0, fortification, observedAt: world.tick, visited: false });
+      s.buildingMemory.set(b.id, { believedOccupants: occupants, supplies: 0, fortification, observedAt: world.tick, visited: false });
     return { world, ctx, s, x: near[0]!, y: near[1]! , believe };
   }
 
@@ -827,7 +827,7 @@ describe('release', () => {
     const house = world.buildings.find((b) => b.tag === 'residential' && quiet(b) && apart(b, office))!;
     const other = world.buildings.find((b) => b.tag === 'residential' && quiet(b) && apart(b, office) && apart(b, house))!;
     house!.residents = other!.residents = 3;
-    house!.materials = other!.materials = 20; // stocked: nobody steps out to scavenge
+    house!.supplies = other!.supplies = 20; // stocked: nobody steps out to scavenge
     office.alertedAt = house!.alertedAt = 0;
     for (const b of [office, house!, other!]) b.pendingRelease = 2;
     const before = world.sims.length;

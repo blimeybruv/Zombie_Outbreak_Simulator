@@ -165,7 +165,7 @@ function placeChurches(config: Config, rng: RngState, buildings: Building[], dis
       b.tag = 'church';
       b.outline = c.rect;
       b.entrances = [0.5, 0.25, 0.75, 0.1].slice(0, doors).map((t) => add(c.rect[0]!, scale(c.dir, c.w * t)));
-      b.materials = 0;
+      b.supplies = 0;
       for (const id of c.ids.slice(1)) removed.add(id);
       left--;
     }
@@ -692,9 +692,10 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       sheltered: [],
       zombiesInside: 0,
       occupiedAt: null,
-      materials: tagKey === 'flavour' ? 0 : nextInt(rng, profile.materials[0]!, profile.materials[1]!),
+      supplies: tagKey === 'flavour' ? 0 : nextInt(rng, profile.supplies[0]!, profile.supplies[1]!),
       fortification: 0,
       breached: false,
+      outOfSuppliesAt: null,
       lit: power && chance(rng, 0.6),
       alertedAt: null,
       scavengerOut: null,

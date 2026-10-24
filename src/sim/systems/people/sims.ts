@@ -13,7 +13,7 @@
 //             has one (commit on choice), else the best known building
 //   back off  the way was blocked and there was no other door: away, for a while
 //   isolate   bitten, and going off alone to turn in an empty building (bitten.ts)
-//   scavenge  on a trip for materials: on to the target, pushing past a little danger
+//   scavenge  on a trip for supplies: on to the target, pushing past a little danger
 //   respond   those who engage, on the way to trouble they have heard of
 //   objective aware of the outbreak: home, else the best shelter known (awareness.ts)
 //   routine   unaware: walk to a building, idle inside, pick another
@@ -68,11 +68,11 @@ function observe(world: World, ctx: Context, sim: Sim): void {
     const prev = sim.buildingMemory.get(bid);
     if (prev) {
       prev.believedOccupants = occupants;
-      prev.materials = b.materials;
+      prev.supplies = b.supplies;
       prev.fortification = b.fortification;
       prev.observedAt = tick;
     } else {
-      remember(sim.buildingMemory, bid, { believedOccupants: occupants, materials: b.materials, fortification: b.fortification, observedAt: tick, visited: false }, config.memory.buildingCap);
+      remember(sim.buildingMemory, bid, { believedOccupants: occupants, supplies: b.supplies, fortification: b.fortification, observedAt: tick, visited: false }, config.memory.buildingCap);
     }
   }
 }

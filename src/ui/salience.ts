@@ -22,7 +22,8 @@ export const BASE = {
   buildingRetaken: 50, // not in the reference: the rarest good news there is
   buildingBreached: 40,
   shelterFell: 40,
-  materialsDelivered: 25,
+  suppliesRanOut: 12, // not in the reference: a shelter failing with nothing breaking in — common (most households, in time), so just over the 1× bar
+  suppliesDelivered: 25,
   districtChanged: 20,
   policeDispatched: 20, // not in the reference: a 911 call answered
   simIsolating: 30, // not in the reference: a decision only the viewer sees

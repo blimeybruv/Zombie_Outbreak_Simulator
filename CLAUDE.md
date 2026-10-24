@@ -162,7 +162,7 @@ asymmetry between who knows and who doesn't is a core mechanic, not an oversight
 - **Coordinates are continuous floats.** One world unit = one metre. Grids are
   acceleration structures only (spatial hash, render density field).
 - **One tick = one simulated second.** All rates and durations are in ticks.
-- **Every simulation scalar is 0–1 and clamped.** Materials are the exception: an
+- **Every simulation scalar is 0–1 and clamped.** Supplies are the exception: an
   integer, consumed and carried in discrete units.
 - Continuous scalars approach asymptotically, never linearly:
   ```
@@ -199,7 +199,7 @@ If one seems necessary, raise it rather than adding it.
   "The rescue")
 - Health pools, wounds, bandages, healer archetype — replaced by one infection flag
 - Heavy weapons, grenades — changes capability rather than decisions
-- Multi-slot inventory — one weapon, one ammo count, one materials count
+- Multi-slot inventory — one weapon, one ammo count, one supplies count
 - Traffic modelling — cars are containers that drive, jam and are abandoned: no lanes,
   intersections or right of way beyond "the lower id yields" (reference, "Cars")
 - Corpses as attractors — would make every killing a magnet

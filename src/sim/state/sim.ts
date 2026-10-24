@@ -104,8 +104,8 @@ export interface BuildingBelief {
    * @range 0–400 @unit people @readBy shelter desirability (groupTerm)
    */
   believedOccupants: Count;
-  /** @range 0–60 @unit materials @readBy shelter desirability, scavenger target choice */
-  materials: Count;
+  /** @range 0–60 @unit supplies @readBy shelter desirability, scavenger target choice */
+  supplies: Count;
   /** @range 0–1 @unit scalar @readBy shelter desirability */
   fortification: Unit01;
   /** @range 0–50,400 @unit tick @readBy confidence, encounter merge (newer wins) */
@@ -135,8 +135,8 @@ export interface SimHistory {
   nearMisses: Count;
   /** @range 0–2,000 @unit zombies @readBy promotion, end stats (highest kills) */
   kills: Count;
-  /** Total carried into a shelter. @range 0–∞ @unit materials @readBy promotion, end stats */
-  materialsDelivered: Count;
+  /** Total carried into a shelter. @range 0–∞ @unit supplies @readBy promotion, end stats */
+  suppliesDelivered: Count;
 }
 
 export interface Sim {
@@ -320,8 +320,8 @@ export interface Sim {
   weapon: Weapon | null;
   /** Zero makes a firearm dead weight. @range 0–30 @unit rounds @readBy combat, engagement capacity */
   ammo: Count;
-  /** Capped so one trip cannot resupply a shelter. @range 0–8 @unit materials @readBy delivery, role logic */
-  materials: Count;
+  /** Capped so one trip cannot resupply a shelter. @range 0–8 @unit supplies @readBy delivery, role logic */
+  supplies: Count;
   /** Earliest tick the next attack may be made (weapon cooldown). @range tick @unit tick @readBy combat */
   nextAttackAt: Tick;
 

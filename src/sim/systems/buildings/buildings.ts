@@ -227,7 +227,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   remember(
     sim.buildingMemory,
     b.id,
-    { believedOccupants: visibleFill(b), materials: b.materials, fortification: b.fortification, observedAt: tick, visited: true },
+    { believedOccupants: visibleFill(b), supplies: b.supplies, fortification: b.fortification, observedAt: tick, visited: true },
     config.memory.buildingCap,
   );
   const to = simLeaf(sim);

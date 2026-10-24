@@ -125,7 +125,9 @@ export interface BuildingDetail {
   district: string;
   integrity: number;
   fortification: number;
-  materials: number;
+  supplies: number;
+  /** How long its supplies would last the people in it, simulated hours; null when nobody eats them. */
+  suppliesHours: number | null;
   breached: boolean;
   garrisoned: boolean;
   /** Anonymous residents present since the start. */
@@ -157,7 +159,7 @@ export interface SimDetail {
   insideBuilding: number | null;
   weapon: string | null;
   ammo: number;
-  materials: number;
+  supplies: number;
   role: string | null;
   /** What they are doing, in words: "heading home", "frozen, hiding", "errands, unaware"... */
   doing: string | null;

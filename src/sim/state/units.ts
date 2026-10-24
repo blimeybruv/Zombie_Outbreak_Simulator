@@ -17,7 +17,7 @@ export type Radians = number;
 /** A normalised simulation scalar, clamped to 0–1. */
 export type Unit01 = number;
 
-/** A non-negative integer count of discrete things (people, materials, rounds). */
+/** A non-negative integer count of discrete things (people, supplies, rounds). */
 export type Count = number;
 
 declare const brand: unique symbol;

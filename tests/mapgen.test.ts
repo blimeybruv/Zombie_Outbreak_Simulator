@@ -152,9 +152,9 @@ describe('map generator', () => {
     expect(malls).toHaveLength(1);
     expect(m.lots.filter((l) => l.home === null)).toHaveLength(1); // the mall's grounds; the rest are service yards
     const mall = malls[0]!;
-    const [lo, hi] = config.tags.mall.materials;
-    expect(mall.materials).toBeGreaterThanOrEqual(lo!);
-    expect(mall.materials).toBeLessThanOrEqual(hi!);
+    const [lo, hi] = config.tags.mall.supplies;
+    expect(mall.supplies).toBeGreaterThanOrEqual(lo!);
+    expect(mall.supplies).toBeLessThanOrEqual(hi!);
     expect(footprintArea(mall.outline)).toBeGreaterThan(5000);
     // It fronts the driveway: a dead end, open ground, whose far end stops short of the building.
     const drive = m.streets[mall.street]!;

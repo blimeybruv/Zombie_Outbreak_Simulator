@@ -964,18 +964,29 @@ export const config = {
     recklessAmmo: 6, // guess
   },
 
+  // Supplies are eaten: an alerted building's people — residents and those sheltering —
+  // get through one unit each personTicksPerUnit ticks between them (one load of
+  // buildings.carryCap feeds eight for about three hours: the user's choice). A scavenger
+  // goes out once what is left would last under scavengeBelow ticks; builders spend
+  // supplies on barricades only while they would last over buildAbove. Out of them
+  // leaveAfter ticks, the people move on: each roles.interval, leaveShare of the residents
+  // and of those sheltering leave for another shelter (`suppliesRanOut`). Police
+  // stations, hospitals and the armoury keep their own stores and are not eaten into
+  // (`exempt`) — guesses
+  supplies: { personTicksPerUnit: 10800, scavengeBelow: 3600, buildAbove: 7200, leaveAfter: 1800, leaveShare: 0.1, exempt: ['policeStation', 'hospital'] as string[] },
+
   buildings: {
-    materialsCap: 60, // per building
+    suppliesCap: 60, // per building
     carryCap: 8, // per sim
     fortifyRate: 0.002, // /tick per builder
-    fortifyMaterialTicks: 50, // ticks of building per material consumed
+    fortifySupplyTicks: 50, // ticks of building per unit of supplies spent
     fortificationDecay: 0.0005, // /tick when unattended
     fortificationFloor: 0.001, // decayed below this, fortification is gone
     exitTicksPerFortification: 40, // exit costs fortification * this
     // Fortification stages. Barricaded: the people inside, knowing of the outbreak, have
     // shoved furniture against the door — `barricadeTicks` after anyone last came in or
-    // went out; time only, no materials; undone whenever the door opens. Reinforced and
-    // fortified: fortification at or above these, which is where materials and decay
+    // went out; time only, no supplies; undone whenever the door opens. Reinforced and
+    // fortified: fortification at or above these, which is where supplies and decay
     // belong. A break-in is attempted only by a crowd at the door at least the stage's
     // `minCrowd` (open — unaware, empty, or the door just opened — admits one); within a
     // stage the odds per roll are as before. Taking the barricade down to leave adds
@@ -1014,7 +1025,7 @@ export const config = {
     lootChance: 0.3, // per entry into a tag that holds anything — guess
     lootAmmo: [4, 12], // rounds in one find of ammo, or with a found firearm — guess
     // Items each building holds at the start, drawn from its tag's loot table (weights,
-    // materials aside): a house has one knife block, not an endless one. What is taken
+    // supplies aside): a house has one knife block, not an endless one. What is taken
     // is gone; a weapon given up for a better one, or carried by someone who dies or
     // turns, is left where it was (systems/fighting/arms.ts) — guesses
     lootStock: { residential: 1, firearmsStore: 8, policeStation: 5, hardwareStore: 6, workshop: 3, supermarket: 2, mall: 6 } as Record<string, number>,
@@ -1031,22 +1042,22 @@ export const config = {
   // Starting residents are the indoor share of the population divided across buildings
   // in proportion to occupancyWeight × footprint area × bandMultiplier, so big buildings
   // hold more people and occupancy cannot disagree with the time of day. sizes are the
-  // footprint classes (map.sizeClasses) the tag may occupy. Materials are the starting
+  // footprint classes (map.sizeClasses) the tag may occupy. Supplies are the starting
   // stock range. Loot weights are relative.
   tags: {
-    residential: { integrity: 0.7, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1.2, bandMultiplier: [1, 0.3, 0.35, 0.9], materials: [2, 6], loot: { knife: 2, club: 1, materials: 2 } },
-    firearmsStore: { integrity: 0.8, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1, bandMultiplier: [0.05, 0.8, 1, 0.5], materials: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
-    policeStation: { integrity: 0.9, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 3, bandMultiplier: [0.5, 1, 1, 0.7], materials: [2, 5], loot: { pistol: 3, smg: 1, ammo: 4 } },
-    hardwareStore: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 0.9, 1, 0.4], materials: [20, 40], loot: { club: 2, sledgehammer: 2, knife: 1, materials: 5 } },
-    workshop: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 1, 1, 0.2], materials: [10, 25], loot: { club: 2, sledgehammer: 1, materials: 4 } },
-    warehouse: { integrity: 0.75, entrances: 2, sizes: ['large'], occupancyWeight: 0.3, bandMultiplier: [0.1, 0.8, 0.8, 0.2], materials: [30, 60], loot: { materials: 6 } },
-    supermarket: { integrity: 0.35, entrances: 3, sizes: ['medium', 'large'], occupancyWeight: 2, bandMultiplier: [0.02, 0.7, 1, 0.6], materials: [8, 16], loot: { knife: 1, materials: 3 } },
-    office: { integrity: 0.4, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 5, bandMultiplier: [0.02, 1, 0.9, 0.1], materials: [0, 2], loot: {} },
-    school: { integrity: 0.35, entrances: 4, sizes: ['large'], occupancyWeight: 8, bandMultiplier: [0, 1, 0.8, 0.05], materials: [0, 2], loot: {} },
-    hospital: { integrity: 0.4, entrances: 4, sizes: ['large'], occupancyWeight: 10, bandMultiplier: [0.9, 1, 1, 0.9], materials: [0, 2], loot: {} },
+    residential: { integrity: 0.7, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1.2, bandMultiplier: [1, 0.3, 0.35, 0.9], supplies: [2, 6], loot: { knife: 2, club: 1, supplies: 2 } },
+    firearmsStore: { integrity: 0.8, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1, bandMultiplier: [0.05, 0.8, 1, 0.5], supplies: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
+    policeStation: { integrity: 0.9, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 3, bandMultiplier: [0.5, 1, 1, 0.7], supplies: [2, 5], loot: { pistol: 3, smg: 1, ammo: 4 } },
+    hardwareStore: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 0.9, 1, 0.4], supplies: [20, 40], loot: { club: 2, sledgehammer: 2, knife: 1, supplies: 5 } },
+    workshop: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 1, 1, 0.2], supplies: [10, 25], loot: { club: 2, sledgehammer: 1, supplies: 4 } },
+    warehouse: { integrity: 0.75, entrances: 2, sizes: ['large'], occupancyWeight: 0.3, bandMultiplier: [0.1, 0.8, 0.8, 0.2], supplies: [30, 60], loot: { supplies: 6 } },
+    supermarket: { integrity: 0.35, entrances: 3, sizes: ['medium', 'large'], occupancyWeight: 2, bandMultiplier: [0.02, 0.7, 1, 0.6], supplies: [8, 16], loot: { knife: 1, supplies: 3 } },
+    office: { integrity: 0.4, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 5, bandMultiplier: [0.02, 1, 0.9, 0.1], supplies: [0, 2], loot: {} },
+    school: { integrity: 0.35, entrances: 4, sizes: ['large'], occupancyWeight: 8, bandMultiplier: [0, 1, 0.8, 0.05], supplies: [0, 2], loot: {} },
+    hospital: { integrity: 0.4, entrances: 4, sizes: ['large'], occupancyWeight: 10, bandMultiplier: [0.9, 1, 1, 0.9], supplies: [0, 2], loot: {} },
     // Placed by the generator, never drawn by weight (map.mall). Glass-fronted but big:
     // reinforcible, never fortifiable. Stock for a whole district of builders.
-    mall: { integrity: 0.5, entrances: 3, sizes: ['large'], occupancyWeight: 3, bandMultiplier: [0.01, 0.8, 1, 0.7], materials: [80, 150], loot: { knife: 2, club: 2, shotgun: 1, ammo: 2, materials: 8 } },
+    mall: { integrity: 0.5, entrances: 3, sizes: ['large'], occupancyWeight: 3, bandMultiplier: [0.01, 0.8, 1, 0.7], supplies: [80, 150], loot: { knife: 2, club: 2, shotgun: 1, ammo: 2, supplies: 8 } },
   },
   flavourSizes: ['small', 'medium'], // footprint classes a flavour tag may occupy
   // Relative odds of each flavour tag (1 if absent), and the least footprint (m²) some
@@ -1110,13 +1121,13 @@ export const config = {
     // 2 × trait × this, up to 1 (0 = never, whatever the trait; loners) — guess
     // isolates: chance a bitten sim goes off alone to an empty building to turn, rather
     // than carrying on as if nothing happened — guess
-    civilian: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },
-    police: { isolates: 0.6, sociality: 0, homeReach: 0, panicImmune: true, engageThreshold: 0.3, shelterSeekThreshold: 0.6, contestRatio: 1, shelterWeights: { integrity: 1.5, fortification: 1, streetQuiet: 1, group: 1, materials: 1, distance: 1 } },
-    prepper: { isolates: 0.1, sociality: 0.3, homeReach: 3200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, materials: 1, distance: 1 } },
-    loner: { isolates: 0.7, sociality: 0, homeReach: 0, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.3, contestRatio: null, shelterWeights: { integrity: 1, fortification: 1, streetQuiet: 1.2, group: -1, materials: 1, distance: 1 } },
-    reckless: { isolates: 0.4, sociality: 0.3, homeReach: 0, panicImmune: false, engageThreshold: 1, shelterSeekThreshold: 0.9, contestRatio: 0.5, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.2, group: 1, materials: 0.5, distance: 1 } },
+    civilian: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, supplies: 0.5, distance: 3 } },
+    police: { isolates: 0.6, sociality: 0, homeReach: 0, panicImmune: true, engageThreshold: 0.3, shelterSeekThreshold: 0.6, contestRatio: 1, shelterWeights: { integrity: 1.5, fortification: 1, streetQuiet: 1, group: 1, supplies: 1, distance: 1 } },
+    prepper: { isolates: 0.1, sociality: 0.3, homeReach: 3200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.1, contestRatio: null, shelterWeights: { integrity: 1.5, fortification: 1.2, streetQuiet: 1.5, group: 1, supplies: 1, distance: 1 } },
+    loner: { isolates: 0.7, sociality: 0, homeReach: 0, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.3, contestRatio: null, shelterWeights: { integrity: 1, fortification: 1, streetQuiet: 1.2, group: -1, supplies: 1, distance: 1 } },
+    reckless: { isolates: 0.4, sociality: 0.3, homeReach: 0, panicImmune: false, engageThreshold: 1, shelterSeekThreshold: 0.9, contestRatio: 0.5, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.2, group: 1, supplies: 0.5, distance: 1 } },
     // A civilian until called up (reservists, squads): the same figures throughout.
-    reservist: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, materials: 0.5, distance: 3 } },
+    reservist: { isolates: 0.25, sociality: 0.8, homeReach: 1200, panicImmune: false, engageThreshold: 0, shelterSeekThreshold: 0.25, contestRatio: null, shelterWeights: { integrity: 0.5, fortification: 0.5, streetQuiet: 0.5, group: 1, supplies: 0.5, distance: 3 } },
   },
 
   shelter: {
@@ -1129,9 +1140,9 @@ export const config = {
     strangerVeto: 0.5,
     strangerVetoFrom: 0.66,
     // desirability = Σ weight × term; distance term is per kilometre.
-    weights: { integrity: 2, fortification: 1.5, streetQuiet: 1.2, group: 0.8, materials: 0.6, distance: 1 },
+    weights: { integrity: 2, fortification: 1.5, streetQuiet: 1.2, group: 0.8, supplies: 0.6, distance: 1 },
     groupPeak: 8, // believed occupants at which groupTerm peaks
-    materialsScale: 20, // materials at which the materials term saturates — guess
+    suppliesScale: 20, // supplies at which the supplies term saturates — guess
     closePassRadius: 15, // m; passing this close writes building memory — guess
     garrisonMin: 3, // holders (residents, plus tracked sims who have made it home) for a barricaded building to count as a shelter — guess
     cascadeInterval: 10, // ticks between cascade checks on a garrison, staggered by id
@@ -1148,8 +1159,7 @@ export const config = {
     interval: 30, // ticks; re-evaluation cadence, staggered by id
     minTenure: 60, // ticks before a role may change — guess
     doorWatchRadius: 30, // m around each entrance the people inside can see from the door — guess
-    scavengeMaxDoorThreat: 0.2, // nobody goes out for materials while the door reads busier than this — guess
-    scavengeFortificationFloor: 1, // a scavenger goes out only while fortification is below this — guess
+    scavengeMaxDoorThreat: 0.2, // nobody goes out for supplies while the door reads busier than this — guess
     scavengerNerve: 0.3, // added to the shelter-seek threshold while on a trip: they push on past a little danger — guess
     scavengeDistanceScale: 300, // m; a target's appeal falls as 1 / (1 + d / scale) — guess
     usefulnessCaution: 1, // "least useful" = capacity + this × caution: the incautious go out first — guess
@@ -1172,7 +1182,7 @@ export const config = {
     rosterCap: 96, // names in all; past this nobody new is named (nobody is ever un-named)
     // 'totals' scores accumulated counters as they stand; 'rates' divides the ones that
     // accumulate with exposure (conversions witnessed, near misses, kills, streets,
-    // materials) by time on record, so a short eventful life can outscore a long quiet one.
+    // supplies) by time on record, so a short eventful life can outscore a long quiet one.
     // Judged offline against 20 runs (scripts/roster-eval.ts): rates, capped, without
     // streetsVisited, nobody already bitten — the named then live as long as anyone in
     // the pool rather than shorter, and stand out for a wider spread of reasons.

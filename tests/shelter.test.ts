@@ -36,20 +36,20 @@ function work(world: World, ctx: Context, b: Building, ticks: number): void {
 }
 
 describe('fortification', () => {
-  it('rises only once the building is alerted, consuming materials, and decays without them', () => {
+  it('rises only once the building is alerted, consuming supplies, and decays without them', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, 2);
-    b.materials = 4;
+    b.supplies = 4;
     work(world, ctx, b, 200);
     expect(b.fortification).toBe(0); // unaware residents do nothing
 
     b.alertedAt = world.tick;
     work(world, ctx, b, 100);
     expect(b.fortification).toBeGreaterThan(0);
-    expect(b.materials).toBeLessThan(4);
+    expect(b.supplies).toBeLessThan(4);
 
     work(world, ctx, b, 400);
-    expect(b.materials).toBe(0);
+    expect(b.supplies).toBe(0);
     const peak = b.fortification;
     b.scavengerOut = null;
     b.residents = 1; // nobody can be spared, so nobody goes out
@@ -61,10 +61,10 @@ describe('fortification', () => {
 });
 
 describe('resident scavengers', () => {
-  it('sends one resident out for materials, tracked from then on, without changing the counters', () => {
+  it('sends one resident out for supplies, tracked from then on, without changing the counters', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, 2);
-    b.materials = 0;
+    b.supplies = 0;
     b.alertedAt = 0;
     const before = structuredClone(world.counters);
     const residents = b.residents;
@@ -97,7 +97,7 @@ describe('resident scavengers', () => {
     const { world, ctx } = fresh(cfg);
     const b = quietHouse(world, ctx, 1);
     b.residents = 1;
-    b.materials = 0;
+    b.supplies = 0;
     b.alertedAt = 0;
     const sims = world.sims.length;
     work(world, ctx, b, cfg.roles.interval * 2);
@@ -106,23 +106,23 @@ describe('resident scavengers', () => {
 });
 
 describe('delivery', () => {
-  it('hands materials to the shelter, counts them in history and emits an event', () => {
+  it('hands supplies to the shelter, counts them in history and emits an event', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, 1);
-    b.materials = 0;
+    b.supplies = 0;
     const e = b.entrances[0]!;
     const s = spawnSim(world, { x: e.x, y: e.y, insideBuilding: null, sourceTag: b.tag, initialPanic: 0, destinationKind: 'shelter' });
-    s.materials = 5;
+    s.supplies = 5;
     s.role = 'scavenger';
     s.shelter = b.id;
     b.scavengerOut = s.id;
     deliver(world, ctx, s, b);
-    expect(b.materials).toBe(5);
-    expect(s.materials).toBe(0);
-    expect(s.history.materialsDelivered).toBe(5);
+    expect(b.supplies).toBe(5);
+    expect(s.supplies).toBe(0);
+    expect(s.history.suppliesDelivered).toBe(5);
     expect(s.role).toBeNull();
     expect(b.scavengerOut).toBeNull();
-    expect(ctx.events.some((x) => x.type === 'materialsDelivered' && x.amount === 5)).toBe(true);
+    expect(ctx.events.some((x) => x.type === 'suppliesDelivered' && x.amount === 5)).toBe(true);
   });
 });
 
@@ -192,7 +192,7 @@ describe('garrisons', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, config.shelter.garrisonMin);
     b.alertedAt = 0;
-    b.materials = 10;
+    b.supplies = 10;
     const events = () => ctx.events.filter((x) => 'building' in x && x.building === (b.id as BuildingId)).map((x) => x.type);
     work(world, ctx, b, 100);
     expect(b.garrisonedAt).not.toBeNull();
@@ -210,7 +210,7 @@ describe('alert state belongs to the people inside', () => {
     const b = quietHouse(world, ctx, 1);
     b.alertedAt = 0;
     b.fortification = 0.5;
-    b.materials = 0;
+    b.supplies = 0;
     b.residents = 0;
     b.sheltered = [];
     work(world, ctx, b, 1);
@@ -233,7 +233,7 @@ describe('alert state belongs to the people inside', () => {
     b.sheltered = [];
     b.alertedAt = 0;
     b.fortification = 0.4;
-    b.materials = 0;
+    b.supplies = 0;
     const e = b.entrances[0]!;
     const visitors = [0, 1, 2].map(() => {
       const s = spawnSim(world, { x: e.x, y: e.y, insideBuilding: b.id, sourceTag: b.tag, initialPanic: 0, destinationKind: 'scavenge' });
@@ -258,9 +258,44 @@ describe('the economy over a run', () => {
       return world;
     };
     const a = run();
-    expect(a.sims.some((s) => s.history.materialsDelivered > 0 || s.role === 'scavenger')).toBe(true);
+    expect(a.sims.some((s) => s.history.suppliesDelivered > 0 || s.role === 'scavenger')).toBe(true);
     const b = run();
-    expect(b.sims.map((s) => [s.condition, s.role, s.materials, s.x])).toEqual(a.sims.map((s) => [s.condition, s.role, s.materials, s.x]));
-    expect(b.buildings.map((x) => [x.fortification, x.materials])).toEqual(a.buildings.map((x) => [x.fortification, x.materials]));
+    expect(b.sims.map((s) => [s.condition, s.role, s.supplies, s.x])).toEqual(a.sims.map((s) => [s.condition, s.role, s.supplies, s.x]));
+    expect(b.buildings.map((x) => [x.fortification, x.supplies])).toEqual(a.buildings.map((x) => [x.fortification, x.supplies]));
   }, 120_000);
 });
+
+describe('supplies', () => {
+  it('are eaten by the people in an alerted building, faster the more of them, and running out moves them on', () => {
+    const { world, ctx } = fresh();
+    const b = quietHouse(world, ctx, 4);
+    const sc = config.supplies;
+    b.alertedAt = world.tick;
+    b.supplies = 2;
+    const living = b.residents + b.sheltered.length;
+    const every = Math.round(sc.personTicksPerUnit / living);
+    work(world, ctx, b, every * 2 + 1);
+    expect(b.supplies).toBe(0);
+    // Nobody brings more: a while later, the people start to move on, and it is said once.
+    const before = b.pendingExpel;
+    ctx.events = [];
+    work(world, ctx, b, sc.leaveAfter + config.roles.interval * 2);
+    expect(b.outOfSuppliesAt).not.toBeNull();
+    expect(b.pendingExpel).toBeGreaterThan(before);
+    expect(ctx.events.filter((e) => e.type === 'suppliesRanOut' && e.building === b.id)).toHaveLength(1);
+  });
+
+  it('are not eaten in a building nobody knows of the outbreak in, nor at a police station', () => {
+    const { world, ctx } = fresh();
+    const b = quietHouse(world, ctx, 2);
+    b.supplies = 3;
+    work(world, ctx, b, config.supplies.personTicksPerUnit);
+    expect(b.supplies).toBe(3);
+    const station = world.buildings.find((x) => x.tag === 'policeStation')!;
+    station.alertedAt = world.tick;
+    const had = station.supplies;
+    work(world, ctx, station, config.supplies.personTicksPerUnit);
+    expect(station.supplies).toBe(had);
+  });
+});
+
