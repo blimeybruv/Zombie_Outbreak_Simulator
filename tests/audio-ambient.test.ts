@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { armyEngagement, armyMix, cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, nearestRanger, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear, rangerPan } from '../src/audio/audio';
+import { armyEngagement, armyMix, cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, HORN_BLAST_AT, hornSpan, hornVoice, nearestRanger, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear, rangerPan } from '../src/audio/audio';
 import { SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
@@ -221,5 +221,30 @@ describe('army radio', () => {
     ]);
     expect(engaged).toBeCloseTo(1 / 4 + 1 / 2);
     expect(armyEngagement(new Float32Array(), zombies, kinds, [{ x: 0, y: 0, kind: 'rifle' }])).toBe(0);
+  });
+});
+
+describe('obstruction horns', () => {
+  it('uses short beeps below half severity and one longer blast from there up', () => {
+    const mild = hornVoice(0);
+    const rising = hornVoice(0.4);
+    const blast = hornVoice(HORN_BLAST_AT);
+    const full = hornVoice(1);
+    expect(mild.style).toBe('beep');
+    expect(rising.style).toBe('beep');
+    expect(blast.style).toBe('blast');
+    expect(full.style).toBe('blast');
+    expect(mild.count).toBe(2);
+    expect(rising.count).toBeGreaterThan(mild.count);
+    expect(rising.gap).toBeLessThan(mild.gap);
+    expect(blast.count).toBe(1);
+    expect(blast.gap).toBe(0);
+    expect(full.seconds).toBeGreaterThan(blast.seconds);
+    expect(full.gain).toBeGreaterThan(blast.gain);
+    expect(blast.gain).toBeGreaterThan(mild.gain);
+    expect(hornVoice(-2)).toEqual(mild);
+    expect(hornVoice(3).seconds).toBe(full.seconds);
+    expect(hornSpan(mild)).toBe((mild.count - 1) * mild.gap + mild.seconds);
+    expect(hornSpan(full)).toBe(full.seconds);
   });
 });

@@ -7,7 +7,8 @@
 // plays, so each one has its own voice. Two kinds of sound:
 //
 //   one-shots  each noise in the snapshot (shots, blows, shouts; car alarms once the
-//              simulation makes them) is a throwaway source through its own chain:
+//              simulation makes them) and a blocked car's horn (an event, the same
+//              chain) is a throwaway source through its own chain:
 //              distance (quieter, duller and later the farther it is from the middle
 //              of the view), a stereo panner, a category gain — and, for gunfire, a
 //              send to one shared street echo. Heard out to the noise's own radius,
@@ -48,9 +49,9 @@ import type { Camera } from '../render/camera';
 import type { FrameSnapshot } from '../worker/protocol';
 import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
-type Category = 'gun' | 'melee' | 'voice' | 'alarm';
+type Category = 'gun' | 'melee' | 'voice' | 'alarm' | 'horn';
 type Bed = 'moan' | 'engine' | 'siren' | 'drone' | 'groan' | 'murmur' | 'steps';
-const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2 };
+const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2, horn: 3 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
 
@@ -64,6 +65,8 @@ const CATEGORY: Record<string, Category | undefined> = {
   shout: 'voice',
   // Groundwork: a car alarm, played as soon as the simulation makes the noise (reference, "Sound").
   alarm: 'alarm',
+  // A blocked car's horn (a carHorn event). Same distance, pan and cap path as a noise.
+  carHorn: 'horn',
 };
 
 // Distance. Metres from the listener: the listener's height is this share of the view's
@@ -1263,6 +1266,73 @@ function doorClose(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
+/** Below this severity a horn is short beeps; at and above it, one blast. */
+export const HORN_BLAST_AT = 0.5;
+
+export interface HornVoice {
+  /** Short beeps while the block is mild; one blast once it is severe. */
+  style: 'beep' | 'blast';
+  /** Beeps in the burst. A blast is one. */
+  count: number;
+  /** Seconds from one beep's start to the next. 0 for a blast. */
+  gap: number;
+  /** Length of one beep, or of the whole blast. */
+  seconds: number;
+  /** Level scale on top of distance, 0–1. Rises with severity either way. */
+  gain: number;
+}
+
+/**
+ * How a horn of this severity is played. Under {@link HORN_BLAST_AT}: two to four
+ * short beeps, closer together as the block worsens. At and above it: one tone,
+ * longer as severity rises from the threshold to 1. Gain rises across the whole range.
+ */
+export function hornVoice(severity: number): HornVoice {
+  const s = clamp01(severity);
+  const gain = 0.4 + 0.6 * s;
+  if (s >= HORN_BLAST_AT) {
+    const t = (s - HORN_BLAST_AT) / (1 - HORN_BLAST_AT);
+    return { style: 'blast', count: 1, gap: 0, seconds: 0.5 + 0.9 * t, gain };
+  }
+  const t = s / HORN_BLAST_AT;
+  return { style: 'beep', count: 2 + Math.round(t * 2), gap: 0.26 - 0.12 * t, seconds: 0.07 + 0.03 * t, gain };
+}
+
+/** Seconds from the first sample to the end of the last beep or the blast. */
+export function hornSpan(voice: HornVoice): number {
+  if (voice.style === 'blast') return voice.seconds;
+  return (voice.count - 1) * voice.gap + voice.seconds;
+}
+
+/**
+ * A car horn up close: two oscillators a sour interval apart, saturated. Beeps are
+ * short bursts; a blast is the same tone held. The distant city-life horn is separate.
+ */
+function obstructionHorn(ctx: SampleCtx, voice: HornVoice): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const span = hornSpan(voice);
+  const buf = ctx.createBuffer(1, Math.max(1, Math.ceil(rate * span)), rate);
+  const d = buf.getChannelData(0);
+  const bursts = voice.style === 'blast' ? 1 : voice.count;
+  const gap = voice.style === 'blast' ? 0 : voice.gap;
+  const len = voice.seconds;
+  const release = voice.style === 'blast' ? 0.09 : 0.018;
+  for (let b = 0; b < bursts; b++) {
+    const i0 = Math.floor(b * gap * rate);
+    const n = Math.min(d.length - i0, Math.floor(len * rate));
+    let p1 = 0, p2 = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / rate;
+      p1 += 413 / rate;
+      p2 += 492 / rate;
+      const env = Math.min(1, t / 0.008) * Math.min(1, Math.max(0, (len - t) / release));
+      const x = (Math.sin(2 * Math.PI * p1) + Math.sin(2 * Math.PI * p2) * 0.7) * env;
+      d[i0 + i] = Math.tanh(x * 1.7);
+    }
+  }
+  return normalise(buf);
+}
+
 /** A two-tone horn, dull, as from a street or two away. */
 function carHorn(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
@@ -1547,7 +1617,7 @@ export class Audio {
   private readonly layerGains = new Map<AmbientLayer, GainNode>();
   private readonly beds = new Map<Bed, { gain: GainNode; pan: StereoPannerNode }>();
   private readonly buffers = new Map<string, AudioBuffer>();
-  private readonly active: Record<Category, number> = { gun: 0, melee: 0, voice: 0, alarm: 0 };
+  private readonly active: Record<Category, number> = { gun: 0, melee: 0, voice: 0, alarm: 0, horn: 0 };
   private readonly layerOn: Record<AmbientLayer, boolean> = { city: true, outbreak: true, cordon: true, army: true };
   private exits: ArrayLike<number> = new Float32Array();
   private nextTraffic = Infinity;
@@ -1583,7 +1653,7 @@ export class Audio {
       g.connect(this.master);
       this.layerGains.set(name, g);
     }
-    for (const [cat, level] of [['gun', 0.75], ['melee', 0.3], ['voice', 0.4], ['alarm', 0.2]] as const) {
+    for (const [cat, level] of [['gun', 0.75], ['melee', 0.3], ['voice', 0.4], ['alarm', 0.2], ['horn', 0.5]] as const) {
       const g = ctx.createGain();
       g.gain.value = level;
       g.connect(this.master);
@@ -1773,11 +1843,16 @@ export class Audio {
     this.bed('steps', 0.05 * crowd.steps * fast, 0, 1.2);
 
     // One-shots: heard out to their own reach (how far the dead hear them) or the view,
-    // loudest at the listener first, a few per frame.
+    // loudest at the listener first, a few per frame. A blocked car's horn is an event,
+    // folded in here so it takes the same distance, pan, budget and voice cap.
     const budget = speed >= 8 ? PER_FRAME.loudestOnly : speed > 4 ? PER_FRAME.thin : PER_FRAME.normal;
     const reach = Math.hypot(b.x - a.x, b.y - a.y) / 2;
-    const heard = frame.noises
-      .filter((n) => CATEGORY[n.kind] && this.buffers.has(n.kind) && Math.hypot(n.x - cam.x, n.y - cam.y) <= Math.max(reach, n.radius))
+    const shots: { x: number; y: number; kind: string; radius: number; severity?: number }[] = [...frame.noises];
+    for (const e of frame.events) {
+      if (e.type === 'carHorn') shots.push({ x: e.x, y: e.y, kind: 'carHorn', radius: e.radius, severity: e.severity });
+    }
+    const heard = shots
+      .filter((n) => CATEGORY[n.kind] && (n.kind === 'carHorn' || this.buffers.has(n.kind)) && Math.hypot(n.x - cam.x, n.y - cam.y) <= Math.max(reach, n.radius))
       .map((n) => ({ n, d: away(n.x, n.y) }))
       .sort((p, q) => q.n.radius / Math.max(NEAR, q.d) - p.n.radius / Math.max(NEAR, p.d));
     let played = 0;
@@ -1785,7 +1860,11 @@ export class Audio {
       if (played >= budget) break;
       const cat = CATEGORY[n.kind]!;
       if (this.active[cat] >= VOICES[cat]) continue;
-      this.play(n.kind, cat, d, Math.hypot(n.x - cam.x, n.y - cam.y), panOf(n.x));
+      const ground = Math.hypot(n.x - cam.x, n.y - cam.y);
+      if (n.kind === 'carHorn') {
+        const voice = hornVoice(n.severity ?? 0);
+        this.play(n.kind, cat, d, ground, panOf(n.x), obstructionHorn(ctx, voice), voice.gain);
+      } else this.play(n.kind, cat, d, ground, panOf(n.x));
       played++;
     }
     const breathNear = outbreakBreathDrive(cam.x, cam.y, frame.simXY, frame.simKind, frame.simFlags, frame.zombieXY, frame.zombieKind);
@@ -2053,16 +2132,16 @@ export class Audio {
    * One sound, `d` metres from the listener (height included): quieter and duller the
    * farther, later by its distance along the ground, with the street's echo under gunfire.
    */
-  private play(kind: string, cat: Category, d: number, ground: number, panX: number): void {
+  private play(kind: string, cat: Category, d: number, ground: number, panX: number, made?: AudioBuffer, gainScale = 1): void {
     const ctx = this.ctx!;
     const src = ctx.createBufferSource();
-    src.buffer = this.buffers.get(kind)!;
+    src.buffer = made ?? this.buffers.get(kind)!;
     src.playbackRate.value = 1 + (Math.random() - 0.5) * JITTER;
     const dull = ctx.createBiquadFilter();
     dull.type = 'lowpass';
     dull.frequency.value = Math.max(500, 16000 * Math.exp(-d / DULL));
     const level = ctx.createGain();
-    level.gain.value = Math.min(1, NEAR / Math.max(NEAR, d)) ** 0.8;
+    level.gain.value = Math.min(1, NEAR / Math.max(NEAR, d)) ** 0.8 * gainScale;
     const pan = ctx.createStereoPanner();
     pan.pan.value = Math.max(-1, Math.min(1, panX)) * 0.85;
     src.connect(dull).connect(level).connect(pan).connect(this.gains.get(cat)!);

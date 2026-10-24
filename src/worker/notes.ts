@@ -34,7 +34,8 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
   switch (e.type) {
     case 'zombieDestroyed':
     case 'carHit':
-      return null;
+    case 'carHorn':
+      return null; // heard, not read: a horn in traffic is not a line
     case 'simDied':
     case 'simTurned':
       if (e.sim === null) return null; // an anonymous resident, inside: no line of its own
