@@ -249,7 +249,8 @@ If one seems necessary, raise it rather than adding it.
 All five milestones in the build order are built: state shape, headless loop,
 renderer (with audio), shelter economy, cars. On top of them, from rounds of watching:
 awareness and conversation, fight/flight/freeze, police and 911, EMTs, reservists and
-SWAT squads, district evacuation, a sealed city with a cordon, and the rescue. Each is
+SWAT squads, district evacuation, a sealed city with a cordon, traffic police checkpoints on the roads out,
+and the rescue. Each is
 described in the reference; the order it happened in is its History appendix.
 
 Several teams work on this repository: render and audio work from other agents arrives as
@@ -262,7 +263,8 @@ Open, in priority order:
    with the a3ad199 sweep in the reference ("Bugs the user saw", the last "Swept" entry).
    Simulation changes since: the sealed city, car inertia/crashes/walls, freeze and pong,
    the cordon redesign, the rescue's queue and tents, barriers that stop people on foot,
-   the river blocking sight, the dead besieging a peopled door, and the mall lot fix
+   the river blocking sight, the dead besieging a peopled door, the dead no longer circling empty
+   doors, the rescue's gate, reservists re-forming at armouries, traffic police checkpoints, and the mall lot fix
    (which changes some maps, so seed numbers will not match old runs).
 2. **Cars kept out of walls: settle the side effects.** Clipping is gone (2.2% → 0.28% of
    driving ticks), but to tick 12,000 trips fell on seed 1 (488 → 378) and abandoned cars
