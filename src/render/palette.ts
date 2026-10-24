@@ -4,8 +4,6 @@
 export const BACKGROUND = '#06070a';
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
 export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
-export const DEPOT_OUTLINE = '#2a4a6a'; // armouries / reservist depots: muted institutional blue, darker than a living dot
-export const DEPOT_FILL = 'rgba(42, 74, 106, 0.22)'; // a faint wash inside a depot, still near the noise floor
 export const BORDER = 'rgba(150, 160, 175, 0.28)'; // the railway and the motorway's fences across the margin
 export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
@@ -39,6 +37,9 @@ export const TALK = 'rgba(223, 231, 239, 0.4)';
 export const PROMOTED = '#ffffff';
 export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a triangle, whatever its colour
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring
+/** Police stations: the officers' blue, held back so the building stays quieter than the dot. */
+export const STATION_OUTLINE = 'rgba(140, 200, 255, 0.55)';
+export const STATION_FILL = 'rgba(140, 200, 255, 0.13)';
 export const SIREN_RED = '#ff3b3b'; // a SWAT van's light bar, taking turns with blue
 export const SIREN_BLUE = '#3b7bff';
 export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
@@ -53,6 +54,9 @@ export const GATE = '#0b0b0b';
 /** A fallen police checkpoint's sawhorses: grey, abandoned. */
 export const CHECKPOINT_FALLEN = 'rgba(140, 150, 160, 0.5)';
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
+/** Depots: the same pale green as a reservist. The outline is that colour; the fill is a faint wash of it. */
+export const DEPOT_OUTLINE = GUARD;
+export const DEPOT_FILL = 'rgba(191, 232, 180, 0.16)';
 /** A reservists' HMMWV: hull in their green, a lighter bonnet and roof, a darker windscreen, cargo well and spare. */
 export const HMMWV_PANEL = '#dcf3d4';
 export const HMMWV_SHADE = '#5e8a58';

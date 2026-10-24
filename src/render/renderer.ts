@@ -254,9 +254,12 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
-  /** Depot buildings (tag depot): a thicker blue outline, a faint fill, and a centre cross. */
+  /** Depot buildings (tag depot): the reservists' green, a faint fill, and a centre cross. */
   private readonly depotPath: Path2D;
   private readonly depots: { x: number; y: number; span: number }[];
+  /** Police stations (tag policeStation): a faint blue outline, fill, and centre cross. */
+  private readonly stationPath: Path2D;
+  private readonly stations: { x: number; y: number; span: number }[];
   private readonly riverPath: Path2D;
   /** Scenery cars on the border motorway, drawn from simulation time alone. */
   private readonly traffic: Traffic;
@@ -317,6 +320,8 @@ export class Renderer {
     this.outlinePath = new Path2D();
     this.depotPath = new Path2D();
     this.depots = [];
+    this.stationPath = new Path2D();
+    this.stations = [];
     const o = map.outlines;
     const n = o.length / 8;
     // Hospitals' Ls and schools' Us, cut once from the back of their plots.
@@ -339,12 +344,9 @@ export class Renderer {
       const ys = [o[k + 1]!, o[k + 3]!, o[k + 5]!, o[k + 7]!];
       const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
       this.bounds.set([minX, minY, maxX, maxY], i * 4);
-      if (map.buildingDepot[i]) {
-        this.addBuilding(this.depotPath, i);
-        this.depots.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, span: Math.min(maxX - minX, maxY - minY) });
-      } else {
-        this.addBuilding(this.outlinePath, i);
-      }
+      if (map.buildingDepot[i]) this.markBuilding(this.depotPath, this.depots, i, minX, maxX, minY, maxY);
+      else if (map.buildingStation[i]) this.markBuilding(this.stationPath, this.stations, i, minX, maxX, minY, maxY);
+      else this.addBuilding(this.outlinePath, i);
     }
     this.riverPath = new Path2D();
     map.river.centreline.forEach((p, i) => (i === 0 ? this.riverPath.moveTo(p.x, p.y) : this.riverPath.lineTo(p.x, p.y)));
@@ -720,28 +722,10 @@ export class Renderer {
     g.strokeStyle = P.BUILDING_OUTLINE;
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
-    if (this.depots.length > 0) {
-      g.fillStyle = P.DEPOT_FILL;
-      g.fill(this.depotPath);
-      g.strokeStyle = P.DEPOT_OUTLINE;
-      g.lineWidth = 1.8 / (cam.scale * dpr);
-      g.stroke(this.depotPath);
-      // A cross at the centre. Far zoom leaves it out: at that scale it is a speck.
-      if (!far) {
-        g.beginPath();
-        for (const d of this.depots) {
-          const arm = Math.min(d.span * 0.36, Math.max(2.2, 6 / (cam.scale * dpr)));
-          g.moveTo(d.x - arm, d.y);
-          g.lineTo(d.x + arm, d.y);
-          g.moveTo(d.x, d.y - arm);
-          g.lineTo(d.x, d.y + arm);
-        }
-        g.lineWidth = 1.1 / (cam.scale * dpr);
-        g.stroke();
-      }
-      g.strokeStyle = P.BUILDING_OUTLINE;
-      g.lineWidth = 1 / (cam.scale * dpr);
-    }
+    this.drawMarked(g, cam, dpr, far, this.depotPath, this.depots, P.DEPOT_OUTLINE, P.DEPOT_FILL);
+    this.drawMarked(g, cam, dpr, far, this.stationPath, this.stations, P.STATION_OUTLINE, P.STATION_FILL);
+    g.strokeStyle = P.BUILDING_OUTLINE;
+    g.lineWidth = 1 / (cam.scale * dpr);
     g.stroke(this.bridgeRails);
     // The abutments: heavier than a rail, the bridge set into the bank.
     g.lineWidth = Math.max(2.5 / (cam.scale * dpr), 1); // 2.5 px, or a metre once that is wider
@@ -789,6 +773,36 @@ export class Renderer {
     at.resize(c.width / dpr, c.height / dpr);
     at.apply(g, dpr);
     this.drawCars(g, frame, at, dpr, false);
+  }
+
+  /** A depot or a police station: off the ordinary outline, with its centre kept for the cross. */
+  private markBuilding(path: Path2D, marks: { x: number; y: number; span: number }[], i: number, minX: number, maxX: number, minY: number, maxY: number): void {
+    this.addBuilding(path, i);
+    marks.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, span: Math.min(maxX - minX, maxY - minY) });
+  }
+
+  /** Faint fill, a slightly thicker outline, and a centre cross. Far zoom leaves the cross out. */
+  private drawMarked(
+    g: CanvasRenderingContext2D, cam: Camera, dpr: number, far: boolean,
+    path: Path2D, marks: readonly { x: number; y: number; span: number }[], outline: string, fill: string,
+  ): void {
+    if (marks.length === 0) return;
+    g.fillStyle = fill;
+    g.fill(path);
+    g.strokeStyle = outline;
+    g.lineWidth = 1.8 / (cam.scale * dpr);
+    g.stroke(path);
+    if (far) return;
+    g.beginPath();
+    for (const d of marks) {
+      const arm = Math.min(d.span * 0.36, Math.max(2.2, 6 / (cam.scale * dpr)));
+      g.moveTo(d.x - arm, d.y);
+      g.lineTo(d.x + arm, d.y);
+      g.moveTo(d.x, d.y - arm);
+      g.lineTo(d.x, d.y + arm);
+    }
+    g.lineWidth = 1.1 / (cam.scale * dpr);
+    g.stroke();
   }
 
   /** A building's outline, as drawn: a church in plan, a hospital's L or a school's U, else its plot. */
