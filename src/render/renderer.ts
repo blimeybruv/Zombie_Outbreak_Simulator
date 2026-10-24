@@ -266,9 +266,11 @@ export class Renderer {
   private readonly doorBars = new Map<number, number[]>(); // per building: x0 y0 x1 y1 across each door step's outer edge
   /** Kerbside lamps on lit streets, placed once. The set is the staggered layout. */
   private readonly lamps: { x: number; y: number }[];
-  /** One radial glow, redrawn when the static layer's pixels-per-metre changes. */
+  /** One radial glow, redrawn when the static layer's pixels-per-metre or the hot centre changes. */
   private readonly glow = document.createElement('canvas');
   private glowPx = 0;
+  /** Near zoom keeps the warm core. Mid zoom starts the falloff at the mid stop, so no hot centre. */
+  private glowHot = false;
   /** Lit streets, stroked only at far zoom. */
   private readonly litPath = new Path2D();
   /** One label per named street, placed once. Drawn into the static layer at mid and near. */
@@ -573,17 +575,19 @@ export class Renderer {
    * per metre, clamped, so a near zoom is one sprite pixel per screen pixel and a
    * mid zoom is downscaled rather than a handful of blocks.
    */
-  private glowSprite(pxPerMetre: number): HTMLCanvasElement {
+  private glowSprite(pxPerMetre: number, hot: boolean): HTMLCanvasElement {
     const px = Math.max(GLOW_PX_MIN, Math.min(GLOW_PX_MAX, Math.ceil(LAMP_GLOW_RADIUS * 2 * pxPerMetre)));
-    if (px === this.glowPx) return this.glow;
+    if (px === this.glowPx && hot === this.glowHot) return this.glow;
     this.glowPx = px;
+    this.glowHot = hot;
     this.glow.width = px;
     this.glow.height = px;
     const g = this.glow.getContext('2d')!;
     const r = px / 2;
     const grd = g.createRadialGradient(r, r, 0, r, r, r);
-    grd.addColorStop(0, P.LAMP_GLOW_CORE);
-    grd.addColorStop(GLOW_MID_STOP, P.LAMP_GLOW_MID);
+    // Mid zoom skips the bright centre: the falloff starts at the mid stop.
+    grd.addColorStop(0, hot ? P.LAMP_GLOW_CORE : P.LAMP_GLOW_MID);
+    if (hot) grd.addColorStop(GLOW_MID_STOP, P.LAMP_GLOW_MID);
     grd.addColorStop(1, P.LAMP_GLOW_EDGE);
     g.clearRect(0, 0, px, px);
     g.fillStyle = grd;
@@ -678,7 +682,7 @@ export class Renderer {
     } else if (night) {
       // The sprite is one device pixel per metre-pixel of this layer, so a near zoom
       // stamps it 1:1. It is rebuilt only when that size changes.
-      const sprite = this.glowSprite(cam.scale * dpr);
+      const sprite = this.glowSprite(cam.scale * dpr, cam.mode === 'near');
       const halfW = cam.width / 2 / cam.scale;
       const halfH = cam.height / 2 / cam.scale;
       const minX = cam.x - halfW, maxX = cam.x + halfW;

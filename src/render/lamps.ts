@@ -12,8 +12,11 @@ export const LAMP_KERB_INSET = 0.5;
 export const LAMP_MIN_LENGTH = 10;
 /** Metres along one kerb. Drops a duplicate where two segments meet; shorter than any opposite pair. */
 export const LAMP_MIN_DISTANCE = 8;
-/** Metres. The two kerbs of a 20 m road are 19 m apart, so the falloff meets over the carriageway. */
-export const LAMP_GLOW_RADIUS = 16;
+/**
+ * Metres. Was 16, scaled by 4/5.5. The two kerbs of a 20 m road are 19 m apart,
+ * so the pools still meet over the carriageway, more softly.
+ */
+export const LAMP_GLOW_RADIUS = 16 * 4 / 5.5;
 /** Metres. The head at near zoom, smaller and dimmer than an agent dot. */
 export const LAMP_HEAD_RADIUS = 0.45;
 /** Metres. Far zoom draws lit streets as one stroke of this width instead of glows. */
