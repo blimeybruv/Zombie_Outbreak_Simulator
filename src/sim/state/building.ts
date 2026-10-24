@@ -58,7 +58,7 @@ export interface Building {
   /** When the current occupation began; null when unoccupied. @range tick | null @unit tick @readBy ticker, inspector */
   occupiedAt: Tick | null;
 
-  /** Stock available to builders. @range 0–150 @unit supplies @readBy builders, scavenger choice, inspector */
+  /** Stock: eaten by its people, carried off by scavengers, spent by builders. @range 0–2500 @unit supplies @readBy builders, scavenger choice, eating, inspector */
   supplies: Count;
   /** @range 0–1 @unit scalar @readBy breach probability, exit cost, migration damping, desirability */
   fortification: Unit01;

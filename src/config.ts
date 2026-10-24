@@ -1053,7 +1053,8 @@ export const config = {
   // in proportion to occupancyWeight × footprint area × bandMultiplier, so big buildings
   // hold more people and occupancy cannot disagree with the time of day. sizes are the
   // footprint classes (map.sizeClasses) the tag may occupy. Supplies are the starting
-  // stock range. Loot weights are relative.
+  // stock range: a supermarket or the mall holds enough for several hundred people for hours
+  // (the user's choice; at a load or two, they were picked clean in no time). Loot weights are relative.
   tags: {
     residential: { integrity: 0.7, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1.2, bandMultiplier: [1, 0.3, 0.35, 0.9], supplies: [2, 6], loot: { knife: 2, club: 1, supplies: 2 } },
     firearmsStore: { integrity: 0.8, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1, bandMultiplier: [0.05, 0.8, 1, 0.5], supplies: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
@@ -1061,13 +1062,13 @@ export const config = {
     hardwareStore: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 0.9, 1, 0.4], supplies: [20, 40], loot: { club: 2, sledgehammer: 2, knife: 1, supplies: 5 } },
     workshop: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 1, 1, 0.2], supplies: [10, 25], loot: { club: 2, sledgehammer: 1, supplies: 4 } },
     warehouse: { integrity: 0.75, entrances: 2, sizes: ['large'], occupancyWeight: 0.3, bandMultiplier: [0.1, 0.8, 0.8, 0.2], supplies: [30, 60], loot: { supplies: 6 } },
-    supermarket: { integrity: 0.35, entrances: 3, sizes: ['medium', 'large'], occupancyWeight: 2, bandMultiplier: [0.02, 0.7, 1, 0.6], supplies: [8, 16], loot: { knife: 1, supplies: 3 } },
+    supermarket: { integrity: 0.35, entrances: 3, sizes: ['medium', 'large'], occupancyWeight: 2, bandMultiplier: [0.02, 0.7, 1, 0.6], supplies: [500, 900], loot: { knife: 1, supplies: 3 } },
     office: { integrity: 0.4, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 5, bandMultiplier: [0.02, 1, 0.9, 0.1], supplies: [0, 2], loot: {} },
     school: { integrity: 0.35, entrances: 4, sizes: ['large'], occupancyWeight: 8, bandMultiplier: [0, 1, 0.8, 0.05], supplies: [0, 2], loot: {} },
     hospital: { integrity: 0.4, entrances: 4, sizes: ['large'], occupancyWeight: 10, bandMultiplier: [0.9, 1, 1, 0.9], supplies: [0, 2], loot: {} },
     // Placed by the generator, never drawn by weight (map.mall). Glass-fronted but big:
     // reinforcible, never fortifiable. Stock for a whole district of builders.
-    mall: { integrity: 0.5, entrances: 3, sizes: ['large'], occupancyWeight: 3, bandMultiplier: [0.01, 0.8, 1, 0.7], supplies: [80, 150], loot: { knife: 2, club: 2, shotgun: 1, ammo: 2, supplies: 8 } },
+    mall: { integrity: 0.5, entrances: 3, sizes: ['large'], occupancyWeight: 3, bandMultiplier: [0.01, 0.8, 1, 0.7], supplies: [1500, 2500], loot: { knife: 2, club: 2, shotgun: 1, ammo: 2, supplies: 8 } },
   },
   flavourSizes: ['small', 'medium'], // footprint classes a flavour tag may occupy
   // Relative odds of each flavour tag (1 if absent), and the least footprint (m²) some
