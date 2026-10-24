@@ -54,6 +54,8 @@ export interface Car {
   route: StreetId[];
   /** @range 0–route.length @unit — @readBy car decisions */
   routeIndex: number;
+  /** A traffic unit's cruiser: the checkpoint it serves (World.checkpoints), kept for that unit and never sent on a station's calls; null for every other vehicle. @range checkpoint index | null @unit index @readBy police dispatch (calls, the ride home), squads (a unit's vehicle) */
+  checkpoint: number | null;
   /** The abandoned car it is driving round (driving.ts passBy), held until it is a car's length past it; null otherwise. @range car id | null @unit id @readBy car decisions */
   passing: CarId | null;
   /** Which side of the road it is passing on: 1 left of its lane's way, -1 right; 0 when not passing. @range -1, 0, 1 @unit — @readBy car decisions */

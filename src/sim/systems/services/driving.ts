@@ -135,7 +135,14 @@ export function decideCars(world: World, ctx: Context): void {
       if (along > 0 && along <= look && Math.abs(lat) < cc.width / 2 + 0.5) inPath.push({ x, y, along, lat });
     };
     ctx.simHash.query(car.x, car.y, look, ctx.ids2);
-    for (const id of ctx.ids2) onFoot(sims[id]!.x, sims[id]!.y);
+    // A checkpoint unit's own vehicle goes through the officers standing across the road
+    // there, to park behind them: they let it by.
+    const unit = driver !== null && driver.checkpoint !== null;
+    for (const id of ctx.ids2) {
+      const o = sims[id]!;
+      if (unit && o.checkpoint !== null && o.post !== null) continue;
+      onFoot(o.x, o.y);
+    }
     if (!rams) {
       ctx.zombieHash.query(car.x, car.y, look, ctx.ids2);
       for (const id of ctx.ids2) onFoot(zombies[id]!.x, zombies[id]!.y);

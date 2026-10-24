@@ -44,9 +44,9 @@ describe('traffic police', () => {
     const t = squadTarget(world, ctx, leader)!;
     const p = parkingSpot(world, world.checkpoints[0]!, false);
     expect([t.x, t.y]).toEqual([p.x, p.y]);
-    // Parked short of the sawhorses, on the city side, clear of them.
+    // Parked behind the sawhorses, on the exit's side, clear of them: the line faces the city.
     const c = world.checkpoints[0]!;
-    expect((p.x - c.x) * c.dx + (p.y - c.y) * c.dy).toBeLessThan(-config.cars.length / 2);
+    expect((p.x - c.x) * c.dx + (p.y - c.y) * c.dy).toBeGreaterThan(config.cars.length / 2);
   });
 
   it('set, turn back anyone on foot making for their exit; with none of the unit left there, fall for good', () => {

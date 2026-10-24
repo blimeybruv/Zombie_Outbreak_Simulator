@@ -74,7 +74,7 @@ export const config = {
     // A yard beside each police station and hospital that has room on its frontage (a
     // whole-block one gives up the far end of its own): open ground with a driveway and
     // rows of bays, where its vehicles park — guess
-    yard: { width: 30, depth: 18, gap: 2, minRest: 25 }, // a whole-block one is cut from the building, leaving it at least minRest wide
+    yard: { width: 30, depth: 18, gap: 2, minRest: 25, depots: 1 }, // a whole-block one is cut from the building, leaving it at least minRest wide; `depots`: how many depots get one (the armoury's)
     mall: {
       districts: ['suburb'] as readonly string[], // malls are suburban; industrial blocks are larger and won every time
       minBlock: 8000, // m²
@@ -459,7 +459,10 @@ export const config = {
   // run for the sound, standing like an officer on a call — guess
   // First responders drive to a call in their station's police car when it is at the
   // kerb (within carNear of the door) and the call is beyond carBeyond: to the car, and
-  // in together once all sent are within carGather. One way, like the SWAT van — guesses
+  // in together once all sent are within carGather. Back from a call, an officer heading
+  // for its station takes one of its station's cars standing free within carReturn of it,
+  // if the station is beyond carBeyond, with any of its station's officers heading back
+  // within carGather of the car: the car goes home and waits for the next call — guesses
   // standRatio: a unit stands its ground, whatever the threat reads, while the dead in
   // sight number no more than this share of what its ammunition can expect to kill (its
   // summed capacity): threat rises with nearness, so one zombie close by read as too much
@@ -470,13 +473,13 @@ export const config = {
   // across the exit's road, `inset` metres in from the barrier by the streets, turning
   // back anyone on foot making for that exit within stopRadius, every `every` ticks.
   // Nobody of its unit within holdRadius, and the checkpoint has fallen, for good — guesses
-  // A unit's vehicle parks parkShort metres short of the sawhorses, on the city side (it
-  // arrives from there, and the officers stand across the road at the line), clear of
-  // them: a cruiser in the lane, a HMMWV parkAside metres to one side of it, each a
-  // parkStep further back while something already stands in its place.
-  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5, parkShort: 7, parkAside: 3.5, parkStep: 6, parkClear: 3 },
+  // A unit's vehicle parks parkBehind metres behind the sawhorses, on the exit's side, so
+  // the line of officers faces the city with its vehicles at its back: a cruiser behind
+  // one sawhorse, parkAside m one side of the middle, a HMMWV behind the other; each a
+  // parkStep further back while something already stands in its place (parkTries at most).
+  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5, parkBehind: 7, parkAside: 3.25, parkStep: 6, parkClear: 3, parkTries: 3 },
 
-  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10, standRatio: 0.25 },
+  police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10, carReturn: 120, standRatio: 0.25 },
 
   // Reservists (archetype 'reservist'; squads.ts): anonymous residents until the
   // reserve is activated, once callUpCalls 911 calls have come in (0: at once). Then
@@ -488,7 +491,7 @@ export const config = {
   // middle, then each next the farthest from those chosen), hold `weaponStock` weapons
   // each. pistolShare of them carry a pistol of their own — guesses
   // Each armoury keeps `hmmwvs` HMMWVs in its lot, for its squads to drive to the checkpoints.
-  reservists: { callUpCalls: 300, share: 0.02, depotScale: 1500, armouries: 2, weaponStock: 12, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.1, pistolAmmo: 12, hmmwvs: 2 },
+  reservists: { callUpCalls: 300, share: 0.02, depotScale: 1500, armouries: 1, weaponStock: 24, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.1, pistolAmmo: 12, hmmwvs: 4 },
 
   // Squads: reservists waiting armed at a depot deploy as a squad once there are
   // `size` of them, the lowest id leading. Only the leader plans a route; the others
@@ -538,10 +541,10 @@ export const config = {
   // takes lapses after squads.staleAfter. From the station, with the van there and the
   // target beyond vanBeyond (shorter than anyone else drives: radios mostly come from
   // near the station whose officers took the call), they drive: the leader walks to the van, waits
-  // while any member is more than vanGather from it, and all board together. One way:
-  // the van is transport, not a base; where it stops it stays, for anyone to take —
-  // guesses
-  swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 15, vanBeyond: 250, radioRatio: 1, radioMin: 4, radioCooldown: 600 },
+  // while any member is more than vanGather from it, and all board together. Where it
+  // stops it stays; called on again, a squad takes it from there if it is within vanReach
+  // of the leader — guesses
+  swat: { stations: 3, weapon: 'smg' as const, ammo: 60, radius: 1500, vanGather: 15, vanBeyond: 250, vanReach: 80, radioRatio: 1, radioMin: 4, radioCooldown: 600 },
 
   // Service yards (map.yard): a police station with one has policeCrews cars, each with
   // dispatch.perCall first responders; a hospital with one, hospitalCrews ambulances

@@ -127,22 +127,26 @@ export function placeTraffic(world: World, ctx: Context): void {
       sim.squadSlot = i;
       b.sheltered.push(sim.id);
     }
-    if (config.features.cars) parkVan(world, ctx, b, 'cruiser');
+    // Its own cruiser: not for the station's other officers' calls (dispatch.ts rideToCall).
+    const car = config.features.cars ? parkVan(world, ctx, b, 'cruiser') : null;
+    if (car !== null) car.checkpoint = k;
   });
 }
 
 /**
- * Where a unit's vehicle stops at a checkpoint: short of the sawhorses on the city side,
- * a cruiser in the lane, a reservists' HMMWV beside it; a step further back for each
- * vehicle already standing in the way (one left by an earlier unit).
+ * Where a unit's vehicle stops at a checkpoint: behind the sawhorses on the exit's side
+ * (the line faces the city, its vehicles at its back; parked in front of it, the
+ * checkpoint looked to face out of the city), a cruiser behind one sawhorse and a
+ * reservists' HMMWV behind the other; a step further back for each vehicle already
+ * standing in the way (one left by an earlier unit, or someone else's).
  */
 export function parkingSpot(world: World, c: Checkpoint, reservists: boolean): Vec2 {
   const tc = world.config.traffic;
-  const aside = reservists ? tc.parkAside : 0;
+  const aside = (reservists ? -1 : 1) * tc.parkAside;
   for (let k = 0; ; k++) {
-    const back = tc.parkShort + k * tc.parkStep;
-    const p = { x: c.x - c.dx * back - c.dy * aside, y: c.y - c.dy * back + c.dx * aside };
-    if (k >= tc.inset / tc.parkStep || !world.cars.some((v) => v.state !== 'driving' && v.state !== 'gone' && Math.hypot(v.x - p.x, v.y - p.y) < tc.parkClear)) return p;
+    const back = tc.parkBehind + k * tc.parkStep;
+    const p = { x: c.x + c.dx * back - c.dy * aside, y: c.y + c.dy * back + c.dx * aside };
+    if (k >= tc.parkTries || !world.cars.some((v) => v.state !== 'driving' && v.state !== 'gone' && Math.hypot(v.x - p.x, v.y - p.y) < tc.parkClear)) return p;
   }
 }
 

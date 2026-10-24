@@ -655,6 +655,11 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
   const dryAt = (p: Pt) => riverDist(p) > rc.width / 2 + 2;
 
   const lots: Lot[] = [];
+  // Yards: every police station and hospital, and the first depots (mc.yard.depots) that
+  // have room for one — the armoury is chosen from those (squads.ts designateArmouries),
+  // and parks its HMMWVs there.
+  let depotYards = 0;
+  const yarded = (tag: string) => tag === 'policeStation' || tag === 'hospital' || (tag === 'depot' && depotYards < mc.yard.depots);
   const makeBuilding = (rect: Pt[], dir: Pt, w: number, depth: number, street: Street, district: number, forced?: FunctionalTag) => {
     const k = kindOf(district);
     const cls = sizeClass(w * depth);
@@ -780,7 +785,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
             const made = buildings[buildings.length - 1]!;
             const y = mc.yard;
             const w = u1 - u0 - y.width - mc.yard.gap;
-            if (config.features.yards && (made.tag === 'policeStation' || made.tag === 'hospital') && w >= mc.yard.minRest) {
+            if (config.features.yards && yarded(made.tag) && w >= mc.yard.minRest) {
               const origin = rect[0]!;
               const shrunk = rectFromFront(origin, dir, w, inward, v1 - v0);
               const entrances = made.entrances.length;
@@ -790,6 +795,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
               const yard = rectFromFront(add(origin, scale(dir, w + mc.yard.gap)), dir, y.width, inward, Math.min(y.depth, v1 - v0));
               placed.push(yard);
               lots.push({ outline: yard, parkingDepth: Math.min(y.depth, v1 - v0), entry: y.width / 2, home: made.id });
+              if (made.tag === 'depot') depotYards++;
             }
             continue;
           }
@@ -823,11 +829,12 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
         // vehicles, if one fits (cars.ts parks them there).
         const made = buildings[buildings.length - 1]!;
         const y = mc.yard;
-        if (config.features.yards && (made.tag === 'policeStation' || made.tag === 'hospital') && s + y.width <= edgeLen) {
+        if (config.features.yards && yarded(made.tag) && s + y.width <= edgeLen) {
           const yard = rectFromFront(add(front, scale(dir, s)), dir, y.width, inward, y.depth);
           if (fits(yard, i)) {
             placed.push(yard);
             lots.push({ outline: yard, parkingDepth: y.depth, entry: y.width / 2, home: made.id });
+            if (made.tag === 'depot') depotYards++;
             s += y.width + k.plot.gap;
           }
         }

@@ -172,6 +172,9 @@ export function answersRescue(world: World, sim: Sim): boolean {
   const rc = world.config.rescue;
   if (world.rescueExit === null || world.tick < rc.at + rc.broadcast || sim.destinationKind === 'leave') return false;
   if (sim.outsider || sim.archetype === 'police' || sim.crew !== null || sim.carriedBy !== null || sim.squadLeader !== null || sim.answering !== null) return false;
+  // A reservist still on duty — called up and on its way to the armoury, or armed and
+  // waiting there for a squad — stays at it; one stood down is a civilian again.
+  if (sim.muster === 'mobilised' || sim.muster === 'waiting') return false;
   return believesAndDares(world, sim);
 }
 

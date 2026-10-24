@@ -41,7 +41,8 @@ import { emitStimulus, intensityAt } from '../shared/stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from '../buildings/shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '../services/squads';
 import { callAmbulance, decideEmt, decidePatient } from '../services/emt';
-import { rideToCall } from '../services/dispatch';
+import { rideHome, rideToCall } from '../services/dispatch';
+import { parkingSpot } from '../services/traffic';
 import { barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
 import { answersRescue, queueSlot, reachesQueue, tentsAt } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
@@ -430,9 +431,13 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     return;
   }
   // A traffic unit at its checkpoint, once ordered there: the checkpoint becomes its post (traffic.ts).
+  // At it, or at where its vehicle parks: with the way to the line choked by cars left
+  // there, that was further back than the scene, and the unit stood there for good.
   if (sim.checkpoint !== null && sim.post === null && world.checkpointsAt !== null && sim.car === null) {
     const c = world.checkpoints[sim.checkpoint]!;
-    if (Math.hypot(c.x - sim.x, c.y - sim.y) <= sq.sceneRadius) sim.post = { x: c.x, y: c.y };
+    const p = parkingSpot(world, c, sim.archetype === 'reservist');
+    const d = Math.min(Math.hypot(c.x - sim.x, c.y - sim.y), Math.hypot(p.x - sim.x, p.y - sim.y));
+    if (d <= sq.sceneRadius) sim.post = { x: c.x, y: c.y };
   }
   // A cordon squad (cordon.ts), or a traffic unit: to its post, and there it stays.
   if (sim.post !== null) {
@@ -954,6 +959,14 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
 
   // Those who engage fall back when the danger their unit sees passes what they will
   // stand, or their own shelter threshold, whichever comes first.
+  // Back from a call: its station's car, if one stands free near, home (dispatch.ts).
+  const home = rideHome(world, ctx, sim);
+  if (home === 'aboard') return;
+  if (home !== null) {
+    sim.gait = threat > 0 ? 'run' : 'walk';
+    headFor(world, ctx, sim, home.x, home.y);
+    return;
+  }
   const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve) : threat >= arch.shelterSeekThreshold + nerve;
   if (seeks || sim.destinationKind === 'shelter') {
     // On the way home with trouble now in sight: a home still far off is given up for

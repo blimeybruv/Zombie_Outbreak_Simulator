@@ -74,8 +74,13 @@ function spread(world: World, among: Building[], count: number): Building[] {
 export function designateArmouries(world: World): void {
   const { config, buildings } = world;
   if (!config.features.reservists) return;
+  // Depots with a yard first (map generation gives the first one with room a yard, for
+  // the armoury's HMMWVs); then the rest, spread across the map.
   const depots = buildings.filter((b) => b.tag === 'depot');
-  for (const b of spread(world, depots, config.reservists.armouries)) b.weaponStock = config.reservists.weaponStock;
+  const yarded = depots.filter((b) => world.lots.some((l) => l.home === b.id));
+  const chosen = spread(world, yarded, config.reservists.armouries);
+  if (chosen.length < config.reservists.armouries) chosen.push(...spread(world, depots.filter((b) => !chosen.includes(b)), config.reservists.armouries - chosen.length));
+  for (const b of chosen) b.weaponStock = config.reservists.weaponStock;
 }
 
 /** The armouries' HMMWVs, `reservists.hmmwvs` in each one's lot (or at its kerb). Called once at setup, with the parked cars placed. */
@@ -518,10 +523,12 @@ function swatTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
 }
 
 /**
- * SWAT setting out from the station with its van there and the target beyond
- * swat.vanBeyond: to the
- * van, and in together once every member is within swat.vanGather of it. True while
- * this is what the leader is doing.
+ * A squad setting out with its vehicle at hand — standing free at its station, or
+ * within swat.vanReach of the leader (where it left it at the last scene) — and the
+ * target beyond swat.vanBeyond: to the vehicle, and in together once every member is
+ * within swat.vanGather of it. True while this is what the leader is doing. Only a
+ * vehicle at the station counted: at the scene, a squad called on elsewhere stood
+ * beside its van, then walked.
  */
 export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): boolean {
   const { config, cars, sims, buildings } = world;
@@ -532,10 +539,19 @@ export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): b
   if (home === null) return false;
   const door = buildings[home]!.entrances[0]!;
   const kind = reservists ? 'hmmwv' : sim.checkpoint !== null ? 'cruiser' : 'van';
-  // One standing free there (a first responder's cruiser may be parked anywhere).
-  const van = cars.find((c) => c.kind === kind && c.home === home && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= config.swat.radius / 10);
+  // The nearest standing free at its station or near the leader (a first responder's cruiser may be parked anywhere).
+  let van: (typeof cars)[number] | undefined, best = Infinity;
+  for (const c of cars) {
+    if (c.kind !== kind || c.home !== home || c.state !== 'parked' || c.occupants.length > 0) continue;
+    if (kind === 'cruiser' && c.checkpoint !== sim.checkpoint) continue; // a traffic unit's own cruiser, not the station's
+    const d = Math.hypot(c.x - sim.x, c.y - sim.y);
+    if (d >= best || (d > config.swat.vanReach && Math.hypot(c.x - door.x, c.y - door.y) > config.swat.radius / 10)) continue;
+    van = c;
+    best = d;
+  }
   if (van === undefined) return false;
-  if (Math.hypot(t.x - van.x, t.y - van.y) <= config.swat.vanBeyond) return false;
+  // Close enough to walk, unless going to man a checkpoint: there the vehicle is part of it.
+  if (sim.checkpoint === null && Math.hypot(t.x - van.x, t.y - van.y) <= config.swat.vanBeyond) return false;
   const members = sims.filter((s) => s.squadLeader === sim.id && isLiving(s));
   const gathered = members.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - van.x, s.y - van.y) <= config.swat.vanGather);
   if (gathered && boardSquad(world, ctx, van, members, t)) return true;

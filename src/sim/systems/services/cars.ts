@@ -174,6 +174,7 @@ function addCar(world: World, ctx: Context, x: number, y: number, heading: numbe
     blockedSince: null,
     passing: null,
     passSide: 0,
+    checkpoint: null,
     reroutes: 0,
     impact: null,
     alarm: false,

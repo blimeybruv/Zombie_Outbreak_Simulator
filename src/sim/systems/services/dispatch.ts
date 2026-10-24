@@ -135,10 +135,43 @@ export function rideToCall(world: World, ctx: Context, sim: Sim, dest: { x: numb
   const pc = config.police;
   const door = buildings[sim.station]!.entrances[0]!;
   // The first of its station's cars still there: the same one for every officer sent.
-  const car = cars.find((c) => c.kind === 'cruiser' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= pc.carNear);
+  const car = cars.find((c) => c.kind === 'cruiser' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0 && c.checkpoint === null && Math.hypot(c.x - door.x, c.y - door.y) <= pc.carNear);
   if (car === undefined || Math.hypot(dest.x - car.x, dest.y - car.y) <= pc.carBeyond) return null;
   const sent = sims.filter((s) => s.answering === sim.answering && s.station === sim.station && s.squadLeader === null && isLiving(s));
   const gathered = sent.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - car.x, s.y - car.y) <= pc.carGather);
   if (gathered && sent[0] === sim && boardSquad(world, ctx, car, sent, { x: dest.x, y: dest.y, building: buildings[sim.answering]! })) return 'aboard';
   return { x: car.x, y: car.y };
+}
+
+/**
+ * A first responder back from a call, heading for its station on foot: one of its
+ * station's police cars standing free within police.carReturn of it, with the station
+ * beyond carBeyond, it walks to it and drives home, with any of the station's officers
+ * also heading back who are within carGather of the car (the lowest id driving). The car
+ * waits at the station for the next call: without this the cars were left wherever the
+ * calls had been, and the officers walked home across the city. Returns 'aboard' once
+ * in, the point to walk to, or null to go on foot.
+ */
+export function rideHome(world: World, ctx: Context, sim: Sim): 'aboard' | { x: number; y: number } | null {
+  const { config, cars, sims, buildings } = world;
+  const home = sim.station;
+  if (home === null || sim.squadLeader !== null || sim.checkpoint !== null || sim.car !== null || sim.destinationKind !== 'shelter' || sim.destinationBuilding !== home) return null;
+  const pc = config.police;
+  const door = buildings[home]!.entrances[0]!;
+  let car: (typeof cars)[number] | undefined, best = Infinity;
+  for (const c of cars) {
+    if (c.kind !== 'cruiser' || c.home !== home || c.state !== 'parked' || c.occupants.length > 0 || c.claimedBy !== null || c.checkpoint !== null) continue;
+    const d = Math.hypot(c.x - sim.x, c.y - sim.y);
+    if (d < best && d <= pc.carReturn && Math.hypot(c.x - door.x, c.y - door.y) > pc.carBeyond) {
+      car = c;
+      best = d;
+    }
+  }
+  if (car === undefined) return null;
+  if (best > pc.carGather) return { x: car.x, y: car.y };
+  const going = sims
+    .filter((s) => s.station === home && s.squadLeader === null && s.checkpoint === null && s.car === null && s.insideBuilding === null && isLiving(s) && s.destinationKind === 'shelter' && s.destinationBuilding === home && Math.hypot(s.x - car!.x, s.y - car!.y) <= pc.carGather)
+    .slice(0, config.cars.capacity);
+  if (going[0] !== sim) return { x: car.x, y: car.y }; // the lowest id drives
+  return boardSquad(world, ctx, car, going, { x: door.x, y: door.y, building: buildings[home]! }) ? 'aboard' : null;
 }

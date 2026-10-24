@@ -38,7 +38,13 @@ describe('service yards', () => {
     expect(yards.length).toBeGreaterThan(0);
     for (const l of yards) {
       const home = world.buildings[l.home!]!;
-      expect(['policeStation', 'hospital']).toContain(home.tag);
+      expect(['policeStation', 'hospital', 'depot']).toContain(home.tag);
+      if (home.tag === 'depot') {
+        // The armoury's: its HMMWVs.
+        expect(home.weaponStock).not.toBeNull();
+        expect(world.cars.filter((c) => c.home === home.id && c.kind === 'hmmwv')).toHaveLength(config.reservists.hmmwvs);
+        continue;
+      }
       const mine = world.cars.filter((c) => c.home === home.id && c.kind !== 'van');
       // A station's crews' cruisers, and one for each traffic unit waiting there.
       const traffic = world.sims.filter((s) => s.checkpoint !== null && s.squadLeader === s.id && s.station === home.id).length;
