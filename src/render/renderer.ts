@@ -287,6 +287,35 @@ function addAmbulance(body: Path2D, panel: Path2D, shade: Path2D, mark: Path2D, 
   addBox(mark, x + dx * cu, y + dy * cu, dx, dy, 0.2, 0.9);
 }
 
+/** Cab light bar, forward of centre. The red and blue spots in drawVanLights sit on its ends. */
+const SWAT_BAR_U = 1.35;
+const SWAT_BAR_V = 0.46;
+
+/**
+ * A SWAT van in plan, the same 6 × 1.9 m footprint as the rectangle it
+ * replaces: hull and wheel arches, a darker cab and box, a windscreen,
+ * rear doors, a roof rib and the cab light bar. Nose along (dx, dy).
+ */
+function addSwat(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: number, dx: number, dy: number): void {
+  const nx = -dy, ny = dx;
+  const bodyW = 1.62;
+  addBox(body, x, y, dx, dy, VAN_L, bodyW);
+  const arch = 0.19;
+  for (const u of [1.85, -1.85]) {
+    for (const s of [1, -1] as const) {
+      const lat = bodyW / 2 + arch / 2 - 0.05;
+      addBox(body, x + dx * u + nx * s * lat, y + dy * u + ny * s * lat, dx, dy, 0.9, arch);
+    }
+  }
+  addBox(panel, x + dx * 2.4, y + dy * 2.4, dx, dy, 0.85, 1.3);
+  addBox(panel, x + dx * 1.15, y + dy * 1.15, dx, dy, 0.95, 1.26);
+  addBox(panel, x - dx * 0.85, y - dy * 0.85, dx, dy, 2.7, 1.46);
+  addBox(shade, x + dx * 1.82, y + dy * 1.82, dx, dy, 0.24, 1.2);
+  addBox(shade, x + dx * SWAT_BAR_U, y + dy * SWAT_BAR_U, dx, dy, 0.16, SWAT_BAR_V * 2 + 0.2);
+  addBox(shade, x - dx * 0.85, y - dy * 0.85, dx, dy, 2.3, 0.16);
+  addBox(shade, x - dx * 2.58, y - dy * 2.58, dx, dy, 0.18, 1.2);
+}
+
 function addPolygon(path: Path2D, pts: number[]): void {
   path.moveTo(pts[0]!, pts[1]!);
   for (let j = 2; j < pts.length; j += 2) path.lineTo(pts[j]!, pts[j + 1]!);
@@ -971,10 +1000,11 @@ export class Renderer {
     if (st.length === 0) return;
     const near = cam.mode === 'near';
     const hw = CAR_W / 2;
-    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), trucks = new Path2D();
+    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), trucks = new Path2D();
     const hBody = new Path2D(), hPanel = new Path2D(), hShade = new Path2D();
     const cBody = new Path2D(), cPanel = new Path2D(), cShade = new Path2D();
     const aBody = new Path2D(), aPanel = new Path2D(), aShade = new Path2D(), aMark = new Path2D();
+    const sBody = new Path2D(), sPanel = new Path2D(), sShade = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
@@ -982,7 +1012,8 @@ export class Renderer {
       if (state === CAR_GONE) continue; // off the map
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
       const cruiser = (st[i]! & CAR_CRUISER) !== 0;
-      const long = (st[i]! & CAR_VAN) !== 0 || amb;
+      const swat = (st[i]! & CAR_VAN) !== 0;
+      const long = swat || amb;
       const van = long || cruiser || (st[i]! & CAR_HMMWV) !== 0; // a service vehicle: drawn in its colour, at mid zoom too
       const hl = long ? VAN_L / 2 : CAR_L / 2;
       const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
@@ -1003,7 +1034,12 @@ export class Renderer {
         addAmbulance(aBody, aPanel, aShade, aMark, x, y, c, s);
         continue;
       }
-      const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
+      // A SWAT van: the plan-view van, police blue. Abandoned, the dark crossed rectangle, like any wreck.
+      if (swat && state !== CAR_ABANDONED) {
+        addSwat(sBody, sPanel, sShade, x, y, c, s);
+        continue;
+      }
+      const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
       path.lineTo(...pt(-hl, -hw));
@@ -1023,8 +1059,6 @@ export class Renderer {
     g.fill(driving);
     g.fillStyle = P.CAR_ABANDONED;
     g.fill(abandoned);
-    g.fillStyle = P.POLICE;
-    g.fill(vans);
     g.fillStyle = P.TENT;
     g.fill(trucks);
     g.fillStyle = P.GUARD;
@@ -1047,6 +1081,12 @@ export class Renderer {
     g.fill(aShade);
     g.fillStyle = P.AMBULANCE_MARK;
     g.fill(aMark);
+    g.fillStyle = P.POLICE;
+    g.fill(sBody);
+    g.fillStyle = P.SWAT_PANEL;
+    g.fill(sPanel);
+    g.fillStyle = P.SWAT_SHADE;
+    g.fill(sShade);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);
@@ -1100,16 +1140,16 @@ export class Renderer {
     for (let i = 0; i < st.length; i++) {
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
       const cruiser = (st[i]! & CAR_CRUISER) !== 0;
-      if (((st[i]! & CAR_VAN) === 0 && !amb && !cruiser) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING || (st[i]! & CAR_TRUCK) !== 0) continue;
-      const len = cruiser ? CAR_L : VAN_L;
+      const swat = (st[i]! & CAR_VAN) !== 0;
+      if ((!swat && !amb && !cruiser) || (st[i]! & CAR_STATE_MASK) !== CAR_DRIVING || (st[i]! & CAR_TRUCK) !== 0) continue;
       if (amb && swap) continue; // off half the time
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
-      // A cruiser's spots sit on its roof bar, an ambulance's on its cab bar. A SWAT
-      // van's stay across the cab, a little forward of the middle — the van is still the rectangle.
+      // Each vehicle's spots sit on the ends of its own roof bar. A SWAT van's still
+      // take turns, red and blue, on the same 260 ms half as before.
       for (const side of [1, -1]) {
-        const u = cruiser ? CRUISER_BAR_U : amb ? AMBULANCE_BAR_U : len * 0.15;
-        const v = side * (cruiser ? CRUISER_BAR_V : amb ? AMBULANCE_BAR_V : CAR_W * 0.28);
+        const u = cruiser ? CRUISER_BAR_U : amb ? AMBULANCE_BAR_U : SWAT_BAR_U;
+        const v = side * (cruiser ? CRUISER_BAR_V : amb ? AMBULANCE_BAR_V : SWAT_BAR_V);
         const red = amb || (side === 1) !== swap;
         const lx = x + c * u - s * v, ly = y + s * u + c * v;
         g.fillStyle = red ? P.SIREN_RED_GLOW : P.SIREN_BLUE_GLOW;
