@@ -3,3 +3,4 @@ dist/
 *.log
 .DS_Store
 view-shots/
+sweep-report.txt

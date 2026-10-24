@@ -25,4 +25,4 @@ npm run sweep -- --seeds 8 --set zombie.wanderRate=0.002   # fewer seeds, any co
 Measurement scripts (`npx tsx scripts/<name>.ts`): `bench` (whole-run timing and a
 behaviour fingerprint), `profile` (per-stage timing), `movement-check` (stuck and
 reversing agents), `view` (screenshots at each zoom), `fps` (renderer frame rate),
-`ticker-rate` (ticker lines per second).
+`ticker-rate` (ticker lines per second), `sweep-report` (the sweep for a reviewer: git state, check and sweep in one file, `sweep-report.txt`; stops on the wrong branch or a dirty tree).
