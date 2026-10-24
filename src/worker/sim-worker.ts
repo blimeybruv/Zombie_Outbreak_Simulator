@@ -113,7 +113,7 @@ function mapSnapshot(w: World): MapSnapshot {
   const outlines = new Float32Array(w.buildings.length * 8);
   w.buildings.forEach((b, i) => b.outline.forEach((p, j) => outlines.set([p.x, p.y], i * 8 + j * 2)));
   const buildingShape = new Uint8Array(w.buildings.map((b) => (b.tag === 'church' ? SHAPE_CHURCH : b.tag === 'hospital' ? SHAPE_L : b.tag === 'school' ? SHAPE_U : SHAPE_BOX)));
-  const buildingDepot = new Uint8Array(w.buildings.map((b) => (b.tag === 'depot' ? 1 : 0)));
+  const buildingArmoury = new Uint8Array(w.buildings.map((b) => (b.weaponStock !== null ? 1 : 0))); // the armoury, not every depot
   const buildingStation = new Uint8Array(w.buildings.map((b) => (b.tag === 'policeStation' ? 1 : 0)));
   // Each entrance with its wall's outward normal: the wall nearest it, facing away from the centre.
   const doors: number[] = [];
@@ -146,7 +146,7 @@ function mapSnapshot(w: World): MapSnapshot {
     streetBridge,
     outlines,
     buildingShape,
-    buildingDepot,
+    buildingArmoury,
     buildingStation,
     origins,
     doors: new Float32Array(doors),
@@ -418,7 +418,7 @@ scope.onmessage = (e) => {
       }
     }
     const map = mapSnapshot(world);
-    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer, map.buildingShape.buffer, map.buildingDepot.buffer, map.buildingStation.buffer, map.doors.buffer]);
+    scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer, map.buildingShape.buffer, map.buildingArmoury.buffer, map.buildingStation.buffer, map.doors.buffer]);
   } else if (msg.type === 'rate') {
     rate = msg.ticksPerSecond;
     anchor = performance.now();

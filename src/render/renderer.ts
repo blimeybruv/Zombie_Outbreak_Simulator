@@ -313,7 +313,7 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
-  /** Depot buildings (tag depot): the reservists' green, a faint fill, and a centre cross. */
+  /** The reservists' armoury (one depot of the many): their green, a faint fill, and a centre cross. */
   private readonly depotPath: Path2D;
   private readonly depots: { x: number; y: number; span: number }[];
   /** Police stations (tag policeStation): a faint blue outline, fill, and centre cross. */
@@ -403,7 +403,7 @@ export class Renderer {
       const ys = [o[k + 1]!, o[k + 3]!, o[k + 5]!, o[k + 7]!];
       const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
       this.bounds.set([minX, minY, maxX, maxY], i * 4);
-      if (map.buildingDepot[i]) this.markBuilding(this.depotPath, this.depots, i, minX, maxX, minY, maxY);
+      if (map.buildingArmoury[i]) this.markBuilding(this.depotPath, this.depots, i, minX, maxX, minY, maxY);
       else if (map.buildingStation[i]) this.markBuilding(this.stationPath, this.stations, i, minX, maxX, minY, maxY);
       else this.addBuilding(this.outlinePath, i);
     }
@@ -834,7 +834,7 @@ export class Renderer {
     this.drawCars(g, frame, at, dpr, false);
   }
 
-  /** A depot or a police station: off the ordinary outline, with its centre kept for the cross. */
+  /** The armoury or a police station: off the ordinary outline, with its centre kept for the cross. */
   private markBuilding(path: Path2D, marks: { x: number; y: number; span: number }[], i: number, minX: number, maxX: number, minY: number, maxY: number): void {
     this.addBuilding(path, i);
     marks.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, span: Math.min(maxX - minX, maxY - minY) });
