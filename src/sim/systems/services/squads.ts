@@ -10,9 +10,10 @@
 //   squad     `squads.size` waiting at one depot deploy as a squad (formSquads). A squad
 //             is no object: each member carries its leader's id and a slot. Only the
 //             leader routes; followers steer for their slots (squadPass computes them)
-//   targets   the leader claims a 911 call or an occupied building it knows of, and
-//             holds it; at an occupied door its members' summed capacity decides
-//             whether they go in (buildings.ts acceptable)
+//   targets   once the checkpoints are ordered (traffic.ts), the leader claims the
+//             nearest checkpoint no other reservist squad has, fallen or not, takes a
+//             HMMWV from the armoury's lot and drives there, and holds it as the
+//             traffic police do; with every checkpoint taken, it waits at the armoury
 //   losses    the leader falls: the lowest surviving id leads. Below two, the squad
 //             dissolves; its members stand down, keeping their weapons
 //
@@ -27,7 +28,6 @@ import { isFirearm } from '../../state';
 import { outOfAmmo, restock } from '../fighting/arms';
 import { capacity, isLiving, leaveTalk } from '../shared/common';
 import { boardSquad, parkVan } from './cars';
-import { intensityAt } from '../shared/stimuli';
 import { nearestExit } from '../outside/exits';
 
 const armouryCache = new WeakMap<readonly unknown[], BuildingId[]>();
@@ -75,6 +75,15 @@ export function designateArmouries(world: World): void {
   if (!config.features.reservists) return;
   const depots = buildings.filter((b) => b.tag === 'depot');
   for (const b of spread(world, depots, config.reservists.armouries)) b.weaponStock = config.reservists.weaponStock;
+}
+
+/** The armouries' HMMWVs, `reservists.hmmwvs` in each one's lot (or at its kerb). Called once at setup, with the parked cars placed. */
+export function parkHmmwvs(world: World, ctx: Context): void {
+  if (!world.config.features.reservists || !world.config.features.cars) return;
+  for (const b of world.buildings) {
+    if (b.weaponStock === null) continue;
+    for (let n = 0; n < world.config.reservists.hmmwvs; n++) parkVan(world, ctx, b, 'hmmwv');
+  }
 }
 
 /**
@@ -294,6 +303,11 @@ function dissolve(world: World, ctx: Context, members: Sim[]): void {
     m.destination = null;
     m.destinationBuilding = null;
     m.destinationKind = null;
+    if (m.checkpoint !== null) {
+      // Too few to hold a checkpoint: it is left to whoever else holds it, or falls.
+      m.checkpoint = null;
+      m.post = null;
+    }
   }
 }
 
@@ -331,6 +345,8 @@ export function squadPass(world: World, ctx: Context): void {
       s.squadLeader = null;
       s.diamondUntil = null;
       s.trail = [];
+      s.checkpoint = null;
+      s.post = null;
       if (s.archetype === 'reservist' && s.depot !== null) {
         s.muster = 'mobilised';
         s.destinationKind = null;
@@ -508,11 +524,15 @@ function swatTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
  */
 export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): boolean {
   const { config, cars, sims, buildings } = world;
-  if (sim.station === null) return false;
-  const door = buildings[sim.station]!.entrances[0]!;
-  const kind = sim.checkpoint !== null ? 'cruiser' : 'van'; // a traffic unit drives a cruiser
-  // One standing free at the station (a first responder's cruiser may be parked anywhere).
-  const van = cars.find((c) => c.kind === kind && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= config.swat.radius / 10);
+  // Its station, or a reservist squad's armoury; a reservist squad drives a HMMWV, a
+  // traffic unit a cruiser, SWAT its van.
+  const reservists = sim.archetype === 'reservist' && !sim.outsider;
+  const home = reservists ? sim.depot : sim.station;
+  if (home === null) return false;
+  const door = buildings[home]!.entrances[0]!;
+  const kind = reservists ? 'hmmwv' : sim.checkpoint !== null ? 'cruiser' : 'van';
+  // One standing free there (a first responder's cruiser may be parked anywhere).
+  const van = cars.find((c) => c.kind === kind && c.home === home && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= config.swat.radius / 10);
   if (van === undefined) return false;
   if (Math.hypot(t.x - van.x, t.y - van.y) <= config.swat.vanBeyond) return false;
   const members = sims.filter((s) => s.squadLeader === sim.id && isLiving(s));
@@ -551,17 +571,14 @@ export function resolveTarget(world: World, sim: Sim): void {
 }
 
 /**
- * The leader's target, held until resolved (sims.ts), judged too strong at the door
- * (refusedBy), or stale; else, every retargetInterval ticks, the nearest 911 call
- * within targetRadius that no other squad holds; failing that, the loudest gunfire
- * heard since it last looked, beyond police.shotIgnoreRadius (not its own squad's).
- * Never thrashing between newer ones: a held target is kept.
+ * The leader's target. A traffic unit or a reservist squad: its checkpoint, once the
+ * checkpoints are ordered (traffic.ts) — a reservist squad without one claims the
+ * nearest no other reservist squad has (fallen or not), and waits at its depot while
+ * every checkpoint has one. SWAT: an officer's radio (swatTarget).
  */
 export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
-  const { config, tick, buildings, sims } = world;
-  const sq = config.squads;
+  if (world.checkpointsAt !== null && sim.checkpoint === null && sim.archetype === 'reservist' && !sim.outsider) claimCheckpoint(world, sim);
   if (sim.checkpoint !== null) {
-    // A traffic unit: nothing until the checkpoints are ordered, then its checkpoint.
     const c = world.checkpoints[sim.checkpoint]!;
     if (world.checkpointsAt === null) return null;
     if (sim.destination === null || sim.destination.x !== c.x || sim.destination.y !== c.y) {
@@ -574,56 +591,23 @@ export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget |
     return { x: c.x, y: c.y, building: null };
   }
   if (sim.station !== null) return swatTarget(world, ctx, sim);
-  if (sim.answeringSince !== null) {
-    const stale = tick - sim.answeringSince > sq.staleAfter;
-    if (sim.answering !== null) {
-      const b = buildings[sim.answering]!;
-      if (!stale && b.id !== sim.refusedBy && (b.callAt !== null || b.zombiesInside > 0)) {
-        const e = b.entrances[0]!;
-        return { x: e.x, y: e.y, building: b };
-      }
-    } else if (!stale && sim.destination !== null) {
-      return { x: sim.destination.x, y: sim.destination.y, building: null };
-    }
-    release(sim);
-  }
-  if ((tick + sim.id) % sq.retargetInterval !== 0) return null;
+  return null;
+}
 
-  const held = new Set<number>();
-  for (const o of sims) if (o.squadLeader === o.id && o !== sim && o.answering !== null) held.add(o.answering);
-  let best: Building | null = null;
-  let bestD = Infinity;
-  for (const b of buildings) {
-    if (b.callAt === null || held.has(b.id) || b.id === sim.refusedBy) continue;
-    const e = b.entrances[0]!;
-    const d = Math.hypot(e.x - sim.x, e.y - sim.y);
-    if (d <= sq.targetRadius && d < bestD) {
+/** A reservist squad's leader takes the nearest checkpoint no other reservist squad has, for the whole squad; none, and it has none. */
+function claimCheckpoint(world: World, sim: Sim): void {
+  const manned = new Set<number>();
+  for (const o of world.sims) if (o.checkpoint !== null && o.archetype === 'reservist' && isLiving(o)) manned.add(o.checkpoint);
+  let best = -1, bestD = Infinity;
+  world.checkpoints.forEach((c, k) => {
+    if (manned.has(k)) return;
+    const d = Math.hypot(c.x - sim.x, c.y - sim.y);
+    if (d < bestD) {
       bestD = d;
-      best = b;
+      best = k;
     }
-  }
-  if (best !== null) {
-    sim.answering = best.id;
-    sim.answeringSince = tick;
-    const e = best.entrances[0]!;
-    return { x: e.x, y: e.y, building: best };
-  }
-  let loudest = 0;
-  let shot: { x: number; y: number } | null = null;
-  for (const st of world.stimuli) {
-    if (tick - st.createdAt > sq.retargetInterval || !isFirearm(st.kind)) continue;
-    if (Math.hypot(st.x - sim.x, st.y - sim.y) <= config.police.shotIgnoreRadius) continue;
-    const i = intensityAt(st, sim.x, sim.y);
-    if (i > loudest) {
-      loudest = i;
-      shot = { x: st.x, y: st.y };
-    }
-  }
-  if (shot === null) return null;
-  sim.answeringSince = tick;
-  sim.destination = shot;
-  sim.destinationBuilding = null;
-  sim.destinationKind = 'respond';
-  return { x: shot.x, y: shot.y, building: null };
+  });
+  if (best < 0) return;
+  for (const m of world.sims) if (m.squadLeader === sim.id && isLiving(m)) m.checkpoint = best;
 }
 

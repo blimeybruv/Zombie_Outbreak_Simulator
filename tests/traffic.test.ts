@@ -9,6 +9,8 @@ import { rebuildHashes } from '../src/sim/systems/shared/perception';
 import { squadTarget } from '../src/sim/systems/services/squads';
 import { updateTraffic } from '../src/sim/systems/services/traffic';
 import { assertInvariant } from '../src/sim/tick';
+import { spawnSim } from '../src/sim/spawn';
+import type { Sim } from '../src/sim/state';
 
 function fresh() {
   const { world, ctx } = createWorld({ ...defaultScenario, origin: 'enclosed', initialZombies: 1, runSeed: 7 }, config);
@@ -80,5 +82,63 @@ describe('traffic police', () => {
     updateTraffic(world, ctx);
     expect(c.fallenAt).toBe(world.tick);
     expect(unit.every((s) => s.checkpoint === null)).toBe(true);
+  });
+
+  it('reservist squads each claim a checkpoint no other reservist squad has, once ordered, and drive out in their armoury’s HMMWV', () => {
+    const { world, ctx } = fresh();
+    const armoury = world.buildings.find((b) => b.weaponStock !== null)!;
+    expect(world.cars.filter((c) => c.kind === 'hmmwv' && c.home === armoury.id)).toHaveLength(config.reservists.hmmwvs);
+    // Two squads of reservists, formed at the armoury.
+    const e = armoury.entrances[0]!;
+    const squads: Sim[][] = [];
+    for (let q = 0; q < 2; q++) {
+      const g: Sim[] = [];
+      for (let i = 0; i < config.squads.size; i++) {
+        const m = spawnSim(world, { x: e.x, y: e.y, insideBuilding: armoury.id, sourceTag: 'office', initialPanic: 0, destinationKind: null });
+        m.archetype = 'reservist';
+        m.muster = 'deployed';
+        m.depot = armoury.id;
+        m.weapon = 'rifle';
+        m.ammo = 20;
+        armoury.sheltered.push(m.id);
+        g.push(m);
+      }
+      for (const [i, m] of g.entries()) {
+        m.squadLeader = g[0]!.id;
+        m.squadSlot = i;
+      }
+      squads.push(g);
+    }
+    expect(squadTarget(world, ctx, squads[0]![0]!)).toBeNull(); // nothing ordered yet: it waits
+    world.checkpointsAt = world.tick;
+    const a = squadTarget(world, ctx, squads[0]![0]!)!;
+    const b = squadTarget(world, ctx, squads[1]![0]!)!;
+    const ka = squads[0]![0]!.checkpoint!, kb = squads[1]![0]!.checkpoint!;
+    expect(ka).not.toBeNull();
+    expect(kb).not.toBe(ka);
+    expect(squads[0]!.every((m) => m.checkpoint === ka)).toBe(true);
+    expect([a.x, a.y]).toEqual([world.checkpoints[ka]!.x, world.checkpoints[ka]!.y]);
+    expect([b.x, b.y]).toEqual([world.checkpoints[kb]!.x, world.checkpoints[kb]!.y]);
+  });
+
+  it('a fallen checkpoint is set again by reservists reaching it', () => {
+    const { world, ctx } = fresh();
+    world.checkpointsAt = world.tick;
+    const c = world.checkpoints[0]!;
+    c.setAt = 0;
+    c.fallenAt = 0;
+    for (const s of world.sims) if (s.checkpoint === 0) s.checkpoint = null;
+    const r = world.sims.find((s) => s.condition === 'healthy' && s.insideBuilding === null)!;
+    r.archetype = 'reservist';
+    r.checkpoint = 0;
+    r.squadLeader = r.id;
+    r.post = { x: c.x, y: c.y };
+    r.x = c.x;
+    r.y = c.y;
+    world.tick++;
+    updateTraffic(world, ctx);
+    expect(c.fallenAt).toBeNull();
+    expect(c.setAt).toBe(world.tick);
+    expect(ctx.events.some((e) => e.type === 'checkpointSet' && e.by === 'reservists')).toBe(true);
   });
 });

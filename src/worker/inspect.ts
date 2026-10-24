@@ -54,7 +54,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     name: s.name,
     profession: callingOf(s),
     age: s.age,
-    archetype: s.sweep ? 'Army Ranger' : s.outsider ? 'soldier' : s.checkpoint !== null ? 'traffic police' : s.archetype, // those from outside are not reservists of the city
+    archetype: s.sweep ? 'Army Ranger' : s.outsider ? 'soldier' : s.checkpoint !== null && s.archetype === 'police' ? 'traffic police' : s.archetype, // those from outside are not reservists of the city
     caution: s.caution,
     sociality: s.sociality,
     trust: s.trust,
@@ -111,7 +111,7 @@ function doing(s: Sim): string | null {
   if (s.car !== null) return 'in a car';
   if (s.sweep) return s.squadLeader === s.id ? 'Army Ranger, leading a squad up the corridor' : 'Army Ranger, sweeping the corridor';
   if (s.outsider) return 'soldier, holding the cordon';
-  if (s.checkpoint !== null) return s.post !== null ? 'manning a checkpoint, turning people back' : s.insideBuilding !== null ? 'waiting at the station for orders' : 'on the way to set up a checkpoint';
+  if (s.checkpoint !== null) return s.post !== null ? 'manning a checkpoint, turning people back' : s.insideBuilding !== null ? 'waiting for orders' : 'on the way to a checkpoint';
   if (s.squadLeader === s.id) return s.diamondUntil !== null ? 'leading a squad, engaged' : 'leading a squad';
   if (s.squadLeader !== null) return s.directUntil !== null ? 'catching up with its squad' : 'in a squad';
   if (s.muster === 'mobilised') return 'called up, making for the armory';

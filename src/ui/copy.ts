@@ -58,7 +58,7 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'carCrashed':
       return e.dead > 0 ? `A car crashed on ${n.place}. ${e.dead === 1 ? 'One' : e.dead} inside did not survive it.` : `A car crashed on ${n.place}. Everyone inside walked away.`;
     case 'vehicleTaken': {
-      const what = e.kind === 'ambulance' ? 'an ambulance' : e.kind === 'cruiser' ? 'a police car' : 'a SWAT van';
+      const what = e.kind === 'ambulance' ? 'an ambulance' : e.kind === 'cruiser' ? 'a police car' : e.kind === 'hmmwv' ? "the reservists' HMMWV" : 'a SWAT van';
       return `${n.name ?? 'Someone'} drove off in ${what} on ${n.place}${e.leaving ? ', making for the way out' : ''}. There was nobody left to drive it.`;
     }
     case 'outOfAmmo':
@@ -68,7 +68,9 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'cordonClosed':
       return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
     case 'checkpointSet':
-      return `Traffic police have set up a checkpoint on ${n.place}, turning back anyone heading out of the city.`;
+      return e.by === 'reservists'
+        ? `Reservists have taken over the checkpoint on ${n.place}, turning back anyone heading out of the city.`
+        : `Traffic police have set up a checkpoint on ${n.place}, turning back anyone heading out of the city.`;
     case 'checkpointFallen':
       return `The police checkpoint on ${n.place} has fallen. Nobody is left to man it.`;
     case 'rescueSweep':

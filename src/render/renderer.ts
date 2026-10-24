@@ -13,7 +13,7 @@
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK, CHECKPOINT_STRIDE } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK, CAR_HMMWV, CHECKPOINT_STRIDE } from '../worker/protocol';
 import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -193,6 +193,39 @@ function shapedOutline(o: Float32Array, i: number, shape: number, doors: number[
   if (!inCut(len - cw, len, d)) return [...B0, ...at(len - cw, 0), ...at(len - cw, d), ...at(len, d), ...C2, ...C3];
   if (!inCut(0, cw, d)) return [...at(0, d), ...at(cw, d), ...at(cw, 0), ...B1, ...C2, ...C3];
   return null;
+}
+
+/** A filled box: `len` along (dx, dy), `wid` across it, centred at (x, y). (dx, dy) is a unit vector. */
+function addBox(path: Path2D, x: number, y: number, dx: number, dy: number, len: number, wid: number): void {
+  const nx = -dy, ny = dx;
+  const hl = len / 2, hw = wid / 2;
+  path.moveTo(x + dx * hl + nx * hw, y + dy * hl + ny * hw);
+  path.lineTo(x - dx * hl + nx * hw, y - dy * hl + ny * hw);
+  path.lineTo(x - dx * hl - nx * hw, y - dy * hl - ny * hw);
+  path.lineTo(x + dx * hl - nx * hw, y + dy * hl - ny * hw);
+  path.closePath();
+}
+
+const HMMWV_L = 4.6;
+const HMMWV_HULL_W = 1.86;
+
+/** A HMMWV in plan (the render team's, from the cordon work): hull, bonnet, roof, windscreen, cargo well, spare and wheel flares, nose along (dx, dy). */
+function addHumvee(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: number, dx: number, dy: number): void {
+  const nx = -dy, ny = dx;
+  addBox(body, x, y, dx, dy, HMMWV_L, HMMWV_HULL_W);
+  const arch = 0.22;
+  for (const u of [1.62, -1.62]) {
+    for (const s of [1, -1] as const) {
+      addBox(body, x + dx * u + nx * s * (HMMWV_HULL_W / 2 + arch / 2 - 0.06), y + dy * u + ny * s * (HMMWV_HULL_W / 2 + arch / 2 - 0.06), dx, dy, 0.9, arch);
+    }
+  }
+  addBox(panel, x + dx * 1.45, y + dy * 1.45, dx, dy, 1.15, 1.5);
+  addBox(panel, x - dx * 0.15, y - dy * 0.15, dx, dy, 1.35, 1.42);
+  addBox(shade, x + dx * 0.62, y + dy * 0.62, dx, dy, 0.26, 1.38);
+  addBox(shade, x - dx * 1.42, y - dy * 1.42, dx, dy, 0.78, 1.22);
+  const sx = x - dx * 1.95, sy = y - dy * 1.95;
+  shade.moveTo(sx + dx * 0.26, sy + dy * 0.26);
+  shade.arc(sx, sy, 0.26, 0, Math.PI * 2);
 }
 
 function addPolygon(path: Path2D, pts: number[]): void {
@@ -829,6 +862,7 @@ export class Renderer {
     const near = cam.mode === 'near';
     const hw = CAR_W / 2;
     const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), ambulances = new Path2D(), trucks = new Path2D();
+    const hBody = new Path2D(), hPanel = new Path2D(), hShade = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
@@ -837,11 +871,16 @@ export class Renderer {
       const amb = (st[i]! & CAR_AMBULANCE) !== 0;
       const cruiser = (st[i]! & CAR_CRUISER) !== 0;
       const long = (st[i]! & CAR_VAN) !== 0 || amb;
-      const van = long || cruiser; // a service vehicle: drawn in its colour, at mid zoom too
+      const van = long || cruiser || (st[i]! & CAR_HMMWV) !== 0; // a service vehicle: drawn in its colour, at mid zoom too
       const hl = long ? VAN_L / 2 : CAR_L / 2;
       const pt = (u: number, v: number): [number, number] => [x + c * u - s * v, y + s * u + c * v];
       // A van shows at mid zoom too, parked or not: it is a squad's way out, or its box.
       if ((state === CAR_DRIVING) !== moving || (state !== CAR_DRIVING && state !== CAR_ABANDONED && !near && !van)) continue;
+      // A reservists' HMMWV: drawn as one, in their green, at mid zoom too (abandoned, crossed like any car).
+      if ((st[i]! & CAR_HMMWV) !== 0 && state !== CAR_ABANDONED) {
+        addHumvee(hBody, hPanel, hShade, x, y, c, s);
+        continue;
+      }
       const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : amb && state !== CAR_ABANDONED ? ambulances : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
@@ -868,6 +907,12 @@ export class Renderer {
     g.fill(ambulances);
     g.fillStyle = P.TENT;
     g.fill(trucks);
+    g.fillStyle = P.GUARD;
+    g.fill(hBody);
+    g.fillStyle = P.HMMWV_PANEL;
+    g.fill(hPanel);
+    g.fillStyle = P.HMMWV_SHADE;
+    g.fill(hShade);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);

@@ -79,6 +79,7 @@ export const CAR_STATE_MASK = 3;
 export const CAR_VAN = 4; // a SWAT van: longer, police blue
 export const CAR_AMBULANCE = 8; // an ambulance: longer, white
 export const CAR_CRUISER = 16; // a police car: a car's size, police blue
+export const CAR_HMMWV = 64; // a reservists' HMMWV: drawn as one, reservist green
 export const CAR_TRUCK = 32; // with CAR_VAN: the rescue's truck, standing or on the road in or out: army canvas, no lights
 
 /** Awake and intact (turned from one bite): drawn paler at near zoom, where the viewer is told; the city is not. */

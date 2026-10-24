@@ -483,7 +483,8 @@ export const config = {
   // are left, and wait. `armouries` depots, spread across the map (the one nearest the
   // middle, then each next the farthest from those chosen), hold `weaponStock` weapons
   // each. pistolShare of them carry a pistol of their own — guesses
-  reservists: { callUpCalls: 300, share: 0.02, depotScale: 1500, armouries: 2, weaponStock: 12, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.1, pistolAmmo: 12 },
+  // Each armoury keeps `hmmwvs` HMMWVs in its lot, for its squads to drive to the checkpoints.
+  reservists: { callUpCalls: 300, share: 0.02, depotScale: 1500, armouries: 2, weaponStock: 12, weapon: 'rifle' as const, ammo: 20, pistolShare: 0.1, pistolAmmo: 12, hmmwvs: 2 },
 
   // Squads: reservists waiting armed at a depot deploy as a squad once there are
   // `size` of them, the lowest id leading. Only the leader plans a route; the others
@@ -495,20 +496,16 @@ export const config = {
   // the middle. A follower more than slotLost from its slot for slotPatience ticks
   // heads straight for the leader for directHold ticks, or until within rejoinRadius of it: without that, squads
   // deadlocked on corners. The leader waits while any follower is more than lagRadius
-  // from its slot. A leader claims a 911 call within targetRadius (failing that, an
-  // occupied building it knows of), nearest first, one squad to a target, and holds
-  // it until it is resolved, judged too strong, or claimed staleAfter ticks ago; with
-  // nothing to claim it looks again every retargetInterval ticks, from its depot.
-  // Arriving at an occupied building, the squad goes in if its members' capacity,
-  // summed, is at least contestRatio × the occupiers: the leader's decision, at the
-  // door, not a vote. The leader falls: the lowest surviving id leads. Below two, the
+  // from its slot. A reservist squad's leader claims the nearest police checkpoint no
+  // other reservist squad has, and drives there in one of its armoury's HMMWVs
+  // (traffic.ts); SWAT answers radios (staleAfter, contestRatio: swat). Arriving at an
+  // occupied building, a squad goes in if its members' capacity, summed, is at least
+  // contestRatio × the occupiers. The leader falls: the lowest surviving id leads. Below two, the
   // squad dissolves and its members stand down, keeping their weapons — guesses
   squads: {
     size: 4,
     contestRatio: 1,
-    targetRadius: 1200,
     staleAfter: 1800,
-    retargetInterval: 30,
     sceneRadius: 30,
     fileSpacing: 3,
     diamondRadius: 3,

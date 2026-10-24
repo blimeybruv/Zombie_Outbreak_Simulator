@@ -268,12 +268,14 @@ function bays(world: World, lot: World['lots'][number]): { x: number; y: number;
  * vehicle only once nobody living is left to drive it: an ambulance's crew, or the
  * officers of a police car's or SWAT van's station, all dead or turned. Taking one
  * from a staffed hospital or station would quietly end its service for the run. A
- * rescue truck (a van with no home) is the Army's, never.
+ * rescue truck (a van with no home) is the Army's, never; a HMMWV, once no reservist
+ * of its armoury is left.
  */
 function takeable(world: World, car: Car): boolean {
   if (car.kind === 'car') return true;
   if (car.home === null) return false;
   if (car.kind === 'ambulance') return !world.sims.some((s) => s.crew === car.id && isLiving(s));
+  if (car.kind === 'hmmwv') return !world.sims.some((s) => s.archetype === 'reservist' && !s.outsider && s.depot === car.home && isLiving(s));
   return !world.sims.some((s) => s.station === car.home && isLiving(s));
 }
 

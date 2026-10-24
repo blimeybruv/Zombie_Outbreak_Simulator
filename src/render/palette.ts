@@ -51,6 +51,9 @@ export const GATE = '#0b0b0b';
 /** A fallen police checkpoint's sawhorses: grey, abandoned. */
 export const CHECKPOINT_FALLEN = 'rgba(140, 150, 160, 0.5)';
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
+/** A reservists' HMMWV: hull in their green, a lighter bonnet and roof, a darker windscreen, cargo well and spare. */
+export const HMMWV_PANEL = '#dcf3d4';
+export const HMMWV_SHADE = '#5e8a58';
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only

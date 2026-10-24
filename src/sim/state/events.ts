@@ -172,8 +172,8 @@ export interface VehicleTakenEvent extends EventBase, Located {
   type: 'vehicleTaken';
   /** @range car id @unit id @readBy ticker */
   car: CarId;
-  /** @range 3 values @unit enum @readBy ticker copy */
-  kind: 'van' | 'cruiser' | 'ambulance';
+  /** @range 4 values @unit enum @readBy ticker copy */
+  kind: 'van' | 'cruiser' | 'ambulance' | 'hmmwv';
   /** Making for a way out of the city, rather than somewhere in it. @range true/false @unit — @readBy ticker copy */
   leaving: boolean;
   /** The driver. @range sim id @unit id @readBy ticker */
@@ -293,6 +293,8 @@ export interface CheckpointEvent extends EventBase, Located {
   type: 'checkpointSet' | 'checkpointFallen';
   /** The unit's leader when set; null when fallen. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
+  /** Who set it: traffic police, or a reservist squad (setting it again, if it had fallen); null when fallen. @range 2 values | null @unit enum @readBy ticker copy */
+  by: 'police' | 'reservists' | null;
 }
 
 export interface CordonClosedEvent extends EventBase, Located {

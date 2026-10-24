@@ -250,12 +250,12 @@ export function decideCars(world: World, ctx: Context): void {
     else car.blockedSince = null;
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
-  // the move sounds its siren too (features.sirens): sparse and modest, a thin wake
+  // the move (not the reservists' HMMWVs) sounds its siren too (features.sirens): sparse and modest, a thin wake
   // rather than a corridor (cars.siren).
   const sr = cc.siren;
   for (const car of moving) {
     if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
-    if (config.features.sirens && car.home !== null && (car.id + tick) % sr.every === 0) emitStimulus(world, car.x, car.y, 'siren', sr.noise, false, sr.intensity);
+    if (config.features.sirens && car.home !== null && car.kind !== 'hmmwv' && (car.id + tick) % sr.every === 0) emitStimulus(world, car.x, car.y, 'siren', sr.noise, false, sr.intensity);
   }
 }
 

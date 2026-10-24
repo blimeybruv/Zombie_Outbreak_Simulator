@@ -146,24 +146,27 @@ export function updateTraffic(world: World, ctx: Context): void {
     return;
   }
   checkpoints.forEach((c, k) => {
-    if (c.fallenAt !== null) return;
+    // Its unit: the traffic police sent to it, and any reservist squad that has claimed it.
     const unit = sims.filter((s) => s.checkpoint === k && isLiving(s));
-    if (c.setAt === null) {
-      // Set once its unit's leader stands at it.
+    if (c.setAt === null || c.fallenAt !== null) {
+      // Set once a unit's leader stands at it; a fallen one set again by reservists coming to it.
       const leader = unit.find((s) => s.squadLeader === s.id && s.post !== null && s.insideBuilding === null && s.car === null && Math.hypot(s.x - c.x, s.y - c.y) <= tc.holdRadius);
       if (leader === undefined) return;
       c.setAt = tick;
-      ctx.events.push({ type: 'checkpointSet', tick, sim: leader.id, x: c.x, y: c.y });
+      c.fallenAt = null;
+      ctx.events.push({ type: 'checkpointSet', tick, sim: leader.id, by: leader.archetype === 'police' ? 'police' : 'reservists', x: c.x, y: c.y });
       return;
     }
     if (!unit.some((s) => s.insideBuilding === null && Math.hypot(s.x - c.x, s.y - c.y) <= tc.holdRadius)) {
       c.fallenAt = tick;
       for (const s of unit) {
-        // What is left of the unit is police like any other.
+        // What is left of the traffic police is police like any other; reservists on
+        // their way keep their claim, and set it again when they get there.
+        if (s.archetype !== 'police') continue;
         s.checkpoint = null;
         s.post = null;
       }
-      ctx.events.push({ type: 'checkpointFallen', tick, sim: null, x: c.x, y: c.y });
+      ctx.events.push({ type: 'checkpointFallen', tick, sim: null, by: null, x: c.x, y: c.y });
       return;
     }
     if ((tick + k) % tc.every !== 0 || holdsFire(world, c.exit)) return;
