@@ -395,6 +395,7 @@ export const config = {
 
   behaviour: {
     waypointRadius: 3, // m; a route waypoint counts as reached within this
+    doorStep: 1, // m out from a door toward its street: what must be in sight to walk straight to it (steering.ts lastLeg)
     arrivalRadius: 2.5, // m from an entrance to go inside
     doorSearchRadius: 30, // m; a sim in flight runs for the nearest door within this — guess
     shelterFallbackRadius: 150, // m; nearest building when no shelter is known — guess

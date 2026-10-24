@@ -392,12 +392,21 @@ function mix(a: number, b: number): number {
  * A cordon soldier at its place with nothing in sight: at ease, not frozen. It stays
  * where it stands and, each period (out of step with the others), either holds still or
  * turns slowly to look somewhere new, to one side or the other of facing back into the
- * city. Anything in sight ends it (true when it acted).
+ * city; a cry close by, it turns to at once. Anything in sight ends it (true when it acted).
  */
 function atEase(world: World, ctx: Context, sim: Sim): boolean {
   if (ctx.threat[sim.id]! > 0 || ctx.nearestZombie[sim.id]! >= 0) return false;
   const ae = world.config.cordon.atEase;
   sim.gait = 'still';
+  // A cry close by, just now: it turns to it at once (what is there it sees next tick).
+  const hear = world.config.encounters.shoutNoiseRadius;
+  for (const s of world.stimuli) {
+    if (s.kind !== 'shout' || world.tick - s.createdAt > 1) continue;
+    const d = Math.hypot(s.x - sim.x, s.y - sim.y);
+    if (d > hear || d < 1) continue;
+    sim.heading = Math.atan2(s.y - sim.y, s.x - sim.x);
+    return true;
+  }
   const period = Math.floor((world.tick + sim.id * 37) / ae.period);
   if (mix(sim.id, period) < ae.still) return true; // this while, it just stands
   const half = world.config.map.size / 2;

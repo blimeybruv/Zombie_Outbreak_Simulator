@@ -365,6 +365,9 @@ function zombiesAttack(world: World, ctx: Context): void {
     if (victim === null) continue;
     z.nextAttackAt = tick + za.cooldown;
     z.intact = false; // a grab, bite or miss, is when it is seen for what it is
+    // Set upon, anyone cries out: frozen or not, it is heard. Unheard, someone was killed
+    // in the rescue's queue a few metres behind soldiers who never turned round.
+    emitStimulus(world, victim.x, victim.y, 'shout', config.encounters.shoutNoiseRadius, false, config.behaviour.shoutIntensity);
 
     const awayX = victim.x - z.x;
     const awayY = victim.y - z.y;

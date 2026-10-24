@@ -45,10 +45,17 @@ import { exitTicks, isLiving } from '../shared/common';
 import { modeOf } from '../people/panic';
 
 /** Where the cordon squad at the rescue's exit stands to screen those let through: beside the gate, just beyond the line. */
-function gatePost(world: World, e: Exit): Vec2 {
+export function gatePost(world: World, e: Exit): Vec2 {
   const g = world.config.rescue.gate * 2;
   const b = barrierAt(world, e);
   return { x: b.x + (e.dx - e.dy) * g, y: b.y + (e.dy + e.dx) * g };
+}
+
+/** Where one of the gate's squad stands inside the line, beside the gate across the line from its post, to direct those coming up to it. */
+export function gateUsher(world: World, e: Exit): Vec2 {
+  const g = world.config.rescue.gate * 2;
+  const b = barrierAt(world, e);
+  return { x: b.x - (e.dx + e.dy) * g, y: b.y - (e.dy - e.dx) * g };
 }
 
 /** The living leaders of the cordon squads posted at an exit's barrier or its gate. */

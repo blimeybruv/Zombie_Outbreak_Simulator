@@ -29,6 +29,7 @@ import { outOfAmmo, restock } from '../fighting/arms';
 import { capacity, isLiving, leaveTalk } from '../shared/common';
 import { boardSquad, parkVan } from './cars';
 import { parkingSpot } from './traffic';
+import { gatePost, gateUsher } from '../outside/rescue';
 import { nearestExit } from '../outside/exits';
 
 const armouryCache = new WeakMap<readonly unknown[], BuildingId[]>();
@@ -420,11 +421,22 @@ export function squadPass(world: World, ctx: Context): void {
     const cp = leader.checkpoint === null ? null : world.checkpoints[leader.checkpoint]!;
     const ex = leader.post === null ? null : cp ?? world.exits[nearestExit(world, leader.post.x, leader.post.y)!]!;
     const line = ex === null ? null : { x: -ex.dy, y: ex.dx };
+    // A cordon squad at the rescue's gate (rescue.ts gatePost): one of it stands inside the line.
+    let usher: { x: number; y: number } | null = null;
+    if (leader.outsider && !leader.sweep && leader.post !== null && world.rescueExit !== null && g.length > 1) {
+      const re = world.exits[world.rescueExit]!;
+      const gp = gatePost(world, re);
+      if (Math.hypot(leader.post.x - gp.x, leader.post.y - gp.y) < 0.5) usher = gateUsher(world, re);
+    }
     const tx = ctx.threatX[leader.id]!, ty = ctx.threatY[leader.id]!;
     const bearing = tx !== 0 || ty !== 0 ? Math.atan2(ty, tx) : leader.heading;
     for (let i = 1; i < g.length; i++) {
       const m = g[i]!;
-      if (line !== null) {
+      if (usher !== null && i === g.length - 1) {
+        // The gate's squad: its last man inside the line, beside the gate, directing.
+        ctx.slotX[m.id] = usher.x;
+        ctx.slotY[m.id] = usher.y;
+      } else if (line !== null) {
         // Alternately either side of the leader, across the road.
         const k = (i % 2 === 1 ? 1 : -1) * Math.ceil(i / 2) * sq.lineSpacing;
         ctx.slotX[m.id] = leader.x + line.x * k;
