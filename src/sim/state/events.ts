@@ -3,7 +3,7 @@
 // simulation state. `world.events` holds only the current tick's events; the
 // ticker keeps its own history for salience rarity.
 
-import type { BuildingId, CarId, Count, DistrictId, Metres, SimId, Tick, ZombieId } from './units';
+import type { BuildingId, CarId, Count, DistrictId, Metres, SimId, Tick, Unit01, ZombieId } from './units';
 import type { Weapon } from './sim';
 
 interface EventBase {
@@ -189,6 +189,19 @@ export interface CarAlarmEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface CarHornEvent extends EventBase, Located {
+  /** A driving car, blocked and barely moving, sounds its horn. Heard, not read. @range literal @unit — @readBy audio */
+  type: 'carHorn';
+  /** @range car id @unit id @readBy audio */
+  car: CarId;
+  /** How long it has been blocked, over cars.horn.full, clamped. @range 0–1 @unit scalar @readBy audio (beeps or blast, level) */
+  severity: Unit01;
+  /** How far the horn carries, for the same distance falloff as a noise. @range cars.horn.radius @unit m @readBy audio */
+  radius: Metres;
+  /** Always null: there is no ticker line. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export interface SquadEvent extends EventBase, Located {
   /**
    * squadFormed: reservists armed at a depot deploy. squadEngaged: from file to
@@ -320,6 +333,7 @@ export type SimEvent =
   | SquadEvent
   | CarAbandonedEvent
   | CarAlarmEvent
+  | CarHornEvent
   | VehicleTakenEvent
   | CarHitEvent
   | CarCrashedEvent

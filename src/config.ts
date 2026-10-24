@@ -814,6 +814,14 @@ export const config = {
     // the move, heard by the dead to `noise` metres every `every` ticks — sparse and
     // modest, so it leaves a thin wake rather than a corridor — guess
     siren: { every: 15, noise: 100, intensity: 0.6 },
+    // Horns: a driving car that has been stopped — something in front of it, or stuck
+    // against a wall — and is still barely moving (at or below `creep`) honks once
+    // it has been blocked for `after` ticks, then every `every` ticks, staggered by
+    // id. Severity is how long it has been blocked, over `full`, clamped to 0–1.
+    // Audio turns a low severity into short beeps and a high one into one blast.
+    // An event only: it is not a stimulus, so the dead do not hear it and the run
+    // is unchanged. `radius` is how far that playback carries — guess
+    horn: { after: 8, every: 10, full: 100, creep: 1, radius: 80 },
     // Each awake zombie at an occupied car (within half its length and contact range)
     // breaks in at breakIn a tick: the doors give, and everyone inside is out among
     // them. Someone who turns inside bites each of the others at turnInsideBite.

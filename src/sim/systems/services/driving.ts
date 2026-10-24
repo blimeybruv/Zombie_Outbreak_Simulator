@@ -3,7 +3,8 @@
 // swerving round people, never turning faster than its turning circle allows, keeping
 // its body out of buildings below crash speed — and whether a move would hit something
 // (car processes in cars.ts resolve the impact). Writes heading and speed in decisions,
-// position only in movement.
+// position only in movement. A car that has been blocked and is barely moving emits a
+// horn event; that event is not a stimulus, so nothing in the simulation hears it.
 
 import type { Context } from '../../context';
 import { sharedNode } from '../../navigation/pathfinding';
@@ -23,7 +24,8 @@ function ahead(car: Car, x: number, y: number, reach: number, half: number): boo
  * Car decisions (step 6, after the sims'): heading for the next junction, kept right of
  * the centreline, or for the kerb at the end; stopped by anything ahead — standing
  * abandoned cars, people, the dead, moving cars — the lower id yielding when two
- * moving cars stop for each other; slowed by congestion. Writes heading and speed only.
+ * moving cars stop for each other; slowed by congestion. Writes heading and speed only,
+ * then a horn event for a car that has been blocked long enough.
  */
 export function decideCars(world: World, ctx: Context): void {
   const { config, tick, nodes, streets, sims, zombies, cars } = world;
@@ -318,6 +320,18 @@ export function decideCars(world: World, ctx: Context): void {
       car.blockedSince = null;
       car.stuckAt = null;
     }
+  }
+  // Horns, after the block is settled for this tick: a driving car that has been
+  // stopped (someone or something in front, or stuck) and is still barely moving.
+  // Severity is the blockage so far. An event only — the dead do not hear a horn,
+  // which is what keeps a run's fingerprint identical.
+  const horn = cc.horn;
+  for (const car of moving) {
+    if (car.blockedSince === null || car.speed > horn.creep) continue;
+    const blockedFor = tick - car.blockedSince;
+    if (blockedFor < horn.after || (car.id + blockedFor) % horn.every !== 0) continue;
+    const severity = horn.full <= 0 ? 1 : Math.min(1, blockedFor / horn.full);
+    ctx.events.push({ type: 'carHorn', tick, car: car.id, severity, radius: horn.radius, x: car.x, y: car.y, sim: null });
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move (not the reservists' HMMWVs) sounds its siren too (features.sirens): sparse and modest, a thin wake

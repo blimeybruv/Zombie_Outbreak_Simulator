@@ -688,6 +688,41 @@ describe('cars', () => {
     expect(Math.hypot(car.x - car.stuckAt!.x, car.y - car.stuckAt!.y)).toBeLessThanOrEqual(baseConfig.cars.unstuck);
   });
 
+  it('a car stuck against a wall honks, and the horn grows with how long it has been stuck', () => {
+    const { world, ctx, car } = nosed();
+    const horn = baseConfig.cars.horn;
+    car.blockedSince = null;
+    car.stuckAt = null;
+    ctx.events = [];
+    const heard: number[] = [];
+    let since: number | null = null;
+    for (let t = 0; t < horn.full + horn.every + 5 && car.state === 'driving'; t++) {
+      world.tick++;
+      rebuildHashes(world, ctx);
+      decideCars(world, ctx);
+      if (since === null && car.blockedSince !== null) since = car.blockedSince;
+      for (const e of ctx.events) {
+        if (e.type !== 'carHorn') continue;
+        const blockedFor = world.tick - car.blockedSince!;
+        expect(e.car).toBe(car.id);
+        expect(e.radius).toBe(horn.radius);
+        expect(e.sim).toBeNull();
+        expect(blockedFor).toBeGreaterThanOrEqual(horn.after);
+        expect((car.id + blockedFor) % horn.every).toBe(0);
+        expect(e.severity).toBe(Math.min(1, blockedFor / horn.full));
+        expect(car.speed).toBeLessThanOrEqual(horn.creep);
+        heard.push(e.severity);
+      }
+      ctx.events = [];
+      moveCars(world, ctx);
+    }
+    expect(since).not.toBeNull();
+    expect(heard.length).toBeGreaterThan(2);
+    expect(heard[0]!).toBeLessThan(0.5);
+    expect(heard.at(-1)).toBe(1);
+    for (let i = 1; i < heard.length; i++) expect(heard[i]!).toBeGreaterThanOrEqual(heard[i - 1]!);
+  });
+
   it('stuck rerouteAfter within parkStuck of where it is going, a car parks there and its people walk on', () => {
     const { world, ctx, car, s } = nosed();
     expect(Math.hypot(car.destination!.x - car.x, car.destination!.y - car.y)).toBeLessThan(baseConfig.cars.parkStuck);
