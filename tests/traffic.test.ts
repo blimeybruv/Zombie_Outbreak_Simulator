@@ -22,7 +22,7 @@ describe('traffic police', () => {
     const { world } = fresh();
     expect(world.checkpoints).toHaveLength(world.exits.length);
     for (const [k, c] of world.checkpoints.entries()) {
-      const e = world.exits[c.exit]!;
+      const e = world.exits[c.exit!]!;
       const b = barrierAt(world, e);
       expect((c.x - b.x) * e.dx + (c.y - b.y) * e.dy).toBeLessThan(0); // on the city side
       const unit = world.sims.filter((s) => s.checkpoint === k);
@@ -115,6 +115,7 @@ describe('traffic police', () => {
     }
     expect(squadTarget(world, ctx, squads[0]![0]!)).toBeNull(); // nothing ordered yet: it waits
     world.checkpointsAt = world.tick;
+    for (const c of world.checkpoints) c.orderedAt = world.tick;
     const a = squadTarget(world, ctx, squads[0]![0]!)!;
     const b = squadTarget(world, ctx, squads[1]![0]!)!;
     const ka = squads[0]![0]!.checkpoint!, kb = squads[1]![0]!.checkpoint!;
@@ -132,6 +133,7 @@ describe('traffic police', () => {
   it('a fallen checkpoint is set again by reservists reaching it', () => {
     const { world, ctx } = fresh();
     world.checkpointsAt = world.tick;
+    for (const c of world.checkpoints) c.orderedAt = world.tick;
     const c = world.checkpoints[0]!;
     c.setAt = 0;
     c.fallenAt = 0;
@@ -148,5 +150,51 @@ describe('traffic police', () => {
     expect(c.fallenAt).toBeNull();
     expect(c.setAt).toBe(world.tick);
     expect(ctx.events.some((e) => e.type === 'checkpointSet' && e.by === 'reservists')).toBe(true);
+  });
+
+  it('when the first district evacuates, set checkpoints where its roads leave it, manned by first responders, that let its evacuees through and turn others back', () => {
+    const { world, ctx } = fresh();
+    const d = world.districts[0]!;
+    const before = world.checkpoints.length;
+    const centre = world.buildings.find((b) => b.district === d.id)!.entrances[0]!;
+    ctx.events.push({ type: 'districtEvacuating', tick: world.tick, district: d.id, first: true, sim: null, x: centre.x, y: centre.y });
+    updateTraffic(world, ctx);
+    const added = world.checkpoints.slice(before);
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.length).toBeLessThanOrEqual(config.traffic.evacCheckpoints);
+    for (const c of added) {
+      expect(c.exit).toBeNull();
+      expect(c.district).toBe(d.id);
+      expect(c.orderedAt).toBe(world.tick);
+    }
+    const k = before;
+    const unit = world.sims.filter((s) => s.checkpoint === k);
+    expect(unit.length).toBe(config.traffic.officers);
+    expect(unit.every((s) => s.archetype === 'police' && s.station !== null && s.squadLeader === unit[0]!.id)).toBe(true);
+    // Set, with two people making for a way out beside it: the district's evacuee goes on, the other is turned back.
+    const c = world.checkpoints[k]!;
+    c.setAt = world.tick;
+    for (const s of unit) {
+      world.buildings[s.insideBuilding!]!.sheltered = world.buildings[s.insideBuilding!]!.sheltered.filter((id) => id !== s.id);
+      s.insideBuilding = null;
+      s.x = c.x;
+      s.y = c.y;
+    }
+    const [evacuee, other] = world.sims.filter((s) => s.condition === 'healthy' && s.insideBuilding === null && s.archetype !== 'police' && s.checkpoint === null);
+    for (const s of [evacuee!, other!]) {
+      s.x = c.x - c.dx * 3;
+      s.y = c.y - c.dy * 3;
+      headForExit(world, s);
+    }
+    evacuee!.evacuatedFrom = d.id;
+    const exitOf = (s: Sim) => world.exits.findIndex((e) => Math.hypot(e.x - s.destination!.x, e.y - s.destination!.y) <= 1);
+    const was = exitOf(other!);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    world.tick += config.traffic.every - ((world.tick + k) % config.traffic.every);
+    updateTraffic(world, ctx);
+    expect(evacuee!.destinationKind).toBe('leave');
+    expect(evacuee!.knownClosed).toBe(0);
+    expect(other!.knownClosed & (1 << was)).not.toBe(0);
   });
 });

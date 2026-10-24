@@ -15,7 +15,7 @@ import type { SimEvent } from './events';
 import type { Border, District, Exit, Lot, River, Street, StreetNode } from './map';
 import type { Archetype, Sim, Weapon } from './sim';
 import type { Stimulus } from './stimulus';
-import type { CarId, Count, Metres, SimId, Tick, Unit01 } from './units';
+import type { CarId, Count, DistrictId, Metres, SimId, Tick, Unit01 } from './units';
 import type { Zombie } from './zombie';
 
 /**
@@ -41,8 +41,12 @@ export type ZombieGait = (typeof ZOMBIE_GAITS)[number];
  * left at it.
  */
 export interface Checkpoint {
-  /** The exit whose road it stands on. @range exit index @unit index @readBy traffic, snapshot (render) */
-  exit: number;
+  /** The exit whose road it stands on; null for one at the edge of the first district to evacuate. @range exit index | null @unit index @readBy traffic */
+  exit: number | null;
+  /** For one at the edge of the first district to evacuate: that district, whose evacuees it lets through; null on an exit's road. @range district id | null @unit id @readBy traffic */
+  district: DistrictId | null;
+  /** When its unit was sent to it: the first barrier closing for an exit's road, the first evacuation for the district's; null before. @range tick | null @unit tick @readBy traffic, squads, sim decisions */
+  orderedAt: Tick | null;
   /** @range 0–3200 @unit m @readBy traffic, squads, snapshot (render) */
   x: Metres;
   /** @range 0–3200 @unit m @readBy traffic, squads, snapshot (render) */

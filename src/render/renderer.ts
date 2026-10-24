@@ -1095,7 +1095,7 @@ export class Renderer {
    */
   private drawCheckpoints(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
     if (frame.checkpointsSet === 0 || cam.mode === 'far') return;
-    const c = this.map.checkpoints;
+    const c = frame.checkpoints;
     const px = 1 / (cam.scale * dpr);
     g.save();
     g.lineWidth = Math.max(0.6, 3 * px);

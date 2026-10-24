@@ -433,7 +433,7 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
   // A traffic unit at its checkpoint, once ordered there: the checkpoint becomes its post (traffic.ts).
   // At it, or at where its vehicle parks: with the way to the line choked by cars left
   // there, that was further back than the scene, and the unit stood there for good.
-  if (sim.checkpoint !== null && sim.post === null && world.checkpointsAt !== null && sim.car === null) {
+  if (sim.checkpoint !== null && sim.post === null && world.checkpoints[sim.checkpoint]!.orderedAt !== null && sim.car === null) {
     const c = world.checkpoints[sim.checkpoint]!;
     const p = parkingSpot(world, c, sim.archetype === 'reservist');
     const d = Math.min(Math.hypot(c.x - sim.x, c.y - sim.y), Math.hypot(p.x - sim.x, p.y - sim.y));

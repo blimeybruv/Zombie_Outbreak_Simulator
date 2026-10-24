@@ -19,7 +19,7 @@
 
 import type { Context } from '../../context';
 import { makePolice, spawnSim, takeStaff } from '../../spawn';
-import type { Building, Checkpoint, Sim, Vec2, World } from '../../state';
+import type { Building, Checkpoint, DistrictId, Sim, Vec2, World } from '../../state';
 import type { Adjacent } from '../../navigation/runtime';
 import { isOutdoorLiving } from '../../context';
 import { isLiving } from '../shared/common';
@@ -78,7 +78,7 @@ function checkpointFor(world: World, ctx: Context, exit: number): Checkpoint {
   // Facing the exit: back along the street it stands on, toward the node it came from.
   const p = nodes[prev]!;
   const d = Math.hypot(p.x - at.x, p.y - at.y) || 1;
-  return { exit, x: at.x, y: at.y, dx: (p.x - at.x) / d, dy: (p.y - at.y) / d, width: street.width, setAt: null, fallenAt: null };
+  return { exit, district: null, orderedAt: null, x: at.x, y: at.y, dx: (p.x - at.x) / d, dy: (p.y - at.y) / d, width: street.width, setAt: null, fallenAt: null };
 }
 
 /** The police station nearest a point (lower id on a tie); null on a map without one. */
@@ -160,11 +160,15 @@ export function updateTraffic(world: World, ctx: Context): void {
   const { config, tick, sims, checkpoints } = world;
   if (checkpoints.length === 0) return;
   const tc = config.traffic;
-  if (world.checkpointsAt === null) {
-    if (world.exits.some((e) => e.closedAt !== null)) world.checkpointsAt = tick;
-    return;
+  // The first district to evacuate: checkpoints where its main roads leave it, manned at
+  // once by first responders.
+  for (const e of ctx.events) if (e.type === 'districtEvacuating' && e.first) evacuationCheckpoints(world, ctx, e.district, e.x, e.y);
+  if (world.checkpointsAt === null && world.exits.some((e) => e.closedAt !== null)) {
+    world.checkpointsAt = tick;
+    for (const c of checkpoints) if (c.exit !== null) c.orderedAt ??= tick;
   }
   checkpoints.forEach((c, k) => {
+    if (c.orderedAt === null) return;
     // Its unit: the traffic police sent to it, and any reservist squad that has claimed it.
     const unit = sims.filter((s) => s.checkpoint === k && isLiving(s));
     if (c.setAt === null || c.fallenAt !== null) {
@@ -188,16 +192,96 @@ export function updateTraffic(world: World, ctx: Context): void {
       ctx.events.push({ type: 'checkpointFallen', tick, sim: null, by: null, x: c.x, y: c.y });
       return;
     }
-    if ((tick + k) % tc.every !== 0 || holdsFire(world, c.exit)) return;
-    const e = world.exits[c.exit]!;
+    if ((tick + k) % tc.every !== 0 || (c.exit !== null && holdsFire(world, c.exit))) return;
     ctx.simHash.query(c.x, c.y, tc.stopRadius, ctx.ids2);
     for (const id of ctx.ids2) {
       const s = sims[id]!;
       if (!isOutdoorLiving(s) || s.car !== null || s.archetype === 'police' || s.outsider || s.destinationKind !== 'leave' || s.destination === null) continue;
-      if (Math.hypot(s.destination.x - e.x, s.destination.y - e.y) > 1) continue;
-      turnBack(world, s, c.exit);
+      // On an exit's road: anyone making for that exit. At the evacuating district's
+      // edge: anyone making for any way out, but that district's own evacuees, who go on.
+      const to = exitAt(world, s.destination.x, s.destination.y);
+      if (to === null || (c.exit !== null ? to !== c.exit : s.evacuatedFrom === c.district)) continue;
+      turnBack(world, s, to);
     }
   });
+}
+
+/** The way off the map at (x, y), or null if there is none there. */
+function exitAt(world: World, x: number, y: number): number | null {
+  const i = world.exits.findIndex((e) => Math.hypot(e.x - x, e.y - y) <= 1);
+  return i < 0 ? null : i;
+}
+
+/**
+ * The first district to evacuate: traffic.evacCheckpoints checkpoints where its widest
+ * roads leave it — at the junctions of those roads farthest from where its evacuees
+ * set out (its edge), each in a direction at least evacApart from the others — a little
+ * way out along the road leaving the district, facing it. Each is manned at once by
+ * officers.officers of the first responders of the police station nearest it, inside
+ * and free, who drive out in one of its cars at the kerb: fewer to answer 911 calls.
+ */
+function evacuationCheckpoints(world: World, ctx: Context, district: DistrictId, cx: number, cy: number): void {
+  const { config, streets, nodes, sims, buildings, cars, tick } = world;
+  const tc = config.traffic;
+  const own = streets.filter((s) => s.district === district);
+  if (own.length === 0) return;
+  const widest = Math.max(...own.map((s) => s.width));
+  const roads = own.filter((s) => s.width >= Math.min(tc.evacRoadWidth, widest));
+  // Junctions on those roads, farthest from the centre first (lower id on a tie).
+  const ends = [...new Set(roads.flatMap((s) => [s.a, s.b]))]
+    .filter((n) => ctx.map.adjacency[n]!.length >= 3)
+    .sort((a, b) => Math.hypot(nodes[b]!.x - cx, nodes[b]!.y - cy) - Math.hypot(nodes[a]!.x - cx, nodes[a]!.y - cy) || a - b);
+  const dirs: { x: number; y: number }[] = [];
+  for (const n of ends) {
+    if (dirs.length >= tc.evacCheckpoints) break;
+    const node = nodes[n]!;
+    const r = Math.hypot(node.x - cx, node.y - cy) || 1;
+    const out = { x: (node.x - cx) / r, y: (node.y - cy) / r };
+    if (dirs.some((d) => d.x * out.x + d.y * out.y > tc.evacApart)) continue;
+    // The road leaving the junction most nearly outward: the checkpoint a little way along it.
+    let best: { street: number; node: number; length: number } | null = null, bestDot = 0;
+    for (const adj of ctx.map.adjacency[n]!) {
+      const m = nodes[adj.node]!;
+      const dot = ((m.x - node.x) * out.x + (m.y - node.y) * out.y) / (adj.length || 1);
+      if (dot > bestDot && streets[adj.street]!.width >= Math.min(tc.evacRoadWidth, widest)) {
+        best = adj;
+        bestDot = dot;
+      }
+    }
+    if (best === null) continue;
+    const m = nodes[best.node]!;
+    const along = Math.min(tc.evacOffset, best.length / 2) / (best.length || 1);
+    const x = node.x + (m.x - node.x) * along, y = node.y + (m.y - node.y) * along;
+    // Facing the district, its vehicles at its back: "toward the exit" here is outward.
+    const ux = (m.x - node.x) / (best.length || 1), uy = (m.y - node.y) / (best.length || 1);
+    const k = world.checkpoints.length;
+    world.checkpoints.push({ exit: null, district, orderedAt: tick, x, y, dx: ux, dy: uy, width: streets[best.street]!.width, setAt: null, fallenAt: null });
+    dirs.push(out);
+    // Its unit: the first responders of the nearest station with enough of them in, free.
+    const free = (s: Sim, st: number) => s.station === st && s.squadLeader === null && s.checkpoint === null && s.answering === null && s.insideBuilding === st && isLiving(s);
+    let station: Building | null = null, stationD = Infinity;
+    for (const b of buildings) {
+      if (b.tag !== 'policeStation') continue;
+      if (sims.filter((s) => free(s, b.id)).length < tc.officers) continue;
+      const d = Math.hypot(b.entrances[0]!.x - x, b.entrances[0]!.y - y);
+      if (d < stationD) {
+        station = b;
+        stationD = d;
+      }
+    }
+    if (station === null) continue;
+    const unit = sims.filter((s) => free(s, station!.id)).slice(0, tc.officers);
+    unit.forEach((s, i) => {
+      s.squadLeader = unit[0]!.id;
+      s.squadSlot = i;
+      s.checkpoint = k;
+      s.shelter = station!.id;
+      s.depot = station!.id;
+    });
+    const door = station.entrances[0]!;
+    const car = cars.find((v) => v.kind === 'cruiser' && v.home === station!.id && v.state === 'parked' && v.occupants.length === 0 && v.checkpoint === null && Math.hypot(v.x - door.x, v.y - door.y) <= config.police.carNear);
+    if (car !== undefined) car.checkpoint = k;
+  }
 }
 
 /** Turned back at a checkpoint: that way out known shut; on to another the sim does not know is, or no longer leaving. */

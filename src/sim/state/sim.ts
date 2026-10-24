@@ -10,7 +10,7 @@
 //   ticksAlone      — tick - history.lastCompanyAt
 //   promoted        — name !== null
 
-import type { BuildingId, CarId, Count, Metres, Radians, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
+import type { BuildingId, CarId, Count, DistrictId, Metres, Radians, SimId, StreetId, Tick, Unit01, Vec2 } from './units';
 
 export const ARCHETYPES = ['civilian', 'police', 'prepper', 'loner', 'reckless', 'reservist'] as const;
 export type Archetype = (typeof ARCHETYPES)[number];
@@ -397,6 +397,8 @@ export interface Sim {
   post: Vec2 | null;
   /** A traffic officer's checkpoint (World.checkpoints); null for everyone else. @range checkpoint index | null @unit index @readBy squads (its target, its car, its line), sim decisions (its post), traffic (who holds it), snapshot (inspector) */
   checkpoint: number | null;
+  /** The district it was evacuated from, sent out in its evacuation (buildings.ts); null for everyone else. @range district id | null @unit id @readBy traffic (let through the district's checkpoints) */
+  evacuatedFrom: DistrictId | null;
   /** Waiting in the rescue's queue for a truck since this tick; null otherwise. @range tick | null @unit tick @readBy the rescue (who boards first), encounters (no talk in the queue) */
   queuedSince: Tick | null;
   /** Let through the rescue's cordon line, bound for this tent beside the road (rescue.ts tentsAt); null otherwise. @range 0–rescue.tents.count - 1 | null @unit index @readBy sim decisions (to the tent), rescue (arriving), encounters (no talk) */

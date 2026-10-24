@@ -477,7 +477,11 @@ export const config = {
   // the line of officers faces the city with its vehicles at its back: a cruiser behind
   // one sawhorse, parkAside m one side of the middle, a HMMWV behind the other; each a
   // parkStep further back while something already stands in its place (parkTries at most).
-  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5, parkBehind: 7, parkAside: 3.25, parkStep: 6, parkClear: 3, parkTries: 3 },
+  // When the first district evacuates, evacCheckpoints more where its roads at least
+  // evacRoadWidth wide (or its widest) leave it, evacOffset m out from the junction, no
+  // two in directions closer than cos⁻¹(evacApart); manned by first responders. They let
+  // that district's evacuees through and turn back anyone else making for a way out.
+  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5, parkBehind: 7, parkAside: 3.25, parkStep: 6, parkClear: 3, parkTries: 3, evacCheckpoints: 2, evacRoadWidth: 20, evacOffset: 15, evacApart: 0 },
 
   police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10, carReturn: 120, standRatio: 0.25 },
 

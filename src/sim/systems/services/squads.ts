@@ -594,10 +594,10 @@ export function resolveTarget(world: World, sim: Sim): void {
  * every checkpoint has one. SWAT: an officer's radio (swatTarget).
  */
 export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
-  if (world.checkpointsAt !== null && sim.checkpoint === null && sim.archetype === 'reservist' && !sim.outsider) claimCheckpoint(world, sim);
+  if (sim.checkpoint === null && sim.archetype === 'reservist' && !sim.outsider) claimCheckpoint(world, sim);
   if (sim.checkpoint !== null) {
     // To where its vehicle parks, behind the checkpoint; standing there, the checkpoint is its post (sims.ts).
-    if (world.checkpointsAt === null) return null;
+    if (world.checkpoints[sim.checkpoint]!.orderedAt === null) return null;
     const p = parkingSpot(world, world.checkpoints[sim.checkpoint]!, sim.archetype === 'reservist');
     if (sim.destination === null || sim.destination.x !== p.x || sim.destination.y !== p.y) {
       sim.destination = { x: p.x, y: p.y };
@@ -618,7 +618,7 @@ function claimCheckpoint(world: World, sim: Sim): void {
   for (const o of world.sims) if (o.checkpoint !== null && o.archetype === 'reservist' && isLiving(o)) manned.add(o.checkpoint);
   let best = -1, bestD = Infinity;
   world.checkpoints.forEach((c, k) => {
-    if (manned.has(k)) return;
+    if (manned.has(k) || c.orderedAt === null) return;
     const d = Math.hypot(c.x - sim.x, c.y - sim.y);
     if (d < bestD) {
       bestD = d;

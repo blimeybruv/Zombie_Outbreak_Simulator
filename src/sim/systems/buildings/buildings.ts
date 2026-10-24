@@ -424,6 +424,7 @@ function drainQueues(world: World, ctx: Context, b: Building): void {
     const p = door();
     openDoor(world, b);
     const sim = spawnSim(world, { ...p, insideBuilding: null, sourceTag: b.tag, from: b.id, initialPanic: 0, destinationKind: 'shelter', aware: true });
+    sim.evacuatedFrom = b.district;
     // Out of the city by the nearest way off the map (exits.ts); on a map without one,
     // to somewhere far off.
     if (!headForExit(world, sim)) {

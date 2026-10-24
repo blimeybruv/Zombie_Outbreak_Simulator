@@ -33,8 +33,6 @@ export interface MapSnapshot {
   lots: Float32Array;
   /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand, and the road's width there (x, y, dx, dy, bx, by, width). */
   exits: Float32Array;
-  /** Per police checkpoint (traffic.ts), one per exit's road: x, y, along the road toward the exit dx, dy, the road's width (CHECKPOINT_STRIDE values). */
-  checkpoints: Float32Array;
   districts: { name: string; x: number; y: number; w: number; h: number }[];
   streetNames: string[];
 }
@@ -193,6 +191,8 @@ export interface FrameSnapshot {
   hour: number;
   /** Exits the cordon has closed, as bits (1 << exit index). */
   closedExits: number;
+  /** Per police checkpoint (traffic.ts) — one on each exit's road from the start, more at the first evacuating district's edge once it goes: x, y, the way its vehicles park dx, dy, the road's width (CHECKPOINT_STRIDE values). */
+  checkpoints: Float32Array;
   /** Police checkpoints set, as bits (1 << checkpoint index); drawn once set. */
   checkpointsSet: number;
   /** Checkpoints fallen, as bits: drawn knocked aside and faded, for the rest of the run. */
