@@ -4,6 +4,8 @@
 export const BACKGROUND = '#06070a';
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
 export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
+export const DEPOT_OUTLINE = '#2a4a6a'; // armouries / reservist depots: muted institutional blue, darker than a living dot
+export const DEPOT_FILL = 'rgba(42, 74, 106, 0.22)'; // a faint wash inside a depot, still near the noise floor
 export const BORDER = 'rgba(150, 160, 175, 0.28)'; // the railway and the motorway's fences across the margin
 export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside

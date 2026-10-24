@@ -24,6 +24,8 @@ export interface MapSnapshot {
   origins: { x: number; y: number }[];
   /** Per building: how its outline is drawn — SHAPE_BOX, or a church in plan, a hospital's L or a school's U (renderer.ts). */
   buildingShape: Uint8Array;
+  /** Per building: 1 if the building's tag is depot. The reservists' armoury is chosen from these. */
+  buildingDepot: Uint8Array;
   river: { centreline: { x: number; y: number }[]; width: number };
   /** The empty margin round the city, and the feature across it on each side (top, right, bottom, left). */
   border: { margin: number; sides: ('rail' | 'motorway')[] };
