@@ -395,9 +395,11 @@ export interface Sim {
   outsider: boolean;
   /** Where a cordon squad's leader stands, by its barrier; null for everyone else. @range 0–3200 each axis | null @unit m @readBy sim decisions (squad leader), cordon */
   post: Vec2 | null;
-  /** Waiting in the rescue's queue for a truck since this tick; null otherwise. @range tick | null @unit tick @readBy the rescue (who boards first) */
+  /** A traffic officer's checkpoint (World.checkpoints); null for everyone else. @range checkpoint index | null @unit index @readBy squads (its target, its car, its line), sim decisions (its post), traffic (who holds it), snapshot (inspector) */
+  checkpoint: number | null;
+  /** Waiting in the rescue's queue for a truck since this tick; null otherwise. @range tick | null @unit tick @readBy the rescue (who boards first), encounters (no talk in the queue) */
   queuedSince: Tick | null;
-  /** Let through the rescue's cordon line, bound for this tent beside the road (rescue.ts tentsAt); null otherwise. @range 0–rescue.tents.count - 1 | null @unit index @readBy sim decisions (to the tent), rescue (arriving) */
+  /** Let through the rescue's cordon line, bound for this tent beside the road (rescue.ts tentsAt); null otherwise. @range 0–rescue.tents.count - 1 | null @unit index @readBy sim decisions (to the tent), rescue (arriving), encounters (no talk) */
   tent: number | null;
   /** Let through to a tent, stopped at the rescue's gate being screened until this tick; null before it reaches the gate. @range tick | null @unit tick @readBy sim decisions (the gate) */
   screenedUntil: Tick | null;

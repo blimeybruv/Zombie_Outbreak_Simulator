@@ -186,6 +186,7 @@ export const config = {
     company: true,
     carAlarms: true,
     sirens: true, // emergency vehicles' sirens draw the dead: the city hears what the viewer hears (reference, "Car alarms and sirens")
+    traffic: true, // traffic police set checkpoints on the roads out once the cordon closes (reference, "Checkpoints")
   },
 
   // The setup screen's ranges (src/ui/setup.ts): survivors [min, max, step]; initial
@@ -463,6 +464,14 @@ export const config = {
   // sight number no more than this share of what its ammunition can expect to kill (its
   // summed capacity): threat rises with nearness, so one zombie close by read as too much
   // and a pair of armed officers fell back from it, firing as it followed — guess
+  // Traffic police (services/traffic.ts): the city's own attempt at containment. A unit
+  // of `officers` waits at the police station nearest each exit's checkpoint, with a
+  // cruiser, until the first barrier closes; then it drives out and holds a checkpoint
+  // across the exit's road, `inset` metres in from the barrier by the streets, turning
+  // back anyone on foot making for that exit within stopRadius, every `every` ticks.
+  // Nobody of its unit within holdRadius, and the checkpoint has fallen, for good — guesses
+  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5 },
+
   police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10, standRatio: 0.25 },
 
   // Reservists (archetype 'reservist'; squads.ts): anonymous residents until the

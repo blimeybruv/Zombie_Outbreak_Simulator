@@ -40,7 +40,9 @@ describe('service yards', () => {
       const home = world.buildings[l.home!]!;
       expect(['policeStation', 'hospital']).toContain(home.tag);
       const mine = world.cars.filter((c) => c.home === home.id && c.kind !== 'van');
-      const want = home.tag === 'policeStation' ? config.yards.policeCrews : config.yards.hospitalCrews;
+      // A station's crews' cruisers, and one for each traffic unit waiting there.
+      const traffic = world.sims.filter((s) => s.checkpoint !== null && s.squadLeader === s.id && s.station === home.id).length;
+      const want = home.tag === 'policeStation' ? config.yards.policeCrews + traffic : config.yards.hospitalCrews;
       expect(mine.length).toBe(want);
     }
     // Yards are for their own vehicles: no civilian car in one.

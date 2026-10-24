@@ -87,6 +87,8 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
     case 'squadFormed':
     case 'squadEngaged':
     case 'squadDissolved':
+    case 'checkpointSet':
+    case 'checkpointFallen':
       sim = e.sim;
       x = e.x;
       y = e.y;

@@ -48,6 +48,8 @@ export const TENT = 'rgba(190, 200, 160, 0.7)';
 export const TENT_FILL = 'rgba(190, 200, 160, 0.18)';
 /** The gate in the rescue's barrier: two short black marks across the blue line. */
 export const GATE = '#0b0b0b';
+/** A fallen police checkpoint's sawhorses: grey, abandoned. */
+export const CHECKPOINT_FALLEN = 'rgba(140, 150, 160, 0.5)';
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike

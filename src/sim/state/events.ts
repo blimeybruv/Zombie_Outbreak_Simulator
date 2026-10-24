@@ -288,6 +288,13 @@ export interface CordonWoundedEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface CheckpointEvent extends EventBase, Located {
+  /** checkpointSet: traffic police have set a checkpoint across a road out. checkpointFallen: none of them is left at it. @range literal @unit — @readBy event consumers */
+  type: 'checkpointSet' | 'checkpointFallen';
+  /** The unit's leader when set; null when fallen. @range sim id | null @unit id @readBy ticker */
+  sim: SimId | null;
+}
+
 export interface CordonClosedEvent extends EventBase, Located {
   /** Soldiers from outside close an exit: a barrier across the highway, for good. @range literal @unit — @readBy event consumers */
   type: 'cordonClosed';
@@ -300,6 +307,7 @@ export type SimEvent =
   | BodyRoseEvent
   | ReservistsCalledUpEvent
   | CordonClosedEvent
+  | CheckpointEvent
   | CordonEvadedEvent
   | CordonWarnedEvent
   | CordonWoundedEvent

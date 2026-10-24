@@ -215,7 +215,7 @@ describe('squads', () => {
 describe('SWAT', () => {
   it('starts formed at a few stations, with a van at the kerb, and answers no 911 call', () => {
     const { world } = fresh();
-    const swat = world.sims.filter((s) => s.station !== null && s.squadLeader !== null);
+    const swat = world.sims.filter((s) => s.station !== null && s.squadLeader !== null && s.checkpoint === null); // not the traffic police
     const stations = new Set(swat.map((s) => s.station));
     expect(stations.size).toBe(config.swat.stations);
     expect(swat).toHaveLength(config.swat.stations * config.squads.size);

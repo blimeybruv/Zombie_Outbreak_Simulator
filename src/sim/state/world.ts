@@ -35,6 +35,30 @@ export type ZombieGait = (typeof ZOMBIE_GAITS)[number];
  * where, how many it counted, and when. What SWAT acts on is this report — by the time
  * they arrive, it may have grown.
  */
+/**
+ * A police checkpoint across an exit's road (services/traffic.ts): placed at setup, set
+ * when its unit gets there once the cordon closes, fallen when none of its unit is
+ * left at it.
+ */
+export interface Checkpoint {
+  /** The exit whose road it stands on. @range exit index @unit index @readBy traffic, snapshot (render) */
+  exit: number;
+  /** @range 0–3200 @unit m @readBy traffic, squads, snapshot (render) */
+  x: Metres;
+  /** @range 0–3200 @unit m @readBy traffic, squads, snapshot (render) */
+  y: Metres;
+  /** Along the road toward the exit. @range unit vector @unit — @readBy squads (the line across it), snapshot (render) */
+  dx: number;
+  /** @range unit vector @unit — @readBy squads, snapshot (render) */
+  dy: number;
+  /** The road's width there. @range 6–28 @unit m @readBy snapshot (render) */
+  width: Metres;
+  /** When its unit got there; null before. @range tick | null @unit tick @readBy traffic, snapshot (render) */
+  setAt: Tick | null;
+  /** When none of its unit was left at it; null while held, or before. @range tick | null @unit tick @readBy traffic, snapshot (render) */
+  fallenAt: Tick | null;
+}
+
 export interface Radio {
   /** @range 0–3200 @unit m @readBy squads (SWAT targets) */
   x: Metres;
@@ -136,6 +160,10 @@ export interface World {
   events: SimEvent[];
   /** Sims awaiting a repath, drained in id order under a per-tick cap. @range sim ids @unit — @readBy sim decisions */
   repathQueue: SimId[];
+  /** Police checkpoints, one on each exit's road (services/traffic.ts). @range 0–exits @unit — @readBy traffic, squads, sim decisions, snapshot (render) */
+  checkpoints: Checkpoint[];
+  /** When the checkpoints were ordered: the first barrier closing; null before. @range tick | null @unit tick @readBy traffic, squads */
+  checkpointsAt: Tick | null;
   /** Officers' calls for SWAT, oldest first; dropped once stale. @range 0–dozens @unit — @readBy squads (SWAT targets) */
   radios: Radio[];
   /** Promoted survivors in promotion order; append-only, never shrinks. @range 0–promotion.rosterCap sim ids @unit — @readBy roster UI, ticker, salience */

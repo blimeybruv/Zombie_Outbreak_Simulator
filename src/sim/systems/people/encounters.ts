@@ -151,7 +151,7 @@ export function merge(world: World, a: Sim, b: Sim): void {
   for (const id of fromB) if (id !== a.id) a.knownInfected.add(id);
 }
 
-/** Free to stop and talk: outdoors, not already talking, nothing in sight, not in flight, fighting, backing off or on a call. */
+/** Free to stop and talk: outdoors, not already talking, nothing in sight, not in flight, fighting, backing off or on a call, nor holding a place in the rescue's queue (gathered, the rows broke up). */
 function canTalk(world: World, ctx: Context, s: Sim): boolean {
   return (
     world.config.features.conversations &&
@@ -166,6 +166,8 @@ function canTalk(world: World, ctx: Context, s: Sim): boolean {
     s.sortieUntil === null &&
     s.answering === null &&
     s.destinationKind !== 'respond' &&
+    s.queuedSince === null &&
+    s.tent === null &&
     ctx.threat[s.id]! === 0 &&
     modeOf(s, world.config) !== 'flight'
   );

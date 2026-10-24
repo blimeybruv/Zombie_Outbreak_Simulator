@@ -13,6 +13,7 @@ import { emptyCounters, type Building, type Scenario, type World } from './state
 import { occupierAppeared } from './systems/buildings/buildings';
 import { placeFirstResponders } from './systems/services/dispatch';
 import { designateArmouries, placeSwat } from './systems/services/squads';
+import { placeTraffic } from './systems/services/traffic';
 import { stockBuildings } from './systems/fighting/arms';
 import { placeEmts } from './systems/services/emt';
 import { scheduleRelease } from './systems/outside/release';
@@ -220,6 +221,8 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     events: [],
     repathQueue: [],
     radios: [],
+    checkpoints: [],
+    checkpointsAt: null,
     roster: [],
     counters: emptyCounters(),
     residentDeaths: 0,
@@ -241,6 +244,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
   placeResidents(world, scenario.population - outdoors, band);
   placeFirstResponders(world, ctx);
   placeSwat(world, ctx);
+  placeTraffic(world, ctx);
   placeEmts(world, ctx);
   placeStreetPopulation(world, outdoors);
   seedOutbreak(world, ctx);

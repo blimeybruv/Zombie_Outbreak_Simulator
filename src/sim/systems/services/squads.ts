@@ -394,7 +394,9 @@ export function squadPass(world: World, ctx: Context): void {
     // Slots: a cordon squad stands in line abreast across its exit's highway, engaged or
     // not; others in the diamond, around the leader, turned toward the danger it sees
     // (or the way it faces), and in file, back along its trail.
-    const ex = leader.post === null ? null : world.exits[nearestExit(world, leader.post.x, leader.post.y)!]!;
+    // A traffic unit stands across its checkpoint's road.
+    const cp = leader.checkpoint === null ? null : world.checkpoints[leader.checkpoint]!;
+    const ex = leader.post === null ? null : cp ?? world.exits[nearestExit(world, leader.post.x, leader.post.y)!]!;
     const line = ex === null ? null : { x: -ex.dy, y: ex.dx };
     const tx = ctx.threatX[leader.id]!, ty = ctx.threatY[leader.id]!;
     const bearing = tx !== 0 || ty !== 0 ? Math.atan2(ty, tx) : leader.heading;
@@ -508,8 +510,10 @@ export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): b
   const { config, cars, sims, buildings } = world;
   if (sim.station === null) return false;
   const door = buildings[sim.station]!.entrances[0]!;
-  const van = cars.find((c) => c.kind === 'van' && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0);
-  if (van === undefined || Math.hypot(van.x - door.x, van.y - door.y) > config.swat.radius / 10) return false;
+  const kind = sim.checkpoint !== null ? 'cruiser' : 'van'; // a traffic unit drives a cruiser
+  // One standing free at the station (a first responder's cruiser may be parked anywhere).
+  const van = cars.find((c) => c.kind === kind && c.home === sim.station && c.state === 'parked' && c.occupants.length === 0 && Math.hypot(c.x - door.x, c.y - door.y) <= config.swat.radius / 10);
+  if (van === undefined) return false;
   if (Math.hypot(t.x - van.x, t.y - van.y) <= config.swat.vanBeyond) return false;
   const members = sims.filter((s) => s.squadLeader === sim.id && isLiving(s));
   const gathered = members.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - van.x, s.y - van.y) <= config.swat.vanGather);
@@ -556,6 +560,19 @@ export function resolveTarget(world: World, sim: Sim): void {
 export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
   const { config, tick, buildings, sims } = world;
   const sq = config.squads;
+  if (sim.checkpoint !== null) {
+    // A traffic unit: nothing until the checkpoints are ordered, then its checkpoint.
+    const c = world.checkpoints[sim.checkpoint]!;
+    if (world.checkpointsAt === null) return null;
+    if (sim.destination === null || sim.destination.x !== c.x || sim.destination.y !== c.y) {
+      sim.destination = { x: c.x, y: c.y };
+      sim.destinationBuilding = null;
+      sim.destinationKind = 'respond';
+      sim.route = [];
+      sim.routeIndex = 0;
+    }
+    return { x: c.x, y: c.y, building: null };
+  }
   if (sim.station !== null) return swatTarget(world, ctx, sim);
   if (sim.answeringSince !== null) {
     const stale = tick - sim.answeringSince > sq.staleAfter;

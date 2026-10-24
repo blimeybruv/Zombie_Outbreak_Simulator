@@ -13,7 +13,7 @@
 import type { FrameSnapshot, MapSnapshot } from '../worker/protocol';
 import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
-import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK } from '../worker/protocol';
+import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK, CHECKPOINT_STRIDE } from '../worker/protocol';
 import { Camera } from './camera';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -85,6 +85,8 @@ const EXIT_LABEL_ALPHA = 0.6;
 const BARRIER_DRAW_MS = 900; // a cordon barrier drawing itself across the road
 const DNC_SIZE = 0.12; // DO NOT CROSS: letter height as a share of the road's width
 const DNC_KERB = 1; // m: the underline stops short of each kerb
+const CHECKPOINT_LANE_M = 3; // m: the lane a checkpoint leaves open between its sawhorses
+const SAWHORSE_M = 3.5; // m: each sawhorse, across the road: a checkpoint, not a wall
 const GATE_MARK_M = 5; // m: each of the gate's marks, across the barrier's line (3 m thick near) and a little past it
 const BARRIER_KERB_M = 0.5; // m: past each kerb the barrier reaches — plainly spanning the road, short of the frontages (cordon.kerb)
 // A gathering of three or more: a faint ring round it.
@@ -799,6 +801,7 @@ export class Renderer {
     this.drawCars(g, frame, cam, dpr, true);
     this.drawVanLights(g, frame, cam, dpr, wallMs);
     this.drawBarriers(g, frame, cam, dpr, wallMs);
+    this.drawCheckpoints(g, frame, cam, dpr);
     this.drawTents(g, frame, cam, dpr);
     this.drawTalk(g, frame, cam, dpr);
     if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
@@ -1034,6 +1037,40 @@ export class Renderer {
       if (k === frame.rescueExit && cam.mode !== 'far') this.drawGate(g, e[i + 2]!, e[i + 3]!, bx, by, frame.rescueGate, px);
     }
     g.globalAlpha = 1;
+  }
+
+  /**
+   * Police checkpoints, once set: two short sawhorses across the road, a lane left open
+   * between them (the cruiser parks in it), police blue. Fallen, they stay: grey, faded, knocked askew — what the
+   * Rangers walk past hours later.
+   */
+  private drawCheckpoints(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number): void {
+    if (frame.checkpointsSet === 0 || cam.mode === 'far') return;
+    const c = this.map.checkpoints;
+    const px = 1 / (cam.scale * dpr);
+    g.save();
+    g.lineWidth = Math.max(0.6, 3 * px);
+    for (let i = 0, k = 0; i < c.length; i += CHECKPOINT_STRIDE, k++) {
+      if (!(frame.checkpointsSet & (1 << k))) continue;
+      const fallen = (frame.checkpointsFallen & (1 << k)) !== 0;
+      const x = c[i]!, y = c[i + 1]!, dx = c[i + 2]!, dy = c[i + 3]!, half = c[i + 4]! / 2;
+      const gap = CHECKPOINT_LANE_M / 2;
+      g.strokeStyle = fallen ? P.CHECKPOINT_FALLEN : P.POLICE;
+      g.beginPath();
+      for (const side of [-1, 1]) {
+        // Fallen: each sawhorse turned on its end and pushed toward the kerb.
+        const tilt = fallen ? side * 0.5 : 0;
+        const ca = Math.cos(tilt), sa = Math.sin(tilt);
+        const nx = -dy * ca - dx * sa, ny = dx * ca - dy * sa; // across the road, turned by tilt
+        const len = Math.min(SAWHORSE_M, half - gap) / 2;
+        const mid = side * (gap + len) + (fallen ? side * 1.5 : 0);
+        const mx = x - dy * mid, my = y + dx * mid;
+        g.moveTo(mx - nx * len, my - ny * len);
+        g.lineTo(mx + nx * len, my + ny * len);
+      }
+      g.stroke();
+    }
+    g.restore();
   }
 
   /** The gate at the middle of the rescue's barrier: two short dark lines across it, `half` either side of the middle. */

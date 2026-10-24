@@ -51,6 +51,7 @@ const ARCHETYPES: Record<string, string> = {
   police: 'A police officer: does not panic, answers calls, runs toward gunfire, and falls back only when outmatched.',
   reservist: 'A reservist: an ordinary person until the call-up, then makes for the armory to draw a rifle and deploy in a squad.',
   'Army Ranger': 'Part of the rescue company: sweeps a corridor up from the exit and sends back anyone it meets.',
+  'traffic police': 'A traffic officer: waits at the station until the cordon closes, then sets up a checkpoint on the road out and turns back anyone heading for it.',
   soldier: 'Holds the cordon at a road out of the city. Fires warning shots at anyone who comes near the barrier, and to wound or kill at anyone who comes close.',
 };
 

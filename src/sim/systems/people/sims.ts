@@ -429,7 +429,12 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
     faceDanger(world, ctx, sim, sim.heading);
     return;
   }
-  // A cordon squad (cordon.ts): to its post by the barrier, and there it stays.
+  // A traffic unit at its checkpoint, once ordered there: the checkpoint becomes its post (traffic.ts).
+  if (sim.checkpoint !== null && sim.post === null && world.checkpointsAt !== null && sim.car === null) {
+    const c = world.checkpoints[sim.checkpoint]!;
+    if (Math.hypot(c.x - sim.x, c.y - sim.y) <= sq.sceneRadius) sim.post = { x: c.x, y: c.y };
+  }
+  // A cordon squad (cordon.ts), or a traffic unit: to its post, and there it stays.
   if (sim.post !== null) {
     const p = sim.post;
     if (Math.hypot(p.x - sim.x, p.y - sim.y) > world.config.cordon.postReach / 2) {

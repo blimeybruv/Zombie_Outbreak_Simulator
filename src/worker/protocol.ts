@@ -33,6 +33,8 @@ export interface MapSnapshot {
   lots: Float32Array;
   /** Per way off the map: where the highway meets the edge, outward, and where its cordon barrier would stand, and the road's width there (x, y, dx, dy, bx, by, width). */
   exits: Float32Array;
+  /** Per police checkpoint (traffic.ts), one per exit's road: x, y, along the road toward the exit dx, dy, the road's width (CHECKPOINT_STRIDE values). */
+  checkpoints: Float32Array;
   districts: { name: string; x: number; y: number; w: number; h: number }[];
   streetNames: string[];
 }
@@ -65,6 +67,9 @@ export const SHAPE_BOX = 0;
 export const SHAPE_CHURCH = 1;
 export const SHAPE_L = 2; // a hospital: an L, a back corner cut away
 export const SHAPE_U = 3; // a school: a U, open at the back
+
+/** Values per checkpoint in MapSnapshot.checkpoints. */
+export const CHECKPOINT_STRIDE = 5;
 
 export const CAR_PARKED = 0;
 export const CAR_DRIVING = 1;
@@ -187,6 +192,10 @@ export interface FrameSnapshot {
   hour: number;
   /** Exits the cordon has closed, as bits (1 << exit index). */
   closedExits: number;
+  /** Police checkpoints set, as bits (1 << checkpoint index); drawn once set. */
+  checkpointsSet: number;
+  /** Checkpoints fallen, as bits: drawn knocked aside and faded, for the rest of the run. */
+  checkpointsFallen: number;
   /** Closed exits nobody is left to hold, as bits: their barriers are drawn abandoned. */
   breachedExits: number;
   /** The rescue's tents, once it has come: middle x, y, the road's direction dx, dy, length along it and width across, per tent (TENT_STRIDE values); empty before. */

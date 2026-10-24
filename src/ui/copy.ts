@@ -67,6 +67,10 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `Nobody is left at the barrier on ${n.place}. People are walking out past it.`;
     case 'cordonClosed':
       return `Soldiers have closed the road out on ${n.place}. Nobody is getting through.`;
+    case 'checkpointSet':
+      return `Traffic police have set up a checkpoint on ${n.place}, turning back anyone heading out of the city.`;
+    case 'checkpointFallen':
+      return `The police checkpoint on ${n.place} has fallen. Nobody is left to man it.`;
     case 'rescueSweep':
       return `Army Rangers are coming into the city from ${n.place}, street by street. Anyone they find is being sent back to the road out.`;
     case 'rescueBroadcast':

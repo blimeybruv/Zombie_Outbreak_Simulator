@@ -23,6 +23,7 @@ import { pickUpDrops, restock } from '../fighting/arms';
 import { markResidentRising } from '../dead/rising';
 import { updateRescue } from '../outside/rescue';
 import { updateCordon } from '../outside/cordon';
+import { updateTraffic } from '../services/traffic';
 import { updateEvacuation, updateRelease } from '../outside/release';
 import { carProcesses } from '../services/cars';
 import { dispatchCalls, placeCall } from '../services/dispatch';
@@ -587,6 +588,7 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   exitArrivals(world, ctx);
   pickUpDrops(world, ctx);
   updateCordon(world, ctx);
+  updateTraffic(world, ctx);
   updateRescue(world, ctx);
   probe('buildings.arrivals');
   exits(world, ctx);
