@@ -762,6 +762,7 @@ export const config = {
     wallSpeed: [0.5, 0] as number[], // (0: turning on the spot, at a crawl)
     bodySamples: 5,
     reverseSpeed: 1, // m/tick — guess
+    reverseSteps: [1, 0.5, 0.25] as number[], // fractions of reverseSpeed tried, backing out from walls — guess
     // Stopped backAfter ticks, the road behind it clear: it backs off for backTicks ticks at
     // reverseSpeed — room to drive round what holds it, or to turn back — guess
     backAfter: 15,

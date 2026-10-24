@@ -21,7 +21,7 @@
 import { isOutdoorLiving, type Context } from '../../context';
 import { functionalProfile } from '../../mapgen/generate';
 import { chance, cloneRng } from '../../lib/rng';
-import type { Building, BuildingId, Car, CarId, Sim, World } from '../../state';
+import type { Building, BuildingId, Car, CarId, Sim, StreetId, World } from '../../state';
 import { bite, destroyZombie, killSim } from '../fighting/combat';
 import { entranceNearest, isLiving, leaveTalk, setDestination } from '../shared/common';
 import { modeOf, type Mode } from '../people/panic';
@@ -448,7 +448,7 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
   }
   const e = entranceNearest(b, car.x, car.y);
   car.destination = pullUpBy(world, b, e.x, e.y);
-  const route = ctx.paths.route(sim, car.destination.x, car.destination.y, true);
+  const route = ctx.paths.route(sim, car.destination.x, car.destination.y, true, undefined, driveStreet(world, ctx, car));
   if (route === null) {
     alight(world, ctx, car);
     return;
@@ -479,7 +479,7 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
   const leader = members[0]!;
   const target = to.building;
   const dest = target === null ? { x: to.x, y: to.y } : pullUpBy(world, target, entranceNearest(target, car.x, car.y).x, entranceNearest(target, car.x, car.y).y);
-  const route = ctx.paths.route(leader, dest.x, dest.y, true);
+  const route = ctx.paths.route(leader, dest.x, dest.y, true, undefined, driveStreet(world, ctx, car));
   if (route === null) return false;
   for (const s of members) {
     if (s.gathering !== null) leaveTalk(s, world.tick);
@@ -655,6 +655,11 @@ export function carProcesses(world: World, ctx: Context): void {
   }
 }
 
+/** The street a car can drive onto from where it stands (MapIndex.driveStreet). */
+function driveStreet(world: World, ctx: Context, car: Car): StreetId | null {
+  return ctx.map.driveStreet(car.x, car.y, world.config.behaviour.pathStreetSearch);
+}
+
 /** The nearest car standing or moving in this car's lane ahead, within a car's length and gap; null if none. */
 function carAhead(world: World, ctx: Context, car: Car): Car | null {
   const cc = world.config.cars;
@@ -704,9 +709,9 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   // Off the street its route has it on (thrown wide at a junction, or out of a lot onto
   // another), it aimed at that street through the buildings between: a fresh way from the
   // street it is on.
-  const on = first === null ? ctx.map.nearestStreet(car.x, car.y, cc.searchRadius) : null;
+  const on = first === null ? driveStreet(world, ctx, car) : null;
   if (on !== null && on !== street) {
-    const fresh = ctx.paths.route(driver, car.destination.x, car.destination.y, false);
+    const fresh = ctx.paths.route(driver, car.destination.x, car.destination.y, false, undefined, on);
     if (fresh !== null && fresh[0] !== street) {
       car.reroutes++;
       car.route = fresh;

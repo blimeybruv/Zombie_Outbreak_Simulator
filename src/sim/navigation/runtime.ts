@@ -196,6 +196,44 @@ export class MapIndex {
     return this.nearestWithin(x, y, maxDist);
   }
 
+  /**
+   * The street a car at (x, y) can drive onto: the nearest by distance to its carriageway,
+   * not its centreline, whose nearest point is in plain sight, within maxDist; lowest id
+   * on ties; failing that, nearestStreet. By centreline, a car stood beside a boulevard
+   * took the alley behind the building at its back, and drove into the wall.
+   */
+  driveStreet(x: number, y: number, maxDist: number): StreetId | null {
+    const { nodes, streets } = this.world;
+    const cols = this.streetCols;
+    const max = cols - 1;
+    const c0x = Math.max(0, Math.floor((x - maxDist) / STREET_CELL));
+    const c1x = Math.min(max, Math.floor((x + maxDist) / STREET_CELL));
+    const c0y = Math.max(0, Math.floor((y - maxDist) / STREET_CELL));
+    const c1y = Math.min(max, Math.floor((y + maxDist) / STREET_CELL));
+    const seen = new Set<StreetId>();
+    const found: { id: StreetId; edge: number; px: number; py: number; on: boolean }[] = [];
+    for (let cy = c0y; cy <= c1y; cy++) {
+      for (let cx = c0x; cx <= c1x; cx++) {
+        for (const id of this.streetCells[cy * cols + cx]!) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const st = streets[id]!;
+          const a = nodes[st.a]!;
+          const b = nodes[st.b]!;
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+          const px = a.x + dx * t, py = a.y + dy * t;
+          const d = Math.hypot(x - px, y - py);
+          if (d > maxDist) continue;
+          found.push({ id, edge: Math.max(0, d - st.width / 2), px, py, on: d <= st.width / 2 });
+        }
+      }
+    }
+    found.sort((p, q) => p.edge - q.edge || p.id - q.id);
+    for (const f of found) if (f.on || this.lineOfSight(x, y, f.px, f.py)) return f.id;
+    return this.nearestStreet(x, y, maxDist);
+  }
+
   private nearestWithin(x: number, y: number, maxDist: number): StreetId | null {
     const { nodes, streets } = this.world;
     const cols = this.streetCols;

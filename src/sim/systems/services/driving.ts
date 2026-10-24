@@ -7,7 +7,7 @@
 
 import type { Context } from '../../context';
 import { sharedNode } from '../../navigation/pathfinding';
-import type { Car, World } from '../../state';
+import type { BuildingId, Car, World } from '../../state';
 import { modeOf } from '../people/panic';
 import { emitStimulus } from '../shared/stimuli';
 
@@ -243,46 +243,34 @@ export function decideCars(world: World, ctx: Context): void {
     let held = false; // kept from the way it wants by walls
     if (car.speed >= cc.crashMin) car.heading += want;
     else {
-      const now = inWalls(world, ctx, car.x, car.y, car.heading);
+      const near = ctx.map.buildingsNear(car.x, car.y, cc.length + cc.width + cc.reverseSpeed, nearIds).slice(); // within any move tried below
+      const now = inWalls(world, ctx, car.x, car.y, car.heading, near);
       // The way it wants, if that keeps it clear; standing (waiting behind something, or
       // at its spot), it stays put rather than casting about — trying other ways, cars
-      // waiting in a queue pivoted on the spot.
+      // waiting in a queue pivoted on the spot. Failing that: turning toward where it is
+      // going, or less, or away from the wall, at its speed or less; and boxed in (nosed
+      // into a bay or a yard, its way out turning back past the wall beside it), backing
+      // out, turning as it goes, a full reverseSpeed step or less of one. Already against
+      // a wall, it takes whichever of those first draws it off the wall, if any does:
+      // taking any move no deeper in, a car slid along a wall grinding, and one with a
+      // corner caught on a building, a full step back swinging its nose in, never moved.
+      const at = (h: number, sp: number) => inWalls(world, ctx, car.x + Math.cos(h) * sp, car.y + Math.sin(h) * sp, h, near);
       const h0 = car.heading + want;
-      let done = inWalls(world, ctx, car.x + Math.cos(h0) * car.speed, car.y + Math.sin(h0) * car.speed, h0) <= now;
-      if (done) car.heading = h0;
-      else if (car.speed <= 0) {
-        done = true;
-        held = true;
-      }
-      // Turning toward where it is going, or less; failing that, away from the wall.
       const turns = [...[1, ...cc.wallTurn].map((f) => want * f), ...cc.wallTurn.filter((f) => f > 0).flatMap((f) => [turn * f, -turn * f]), turn, -turn];
-      for (const v of done ? [] : [1, ...cc.wallSpeed]) {
-        for (const t of turns) {
-          const h = car.heading + t, sp = car.speed * v;
-          if (h === car.heading && sp === 0) continue; // standing still is not a way out
-          if (inWalls(world, ctx, car.x + Math.cos(h) * sp, car.y + Math.sin(h) * sp, h) > now) continue;
-          car.heading = h;
-          car.speed = sp;
-          held = v !== 1; // (steering away from a wall at its speed is still getting on)
-          done = true;
-          break;
-        }
-        if (done) break;
-      }
-      // Nothing forward keeps it clear — nosed into a bay or a yard, its way out turning
-      // back past the wall beside it: it backs out, turning as it goes.
-      for (const t of done ? [] : turns) {
-        const h = car.heading + t;
-        if (inWalls(world, ctx, car.x - Math.cos(h) * cc.reverseSpeed, car.y - Math.sin(h) * cc.reverseSpeed, h) > now) continue;
-        car.heading = h;
-        car.speed = -cc.reverseSpeed;
-        held = true;
-        done = true;
-        break;
-      }
-      if (!done) {
+      const ways: { h: number; sp: number; held: boolean }[] = [];
+      for (const v of [1, ...cc.wallSpeed]) for (const t of turns) ways.push({ h: car.heading + t, sp: car.speed * v, held: v !== 1 });
+      for (const f of cc.reverseSteps) for (const t of turns) ways.push({ h: car.heading + t, sp: -cc.reverseSpeed * f, held: true });
+      const moves = (w: { h: number; sp: number }) => !(w.h === car.heading && w.sp === 0); // standing still is not a way out
+      let way = now > 0 ? ways.find((w) => moves(w) && at(w.h, w.sp) < now) : undefined;
+      if (way === undefined && at(h0, car.speed) <= now) way = { h: h0, sp: car.speed, held: false };
+      else if (way === undefined && car.speed > 0) way = ways.find((w) => moves(w) && at(w.h, w.sp) <= now);
+      if (way === undefined) {
         car.speed = 0;
         held = true;
+      } else {
+        car.heading = way.h;
+        car.speed = way.sp;
+        held = way.held; // (steering away from a wall at its speed is still getting on)
       }
     }
     // Held back by walls counts as blocked: near its spot it parks, and one that cannot
@@ -430,8 +418,16 @@ function cornersAt(world: World, x: number, y: number, heading: number): [number
   return [[l, w], [l, -w], [-l, -w], [-l, w]].map(([u, v]) => [x + c * u! - s * v!, y + s * u! + c * v!]);
 }
 
-/** How much of a car's body, at (x, y) heading `heading`, lies inside buildings: how many of a grid of points over it. */
-function inWalls(world: World, ctx: Context, x: number, y: number, heading: number): number {
+const nearIds: BuildingId[] = []; // scratch for inWalls
+
+/**
+ * How much of a car's body, at (x, y) heading `heading`, lies inside buildings: how many
+ * of a grid of points over it, and how many building corners lie inside it. By the points
+ * alone, a corner poked into a car's side between two of them unseen, and every move
+ * after put one into it: the car froze there, half into the building. `near`: the
+ * buildings to look at, if already found (any within reach of the car).
+ */
+function inWalls(world: World, ctx: Context, x: number, y: number, heading: number, near?: readonly BuildingId[]): number {
   const cc = world.config.cars;
   const n = cc.bodySamples, l = cc.length / 2, w = cc.width / 2;
   const c = Math.cos(heading), s = Math.sin(heading);
@@ -439,6 +435,12 @@ function inWalls(world: World, ctx: Context, x: number, y: number, heading: numb
   for (let i = 0; i < n; i++) {
     const u = -l + (2 * l * i) / (n - 1);
     for (const v of [-w, 0, w]) if (ctx.map.buildingAt(x + c * u - s * v, y + s * u + c * v) !== null) k++;
+  }
+  for (const id of near ?? ctx.map.buildingsNear(x, y, l + w, nearIds)) {
+    for (const p of world.buildings[id]!.outline) {
+      const dx = p.x - x, dy = p.y - y;
+      if (Math.abs(dx * c + dy * s) < l && Math.abs(-dx * s + dy * c) < w) k++;
+    }
   }
   return k;
 }
