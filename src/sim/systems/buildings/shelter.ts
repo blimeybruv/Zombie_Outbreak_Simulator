@@ -19,6 +19,7 @@ import { remember } from '../../navigation/memory';
 import { spawnSim } from '../../spawn';
 import type { Building, BuildingBelief, BuildingId, Sim, World } from '../../state';
 import { loot } from '../fighting/arms';
+import { fortificationCap } from './breach';
 import { recognisedWithin } from '../shared/perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from '../shared/common';
 import { modeOf } from '../people/panic';
@@ -427,6 +428,7 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
   // occupiers are why); barricades left behind stand until the dead break them.
   if (living === 0) {
     b.alertedAt = null;
+    b.barricadedAt = null;
     if (b.garrisonedAt !== null) {
       if (b.zombiesInside > 0) {
         ctx.events.push({ type: 'shelterFell', tick, building: b.id, sim: null });
@@ -445,14 +447,22 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
 
   eat(world, ctx, b, living, onCycle);
 
-  // Work: tracked builders plus a few residents, while there are supplies to spare.
+  // The furniture against the door, once, as far as the building allows.
+  const cap = fortificationCap(config.tags[functionalProfile(b.tag, config)].integrity, config);
+  if (b.barricadedAt === null && stageOf(world, b) !== 'open') {
+    b.barricadedAt = tick;
+    b.fortification = Math.max(b.fortification, Math.min(cap, bc.door.furniture));
+  }
+
+  // Work: tracked builders plus a few residents, while there are supplies to spare — or,
+  // with the dead at the door, any supplies at all: repairs come before meals.
   let crew = 0;
   if (b.zombiesInside === 0) {
     for (const id of b.sheltered) if (world.sims[id]!.role === 'builder') crew++;
     crew += Math.min(Math.max(0, b.residents - queued), bc.residentBuilders);
   }
-  if (crew > 0 && canBuild(world, b)) {
-    b.fortification += (1 - b.fortification) * Math.min(1, bc.fortifyRate * crew);
+  if (crew > 0 && b.fortification < cap && (canBuild(world, b) || (b.supplies > 0 && doorThreat(world, ctx, b) > 0))) {
+    b.fortification += (cap - b.fortification) * Math.min(1, bc.fortifyRate * crew);
     if ((tick + b.id) % bc.fortifySupplyTicks === 0) b.supplies = Math.max(0, b.supplies - crew);
     if (b.breached) b.breached = false;
   }

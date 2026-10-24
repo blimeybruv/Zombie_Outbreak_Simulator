@@ -60,7 +60,7 @@ export interface Building {
 
   /** Stock: eaten by its people, carried off by scavengers, spent by builders. @range 0–2500 @unit supplies @readBy builders, scavenger choice, eating, inspector */
   supplies: Count;
-  /** @range 0–1 @unit scalar @readBy breach probability, exit cost, migration damping, desirability */
+  /** What holds the door: the dead wear it down and break in only at 0 (breach.ts). @range 0–1 @unit scalar @readBy breach, exit cost, migration damping, desirability */
   fortification: Unit01;
   /** When it ran out of supplies with people in it (shelter.ts); null while it has some, or nobody to eat them. @range tick | null @unit tick @readBy shelter (moving on), inspector */
   outOfSuppliesAt: Tick | null;
@@ -99,6 +99,13 @@ export interface Building {
    * @range tick | null @unit tick @readBy fortification stage, render
    */
   doorOpenedAt: Tick | null;
+  /**
+   * When the people inside shoved furniture against the door (buildings.door.furniture),
+   * once for as long as they know of the outbreak; null until they have, and again once
+   * the building empties. Without it, everyone coming in put a barricade back for free.
+   * @range tick | null @unit tick @readBy fortification work
+   */
+  barricadedAt: Tick | null;
   /**
    * A 911 call from here: someone got inside having just fled a zombie. Null when
    * there is none, when it has been answered, or when it lapses unanswered.

@@ -1110,25 +1110,30 @@ describe('fortification stages', () => {
     expect(stageOf(world, b)).toBe('barricaded');
   });
 
-  it('one zombie cannot break a barricade; at an open door it can', () => {
-    const cfg = structuredClone(baseConfig);
-    cfg.buildings.breach.base = 100; // every roll would succeed
-    const { world, ctx } = fresh(cfg);
-    const b = world.buildings.find((x) => x.residents > 0 && x.zombiesInside === 0)!;
-    b.alertedAt = 0;
-    world.tick = Math.ceil((world.config.buildings.stages.barricadeTicks + 1) / cfg.buildings.breach.interval) * cfg.buildings.breach.interval + (b.id % cfg.buildings.breach.interval);
+  it('the dead break in only once they have worn the door to nothing', () => {
+    const { world, ctx } = fresh();
+    const b = world.buildings.find((x) => x.residents > 0 && x.zombiesInside === 0 && x.tag === 'residential')!;
+    const iv = baseConfig.buildings.breach.interval;
+    b.fortification = 0.002;
+    b.supplies = 0; // nothing to repair it with
+    b.barricadedAt = world.tick; // and the furniture already against it
     const e = b.entrances[0]!;
     spawnZombie(world, e.x + 1, e.y + 1, 'active', null, null);
     sizeContext(ctx, world);
-    rebuildHashes(world, ctx);
     const breached = () => ctx.events.some((x) => x.type === 'buildingBreached' && x.building === b.id);
-    buildingProcesses(world, ctx, () => {});
-    expect(breached()).toBe(false);
-    openDoor(world, b);
-    world.tick += cfg.buildings.breach.interval;
-    rebuildHashes(world, ctx);
-    buildingProcesses(world, ctx, () => {});
+    let was = b.fortification;
+    for (let k = 0; k < 100 && !breached(); k++) {
+      world.tick = (Math.floor(world.tick / iv) + 1) * iv + (b.id % iv);
+      rebuildHashes(world, ctx);
+      buildingProcesses(world, ctx, () => {});
+      if (!breached()) {
+        expect(b.fortification).toBeGreaterThan(0);
+        expect(b.fortification).toBeLessThan(was);
+      }
+      was = b.fortification;
+    }
     expect(breached()).toBe(true);
+    expect(b.fortification).toBe(0);
   });
 });
 

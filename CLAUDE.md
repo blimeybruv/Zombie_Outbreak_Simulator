@@ -168,6 +168,8 @@ asymmetry between who knows and who doesn't is a core mechanic, not an oversight
   ```
   value += (target - value) * rate * dt
   ```
+  The one exception: the dead wear fortification down steadily, so it reaches 0 and they
+  break in (the user's call; `breach.ts doorDamage`).
 - `danger` ages rather than decays. The stored value stays as observed; confidence
   falls with age. Decaying the value would turn old bad news into good news.
 

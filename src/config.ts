@@ -994,28 +994,32 @@ export const config = {
     carryCap: 8, // per sim
     fortifyRate: 0.002, // /tick per builder
     fortifySupplyTicks: 50, // ticks of building per unit of supplies spent
-    // Barricades hold until the dead damage them (the user's call: they no longer wear
-    // away unattended). Each awake zombie at a door of a peopled building, each breach
-    // check, takes `damage` of what fortification is left; below `fortificationFloor` it
-    // is gone — guess
-    damage: 0.003,
-    fortificationFloor: 0.001,
+    // Doors (the user's design). Fortification is what stands between the dead and the
+    // people inside, and they break in only once it is 0. It never wears away unattended.
+    // Every building starts with a shut door worth `shut`; a household that knows of the
+    // outbreak, barricadeTicks after the door last opened, shoves furniture against it,
+    // worth `furniture`, once (not again each time someone comes in); builders take it on
+    // from there with supplies, up to what integrity allows (breach.ts fortificationCap),
+    // and repair it under attack with any supplies left. The dead at a door take
+    // rate × n^crowd × (1 − integrity)^weakness of it a tick (breach.ts doorDamage),
+    // steadily. Calibrated to the user's targets: a fully fortified police station (0.9)
+    // holds 20 of the dead for 23 hours; a fully barricaded supermarket (0.35, capped at
+    // 0.3) holds one for two hours and 20 for ten minutes; a house (0.7) with its furniture
+    // up holds one for six hours and ten for an hour; a shut house door holds one for two
+    // minutes — guesses
+    door: { shut: 0.001, furniture: 0.2, rate: 9.86e-5, crowd: 0.83, weakness: 2 },
     exitTicksPerFortification: 40, // exit costs fortification * this
-    // Fortification stages. Barricaded: the people inside, knowing of the outbreak, have
-    // shoved furniture against the door — `barricadeTicks` after anyone last came in or
-    // went out; time only, no supplies; undone whenever the door opens. Reinforced and
-    // fortified: fortification at or above these, which is where supplies and decay
-    // belong. A break-in is attempted only by a crowd at the door at least the stage's
-    // `minCrowd` (open — unaware, empty, or the door just opened — admits one); within a
-    // stage the odds per roll are as before. Taking the barricade down to leave adds
-    // `barricadeExitTicks` — guess
+    // Fortification stages, for the inspector, the garrison and leaving. Barricaded: the
+    // people inside, knowing of the outbreak, have shoved furniture against the door —
+    // `barricadeTicks` after anyone last came in or went out (door.furniture). Reinforced
+    // and fortified: fortification at or above these. Taking the barricade down to leave
+    // adds `barricadeExitTicks` — guess
     stages: {
       barricadeTicks: 60,
       reinforcedAt: 0.3,
       fortifiedAt: 0.8,
-      minCrowd: { open: 1, barricaded: 2, reinforced: 4, fortified: 15 },
       barricadeExitTicks: 10,
-      // Integrity is what a building can be made into, not a multiplier on the odds: at
+      // Integrity caps what a building can be made into (and slows the dead, door): at
       // or above these it can be reinforced, fortified. A glass-fronted office stops at
       // reinforced, a supermarket at barricaded, however much work goes in.
       reinforcibleFrom: 0.4,
@@ -1025,11 +1029,7 @@ export const config = {
     residentExpelShare: 0.3, // of remaining residents expelled by nearby gunfire — guess
     breach: {
       interval: 10, // ticks; staggered by building id
-      entranceRadius: 5, // m; zombies this close to an entrance roll
-      maxRolls: 4, // per building per check
-      // p per roll = base / (1 + 2 * fortification): never zero. Integrity no longer scales
-      // it; it caps the stage a building can reach (stages, above).
-      base: 0.06, // a bare house's odds as before (0.2 × (1 - 0.7)); swept as 0.2 × (1 - integrity) earlier
+      entranceRadius: 5, // m; zombies this close to an entrance wear its door down (door)
       split: { turn: 0.6, die: 0.1, expel: 0.3 }, // how residents resolve after a breach — swept (reference start 0.45/0.2/0.35)
       resolvePerTick: 2, // residents resolved per building per tick
     },

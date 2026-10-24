@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../src/config';
-import { breachChance } from '../src/sim/systems/buildings/breach';
+import { doorDamage, fortificationCap } from '../src/sim/systems/buildings/breach';
 import { footprintArea } from '../src/sim/mapgen/generate';
 import { createWorld } from '../src/sim/setup';
 import { confidence, timeOfDay } from '../src/sim/derived';
@@ -132,13 +132,29 @@ describe('derived quantities', () => {
   });
 });
 
-describe('breach chance', () => {
-  it('is never zero, even fully fortified', () => {
-    expect(breachChance(1, config)).toBeGreaterThan(0);
+describe('doors', () => {
+  const ticks = (f: number, n: number, tag: keyof typeof config.tags) => f / doorDamage(n, config.tags[tag].integrity, config);
+
+  it('wear faster with more of the dead at them, a throng much faster, and none at all with nobody there', () => {
+    const i = config.tags.residential.integrity;
+    expect(doorDamage(0, i, config)).toBe(0);
+    expect(doorDamage(2, i, config)).toBeGreaterThan(doorDamage(1, i, config));
+    expect(doorDamage(20, i, config)).toBeGreaterThan(10 * doorDamage(1, i, config));
   });
 
-  it('falls as fortification rises', () => {
-    expect(breachChance(0.5, config)).toBeLessThan(breachChance(0, config));
+  it('wear slower the more defensible the building', () => {
+    expect(doorDamage(5, config.tags.policeStation.integrity, config)).toBeLessThan(doorDamage(5, config.tags.residential.integrity, config));
+    expect(doorDamage(5, config.tags.residential.integrity, config)).toBeLessThan(doorDamage(5, config.tags.supermarket.integrity, config));
+  });
+
+  it('hold as the user asked: the best all run against twenty; a supermarket minutes against twenty, hours against one', () => {
+    expect(fortificationCap(config.tags.policeStation.integrity, config)).toBe(1);
+    expect(ticks(1, 20, 'policeStation')).toBeGreaterThan(config.time.runLength);
+    const sm = fortificationCap(config.tags.supermarket.integrity, config);
+    expect(ticks(sm, 20, 'supermarket')).toBeGreaterThan(300);
+    expect(ticks(sm, 20, 'supermarket')).toBeLessThan(1200);
+    expect(ticks(sm, 1, 'supermarket')).toBeGreaterThan(3600);
+    expect(ticks(config.buildings.door.shut, 1, 'residential')).toBeLessThan(300); // a shut door: a minute or two
   });
 
   it('integrity caps the stage instead: offices stop at reinforced, supermarkets at barricaded, houses can be fortified', () => {

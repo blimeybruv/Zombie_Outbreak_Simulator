@@ -9,6 +9,8 @@ import type { Building, BuildingId, World } from '../src/sim/state';
 import { buildingProcesses } from '../src/sim/systems/buildings/buildings';
 import { rebuildHashes } from '../src/sim/systems/shared/perception';
 import { deliver, doorThreat, shelterWork } from '../src/sim/systems/buildings/shelter';
+import { doorDamage } from '../src/sim/systems/buildings/breach';
+import { functionalProfile } from '../src/sim/mapgen/generate';
 import { assertInvariant, step } from '../src/sim/tick';
 
 function fresh(cfg = config) {
@@ -41,7 +43,7 @@ describe('fortification', () => {
     const b = quietHouse(world, ctx, 2);
     b.supplies = 4;
     work(world, ctx, b, 200);
-    expect(b.fortification).toBe(0); // unaware residents do nothing
+    expect(b.fortification).toBe(config.buildings.door.shut); // unaware residents do nothing: a shut door
 
     b.alertedAt = world.tick;
     work(world, ctx, b, 100);
@@ -58,7 +60,23 @@ describe('fortification', () => {
     expect(b.fortification).toBe(peak); // nobody to wear it down
   });
 
-  it('is worn down by the dead at the door, each of them, a share of what is left', () => {
+  it('is repaired under attack with whatever supplies are left, and not built on otherwise when they run short', () => {
+    const { world, ctx } = fresh();
+    const b = quietHouse(world, ctx, 2);
+    b.alertedAt = world.tick;
+    b.barricadedAt = world.tick;
+    b.fortification = 0.3;
+    b.supplies = 1; // short: no building to spare
+    work(world, ctx, b, 50);
+    expect(b.fortification).toBe(0.3);
+    const e = b.entrances[0]!;
+    spawnZombie(world, e.x, e.y, 'active', null, null);
+    rebuildHashes(world, ctx);
+    work(world, ctx, b, 50);
+    expect(b.fortification).toBeGreaterThan(0.3);
+  });
+
+  it('is worn down by the dead at the door, steadily, faster for more of them', () => {
     const { world, ctx } = fresh();
     const b = quietHouse(world, ctx, 2);
     b.fortification = 0.9;
@@ -72,12 +90,12 @@ describe('fortification', () => {
       buildingProcesses(world, ctx);
       if (b.fortification !== before) {
         checks++;
-        expect(b.fortification).toBeCloseTo(before * (1 - config.buildings.damage) ** 3, 9);
+        expect(b.fortification).toBeCloseTo(before - doorDamage(3, config.tags[functionalProfile(b.tag, config)].integrity, config) * config.buildings.breach.interval, 12);
       }
     }
     expect(checks).toBeGreaterThan(0);
     expect(b.fortification).toBeLessThan(0.9);
-    expect(b.fortification).toBeGreaterThan(0); // asymptotic, never linear to zero
+    expect(b.fortification).toBeGreaterThan(0); // nowhere near through yet
   });
 });
 

@@ -3,7 +3,7 @@
 // spill, and the shelter economy's building side (shelter.ts). One of three files
 // allowed to read `panic` (expulsion of tracked sims).
 
-import { breachChance } from './breach';
+import { doorDamage } from './breach';
 import type { Context } from '../../context';
 import { transfer, simLeaf } from '../../counters';
 import { noteStreet, remember } from '../../navigation/memory';
@@ -13,7 +13,7 @@ import { spawnSim, spawnZombie } from '../../spawn';
 import type { Building, Sim, World } from '../../state';
 import { isFirearm } from '../../state';
 import { bite, destroyZombie, killSim } from '../fighting/combat';
-import { capacity, entranceNearest, exitTicks, isLiving, openDoor, setDestination, stageOf } from '../shared/common';
+import { capacity, entranceNearest, exitTicks, isLiving, openDoor, setDestination } from '../shared/common';
 import { merge } from '../people/encounters';
 import { modeOf } from '../people/panic';
 import { armAtDepot } from '../services/squads';
@@ -348,7 +348,6 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
   const br = config.buildings.breach;
   if (b.id % br.interval !== tick % br.interval) return;
   if (b.zombiesInside > 0 || b.residents + b.sheltered.length === 0) return;
-  const p = breachChance(b.fortification, config);
   const seen = new Set<number>();
   const rollers: number[] = [];
   for (const e of b.entrances) {
@@ -362,26 +361,20 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
     }
   }
   rollers.sort((a, c) => a - c);
-  // Each of the dead at the door wears the barricades down, crowd enough to break in or
-  // not: they hold until the dead damage them, and only then.
-  if (rollers.length > 0 && b.fortification > 0) {
-    b.fortification *= (1 - config.buildings.damage) ** rollers.length;
-    if (b.fortification < config.buildings.fortificationFloor) b.fortification = 0;
-  }
-  // It takes a crowd to break a held door: one zombie cannot follow anyone through a barricade.
-  if (rollers.length < config.buildings.stages.minCrowd[stageOf(world, b)]) return;
-  for (const zid of rollers.slice(0, br.maxRolls)) {
-    if (!chance(world.rng, p)) continue;
-    const z = zombies[zid]!;
-    z.state = 'occupying';
-    z.insideBuilding = b.id;
-    z.target = null;
-    z.heardPoint = null;
-    b.zombiesInside++;
-    transfer(world, 'turned.outdoors', 'turned.occupying');
-    occupierAppeared(world, ctx, b);
-    return;
-  }
+  if (rollers.length === 0) return;
+  // The dead at the door wear it down, each of them, and only once nothing is left of it
+  // do they break in: the first of them by id.
+  const integrity = config.tags[functionalProfile(b.tag, config)].integrity;
+  b.fortification = Math.max(0, b.fortification - doorDamage(rollers.length, integrity, config) * br.interval);
+  if (b.fortification > 0) return;
+  const z = zombies[rollers[0]!]!;
+  z.state = 'occupying';
+  z.insideBuilding = b.id;
+  z.target = null;
+  z.heardPoint = null;
+  b.zombiesInside++;
+  transfer(world, 'turned.outdoors', 'turned.occupying');
+  occupierAppeared(world, ctx, b);
 }
 
 function drainQueues(world: World, ctx: Context, b: Building): void {

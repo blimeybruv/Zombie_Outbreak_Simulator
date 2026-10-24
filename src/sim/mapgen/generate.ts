@@ -693,7 +693,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       zombiesInside: 0,
       occupiedAt: null,
       supplies: tagKey === 'flavour' ? 0 : nextInt(rng, profile.supplies[0]!, profile.supplies[1]!),
-      fortification: 0,
+      fortification: config.buildings.door.shut, // a shut door
       breached: false,
       outOfSuppliesAt: null,
       lit: power && chance(rng, 0.6),
@@ -701,6 +701,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       scavengerOut: null,
       garrisonedAt: null,
       doorOpenedAt: null,
+      barricadedAt: null,
       callAt: null,
       weaponStock: null,
       stock: [],
