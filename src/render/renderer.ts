@@ -19,6 +19,7 @@ import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
 import { FAR_LIGHT_WIDTH, LAMP_GLOW_RADIUS, LAMP_HEAD_RADIUS, placeKerbLamps } from './lamps';
+import { lotOutsideStreets, segmentsOutside, streetQuad, type Pt } from './lot-clip';
 import * as P from './palette';
 import { LABEL_FONT_MID, LABEL_FONT_NEAR, ROAD_MAIN_MIN_W, placeStreetLabels, streetLabelCandidates, streetLabelsForMode, type StreetLabelCandidate } from './street-labels';
 import { BorderLines } from './border';
@@ -245,6 +246,7 @@ export class Renderer {
   /** Carriageways by hierarchy, narrow to wide, so a wider fill covers a crossing. */
   private readonly carriageways: { fill: Path2D; left: Path2D; right: Path2D; fillStyle: string; edgeStyle: string; edgeWidth: number }[];
   private readonly centerLinePath: Path2D; // wide streets only, dashed at near zoom
+  private readonly openGroundPath: Path2D; // lot polygons (mall grounds and service yards), filled under the streets
   private readonly groundsPath: Path2D; // a mall's grounds, open where the driveway comes in
   private readonly stallPath: Path2D; // its parking stalls, drawn at near zoom
   private readonly density: DensityField;
@@ -469,34 +471,53 @@ export class Renderer {
       step(f.cx - f.ax * f.half, f.cy - f.ay * f.half, -f.ax, -f.ay, DOOR_W * 1.6, i);
     }
     // Malls: the grounds' edge, broken where the driveway enters, and rows of stalls
-    // either side of it.
+    // either side of it. The lot rectangle follows the driveway, not the rotated
+    // streets around the block, so it is clipped to the carriageway quads.
+    this.openGroundPath = new Path2D();
     this.groundsPath = new Path2D();
     this.stallPath = new Path2D();
+    const carriage: Pt[][] = [];
+    for (let i = 0; i < map.streetLit.length; i++) {
+      const s = i * 5;
+      const quad = streetQuad(map.streets[s]!, map.streets[s + 1]!, map.streets[s + 2]!, map.streets[s + 3]!, map.streets[s + 4]!);
+      if (quad) carriage.push(quad);
+    }
+    const cut = (path: Path2D, a: Pt, b: Pt) => {
+      for (const [p, q] of segmentsOutside(a, b, carriage)) {
+        path.moveTo(p.x, p.y);
+        path.lineTo(q.x, q.y);
+      }
+    };
     for (let i = 0; i < map.lots.length; i += 10) {
       const l = map.lots;
       const x0 = l[i]!, y0 = l[i + 1]!;
+      const lot = [
+        { x: x0, y: y0 },
+        { x: l[i + 2]!, y: l[i + 3]! },
+        { x: l[i + 4]!, y: l[i + 5]! },
+        { x: l[i + 6]!, y: l[i + 7]! },
+      ];
+      for (const poly of lotOutsideStreets(lot, carriage)) {
+        this.openGroundPath.moveTo(poly[0]!.x, poly[0]!.y);
+        for (let k = 1; k < poly.length; k++) this.openGroundPath.lineTo(poly[k]!.x, poly[k]!.y);
+        this.openGroundPath.closePath();
+      }
       const w = Math.hypot(l[i + 2]! - x0, l[i + 3]! - y0) || 1;
       const dx = (l[i + 2]! - x0) / w, dy = (l[i + 3]! - y0) / w; // along the front
       const depth = Math.hypot(l[i + 6]! - x0, l[i + 7]! - y0) || 1;
       const ix = (l[i + 6]! - x0) / depth, iy = (l[i + 7]! - y0) / depth; // inward
       const parking = l[i + 8]!, entry = l[i + 9]!;
-      const at = (u: number, v: number): [number, number] => [x0 + dx * u + ix * v, y0 + dy * u + iy * v];
-      this.groundsPath.moveTo(...at(entry - DRIVE_GAP, 0));
-      this.groundsPath.lineTo(...at(0, 0));
-      this.groundsPath.lineTo(...at(0, depth));
-      this.groundsPath.lineTo(...at(w, depth));
-      this.groundsPath.lineTo(...at(w, 0));
-      this.groundsPath.lineTo(...at(entry + DRIVE_GAP, 0));
+      const at = (u: number, v: number): Pt => ({ x: x0 + dx * u + ix * v, y: y0 + dy * u + iy * v });
+      const edge = [
+        at(entry - DRIVE_GAP, 0), at(0, 0), at(0, depth), at(w, depth), at(w, 0), at(entry + DRIVE_GAP, 0),
+      ];
+      for (let k = 0; k + 1 < edge.length; k++) cut(this.groundsPath, edge[k]!, edge[k + 1]!);
       const spans: [number, number][] = [[AISLE / 2, entry - DRIVE_GAP], [entry + DRIVE_GAP, w - AISLE / 2]];
       for (let v = AISLE / 2; v + 2 * STALL_D <= parking - AISLE / 2; v += 2 * STALL_D + AISLE) {
         for (const [u0, u1] of spans) {
           if (u1 - u0 < STALL_W) continue;
-          this.stallPath.moveTo(...at(u0, v + STALL_D));
-          this.stallPath.lineTo(...at(u1, v + STALL_D));
-          for (let u = u0; u <= u1 + 0.01; u += STALL_W) {
-            this.stallPath.moveTo(...at(u, v));
-            this.stallPath.lineTo(...at(u, v + 2 * STALL_D));
-          }
+          cut(this.stallPath, at(u0, v + STALL_D), at(u1, v + STALL_D));
+          for (let u = u0; u <= u1 + 0.01; u += STALL_W) cut(this.stallPath, at(u, v), at(u, v + 2 * STALL_D));
         }
       }
     }
@@ -593,6 +614,9 @@ export class Renderer {
     g.fillStyle = P.BACKGROUND;
     g.fillRect(0, 0, c.width, c.height);
     cam.apply(g, dpr);
+    // Lot polygons, under the streets: the street stroke is opaque and would cover a fill drawn later.
+    g.fillStyle = P.OPEN_GROUND;
+    g.fill(this.openGroundPath);
     g.lineCap = 'round';
     g.lineJoin = 'round';
     g.strokeStyle = P.RIVER;
