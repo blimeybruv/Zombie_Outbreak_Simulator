@@ -228,6 +228,65 @@ function addHumvee(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: num
   shade.arc(sx, sy, 0.26, 0, Math.PI * 2);
 }
 
+/** Roof light bar, forward of centre. The flashing spots in drawVanLights sit on its ends. */
+const CRUISER_BAR_U = 0.46;
+const CRUISER_BAR_V = 0.46;
+
+/**
+ * A police cruiser in plan, the same 4.5 × 1.9 m footprint as the rectangle it
+ * replaces: hull and wheel arches, a lighter bonnet, boot and roof, a darker
+ * windscreen and rear glass, and the light bar. Nose along (dx, dy).
+ */
+function addCruiser(body: Path2D, panel: Path2D, shade: Path2D, x: number, y: number, dx: number, dy: number): void {
+  const nx = -dy, ny = dx;
+  const bodyW = 1.62;
+  addBox(body, x, y, dx, dy, CAR_L, bodyW);
+  const arch = 0.19;
+  for (const u of [1.38, -1.38]) {
+    for (const s of [1, -1] as const) {
+      const lat = bodyW / 2 + arch / 2 - 0.05;
+      addBox(body, x + dx * u + nx * s * lat, y + dy * u + ny * s * lat, dx, dy, 0.8, arch);
+    }
+  }
+  addBox(panel, x + dx * 1.48, y + dy * 1.48, dx, dy, 1.05, 1.36);
+  addBox(panel, x - dx * 1.58, y - dy * 1.58, dx, dy, 0.82, 1.36);
+  addBox(panel, x - dx * 0.08, y - dy * 0.08, dx, dy, 1.28, 1.3);
+  addBox(shade, x + dx * 0.78, y + dy * 0.78, dx, dy, 0.26, 1.26);
+  addBox(shade, x - dx * 0.98, y - dy * 0.98, dx, dy, 0.18, 1.16);
+  addBox(shade, x + dx * CRUISER_BAR_U, y + dy * CRUISER_BAR_U, dx, dy, 0.16, CRUISER_BAR_V * 2 + 0.2);
+}
+
+/** Cab light bar, forward of centre. The red spots in drawVanLights sit on its ends. */
+const AMBULANCE_BAR_U = 1.28;
+const AMBULANCE_BAR_V = 0.46;
+
+/**
+ * An ambulance in plan, the same 6 × 1.9 m footprint as the rectangle it
+ * replaces: hull and wheel arches, a quieter bonnet and two roofs, a darker
+ * windscreen, rear doors and cab light bar, and a cross on the box. Nose along (dx, dy).
+ */
+function addAmbulance(body: Path2D, panel: Path2D, shade: Path2D, mark: Path2D, x: number, y: number, dx: number, dy: number): void {
+  const nx = -dy, ny = dx;
+  const bodyW = 1.62;
+  addBox(body, x, y, dx, dy, VAN_L, bodyW);
+  const arch = 0.19;
+  for (const u of [1.85, -1.85]) {
+    for (const s of [1, -1] as const) {
+      const lat = bodyW / 2 + arch / 2 - 0.05;
+      addBox(body, x + dx * u + nx * s * lat, y + dy * u + ny * s * lat, dx, dy, 0.85, arch);
+    }
+  }
+  addBox(panel, x + dx * 2.32, y + dy * 2.32, dx, dy, 0.95, 1.32);
+  addBox(panel, x + dx * 0.95, y + dy * 0.95, dx, dy, 1.2, 1.28);
+  addBox(panel, x - dx * 1.05, y - dy * 1.05, dx, dy, 2.45, 1.42);
+  addBox(shade, x + dx * 1.68, y + dy * 1.68, dx, dy, 0.26, 1.22);
+  addBox(shade, x + dx * AMBULANCE_BAR_U, y + dy * AMBULANCE_BAR_U, dx, dy, 0.16, AMBULANCE_BAR_V * 2 + 0.2);
+  addBox(shade, x - dx * 2.52, y - dy * 2.52, dx, dy, 0.18, 1.16);
+  const cu = -0.85;
+  addBox(mark, x + dx * cu, y + dy * cu, dx, dy, 0.9, 0.2);
+  addBox(mark, x + dx * cu, y + dy * cu, dx, dy, 0.2, 0.9);
+}
+
 function addPolygon(path: Path2D, pts: number[]): void {
   path.moveTo(pts[0]!, pts[1]!);
   for (let j = 2; j < pts.length; j += 2) path.lineTo(pts[j]!, pts[j + 1]!);
@@ -254,6 +313,12 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
+  /** Depot buildings (tag depot): the reservists' green, a faint fill, and a centre cross. */
+  private readonly depotPath: Path2D;
+  private readonly depots: { x: number; y: number; span: number }[];
+  /** Police stations (tag policeStation): a faint blue outline, fill, and centre cross. */
+  private readonly stationPath: Path2D;
+  private readonly stations: { x: number; y: number; span: number }[];
   private readonly riverPath: Path2D;
   /** Scenery cars on the border motorway, drawn from simulation time alone. */
   private readonly traffic: Traffic;
@@ -312,6 +377,10 @@ export class Renderer {
     this.staticLayer = document.createElement('canvas');
     this.carLayer = document.createElement('canvas');
     this.outlinePath = new Path2D();
+    this.depotPath = new Path2D();
+    this.depots = [];
+    this.stationPath = new Path2D();
+    this.stations = [];
     const o = map.outlines;
     const n = o.length / 8;
     // Hospitals' Ls and schools' Us, cut once from the back of their plots.
@@ -330,10 +399,13 @@ export class Renderer {
     this.bounds = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) {
       const k = i * 8;
-      this.addBuilding(this.outlinePath, i);
       const xs = [o[k]!, o[k + 2]!, o[k + 4]!, o[k + 6]!];
       const ys = [o[k + 1]!, o[k + 3]!, o[k + 5]!, o[k + 7]!];
-      this.bounds.set([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], i * 4);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+      this.bounds.set([minX, minY, maxX, maxY], i * 4);
+      if (map.buildingDepot[i]) this.markBuilding(this.depotPath, this.depots, i, minX, maxX, minY, maxY);
+      else if (map.buildingStation[i]) this.markBuilding(this.stationPath, this.stations, i, minX, maxX, minY, maxY);
+      else this.addBuilding(this.outlinePath, i);
     }
     this.riverPath = new Path2D();
     map.river.centreline.forEach((p, i) => (i === 0 ? this.riverPath.moveTo(p.x, p.y) : this.riverPath.lineTo(p.x, p.y)));
@@ -709,6 +781,10 @@ export class Renderer {
     g.strokeStyle = P.BUILDING_OUTLINE;
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
+    this.drawMarked(g, cam, dpr, far, this.depotPath, this.depots, P.DEPOT_OUTLINE, P.DEPOT_FILL);
+    this.drawMarked(g, cam, dpr, far, this.stationPath, this.stations, P.STATION_OUTLINE, P.STATION_FILL);
+    g.strokeStyle = P.BUILDING_OUTLINE;
+    g.lineWidth = 1 / (cam.scale * dpr);
     g.stroke(this.bridgeRails);
     // The abutments: heavier than a rail, the bridge set into the bank.
     g.lineWidth = Math.max(2.5 / (cam.scale * dpr), 1); // 2.5 px, or a metre once that is wider
@@ -756,6 +832,36 @@ export class Renderer {
     at.resize(c.width / dpr, c.height / dpr);
     at.apply(g, dpr);
     this.drawCars(g, frame, at, dpr, false);
+  }
+
+  /** A depot or a police station: off the ordinary outline, with its centre kept for the cross. */
+  private markBuilding(path: Path2D, marks: { x: number; y: number; span: number }[], i: number, minX: number, maxX: number, minY: number, maxY: number): void {
+    this.addBuilding(path, i);
+    marks.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, span: Math.min(maxX - minX, maxY - minY) });
+  }
+
+  /** Faint fill, a slightly thicker outline, and a centre cross. Far zoom leaves the cross out. */
+  private drawMarked(
+    g: CanvasRenderingContext2D, cam: Camera, dpr: number, far: boolean,
+    path: Path2D, marks: readonly { x: number; y: number; span: number }[], outline: string, fill: string,
+  ): void {
+    if (marks.length === 0) return;
+    g.fillStyle = fill;
+    g.fill(path);
+    g.strokeStyle = outline;
+    g.lineWidth = 1.8 / (cam.scale * dpr);
+    g.stroke(path);
+    if (far) return;
+    g.beginPath();
+    for (const d of marks) {
+      const arm = Math.min(d.span * 0.36, Math.max(2.2, 6 / (cam.scale * dpr)));
+      g.moveTo(d.x - arm, d.y);
+      g.lineTo(d.x + arm, d.y);
+      g.moveTo(d.x, d.y - arm);
+      g.lineTo(d.x, d.y + arm);
+    }
+    g.lineWidth = 1.1 / (cam.scale * dpr);
+    g.stroke();
   }
 
   /** A building's outline, as drawn: a church in plan, a hospital's L or a school's U, else its plot. */
@@ -865,8 +971,10 @@ export class Renderer {
     if (st.length === 0) return;
     const near = cam.mode === 'near';
     const hw = CAR_W / 2;
-    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), ambulances = new Path2D(), trucks = new Path2D();
+    const parked = new Path2D(), driving = new Path2D(), abandoned = new Path2D(), crosses = new Path2D(), vans = new Path2D(), trucks = new Path2D();
     const hBody = new Path2D(), hPanel = new Path2D(), hShade = new Path2D();
+    const cBody = new Path2D(), cPanel = new Path2D(), cShade = new Path2D();
+    const aBody = new Path2D(), aPanel = new Path2D(), aShade = new Path2D(), aMark = new Path2D();
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
@@ -885,7 +993,17 @@ export class Renderer {
         addHumvee(hBody, hPanel, hShade, x, y, c, s);
         continue;
       }
-      const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : amb && state !== CAR_ABANDONED ? ambulances : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
+      // A police cruiser: the plan-view car, police blue. Abandoned, the dark crossed rectangle, like any wreck.
+      if (cruiser && state !== CAR_ABANDONED) {
+        addCruiser(cBody, cPanel, cShade, x, y, c, s);
+        continue;
+      }
+      // An ambulance: the plan-view van, white. Abandoned, the dark crossed rectangle, like any wreck.
+      if (amb && state !== CAR_ABANDONED) {
+        addAmbulance(aBody, aPanel, aShade, aMark, x, y, c, s);
+        continue;
+      }
+      const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : van && state !== CAR_ABANDONED ? vans : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
       path.lineTo(...pt(-hl, -hw));
@@ -907,8 +1025,6 @@ export class Renderer {
     g.fill(abandoned);
     g.fillStyle = P.POLICE;
     g.fill(vans);
-    g.fillStyle = P.AMBULANCE;
-    g.fill(ambulances);
     g.fillStyle = P.TENT;
     g.fill(trucks);
     g.fillStyle = P.GUARD;
@@ -917,6 +1033,20 @@ export class Renderer {
     g.fill(hPanel);
     g.fillStyle = P.HMMWV_SHADE;
     g.fill(hShade);
+    g.fillStyle = P.POLICE;
+    g.fill(cBody);
+    g.fillStyle = P.CRUISER_PANEL;
+    g.fill(cPanel);
+    g.fillStyle = P.CRUISER_SHADE;
+    g.fill(cShade);
+    g.fillStyle = P.AMBULANCE;
+    g.fill(aBody);
+    g.fillStyle = P.AMBULANCE_PANEL;
+    g.fill(aPanel);
+    g.fillStyle = P.AMBULANCE_SHADE;
+    g.fill(aShade);
+    g.fillStyle = P.AMBULANCE_MARK;
+    g.fill(aMark);
     g.strokeStyle = P.CAR;
     g.stroke(abandoned);
     g.stroke(crosses);
@@ -975,9 +1105,11 @@ export class Renderer {
       if (amb && swap) continue; // off half the time
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
-      // Across the cab, a little forward of the middle.
+      // A cruiser's spots sit on its roof bar, an ambulance's on its cab bar. A SWAT
+      // van's stay across the cab, a little forward of the middle — the van is still the rectangle.
       for (const side of [1, -1]) {
-        const u = len * 0.15, v = side * CAR_W * 0.28;
+        const u = cruiser ? CRUISER_BAR_U : amb ? AMBULANCE_BAR_U : len * 0.15;
+        const v = side * (cruiser ? CRUISER_BAR_V : amb ? AMBULANCE_BAR_V : CAR_W * 0.28);
         const red = amb || (side === 1) !== swap;
         const lx = x + c * u - s * v, ly = y + s * u + c * v;
         g.fillStyle = red ? P.SIREN_RED_GLOW : P.SIREN_BLUE_GLOW;

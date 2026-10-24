@@ -37,11 +37,20 @@ export const TALK = 'rgba(223, 231, 239, 0.4)';
 export const PROMOTED = '#ffffff';
 export const POLICE = '#8cc8ff'; // light blue; whoever carries a firearm is a triangle, whatever its colour
 export const POLICE_RGB = [140, 200, 255] as const; // the same, for a 911 call's flashing ring
+/** Police stations: the officers' blue, held back so the building stays quieter than the dot. */
+export const STATION_OUTLINE = 'rgba(140, 200, 255, 0.55)';
+export const STATION_FILL = 'rgba(140, 200, 255, 0.13)';
 export const SIREN_RED = '#ff3b3b'; // a SWAT van's light bar, taking turns with blue
 export const SIREN_BLUE = '#3b7bff';
 export const SIREN_RED_GLOW = 'rgba(255, 59, 59, 0.28)';
 export const SIREN_BLUE_GLOW = 'rgba(59, 123, 255, 0.28)';
 export const AMBULANCE = '#f2f2ee'; // white
+/** An ambulance's bonnet and roofs: a step under the white hull, and under a living dot. */
+export const AMBULANCE_PANEL = '#d4d5cf';
+/** Windscreen, rear doors and the cab light bar. */
+export const AMBULANCE_SHADE = '#8e9088';
+/** The cross on the box roof: a quiet red, not the siren. */
+export const AMBULANCE_MARK = '#c45656';
 export const EXIT = '#e8c35a'; // a way off the map: amber, like a road sign
 /** The rescue's tents: military canvas, an outline and ridge, filled faintly while people wait in them. */
 export const TENT = 'rgba(190, 200, 160, 0.7)';
@@ -51,9 +60,16 @@ export const GATE = '#0b0b0b';
 /** A fallen police checkpoint's sawhorses: grey, abandoned. */
 export const CHECKPOINT_FALLEN = 'rgba(140, 150, 160, 0.5)';
 export const GUARD = '#bfe8b4'; // pale green: a reservist armed at an armoury
+/** Depots: the same pale green as a reservist. The outline is that colour; the fill is a faint wash of it. */
+export const DEPOT_OUTLINE = GUARD;
+export const DEPOT_FILL = 'rgba(191, 232, 180, 0.16)';
 /** A reservists' HMMWV: hull in their green, a lighter bonnet and roof, a darker windscreen, cargo well and spare. */
 export const HMMWV_PANEL = '#dcf3d4';
 export const HMMWV_SHADE = '#5e8a58';
+/** A police cruiser's bonnet and roof: lighter than the hull, still under a living dot. */
+export const CRUISER_PANEL = '#b4d9ff';
+/** Windscreen, rear glass and the roof light bar, held well under the hull. */
+export const CRUISER_SHADE = '#3d6ea6';
 /** A squad: the thin line from each follower to its leader (near zoom). */
 export const SQUAD = 'rgba(223, 231, 239, 0.5)'; // neutral: SWAT and the Guard alike
 export const INFECTED = '#e2a03f'; // amber: bitten, not yet turned — near zoom only
