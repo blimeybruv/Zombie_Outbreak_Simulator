@@ -211,6 +211,7 @@ export function decideCars(world: World, ctx: Context): void {
   }
 
   for (const car of moving) {
+    const moved = car.speed !== 0; // last tick's move went ahead (movement zeroes a move stopped by contact)
     // Two moving cars stopped by each other: the lower id yields, the higher goes.
     const stoppedBy = blockers.get(car.id)!.filter((id) => !(id < car.id && blockers.get(id)!.includes(car.id)));
     const blocked = other.has(car.id) || stoppedBy.length > 0;
@@ -287,8 +288,19 @@ export function decideCars(world: World, ctx: Context): void {
     // Held back by walls counts as blocked: near its spot it parks, and one that cannot
     // work its way out is rerouted and in the end abandoned, like a car in a jam. Not
     // counted, a car wedged between a kerb and a wall pivoted on the spot for 1,280 ticks.
+    // Stopped a while, nose to what holds it, with the road behind clear: it backs off a
+    // few metres — room to drive round it, or to turn and go back. Standing nose to it,
+    // a car had no room to swing out, and could only wait to be abandoned.
+    const since = car.blockedSince === null ? 0 : tick - car.blockedSince;
+    if ((blocked || held || !moved) && car.blockedSince !== null && since >= cc.backAfter && since < cc.backAfter + cc.backTicks && clearBehind(world, ctx, car)) {
+      const bx = car.x - Math.cos(car.heading) * cc.reverseSpeed, by = car.y - Math.sin(car.heading) * cc.reverseSpeed;
+      if (inWalls(world, ctx, bx, by, car.heading) <= inWalls(world, ctx, car.x, car.y, car.heading)) car.speed = -cc.reverseSpeed;
+    }
+    // Stopped by contact (movement marks it) stays stopped until a move goes ahead: cleared
+    // whenever decisions saw nothing in the way, a car nosed against a wreck's corner bumped
+    // it every tick for hours, never rerouted and never abandoned.
     if (blocked || held) car.blockedSince ??= tick;
-    else car.blockedSince = null;
+    else if (moved) car.blockedSince = null;
   }
   // Engines, moving or stuck: the dead hear them. A police car, SWAT van or ambulance on
   // the move (not the reservists' HMMWVs) sounds its siren too (features.sirens): sparse and modest, a thin wake
@@ -298,6 +310,33 @@ export function decideCars(world: World, ctx: Context): void {
     if ((car.id + tick) % cc.engineInterval === 0) emitStimulus(world, car.x, car.y, 'engine', cc.engineNoise, false, cc.engineIntensity);
     if (config.features.sirens && car.home !== null && car.kind !== 'hmmwv' && (car.id + tick) % sr.every === 0) emitStimulus(world, car.x, car.y, 'siren', sr.noise, false, sr.intensity);
   }
+}
+
+/**
+ * Nothing behind it in its lane within a car's length and gap, and two ticks at full
+ * speed besides: no car standing or moving, nobody on foot, none of the dead. A car
+ * coming up behind sets its speed by the room it sees at the start of the tick; backing
+ * into it a metre more than that, a car was run into at full speed.
+ */
+function clearBehind(world: World, ctx: Context, car: Car): boolean {
+  const cc = world.config.cars;
+  const look = cc.length + cc.gap + 2 * cc.maxSpeed;
+  const c = Math.cos(car.heading), s = Math.sin(car.heading);
+  const behind = (x: number, y: number, half: number) => {
+    const dx = x - car.x, dy = y - car.y;
+    const along = dx * c + dy * s;
+    return along < 0 && along >= -look && Math.abs(-dx * s + dy * c) < half;
+  };
+  for (const id of ctx.cars.near(car.x, car.y, look, ctx.ids2)) {
+    const o = world.cars[id]!;
+    if (o !== car && o.state !== 'gone' && behind(o.x, o.y, cc.width)) return false;
+  }
+  for (const o of ctx.cars.driving()) if (o !== car && behind(o.x, o.y, cc.width)) return false;
+  ctx.simHash.query(car.x, car.y, look, ctx.ids2);
+  for (const id of ctx.ids2) if (behind(world.sims[id]!.x, world.sims[id]!.y, cc.width / 2 + 0.5)) return false;
+  ctx.zombieHash.query(car.x, car.y, look, ctx.ids2);
+  for (const id of ctx.ids2) if (behind(world.zombies[id]!.x, world.zombies[id]!.y, cc.width / 2 + 0.5)) return false;
+  return true;
 }
 
 /** The nearest abandoned car in this car's lane ahead, within a car's length and gap and its stopping distance; null if none. */
@@ -442,6 +481,7 @@ export function moveCars(world: World, ctx: Context): void {
     if (wouldHit(world, ctx, car, nx, ny)) {
       car.impact = Math.abs(car.speed);
       car.speed = 0;
+      car.blockedSince ??= world.tick;
       continue;
     }
     car.x = nx;
