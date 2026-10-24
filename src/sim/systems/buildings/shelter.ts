@@ -18,7 +18,7 @@ import { functionalProfile } from '../../mapgen/generate';
 import { remember } from '../../navigation/memory';
 import { spawnSim } from '../../spawn';
 import type { Building, BuildingBelief, BuildingId, Sim, World } from '../../state';
-import { loot } from '../fighting/arms';
+import { armAtGunShop, loot } from '../fighting/arms';
 import { fortificationCap } from './breach';
 import { recognisedWithin } from '../shared/perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from '../shared/common';
@@ -446,6 +446,8 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
   }
 
   eat(world, ctx, b, living, onCycle);
+  // In a gun shop, those who now know arm themselves off the shelves.
+  if (onCycle && b.tag === 'firearmsStore') for (const id of b.sheltered) armAtGunShop(world, ctx, world.sims[id]!, b);
 
   // The furniture against the door, once, as far as the building allows.
   const cap = fortificationCap(config.tags[functionalProfile(b.tag, config)].integrity, config);

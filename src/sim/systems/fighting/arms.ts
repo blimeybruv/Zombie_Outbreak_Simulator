@@ -134,6 +134,18 @@ export function restock(world: World, sim: Sim, b: Building): void {
   }
 }
 
+/**
+ * Someone who knows of the outbreak, in a gun shop, takes a gun off the shelves if it has
+ * none, and the rounds for it (restock), while there are any left: survivors in a gun
+ * shop arm themselves (the user's call), where before it was one item at a 30% chance
+ * on the way in. The shop is finite like any stock.
+ */
+export function armAtGunShop(world: World, ctx: Context, sim: Sim, b: Building): void {
+  if (b.tag !== 'firearmsStore' || b.zombiesInside > 0 || sim.awareAt === null || isFirearm(sim.weapon)) return;
+  restock(world, sim, b);
+  if (isFirearm(sim.weapon)) ctx.events.push({ type: 'weaponFound', tick: world.tick, sim: sim.id, building: b.id, weapon: sim.weapon });
+}
+
 /** A sim that dies or turns leaves what it carried where it fell: indoors in the building's stock, outdoors on the ground. */
 export function dropWeapon(world: World, sim: Sim): void {
   if (sim.weapon === null) return;

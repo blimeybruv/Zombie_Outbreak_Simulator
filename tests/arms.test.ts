@@ -5,7 +5,8 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { spawnSim } from '../src/sim/spawn';
 import type { Sim, World } from '../src/sim/state';
-import { dropWeapon, loot, pickUpDrops } from '../src/sim/systems/fighting/arms';
+import { armAtGunShop, dropWeapon, loot, pickUpDrops } from '../src/sim/systems/fighting/arms';
+import { isFirearm } from '../src/sim/state';
 import { rebuildHashes } from '../src/sim/systems/shared/perception';
 
 const sure = { ...config, buildings: { ...config.buildings, lootChance: 1 } };
@@ -23,6 +24,23 @@ function someone(world: World, x: number, y: number): Sim {
 }
 
 describe('arms', () => {
+  it('in a gun shop, those who know of the outbreak take a gun and rounds off the shelves; those who do not, nothing', () => {
+    const { world, ctx } = fresh();
+    const shop = world.buildings.find((b) => b.tag === 'firearmsStore' && b.stock.some((a) => isFirearm(a.item)))!;
+    const e = shop.entrances[0]!;
+    const unaware = someone(world, e.x, e.y);
+    armAtGunShop(world, ctx, unaware, shop);
+    expect(unaware.weapon).toBeNull();
+    const knows = someone(world, e.x, e.y);
+    knows.awareAt = world.tick;
+    const guns = shop.stock.filter((a) => isFirearm(a.item)).length;
+    armAtGunShop(world, ctx, knows, shop);
+    expect(isFirearm(knows.weapon)).toBe(true);
+    expect(knows.ammo).toBeGreaterThan(0);
+    expect(shop.stock.filter((a) => isFirearm(a.item)).length).toBe(guns - 1);
+    expect(ctx.events.some((x) => x.type === 'weaponFound' && x.sim === knows.id)).toBe(true);
+  });
+
   it('a house holds one thing at the start, and once it is taken there is nothing', () => {
     const { world, ctx } = fresh();
     const house = world.buildings.find((b) => b.tag === 'residential' && b.stock.length > 0)!;

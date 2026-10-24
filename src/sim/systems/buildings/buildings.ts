@@ -19,7 +19,7 @@ import { modeOf } from '../people/panic';
 import { armAtDepot } from '../services/squads';
 import { dispatchAmbulances, emtEnter } from '../services/emt';
 import { exitArrivals, headForExit } from '../outside/exits';
-import { pickUpDrops, restock } from '../fighting/arms';
+import { armAtGunShop, pickUpDrops, restock } from '../fighting/arms';
 import { markResidentRising } from '../dead/rising';
 import { updateRescue } from '../outside/rescue';
 import { updateCordon } from '../outside/cordon';
@@ -235,6 +235,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   if (!contesting && sim.squadLeader === null) placeCall(world, sim, b);
   // An officer back at a station takes what rounds it still holds (arms.ts).
   if (sim.archetype === 'police' && b.tag === 'policeStation' && b.zombiesInside === 0) restock(world, sim, b);
+  armAtGunShop(world, ctx, sim, b);
 
   if (sim.destinationKind === 'routine') {
     // The uneasy cut their errands short.

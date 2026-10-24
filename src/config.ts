@@ -1005,11 +1005,12 @@ export const config = {
     suppliesCap: 60, // per building
     carryCap: 8, // per sim
     // Building closes (cap − fortification) by fortifyRate a tick per builder: three take a
-    // house from its furniture (0.2) to 0.8 in about four hours (the user: at 0.002, houses
-    // stood nearly fortified within minutes), spending a unit of supplies each
-    // fortifySupplyTicks between them — the same supplies for the same work as before — guess
-    fortifyRate: 0.00003, // /tick per builder
-    fortifySupplyTicks: 3300, // ticks of building per unit of supplies spent
+    // building from its furniture (0.2) to 0.8 of the way to its cap in about eight and a
+    // half hours (the user: at 0.002, houses stood nearly fortified within minutes; at
+    // 0.00003, still too quick), spending a unit of supplies each fortifySupplyTicks between
+    // them — the same supplies for the same work throughout — guess
+    fortifyRate: 0.000015, // /tick per builder
+    fortifySupplyTicks: 6600, // ticks of building per unit of supplies spent
     // Doors (the user's design). Fortification is what stands between the dead and the
     // people inside, and they break in only once it is 0. It never wears away unattended.
     // Every building starts with a shut door worth `shut`; a household that knows of the
@@ -1018,11 +1019,13 @@ export const config = {
     // from there with supplies, up to what integrity allows (breach.ts fortificationCap),
     // and repair it under attack with any supplies left. The dead at a door take
     // rate × n^crowd × (1 − integrity)^weakness of it a tick (breach.ts doorDamage),
-    // steadily. Calibrated to the user's targets: a fully fortified police station (0.9)
-    // holds 20 of the dead for 23 hours; a fully barricaded supermarket (0.35, capped at
-    // 0.3) holds one for two hours and 20 for ten minutes; a house (0.7) with its furniture
-    // up holds one for six hours and ten for an hour; a shut house door holds one for two
-    // minutes — guesses
+    // steadily. With integrity cut (the user: houses slashed, police stations and gun shops
+    // lessened), a fully fortified police station (0.8) holds 20 of the dead for about six
+    // hours and a gun shop (0.7) two and a half; a fully barricaded supermarket (0.35,
+    // capped at 0.3) holds one for two hours and 20 for ten minutes; a house (0.45, at most
+    // reinforced) with its furniture up holds one for two hours and ten for a quarter of an
+    // hour; a shut house door holds one for half a minute. Repairs stretch all of these —
+    // guesses
     door: { shut: 0.001, furniture: 0.2, rate: 9.86e-5, crowd: 0.83, weakness: 2 },
     exitTicksPerFortification: 40, // exit costs fortification * this
     // Fortification stages, for the inspector, the garrison and leaving. Barricaded: the
@@ -1062,7 +1065,7 @@ export const config = {
     // supplies aside): a house has one knife block, not an endless one. What is taken
     // is gone; a weapon given up for a better one, or carried by someone who dies or
     // turns, is left where it was (systems/fighting/arms.ts) — guesses
-    lootStock: { residential: 1, firearmsStore: 8, policeStation: 5, hardwareStore: 6, workshop: 3, supermarket: 2, mall: 6 } as Record<string, number>,
+    lootStock: { residential: 1, firearmsStore: 30, policeStation: 5, hardwareStore: 6, workshop: 3, supermarket: 2, mall: 6 } as Record<string, number>,
     pickupRadius: 2, // m: a weapon on the ground is taken by someone passing this close who is better off with it
     // Residents never get positions, but fortification is addition: up to this many
     // of an alerted building's residents work as builders alongside tracked ones — guess
@@ -1080,9 +1083,9 @@ export const config = {
   // stock range: a supermarket or the mall holds enough for several hundred people for hours
   // (the user's choice; at a load or two, they were picked clean in no time). Loot weights are relative.
   tags: {
-    residential: { integrity: 0.7, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1.2, bandMultiplier: [1, 0.3, 0.35, 0.9], supplies: [2, 6], loot: { knife: 2, club: 1, supplies: 2 } },
-    firearmsStore: { integrity: 0.8, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1, bandMultiplier: [0.05, 0.8, 1, 0.5], supplies: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
-    policeStation: { integrity: 0.9, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 3, bandMultiplier: [0.5, 1, 1, 0.7], supplies: [2, 5], loot: { pistol: 3, smg: 1, ammo: 4 } },
+    residential: { integrity: 0.45, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1.2, bandMultiplier: [1, 0.3, 0.35, 0.9], supplies: [2, 6], loot: { knife: 2, club: 1, supplies: 2 } },
+    firearmsStore: { integrity: 0.7, entrances: 1, sizes: ['small', 'medium'], occupancyWeight: 1, bandMultiplier: [0.05, 0.8, 1, 0.5], supplies: [0, 2], loot: { pistol: 3, shotgun: 2, ammo: 6 } },
+    policeStation: { integrity: 0.8, entrances: 2, sizes: ['medium', 'large'], occupancyWeight: 3, bandMultiplier: [0.5, 1, 1, 0.7], supplies: [2, 5], loot: { pistol: 3, smg: 1, ammo: 4 } },
     hardwareStore: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 0.9, 1, 0.4], supplies: [20, 40], loot: { club: 2, sledgehammer: 2, knife: 1, supplies: 5 } },
     workshop: { integrity: 0.7, entrances: 1, sizes: ['medium', 'large'], occupancyWeight: 1, bandMultiplier: [0.02, 1, 1, 0.2], supplies: [10, 25], loot: { club: 2, sledgehammer: 1, supplies: 4 } },
     warehouse: { integrity: 0.75, entrances: 2, sizes: ['large'], occupancyWeight: 0.3, bandMultiplier: [0.1, 0.8, 0.8, 0.2], supplies: [30, 60], loot: { supplies: 6 } },

@@ -147,23 +147,25 @@ describe('doors', () => {
     expect(doorDamage(5, config.tags.residential.integrity, config)).toBeLessThan(doorDamage(5, config.tags.supermarket.integrity, config));
   });
 
-  it('hold as the user asked: the best all run against twenty; a supermarket minutes against twenty, hours against one', () => {
+  it('hold as the user asked: a police station hours against twenty; a supermarket minutes against twenty, hours against one', () => {
     expect(fortificationCap(config.tags.policeStation.integrity, config)).toBe(1);
-    expect(ticks(1, 20, 'policeStation')).toBeGreaterThan(config.time.runLength);
+    expect(ticks(1, 20, 'policeStation')).toBeGreaterThan(4 * 3600);
     const sm = fortificationCap(config.tags.supermarket.integrity, config);
     expect(ticks(sm, 20, 'supermarket')).toBeGreaterThan(300);
     expect(ticks(sm, 20, 'supermarket')).toBeLessThan(1200);
     expect(ticks(sm, 1, 'supermarket')).toBeGreaterThan(3600);
-    expect(ticks(config.buildings.door.shut, 1, 'residential')).toBeLessThan(300); // a shut door: a minute or two
+    expect(ticks(config.buildings.door.shut, 1, 'residential')).toBeLessThan(120); // a shut door: moments
   });
 
-  it('integrity caps the stage instead: offices stop at reinforced, supermarkets at barricaded, houses can be fortified', () => {
+  it('integrity caps the stage instead: offices and houses stop at reinforced, supermarkets at barricaded, police stations and warehouses can be fortified', () => {
     const st = config.buildings.stages;
     expect(config.tags.office.integrity).toBeLessThan(st.fortifiableFrom);
     expect(config.tags.office.integrity).toBeGreaterThanOrEqual(st.reinforcibleFrom);
     expect(config.tags.supermarket.integrity).toBeLessThan(st.reinforcibleFrom);
-    expect(config.tags.residential.integrity).toBeGreaterThanOrEqual(st.fortifiableFrom);
+    expect(config.tags.residential.integrity).toBeLessThan(st.fortifiableFrom);
+    expect(config.tags.residential.integrity).toBeGreaterThanOrEqual(st.reinforcibleFrom);
     expect(config.tags.warehouse.integrity).toBeGreaterThanOrEqual(st.fortifiableFrom);
+    expect(config.tags.policeStation.integrity).toBeGreaterThanOrEqual(st.fortifiableFrom);
   });
 });
 

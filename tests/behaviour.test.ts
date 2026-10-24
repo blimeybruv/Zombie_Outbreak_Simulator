@@ -1145,7 +1145,7 @@ describe('firing from inside', () => {
 describe('fortification stages', () => {
   it('a building that knows, with someone inside and the door shut a minute, is barricaded; reinforcement and fortification follow fortification', () => {
     const { world } = fresh();
-    const b = world.buildings.find((x) => x.residents > 0 && x.tag === 'residential')!; // a house can be fortified
+    const b = world.buildings.find((x) => x.residents > 0 && x.tag === 'policeStation')!; // a police station can be fortified
     expect(stageOf(world, b)).toBe('open'); // unaware
     b.alertedAt = world.tick;
     expect(stageOf(world, b)).toBe('open'); // not yet
