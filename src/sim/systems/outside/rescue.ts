@@ -26,6 +26,9 @@
 //   the gate   at the middle of the barrier, rescue.gate either side: the one let
 //              through stops in it for screenTicks, then walks on; the cordon squad
 //              stands beside it as if screening (moved there when the rescue comes)
+//   the line  at the broadcast the squad at the gate advances to the DO NOT CROSS line
+//              (cordon.warnRadius in), across the road between the queue and the city,
+//              and a fresh squad comes in from outside to take the gate
 //   tents      beside the road beyond the line, half each side (tentsAt): through the
 //              line, a person walks to one and is out of the city in it
 //   trucks     every truckEvery ticks one pulls up beyond the barrier, loads for
@@ -40,6 +43,20 @@ import { barrierAt, spawnSquad } from './cordon';
 import { headForExit, leaveMap } from './exits';
 import { exitTicks, isLiving } from '../shared/common';
 import { modeOf } from '../people/panic';
+
+/** Where the cordon squad at the rescue's exit stands to screen those let through: beside the gate, just beyond the line. */
+function gatePost(world: World, e: Exit): Vec2 {
+  const g = world.config.rescue.gate * 2;
+  const b = barrierAt(world, e);
+  return { x: b.x + (e.dx - e.dy) * g, y: b.y + (e.dy + e.dx) * g };
+}
+
+/** The living leaders of the cordon squads posted at an exit's barrier or its gate. */
+function cordonLeaders(world: World, e: Exit): Sim[] {
+  const b = barrierAt(world, e);
+  const reach = world.config.cordon.post * 2;
+  return world.sims.filter((s) => s.outsider && !s.sweep && s.post !== null && isLiving(s) && Math.hypot(s.post.x - b.x, s.post.y - b.y) <= reach);
+}
 
 /** Rows across the road the rescue's queue stands in: as many as fit a step apart, a step in from each kerb. */
 function files(world: World, e: Exit): number {
@@ -208,13 +225,7 @@ export function updateRescue(world: World, ctx: Context): void {
     for (let k = 0; k < rc.squads; k++) for (const s of spawnSquad(world, e.x, e.y, { x: e.x, y: e.y }, rc.ammo)) s.sweep = true;
     world.rescueTruckAt = tick + rc.truckEvery;
     // The cordon's squad at this exit moves to stand beside the gate, beyond the line.
-    const b = barrierAt(world, e);
-    const post = { x: b.x + (e.dx - e.dy) * rc.gate * 2, y: b.y + (e.dy + e.dx) * rc.gate * 2 };
-    for (const s of sims) {
-      if (s.sweep || s.post === null || !isLiving(s)) continue;
-      if (Math.hypot(s.post.x - b.x, s.post.y - b.y) > config.cordon.post * 2) continue;
-      s.post = { ...post };
-    }
+    for (const s of cordonLeaders(world, e)) s.post = gatePost(world, e);
     ctx.events.push({ type: 'rescueSweep', tick, count: 0, sim: null, x: e.x, y: e.y });
   }
   const i = world.rescueExit;
@@ -273,6 +284,14 @@ export function updateRescue(world: World, ctx: Context): void {
   // The broadcast: everyone still hidden, to the exit.
   if (tick === rc.at + rc.broadcast) {
     ctx.events.push({ type: 'rescueBroadcast', tick, count: 0, sim: null, x: e.x, y: e.y });
+    // The squad at the gate advances to the DO NOT CROSS line, across the road between
+    // the queue and the city, against the dead the broadcast will draw down it; a fresh
+    // squad comes in from outside to take the gate (and to hold the barrier: the line is
+    // beyond cordon.breachRadius of it).
+    const b = barrierAt(world, e);
+    const w = config.cordon.warnRadius;
+    for (const s of cordonLeaders(world, e)) s.post = { x: b.x - e.dx * w, y: b.y - e.dy * w };
+    spawnSquad(world, e.x, e.y, gatePost(world, e), config.cordon.ammo);
     for (const s of sims) {
       if (!isLiving(s)) continue;
       s.awareAt ??= tick;

@@ -5,6 +5,7 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { rebuildHashes } from '../src/sim/systems/shared/perception';
 import { queueSlot, rescueTally, updateRescue } from '../src/sim/systems/outside/rescue';
+import { barrierAt, updateCordon } from '../src/sim/systems/outside/cordon';
 import { assertInvariant, step } from '../src/sim/tick';
 
 const soon = { ...config, rescue: { ...config.rescue, at: 10, broadcast: 100, truckEvery: 50, truckLoad: 20 } };
@@ -26,6 +27,28 @@ describe('the rescue', () => {
     expect(company).toHaveLength(soon.rescue.squads * config.squads.size);
     expect(company.every((s) => s.outsider)).toBe(true);
     expect(ctx.events.some((e) => e.type === 'rescueSweep')).toBe(true);
+    assertInvariant(world);
+  });
+
+  it("the cordon squad at the rescue's exit takes the gate, advances to the DO NOT CROSS line at the broadcast, and a fresh squad takes the gate", () => {
+    const { world, ctx } = fresh();
+    world.noticedAt = 0;
+    world.tick = config.cordon.delay;
+    updateCordon(world, ctx);
+    world.tick = soon.rescue.at;
+    updateRescue(world, ctx);
+    const e = world.exits[world.rescueExit!]!;
+    const b = barrierAt(world, e);
+    const leader = world.sims.find((s) => s.outsider && !s.sweep && s.post !== null && Math.hypot(s.post.x - b.x, s.post.y - b.y) <= config.cordon.post * 2)!;
+    const gate = { ...leader.post! };
+    expect((gate.x - b.x) * e.dx + (gate.y - b.y) * e.dy).toBeGreaterThan(0); // beyond the line
+    const before = world.outsiders;
+    world.tick = soon.rescue.at + soon.rescue.broadcast;
+    updateRescue(world, ctx);
+    expect((leader.post!.x - b.x) * e.dx + (leader.post!.y - b.y) * e.dy).toBeCloseTo(-config.cordon.warnRadius);
+    expect(world.outsiders).toBe(before + config.squads.size);
+    const relief = world.sims.filter((s) => s.outsider && !s.sweep && s.post !== null && s.post.x === gate.x && s.post.y === gate.y);
+    expect(relief).toHaveLength(1); // its leader
     assertInvariant(world);
   });
 
