@@ -38,9 +38,11 @@ export function decideCars(world: World, ctx: Context): void {
   const cornerOf = new Map<number, number>(); // moving car → the most it may do now to take the next junction's turn
   const passing = new Map<number, number>(); // moving car → the abandoned car it is driving round
 
+  const half = cc.width / 2 + cc.clearance; // room either side for a car
   for (const car of moving) {
     // Where to now: the next junction, offset right of the way there, or the kerb.
     let tx = car.destination!.x, ty = car.destination!.y;
+    let replanned = false;
     while (car.routeIndex < car.route.length - 1) {
       const n = sharedNode(world, car.route[car.routeIndex]!, car.route[car.routeIndex + 1]!);
       if (n === null) {
@@ -75,6 +77,21 @@ export function decideCars(world: World, ctx: Context): void {
       } else {
         tx = far.x + ux * along - uy * lane;
         ty = far.y + uy * along + ux * lane;
+      }
+      // Off it, with no room for the car between here and that point (a gap between two
+      // houses): a fresh way from where it is, every offStreetEvery ticks. Making for the
+      // nearest point regardless, a police car nosed into a two-metre gap for 292 ticks.
+      if (lat > st.width / 2 && !replanned && (tick + car.id) % cc.offStreetEvery === 0 && car.occupants.length > 0 && !ctx.map.corridor(car.x, car.y, tx, ty, half)) {
+        replanned = true;
+        const reach = config.behaviour.pathStreetSearch;
+        const fresh = ctx.paths.route(sims[car.occupants[0]!]!, car.destination!.x, car.destination!.y, false, undefined, ctx.map.driveStreet(car.x, car.y, reach, half), ctx.map.driveStreet(car.destination!.x, car.destination!.y, reach, half));
+        if (fresh !== null && fresh[0] !== car.route[car.routeIndex]) {
+          car.route = fresh;
+          car.routeIndex = 0;
+          tx = car.destination!.x;
+          ty = car.destination!.y;
+          continue;
+        }
       }
       // The turn it makes there: slow enough by the junction to take it, and braking in
       // time for it. Swinging wide round corners at speed, cars drove into the buildings
@@ -257,9 +274,14 @@ export function decideCars(world: World, ctx: Context): void {
       const at = (h: number, sp: number) => inWalls(world, ctx, car.x + Math.cos(h) * sp, car.y + Math.sin(h) * sp, h, near);
       const h0 = car.heading + want;
       const turns = [...[1, ...cc.wallTurn].map((f) => want * f), ...cc.wallTurn.filter((f) => f > 0).flatMap((f) => [turn * f, -turn * f]), turn, -turn];
-      const ways: { h: number; sp: number; held: boolean }[] = [];
-      for (const v of [1, ...cc.wallSpeed]) for (const t of turns) ways.push({ h: car.heading + t, sp: car.speed * v, held: v !== 1 });
-      for (const f of cc.reverseSteps) for (const t of turns) ways.push({ h: car.heading + t, sp: -cc.reverseSpeed * f, held: true });
+      const ahead: { h: number; sp: number; held: boolean }[] = [];
+      const back: { h: number; sp: number; held: boolean }[] = [];
+      for (const v of [1, ...cc.wallSpeed]) for (const t of turns) ahead.push({ h: car.heading + t, sp: car.speed * v, held: v !== 1 });
+      for (const f of cc.reverseSteps) for (const t of turns) back.push({ h: car.heading + t, sp: -cc.reverseSpeed * f, held: true });
+      // Where it is going well behind it: backing out first. Going on ahead instead, a car
+      // pulling out nose-first across an alley crept on into the gap between the houses
+      // opposite, away from where it was going, for 292 ticks.
+      const ways = Math.abs(err) > cc.backFor ? [...back, ...ahead] : [...ahead, ...back];
       const moves = (w: { h: number; sp: number }) => !(w.h === car.heading && w.sp === 0); // standing still is not a way out
       let way = now > 0 ? ways.find((w) => moves(w) && at(w.h, w.sp) < now) : undefined;
       if (way === undefined && at(h0, car.speed) <= now) way = { h: h0, sp: car.speed, held: false };
@@ -496,6 +518,14 @@ export function moveCars(world: World, ctx: Context): void {
     const nx = car.x + Math.cos(car.heading) * car.speed, ny = car.y + Math.sin(car.heading) * car.speed;
     if (wouldHit(world, ctx, car, nx, ny)) {
       car.impact = Math.abs(car.speed);
+      car.speed = 0;
+      stopped(car, world.tick);
+      continue;
+    }
+    // At speed, deeper into a building anywhere but its front (a side swung in on a turn):
+    // stopped where it is, to work its way out at a crawl. Judged by the front alone, a
+    // car once into a wall drove on through the block.
+    if (car.speed >= world.config.cars.crashMin && inWalls(world, ctx, nx, ny, car.heading) > inWalls(world, ctx, car.x, car.y, car.heading)) {
       car.speed = 0;
       stopped(car, world.tick);
       continue;

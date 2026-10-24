@@ -694,7 +694,7 @@ export function generateMap(config: Config, mapSeed: number, power: boolean): Ge
       occupiedAt: null,
       supplies: tagKey === 'flavour' ? 0 : nextInt(rng, profile.supplies[0]!, profile.supplies[1]!),
       fortification: config.buildings.door.shut, // a shut door
-      breached: false,
+      breached: null,
       outOfSuppliesAt: null,
       lit: power && chance(rng, 0.6),
       alertedAt: null,

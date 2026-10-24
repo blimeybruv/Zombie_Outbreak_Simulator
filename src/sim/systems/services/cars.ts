@@ -448,7 +448,7 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
   }
   const e = entranceNearest(b, car.x, car.y);
   car.destination = pullUpBy(world, b, e.x, e.y);
-  const route = ctx.paths.route(sim, car.destination.x, car.destination.y, true, undefined, driveStreet(world, ctx, car));
+  const route = ctx.paths.route(sim, car.destination.x, car.destination.y, true, undefined, driveStreet(world, ctx, car), driveTo(world, ctx, car.destination));
   if (route === null) {
     alight(world, ctx, car);
     return;
@@ -479,7 +479,7 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
   const leader = members[0]!;
   const target = to.building;
   const dest = target === null ? { x: to.x, y: to.y } : pullUpBy(world, target, entranceNearest(target, car.x, car.y).x, entranceNearest(target, car.x, car.y).y);
-  const route = ctx.paths.route(leader, dest.x, dest.y, true, undefined, driveStreet(world, ctx, car));
+  const route = ctx.paths.route(leader, dest.x, dest.y, true, undefined, driveStreet(world, ctx, car), driveTo(world, ctx, dest));
   if (route === null) return false;
   for (const s of members) {
     if (s.gathering !== null) leaveTalk(s, world.tick);
@@ -599,7 +599,11 @@ export function carProcesses(world: World, ctx: Context): void {
     // stopped within arriveRadius of it behind something. Parking anywhere within
     // arriveRadius left cars parked across the next car along the kerb.
     const toGo = car.destination === null ? Infinity : Math.hypot(car.destination.x - car.x, car.destination.y - car.y);
-    if (last && (toGo <= (car.exit !== null ? cc.arriveRadius : cc.parkWithin) || (car.blockedSince !== null && toGo <= cc.arriveRadius))) {
+    // Or close, off its last street, with no clear way to the spot (behind a building, in
+    // a yard): it parks where it is and they walk the rest. Making for it straight, a car
+    // wandered the backs of the block at a crawl and then drove through it.
+    const unreachable = last && car.exit === null && toGo <= cc.parkStuck && !ctx.map.onStreet(car.route[car.route.length - 1] ?? null, car.x, car.y) && !ctx.map.lineOfSight(car.x, car.y, car.destination!.x, car.destination!.y);
+    if (unreachable || (last && (toGo <= (car.exit !== null ? cc.arriveRadius : cc.parkWithin) || (car.blockedSince !== null && toGo <= cc.arriveRadius)))) {
       // At a way off the map: everyone in it, and the car, out of play (exits.ts).
       if (car.exit !== null) {
         carLeaves(world, ctx, car);
@@ -657,7 +661,12 @@ export function carProcesses(world: World, ctx: Context): void {
 
 /** The street a car can drive onto from where it stands (MapIndex.driveStreet). */
 function driveStreet(world: World, ctx: Context, car: Car): StreetId | null {
-  return ctx.map.driveStreet(car.x, car.y, world.config.behaviour.pathStreetSearch);
+  return ctx.map.driveStreet(car.x, car.y, world.config.behaviour.pathStreetSearch, world.config.cars.width / 2 + world.config.cars.clearance);
+}
+
+/** The street a car can reach a point from, in plain sight of it (MapIndex.driveStreet). */
+function driveTo(world: World, ctx: Context, p: { x: number; y: number }): StreetId | null {
+  return ctx.map.driveStreet(p.x, p.y, world.config.behaviour.pathStreetSearch, world.config.cars.width / 2 + world.config.cars.clearance);
 }
 
 /** The nearest car standing or moving in this car's lane ahead, within a car's length and gap; null if none. */
@@ -711,7 +720,7 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   // street it is on.
   const on = first === null ? driveStreet(world, ctx, car) : null;
   if (on !== null && on !== street) {
-    const fresh = ctx.paths.route(driver, car.destination.x, car.destination.y, false, undefined, on);
+    const fresh = ctx.paths.route(driver, car.destination.x, car.destination.y, false, undefined, on, driveTo(world, ctx, car.destination));
     if (fresh !== null && fresh[0] !== street) {
       car.reroutes++;
       car.route = fresh;
@@ -729,13 +738,13 @@ function reroute(world: World, ctx: Context, car: Car): boolean {
   // Behind it: the end its heading points away from.
   const behind = (a.x - car.x) * c + (a.y - car.y) * s <= (b.x - car.x) * c + (b.y - car.y) * s ? st.a : st.b;
   car.reroutes++;
-  let route = ctx.paths.route(driver, car.destination.x, car.destination.y, false, { node: behind, avoid: street });
+  let route = ctx.paths.route(driver, car.destination.x, car.destination.y, false, { node: behind, avoid: street }, null, driveTo(world, ctx, car.destination));
   if (route === null && car.exit !== null) {
     // Another way off the map: the nearest still open, other than this one.
     const other = nearestExit(world, car.x, car.y, (driver.knownClosed | (1 << car.exit)) >>> 0);
     const e = other === null ? null : world.exits[other]!;
     if (e !== null && e.closedAt === null) {
-      route = ctx.paths.route(driver, e.x, e.y, false, { node: behind, avoid: street });
+      route = ctx.paths.route(driver, e.x, e.y, false, { node: behind, avoid: street }, null, driveTo(world, ctx, e));
       if (route !== null) {
         car.exit = other;
         car.destination = { x: e.x, y: e.y };

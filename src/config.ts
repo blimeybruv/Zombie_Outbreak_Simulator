@@ -763,6 +763,7 @@ export const config = {
     bodySamples: 5,
     reverseSpeed: 1, // m/tick — guess
     reverseSteps: [1, 0.5, 0.25] as number[], // fractions of reverseSpeed tried, backing out from walls — guess
+    backFor: 2, // rad: where it is going this far round from its heading, a car held by walls backs out before trying ahead — guess
     // Stopped backAfter ticks, the road behind it clear: it backs off for backTicks ticks at
     // reverseSpeed — room to drive round what holds it, or to turn back — guess
     backAfter: 15,
@@ -791,9 +792,11 @@ export const config = {
     // Held by walls (no car ahead: a kerb spot round a corner, an alley too tight for it, a
     // street it has drifted off), it takes a fresh way from where it is; behind a queue
     // that has stopped, a police car, SWAT van or ambulance turns back (a civilian waits —
-    // reroute). Stuck rerouteAfter within parkStuck of where it is going, it parks where it
-    // is and its people walk the rest — guesses
+    // reroute). Stuck rerouteAfter within parkStuck of where it is going — or within it,
+    // off its last street, with the spot out of sight — it parks where it is and its people
+    // walk the rest — guesses
     unstuck: 9, // m: two car lengths
+    offStreetEvery: 10, // ticks: how often a car off its route's street checks it has room to reach it (driving.ts) — guess
     parkStuck: 40, // m
     queueLook: 4, // cars along a stopped queue a car looks to see a wreck at its head — guess
     // Engines: a car being driven (moving or stuck) makes a noise every engineInterval
@@ -893,6 +896,7 @@ export const config = {
     // Battering a door it besieges: every `cycle` ticks it backs off for `back` ticks at
     // `pace` of its speed, then comes on into the door again — guess
     ram: { cycle: 8, back: 2, pace: 0.4 },
+    wallTouch: 1.2, // m: an idle zombie this close to a building with the living in it makes for its door — guess
     // Turned from a single bite: survivors register it at intactSight × their sight
     // radius, but never nearer than intactGiveaway (its gait gives it away) — guess
     intactSight: 0.35,
@@ -992,8 +996,12 @@ export const config = {
   buildings: {
     suppliesCap: 60, // per building
     carryCap: 8, // per sim
-    fortifyRate: 0.002, // /tick per builder
-    fortifySupplyTicks: 50, // ticks of building per unit of supplies spent
+    // Building closes (cap − fortification) by fortifyRate a tick per builder: three take a
+    // house from its furniture (0.2) to 0.8 in about four hours (the user: at 0.002, houses
+    // stood nearly fortified within minutes), spending a unit of supplies each
+    // fortifySupplyTicks between them — the same supplies for the same work as before — guess
+    fortifyRate: 0.00003, // /tick per builder
+    fortifySupplyTicks: 3300, // ticks of building per unit of supplies spent
     // Doors (the user's design). Fortification is what stands between the dead and the
     // people inside, and they break in only once it is 0. It never wears away unattended.
     // Every building starts with a shut door worth `shut`; a household that knows of the

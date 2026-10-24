@@ -198,11 +198,13 @@ export class MapIndex {
 
   /**
    * The street a car at (x, y) can drive onto: the nearest by distance to its carriageway,
-   * not its centreline, whose nearest point is in plain sight, within maxDist; lowest id
-   * on ties; failing that, nearestStreet. By centreline, a car stood beside a boulevard
-   * took the alley behind the building at its back, and drove into the wall.
+   * not its centreline, whose nearest point it can see down a clear corridor `half` either
+   * side of the line there, within maxDist; lowest id on ties; failing that, nearestStreet.
+   * By centreline, a car stood beside a boulevard took the alley behind the building at
+   * its back, and drove into the wall; by a bare sight line, a police car squeezed out
+   * through a two-metre gap between buildings.
    */
-  driveStreet(x: number, y: number, maxDist: number): StreetId | null {
+  driveStreet(x: number, y: number, maxDist: number, half: number): StreetId | null {
     const { nodes, streets } = this.world;
     const cols = this.streetCols;
     const max = cols - 1;
@@ -230,8 +232,15 @@ export class MapIndex {
       }
     }
     found.sort((p, q) => p.edge - q.edge || p.id - q.id);
-    for (const f of found) if (f.on || this.lineOfSight(x, y, f.px, f.py)) return f.id;
+    for (const f of found) if (f.on || this.corridor(x, y, f.px, f.py, half)) return f.id;
     return this.nearestStreet(x, y, maxDist);
+  }
+
+  /** Whether the way straight from (x, y) to (px, py) is clear `half` either side of the line: room for a car. */
+  corridor(x: number, y: number, px: number, py: number, half: number): boolean {
+    const len = Math.hypot(px - x, py - y) || 1;
+    const ox = (-(py - y) / len) * half, oy = ((px - x) / len) * half;
+    return this.lineOfSight(x, y, px, py) && this.lineOfSight(x + ox, y + oy, px + ox, py + oy) && this.lineOfSight(x - ox, y - oy, px - ox, py - oy);
   }
 
   private nearestWithin(x: number, y: number, maxDist: number): StreetId | null {

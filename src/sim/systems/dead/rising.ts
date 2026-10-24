@@ -46,7 +46,7 @@ function riseInside(world: World, ctx: Context, b: Building, x: number, y: numbe
   transfer(world, 'unturned.dead', 'turned.occupying');
   world.lastConversionAt = world.tick;
   ctx.events.push({ type: 'bodyRose', tick: world.tick, sim: from?.id ?? null, x, y });
-  if (first) occupierAppeared(world, ctx, b);
+  if (first) occupierAppeared(world, ctx, b, 'inside', from);
 }
 
 /** Step 8, after conversions: the dead whose time has come get up. */

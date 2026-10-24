@@ -133,7 +133,7 @@ export class Inspector {
     r.append(el('div', 'sub', b.district));
     r.append(bar('integrity', b.integrity), bar('fortified', b.fortification));
     const lasts = b.suppliesHours === null ? '' : b.suppliesHours < 0.5 ? b.supplies === 0 ? ', none left' : ', nearly gone' : `, about ${Math.round(b.suppliesHours)} h`;
-    const state = [`supplies ${b.supplies}${lasts}`, b.garrisoned ? 'held' : '', b.breached ? 'breached' : '', b.occupiers > 0 && b.tracked.length > 0 ? 'contested' : ''].filter(Boolean);
+    const state = [`supplies ${b.supplies}${lasts}`, b.garrisoned ? 'held' : '', b.breached === 'door' ? 'breached' : b.breached === 'inside' ? 'overrun from within' : '', b.occupiers > 0 && b.tracked.length > 0 ? 'contested' : ''].filter(Boolean);
     r.append(el('div', 'sub', state.join(' · ')));
     const total = b.residents + b.tracked.length + b.occupiers;
     const grid = el('div', 'squares');

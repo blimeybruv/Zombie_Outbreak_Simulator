@@ -132,7 +132,8 @@ export interface BuildingDetail {
   supplies: number;
   /** How long its supplies would last the people in it, simulated hours; null when nobody eats them. */
   suppliesHours: number | null;
-  breached: boolean;
+  /** How the dead got in, if they have: through the door, or someone inside turned. */
+  breached: 'door' | 'inside' | null;
   garrisoned: boolean;
   /** Anonymous residents present since the start. */
   residents: number;

@@ -116,9 +116,9 @@ function occupierStrike(world: World, ctx: Context, b: Building, sim: Sim): void
  * and contest; the rest start for the door, which takes as long as the
  * barricades they built make it take.
  */
-export function occupierAppeared(world: World, ctx: Context, b: Building): void {
+export function occupierAppeared(world: World, ctx: Context, b: Building, from: 'door' | 'inside', sim: Sim | null = null): void {
   const { config, tick } = world;
-  b.breached = true;
+  b.breached = from;
   b.occupiedAt ??= tick;
   alert(world, b);
   const available = b.residents - queued(b);
@@ -139,7 +139,7 @@ export function occupierAppeared(world: World, ctx: Context, b: Building): void 
       sim.exitingUntil = tick + exitTicks(world, b);
     }
   }
-  ctx.events.push({ type: 'buildingBreached', tick, building: b.id, sim: null });
+  ctx.events.push({ type: from === 'door' ? 'buildingBreached' : 'turnedInside', tick, building: b.id, sim: sim?.id ?? null });
 }
 
 function turnAway(world: World, sim: Sim, b: Building): void {
@@ -374,7 +374,7 @@ function breachRolls(world: World, ctx: Context, b: Building): void {
   z.heardPoint = null;
   b.zombiesInside++;
   transfer(world, 'turned.outdoors', 'turned.occupying');
-  occupierAppeared(world, ctx, b);
+  occupierAppeared(world, ctx, b, 'door');
 }
 
 function drainQueues(world: World, ctx: Context, b: Building): void {

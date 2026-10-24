@@ -122,14 +122,16 @@ export class Pathfinder {
    * consecutive duplicates removed. Waypoints are the nodes shared by consecutive
    * streets; the last leg heads straight for the destination. Null if unreachable.
    * With `back`, it starts on the street `avoid`, leaves it by `node` and never uses it
-   * again: a car turning back from a blocked street (cars.ts reroute). With `start`, it
-   * starts on that street (a car's: the one it can drive onto, MapIndex.driveStreet).
+   * again: a car turning back from a blocked street (cars.ts reroute). With `start` and
+   * `goal`, it starts and ends on those streets (a car's: the ones it can drive between,
+   * MapIndex.driveStreet; by centreline, the street a car ended on could lie behind the
+   * buildings from where it was going, and its last leg ran straight through them).
    */
-  route(sim: Sim, toX: number, toY: number, useMemory: boolean, back?: { node: NodeId; avoid: StreetId }, start?: StreetId | null): StreetId[] | null {
+  route(sim: Sim, toX: number, toY: number, useMemory: boolean, back?: { node: NodeId; avoid: StreetId }, start?: StreetId | null, goal?: StreetId | null): StreetId[] | null {
     const { world, map } = this;
     const search = world.config.behaviour.pathStreetSearch;
     const startStreet = back ? back.avoid : start ?? map.nearestStreet(sim.x, sim.y, search);
-    const goalStreet = map.nearestStreet(toX, toY, search);
+    const goalStreet = goal ?? map.nearestStreet(toX, toY, search);
     if (startStreet === null || goalStreet === null) return null;
     // Turning back: out by `node`, and never along `avoid` again — so no way at all
     // when the goal lies on the street it is turning back from.

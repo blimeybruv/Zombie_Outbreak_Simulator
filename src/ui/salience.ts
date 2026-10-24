@@ -21,6 +21,7 @@ export const BASE = {
   occupationContested: 60,
   buildingRetaken: 50, // not in the reference: the rarest good news there is
   buildingBreached: 40,
+  turnedInside: 40,
   shelterFell: 40,
   suppliesRanOut: 12, // not in the reference: a shelter failing with nothing breaking in — common (most households, in time), so just over the 1× bar
   suppliesDelivered: 25,

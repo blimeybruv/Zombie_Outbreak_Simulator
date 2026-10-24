@@ -177,14 +177,14 @@ function seedOutbreak(world: World, ctx: Context): void {
       const b = pool.splice(i, 1)[0]!;
       total -= b.residents;
       turnResident(world, ctx, b);
-      occupierAppeared(world, ctx, b);
+      occupierAppeared(world, ctx, b, 'inside');
     }
     return;
   }
   const b = originBuildings(world, ctx, 1)[0];
   if (b === undefined || b.residents === 0) return;
   for (let k = 0; k < n && b.residents > 0; k++) turnResident(world, ctx, b);
-  occupierAppeared(world, ctx, b);
+  occupierAppeared(world, ctx, b, 'inside');
 }
 
 export function createWorld(scenario: Scenario, config: Config): { world: World; ctx: Context } {

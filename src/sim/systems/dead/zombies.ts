@@ -108,6 +108,16 @@ function doorAt(world: World, ctx: Context, x: number, y: number): Building | nu
   return null;
 }
 
+/** A building with the living in it and none of the dead, whose wall this zombie is up against; null if none. */
+function peopledWall(world: World, ctx: Context, z: Zombie): Building | null {
+  const r = world.config.zombie.wallTouch;
+  for (const id of ctx.map.buildingsNear(z.x, z.y, r, ctx.buildingIds)) {
+    const b = world.buildings[id]!;
+    if (b.zombiesInside === 0 && b.residents + b.sheltered.length > 0) return b;
+  }
+  return null;
+}
+
 /** Whether another awake zombie is nearer (x, y) than `d`. */
 function crowdNearer(world: World, ctx: Context, z: Zombie, x: number, y: number, d: number): boolean {
   ctx.zombieHash.query(x, y, d, ctx.ids2);
@@ -265,6 +275,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
     }
 
     // Goal direction and pace.
+    let atDoor = false; // battering the door it besieges: no flocking
     let gx = 0;
     let gy = 0;
     let pace = 1;
@@ -296,6 +307,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // arriveRadius it comes on at its pace, below). Staggered by id, so a crowd
         // heaves rather than marching in step (the user's picture of the dead ramming).
         pace = 0;
+        atDoor = true;
         if ((tick + z.id) % zc.ram.cycle < zc.ram.back && d > 0) {
           gx = -dx / d;
           gy = -dy / d;
@@ -337,6 +349,21 @@ export function zombieDecisions(world: World, ctx: Context): void {
         }
         pace = zc.idleSpeedFactor;
       }
+      // Drifted up against a building with the living in it: to its door, to besiege it.
+      // Drifting on up the scent, the dead slid round and round the walls of the houses
+      // the living were in, and never tried the door.
+      const b = peopledWall(world, ctx, z);
+      if (b !== null) {
+        const e = entranceNearest(b, z.x, z.y);
+        z.state = 'active';
+        z.stateUntil = null;
+        z.besieging = b.id;
+        z.besiegeUntil = tick + zc.besiegeTicks;
+        setHeard(z, e.x, e.y);
+        z.heardAt = tick;
+        ctx.zombieSpeed[z.id] = 0;
+        continue;
+      }
       z.heading += (nextFloat(world.rng) - 0.5) * 0.6;
       gx = Math.cos(z.heading);
       gy = Math.sin(z.heading);
@@ -352,7 +379,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
     }
 
     // Flocking with nearby awake zombies: weak cohesion and alignment, repulsion when crowded.
-    if (z.state === 'active') {
+    if (z.state === 'active' && !atDoor) {
       ctx.zombieHash.query(z.x, z.y, zc.flockRadius, ctx.ids2);
       let cx = 0, cy = 0, ax = 0, ay = 0, n = 0, crowd = 0, rx = 0, ry = 0;
       for (const oid of ctx.ids2) {
@@ -367,8 +394,12 @@ export function zombieDecisions(world: World, ctx: Context): void {
         if (z.intact && !o.intact && d <= zc.intactCompany) z.intact = false;
         cx += dx;
         cy += dy;
-        ax += Math.cos(o.heading);
-        ay += Math.sin(o.heading);
+        // Not the heading of one battering a door: it swings back and forth, and the dead
+        // passing by took up the swing, bashing as they went.
+        if (o.besieging === null) {
+          ax += Math.cos(o.heading);
+          ay += Math.sin(o.heading);
+        }
         n++;
         if (d < zc.splinterRadius) {
           crowd++;

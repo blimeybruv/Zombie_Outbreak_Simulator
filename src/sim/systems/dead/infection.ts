@@ -40,6 +40,6 @@ export function convertDue(world: World, ctx: Context): void {
     b.zombiesInside++;
     transfer(world, 'turned.symptomatic', 'turned.occupying');
     ctx.events.push({ type: 'simTurned', tick, sim: sim.id, zombie: z.id, x: sim.x, y: sim.y });
-    occupierAppeared(world, ctx, b);
+    occupierAppeared(world, ctx, b, 'inside', sim);
   }
 }

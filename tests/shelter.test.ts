@@ -46,11 +46,13 @@ describe('fortification', () => {
     expect(b.fortification).toBe(config.buildings.door.shut); // unaware residents do nothing: a shut door
 
     b.alertedAt = world.tick;
-    work(world, ctx, b, 100);
-    expect(b.fortification).toBeGreaterThan(0);
+    work(world, ctx, b, config.buildings.stages.barricadeTicks + 1);
+    expect(b.fortification).toBeCloseTo(config.buildings.door.furniture, 3); // the furniture against the door, free
+    work(world, ctx, b, config.buildings.fortifySupplyTicks);
+    expect(b.fortification).toBeGreaterThan(config.buildings.door.furniture);
     expect(b.supplies).toBeLessThan(4);
 
-    work(world, ctx, b, 400);
+    work(world, ctx, b, 4 * config.buildings.fortifySupplyTicks);
     expect(b.supplies).toBe(0);
     const peak = b.fortification;
     b.scavengerOut = null;

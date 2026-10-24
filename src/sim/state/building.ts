@@ -64,8 +64,14 @@ export interface Building {
   fortification: Unit01;
   /** When it ran out of supplies with people in it (shelter.ts); null while it has some, or nobody to eat them. @range tick | null @unit tick @readBy shelter (moving on), inspector */
   outOfSuppliesAt: Tick | null;
-  /** A zombie has entered; resets once fortification begins after it is retaken. @range true/false @unit — @readBy shelter re-evaluation, inspector, ticker */
-  breached: boolean;
+  /**
+   * How the dead got in, once they have: 'door', worn through it (buildings.ts
+   * breachRolls); 'inside', someone in it turned, or a body rose. Null until then, and
+   * again once fortification begins after it is retaken. Shown alike, a building half
+   * fortified and "breached" read as a door that gave way early.
+   * @range 'door' | 'inside' | null @unit — @readBy shelter re-evaluation, inspector, ticker
+   */
+  breached: 'door' | 'inside' | null;
   /** Interior light, visible from outside at night. @range true/false @unit — @readBy render */
   lit: boolean;
 

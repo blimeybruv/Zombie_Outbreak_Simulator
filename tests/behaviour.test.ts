@@ -938,6 +938,29 @@ describe('the dead', () => {
     expect(sleeper.heardPoint).not.toBeNull();
   });
 
+  it('one that drifts up against the wall of a house with people in it makes for the door, to besiege it', () => {
+    const { world, ctx } = fresh();
+    sizeContext(ctx, world);
+    // Just off a peopled house's wall, open ground there, nobody about.
+    let spot: { x: number; y: number } | null = null;
+    const b = world.buildings.find((x) => {
+      if (x.tag !== 'residential' || x.residents === 0) return false;
+      const minX = Math.min(...x.outline.map((p) => p.x)), cy = x.outline.reduce((a, p) => a + p.y / x.outline.length, 0);
+      spot = { x: minX - 0.6, y: cy };
+      return ctx.map.walkable(spot.x, spot.y) && ctx.map.buildingAt(spot.x, spot.y) === null;
+    })!;
+    const elsewhere = world.buildings.find((x) => x.id !== b.id)!.id;
+    for (const s of world.sims) if (s.insideBuilding === null) s.insideBuilding = elsewhere; // nobody in sight
+    const z = spawnZombie(world, spot!.x, spot!.y, 'active', null, null);
+    while (world.tick % baseConfig.zombie.idleCheckInterval !== z.id % baseConfig.zombie.idleCheckInterval) world.tick++; // its turn to decide
+    z.heardAt = world.tick;
+    rebuildHashes(world, ctx);
+    computePerception(world, ctx);
+    zombieDecisions(world, ctx);
+    expect(z.besieging).toBe(b.id);
+    expect(b.entrances.some((e) => e.x === z.heardPoint!.x && e.y === z.heardPoint!.y)).toBe(true);
+  });
+
   it('one whose quarry goes indoors besieges that door', () => {
     const { world, ctx } = fresh();
     const p = streetPoint(world);
@@ -1134,6 +1157,27 @@ describe('fortification stages', () => {
     }
     expect(breached()).toBe(true);
     expect(b.fortification).toBe(0);
+    expect(b.breached).toBe('door');
+  });
+
+  it('someone turning inside lets the dead loose there whatever the door: told apart from a break-in', () => {
+    const { world, ctx } = fresh();
+    const b = world.buildings.find((x) => x.residents > 0 && x.zombiesInside === 0 && x.tag === 'residential')!;
+    b.fortification = 0.6;
+    const e = b.entrances[0]!;
+    const s = walker(world, e.x, e.y);
+    sizeContext(ctx, world);
+    rebuildHashes(world, ctx);
+    bite(world, ctx, s); // bitten outside, let in before anyone saw
+    s.insideBuilding = b.id;
+    b.sheltered.push(s.id);
+    s.turnsAt = world.tick;
+    convertDue(world, ctx);
+    expect(b.zombiesInside).toBe(1);
+    expect(b.breached).toBe('inside');
+    expect(b.fortification).toBe(0.6);
+    expect(ctx.events.some((x) => x.type === 'turnedInside' && x.building === b.id)).toBe(true);
+    expect(ctx.events.some((x) => x.type === 'buildingBreached')).toBe(false);
   });
 });
 

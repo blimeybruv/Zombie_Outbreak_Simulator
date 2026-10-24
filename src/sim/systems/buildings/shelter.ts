@@ -464,7 +464,7 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
   if (crew > 0 && b.fortification < cap && (canBuild(world, b) || (b.supplies > 0 && doorThreat(world, ctx, b) > 0))) {
     b.fortification += (cap - b.fortification) * Math.min(1, bc.fortifyRate * crew);
     if ((tick + b.id) % bc.fortifySupplyTicks === 0) b.supplies = Math.max(0, b.supplies - crew);
-    if (b.breached) b.breached = false;
+    if (b.breached !== null) b.breached = null;
   }
 
   // A resident goes out when the building needs supplies and nobody tracked is going.
