@@ -20,10 +20,10 @@ export const ROAD_EDGE_ALLEY = '#1e2228'; // a faint kerb on alleys
 export const CENTER_LINE = '#2a2e38'; // a wide road's dashed centre line, near zoom only
 export const STREET_LABEL = 'rgba(190, 200, 210, 0.55)'; // street name labels at mid/near zoom — dim so agents stay brightest
 export const STREET_LIGHT = 'rgba(255, 190, 120, 0.10)'; // far zoom only: a faint warm stroke on lit streets
-export const LAMP_GLOW_CORE = 'rgba(255, 214, 150, 0.45)'; // bright warm centre of the stamped glow, still darker than an agent dot
-export const LAMP_GLOW_MID = 'rgba(255, 196, 130, 0.15)'; // the long falloff, at 22% of the radius
+export const LAMP_GLOW_CORE = 'rgba(255, 214, 150, 0.22)'; // warm centre of the stamped glow, near zoom only, still darker than an agent dot
+export const LAMP_GLOW_MID = 'rgba(255, 196, 130, 0.15)'; // the long falloff, at 22% of the radius; also the mid-zoom centre
 export const LAMP_GLOW_EDGE = 'rgba(255, 180, 110, 0)'; // fades to nothing
-export const LAMP_HEAD = 'rgba(255, 210, 140, 0.45)'; // the head at near zoom: warmer and dimmer than an agent dot
+export const LAMP_HEAD = 'rgba(255, 210, 140, 0.22)'; // the head at near zoom, no brighter than the glow's centre
 export const LIVING = '#dfe7ef';
 export const LIVING_RGB = [223, 231, 239] as const;
 /** Cars: parked (outline), driving (fill), abandoned (dark fill, crossed). */
