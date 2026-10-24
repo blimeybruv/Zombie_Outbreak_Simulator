@@ -470,7 +470,11 @@ export const config = {
   // across the exit's road, `inset` metres in from the barrier by the streets, turning
   // back anyone on foot making for that exit within stopRadius, every `every` ticks.
   // Nobody of its unit within holdRadius, and the checkpoint has fallen, for good — guesses
-  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5 },
+  // A unit's vehicle parks parkShort metres short of the sawhorses, on the city side (it
+  // arrives from there, and the officers stand across the road at the line), clear of
+  // them: a cruiser in the lane, a HMMWV parkAside metres to one side of it, each a
+  // parkStep further back while something already stands in its place.
+  traffic: { officers: 2, inset: 350, stopRadius: 12, holdRadius: 30, every: 5, parkShort: 7, parkAside: 3.5, parkStep: 6, parkClear: 3 },
 
   police: { unitRadius: 25, unitStrength: 0.25, unitMaxThreshold: 0.8, pairGap: 10, shotIgnoreRadius: 15, carNear: 40, carBeyond: 250, carGather: 10, standRatio: 0.25 },
 

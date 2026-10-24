@@ -7,7 +7,7 @@ import { barrierAt } from '../src/sim/systems/outside/cordon';
 import { headForExit } from '../src/sim/systems/outside/exits';
 import { rebuildHashes } from '../src/sim/systems/shared/perception';
 import { squadTarget } from '../src/sim/systems/services/squads';
-import { updateTraffic } from '../src/sim/systems/services/traffic';
+import { parkingSpot, updateTraffic } from '../src/sim/systems/services/traffic';
 import { assertInvariant } from '../src/sim/tick';
 import { spawnSim } from '../src/sim/spawn';
 import type { Sim } from '../src/sim/state';
@@ -42,7 +42,11 @@ describe('traffic police', () => {
     updateTraffic(world, ctx);
     expect(world.checkpointsAt).toBe(world.tick);
     const t = squadTarget(world, ctx, leader)!;
-    expect([t.x, t.y]).toEqual([world.checkpoints[0]!.x, world.checkpoints[0]!.y]);
+    const p = parkingSpot(world, world.checkpoints[0]!, false);
+    expect([t.x, t.y]).toEqual([p.x, p.y]);
+    // Parked short of the sawhorses, on the city side, clear of them.
+    const c = world.checkpoints[0]!;
+    expect((p.x - c.x) * c.dx + (p.y - c.y) * c.dy).toBeLessThan(-config.cars.length / 2);
   });
 
   it('set, turn back anyone on foot making for their exit; with none of the unit left there, fall for good', () => {
@@ -117,8 +121,12 @@ describe('traffic police', () => {
     expect(ka).not.toBeNull();
     expect(kb).not.toBe(ka);
     expect(squads[0]!.every((m) => m.checkpoint === ka)).toBe(true);
-    expect([a.x, a.y]).toEqual([world.checkpoints[ka]!.x, world.checkpoints[ka]!.y]);
-    expect([b.x, b.y]).toEqual([world.checkpoints[kb]!.x, world.checkpoints[kb]!.y]);
+    const pa = parkingSpot(world, world.checkpoints[ka]!, true), pb = parkingSpot(world, world.checkpoints[kb]!, true);
+    expect([a.x, a.y]).toEqual([pa.x, pa.y]);
+    expect([b.x, b.y]).toEqual([pb.x, pb.y]);
+    // Beside where the police cruiser parks, not on it.
+    const pc = parkingSpot(world, world.checkpoints[ka]!, false);
+    expect(Math.hypot(pa.x - pc.x, pa.y - pc.y)).toBeGreaterThanOrEqual(config.traffic.parkAside - 1e-9);
   });
 
   it('a fallen checkpoint is set again by reservists reaching it', () => {

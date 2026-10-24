@@ -275,7 +275,7 @@ function takeable(world: World, car: Car): boolean {
   if (car.kind === 'car') return true;
   if (car.home === null) return false;
   if (car.kind === 'ambulance') return !world.sims.some((s) => s.crew === car.id && isLiving(s));
-  if (car.kind === 'hmmwv') return !world.sims.some((s) => s.archetype === 'reservist' && !s.outsider && s.depot === car.home && isLiving(s));
+  if (car.kind === 'hmmwv') return world.calledUpAt !== null && !world.sims.some((s) => s.archetype === 'reservist' && !s.outsider && s.depot === car.home && isLiving(s)); // before the call-up the reserve is anonymous, not gone
   return !world.sims.some((s) => s.station === car.home && isLiving(s));
 }
 

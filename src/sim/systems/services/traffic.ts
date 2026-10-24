@@ -19,7 +19,7 @@
 
 import type { Context } from '../../context';
 import { makePolice, spawnSim, takeStaff } from '../../spawn';
-import type { Building, Checkpoint, Sim, World } from '../../state';
+import type { Building, Checkpoint, Sim, Vec2, World } from '../../state';
 import type { Adjacent } from '../../navigation/runtime';
 import { isOutdoorLiving } from '../../context';
 import { isLiving } from '../shared/common';
@@ -129,6 +129,21 @@ export function placeTraffic(world: World, ctx: Context): void {
     }
     if (config.features.cars) parkVan(world, ctx, b, 'cruiser');
   });
+}
+
+/**
+ * Where a unit's vehicle stops at a checkpoint: short of the sawhorses on the city side,
+ * a cruiser in the lane, a reservists' HMMWV beside it; a step further back for each
+ * vehicle already standing in the way (one left by an earlier unit).
+ */
+export function parkingSpot(world: World, c: Checkpoint, reservists: boolean): Vec2 {
+  const tc = world.config.traffic;
+  const aside = reservists ? tc.parkAside : 0;
+  for (let k = 0; ; k++) {
+    const back = tc.parkShort + k * tc.parkStep;
+    const p = { x: c.x - c.dx * back - c.dy * aside, y: c.y - c.dy * back + c.dx * aside };
+    if (k >= tc.inset / tc.parkStep || !world.cars.some((v) => v.state !== 'driving' && v.state !== 'gone' && Math.hypot(v.x - p.x, v.y - p.y) < tc.parkClear)) return p;
+  }
 }
 
 /** Whether a checkpoint is up: set and not fallen. */

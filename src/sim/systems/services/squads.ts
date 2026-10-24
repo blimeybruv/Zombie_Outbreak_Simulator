@@ -28,6 +28,7 @@ import { isFirearm } from '../../state';
 import { outOfAmmo, restock } from '../fighting/arms';
 import { capacity, isLiving, leaveTalk } from '../shared/common';
 import { boardSquad, parkVan } from './cars';
+import { parkingSpot } from './traffic';
 import { nearestExit } from '../outside/exits';
 
 const armouryCache = new WeakMap<readonly unknown[], BuildingId[]>();
@@ -579,16 +580,17 @@ export function resolveTarget(world: World, sim: Sim): void {
 export function squadTarget(world: World, ctx: Context, sim: Sim): SquadTarget | null {
   if (world.checkpointsAt !== null && sim.checkpoint === null && sim.archetype === 'reservist' && !sim.outsider) claimCheckpoint(world, sim);
   if (sim.checkpoint !== null) {
-    const c = world.checkpoints[sim.checkpoint]!;
+    // To where its vehicle parks, behind the checkpoint; standing there, the checkpoint is its post (sims.ts).
     if (world.checkpointsAt === null) return null;
-    if (sim.destination === null || sim.destination.x !== c.x || sim.destination.y !== c.y) {
-      sim.destination = { x: c.x, y: c.y };
+    const p = parkingSpot(world, world.checkpoints[sim.checkpoint]!, sim.archetype === 'reservist');
+    if (sim.destination === null || sim.destination.x !== p.x || sim.destination.y !== p.y) {
+      sim.destination = { x: p.x, y: p.y };
       sim.destinationBuilding = null;
       sim.destinationKind = 'respond';
       sim.route = [];
       sim.routeIndex = 0;
     }
-    return { x: c.x, y: c.y, building: null };
+    return { x: p.x, y: p.y, building: null };
   }
   if (sim.station !== null) return swatTarget(world, ctx, sim);
   return null;
