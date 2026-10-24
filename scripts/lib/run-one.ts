@@ -217,7 +217,7 @@ const survived = (s: { condition: string }) => s.condition === 'healthy' || s.co
 export const GATE_LOSS = { min: 0.4, max: 0.95 } as const;
 
 /** Events that count as something happening, for the stasis check. */
-const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'suppliesDelivered', 'buildingBreached']);
+const ACTIVITY = new Set(['simTurned', 'simDied', 'zombieDestroyed', 'suppliesDelivered', 'buildingBreached', 'turnedInside']);
 
 /** Deep-sets `a.b.c=value` overrides on a copy of the config. */
 export function withOverrides(overrides: Record<string, unknown>): Config {
