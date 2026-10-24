@@ -254,6 +254,9 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
+  /** Depot buildings (tag depot): a thicker blue outline, a faint fill, and a centre cross. */
+  private readonly depotPath: Path2D;
+  private readonly depots: { x: number; y: number; span: number }[];
   private readonly riverPath: Path2D;
   /** Scenery cars on the border motorway, drawn from simulation time alone. */
   private readonly traffic: Traffic;
@@ -312,6 +315,8 @@ export class Renderer {
     this.staticLayer = document.createElement('canvas');
     this.carLayer = document.createElement('canvas');
     this.outlinePath = new Path2D();
+    this.depotPath = new Path2D();
+    this.depots = [];
     const o = map.outlines;
     const n = o.length / 8;
     // Hospitals' Ls and schools' Us, cut once from the back of their plots.
@@ -330,10 +335,16 @@ export class Renderer {
     this.bounds = new Float32Array(n * 4);
     for (let i = 0; i < n; i++) {
       const k = i * 8;
-      this.addBuilding(this.outlinePath, i);
       const xs = [o[k]!, o[k + 2]!, o[k + 4]!, o[k + 6]!];
       const ys = [o[k + 1]!, o[k + 3]!, o[k + 5]!, o[k + 7]!];
-      this.bounds.set([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], i * 4);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+      this.bounds.set([minX, minY, maxX, maxY], i * 4);
+      if (map.buildingDepot[i]) {
+        this.addBuilding(this.depotPath, i);
+        this.depots.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, span: Math.min(maxX - minX, maxY - minY) });
+      } else {
+        this.addBuilding(this.outlinePath, i);
+      }
     }
     this.riverPath = new Path2D();
     map.river.centreline.forEach((p, i) => (i === 0 ? this.riverPath.moveTo(p.x, p.y) : this.riverPath.lineTo(p.x, p.y)));
@@ -709,6 +720,28 @@ export class Renderer {
     g.strokeStyle = P.BUILDING_OUTLINE;
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
+    if (this.depots.length > 0) {
+      g.fillStyle = P.DEPOT_FILL;
+      g.fill(this.depotPath);
+      g.strokeStyle = P.DEPOT_OUTLINE;
+      g.lineWidth = 1.8 / (cam.scale * dpr);
+      g.stroke(this.depotPath);
+      // A cross at the centre. Far zoom leaves it out: at that scale it is a speck.
+      if (!far) {
+        g.beginPath();
+        for (const d of this.depots) {
+          const arm = Math.min(d.span * 0.36, Math.max(2.2, 6 / (cam.scale * dpr)));
+          g.moveTo(d.x - arm, d.y);
+          g.lineTo(d.x + arm, d.y);
+          g.moveTo(d.x, d.y - arm);
+          g.lineTo(d.x, d.y + arm);
+        }
+        g.lineWidth = 1.1 / (cam.scale * dpr);
+        g.stroke();
+      }
+      g.strokeStyle = P.BUILDING_OUTLINE;
+      g.lineWidth = 1 / (cam.scale * dpr);
+    }
     g.stroke(this.bridgeRails);
     // The abutments: heavier than a rail, the bridge set into the bank.
     g.lineWidth = Math.max(2.5 / (cam.scale * dpr), 1); // 2.5 px, or a metre once that is wider
