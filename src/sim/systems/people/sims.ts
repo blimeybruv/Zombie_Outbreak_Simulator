@@ -288,7 +288,10 @@ function resolveCornered(world: World, ctx: Context, sim: Sim): void {
   // after a freeze: out of it, it runs. Re-freezing whenever a freeze ran out, a crowd
   // with one zombie among them stood and froze by turns while it bit each in turn.
   const thawing = sim.thawedAt !== null && world.tick - sim.thawedAt < world.config.cornered.refreeze;
-  if (!thawing && breaks(sim, world.config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze');
+  if (!thawing && breaks(sim, world.config, ctx.company[sim.id]!)) {
+    sim.nerveBroken++;
+    return takeStand(world, sim, 'freeze');
+  }
   if (capacity(world, sim) > 0) return takeStand(world, sim, 'fight');
   const { buildings } = world;
   let door: Building | null = null;
@@ -685,7 +688,10 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // gave up again: frozen by turns, bitten one by one.
   const nc = config.nerve;
   const thawing = sim.thawedAt !== null && tick - sim.thawedAt < config.cornered.refreeze;
-  if (threat > 0 && !thawing && sim.stamina <= nc.collapseStamina && breaks(sim, config, ctx.company[sim.id]!)) return takeStand(world, sim, 'freeze', nc.collapseTicks);
+  if (threat > 0 && !thawing && sim.stamina <= nc.collapseStamina && breaks(sim, config, ctx.company[sim.id]!)) {
+    sim.nerveBroken++;
+    return takeStand(world, sim, 'freeze', nc.collapseTicks);
+  }
 
   // Backing off from a blocked way, until the hold ends, whatever else would apply:
   // a panicked sim that ran for the same door again, or someone who engages turning

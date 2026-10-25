@@ -8,6 +8,7 @@ import type { Building, Sim, World } from '../src/sim/state';
 import { evaluateRole } from '../src/sim/systems/buildings/shelter';
 import { bite } from '../src/sim/systems/fighting/combat';
 import { buildSpeed, buildWaste, groupPeak, turnFactor } from '../src/sim/systems/people/traits';
+import { seasoned } from '../src/sim/systems/people/panic';
 import { computePerception, rebuildHashes } from '../src/sim/systems/shared/perception';
 
 function fresh() {
@@ -59,6 +60,22 @@ describe('the four traits', () => {
     s.handiness = 0;
     expect(buildSpeed(world, s)).toBeLessThan(1);
     expect(buildWaste(world, s)).toBeGreaterThan(1);
+  });
+
+  it('nerve steadies once it has gone grace times: growing used to the dead', () => {
+    const { world } = fresh();
+    const s = world.sims.find((x) => x.archetype === 'civilian')!;
+    s.nerve = 0.4;
+    const h = config.nerve.habituation;
+    for (let n = 0; n <= h.grace; n++) {
+      s.nerveBroken = n;
+      expect(seasoned(s, config)).toBe(0.4); // the first times, at full effect
+    }
+    s.nerveBroken = h.grace + 1;
+    expect(seasoned(s, config)).toBeCloseTo(0.4 + 0.6 * h.fade, 9);
+    s.nerveBroken = h.grace + 20;
+    expect(seasoned(s, config)).toBeGreaterThan(0.99);
+    expect(seasoned(s, config)).toBeLessThanOrEqual(1);
   });
 
   it('the resilient take longer to turn once bitten', () => {

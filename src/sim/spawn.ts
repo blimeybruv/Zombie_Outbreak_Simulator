@@ -229,6 +229,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     stand: null,
     standUntil: null,
     thawedAt: null,
+    nerveBroken: 0,
     turnedFrom: null,
     turnedFromUntil: null,
     refusedBy: null,

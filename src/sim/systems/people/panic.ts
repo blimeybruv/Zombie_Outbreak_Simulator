@@ -38,7 +38,19 @@ export function breaks(sim: Sim, config: Config, company: number): boolean {
   if (config.archetypes[sim.archetype].panicImmune || sim.outsider) return false; // trained soldiers from outside hold
   const cc = config.company;
   const steadied = config.features.company && company > 0 ? cc.nerve * sim.sociality * (Math.min(company, cc.cap) / cc.cap) : 0;
-  return sim.panic > Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0) + steadied;
+  return sim.panic > seasoned(sim, config) + steadied;
+}
+
+/**
+ * Its nerve, held up to nerve.floor for those trained to it, and steadied by the dead it
+ * has already frozen at (the user's idea: growing used to them): the first `grace` times
+ * at full effect, then each closes `fade` of what is left between it and unbreakable.
+ */
+export function seasoned(sim: Sim, config: Config): number {
+  const nerve = Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0);
+  const h = config.nerve.habituation;
+  const past = Math.max(0, sim.nerveBroken - h.grace);
+  return nerve + (1 - nerve) * (1 - (1 - h.fade) ** past);
 }
 
 export function updatePanic(world: World, ctx: Context): void {

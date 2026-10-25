@@ -325,6 +325,12 @@ export interface Sim {
   standUntil: Tick | null;
   /** When it last came out of a freeze; for cornered.refreeze ticks after, cornered again, it runs for a door instead of freezing again. @range tick | null @unit tick @readBy sim decisions (cornered) */
   thawedAt: Tick | null;
+  /**
+   * How many times its nerve has gone — frozen in shock, or given up exhausted. Past
+   * nerve.habituation.grace, it has grown used to the dead, and its nerve steadies with
+   * each (panic.ts breaks). @range 0+ @unit count @readBy panic (breaks)
+   */
+  nerveBroken: Count;
   /** The door it last turned away from, its way there blocked, or that refused it before refusedBy did; not run for again until turnedFromUntil (behaviour.turnedFromHold after). @range building id | null @unit id @readBy sim decisions (flight, way blocked) */
   turnedFrom: BuildingId | null;
   /** @range tick | null @unit tick @readBy sim decisions (flight, way blocked) */

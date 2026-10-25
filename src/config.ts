@@ -298,9 +298,12 @@ export const config = {
   // passes it (panic.ts breaks). Cornered, a sim whose nerve has gone freezes in shock,
   // armed or not; with the way blocked it will not stand to fight; exhausted (stamina
   // at most collapseStamina) with danger in sight, it gives up and stays down
-  // collapseTicks. Those trained to it are held up to `floor` — guesses
+  // collapseTicks. Those trained to it are held up to `floor`. Habituation (the user's
+  // idea): the first `grace` times its nerve goes, at full effect; then each closes `fade`
+  // of what is left between its nerve and unbreakable — growing used to the dead — guesses
   nerve: {
     floor: { police: 0.8, reservist: 0.6 } as Partial<Record<string, number>>,
+    habituation: { grace: 5, fade: 0.3 },
     collapseStamina: 0.05,
     collapseTicks: 120,
   },
