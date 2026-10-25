@@ -65,7 +65,7 @@ export function exitArrivals(world: World, ctx: Context): void {
     if (shut(e)) {
       // The cordon: nobody passes the barrier — but someone round its flank, at the edge, is out.
       if (sim.crossing === null || (e.x - sim.x) * e.dx + (e.y - sim.y) * e.dy > reach) continue;
-      ctx.events.push({ type: 'cordonEvaded', tick: world.tick, sim: sim.id, x: sim.x, y: sim.y });
+      ctx.events.push({ type: 'cordonEvaded', tick: world.tick, sim: sim.id, x: sim.x, y: sim.y, over: sim.crossing === 0 });
       leaveMap(world, ctx, sim);
       continue;
     }

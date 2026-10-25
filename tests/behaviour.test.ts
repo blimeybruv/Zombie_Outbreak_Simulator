@@ -999,6 +999,47 @@ describe('the dead', () => {
     expect(ctx.map.buildingAt(z.heardPoint!.x, z.heardPoint!.y)).toBeNull();
   });
 
+  it('one besieging a long building from behind goes round the corner to the door, not into the back wall', () => {
+    const { world, ctx } = fresh();
+    sizeContext(ctx, world);
+    // A long building standing clear; a spot a metre off its back wall, opposite its first door.
+    let spot: { x: number; y: number } | null = null;
+    const b = world.buildings.find((x) => {
+      const n = x.outline.length;
+      if (!x.outline.some((p, i) => Math.hypot(p.x - x.outline[(i + 1) % n]!.x, p.y - x.outline[(i + 1) % n]!.y) > 40)) return false;
+      const cx = x.outline.reduce((a, p) => a + p.x / n, 0), cy = x.outline.reduce((a, p) => a + p.y / n, 0);
+      const corners = x.outline.map((p) => {
+        const l = Math.hypot(p.x - cx, p.y - cy);
+        return { x: p.x + ((p.x - cx) / l) * 3, y: p.y + ((p.y - cy) / l) * 3 };
+      });
+      if (!corners.every((c, i) => ctx.map.walkable(c.x, c.y) && ctx.map.lineOfSight(c.x, c.y, corners[(i + 1) % n]!.x, corners[(i + 1) % n]!.y))) return false;
+      const e = x.entrances[0]!;
+      const l = Math.hypot(cx - e.x, cy - e.y);
+      const reach = Math.max(...x.outline.map((p) => ((p.x - cx) * (cx - e.x) + (p.y - cy) * (cy - e.y)) / l));
+      spot = { x: cx + ((cx - e.x) / l) * (reach + 1), y: cy + ((cy - e.y) / l) * (reach + 1) };
+      return ctx.map.walkable(spot.x, spot.y);
+    })!;
+    const elsewhere = world.buildings.find((x) => x.id !== b.id)!.id;
+    for (const s of world.sims) if (s.insideBuilding === null) s.insideBuilding = elsewhere; // nobody in sight
+    b.residents = Math.max(b.residents, 1);
+    const z = spawnZombie(world, spot!.x, spot!.y, 'active', null, null);
+    const door = ctx.map.outside(b.id, 0, baseConfig.zombie.doorStand);
+    z.besieging = b.id;
+    z.besiegeUntil = world.tick + 10_000;
+    z.heardPoint = { x: door.x, y: door.y };
+    z.heardAt = world.tick;
+    let reached = -1;
+    for (let t = 0; t < 300 && reached < 0; t++) {
+      world.tick++;
+      rebuildHashes(world, ctx);
+      computePerception(world, ctx);
+      zombieDecisions(world, ctx);
+      integrateMovement(world, ctx);
+      if (Math.hypot(z.x - door.x, z.y - door.y) <= baseConfig.zombie.arriveRadius) reached = t;
+    }
+    expect(reached).toBeGreaterThanOrEqual(0);
+  });
+
   it('one whose quarry goes indoors besieges that door', () => {
     const { world, ctx } = fresh();
     const p = streetPoint(world);

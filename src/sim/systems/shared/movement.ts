@@ -59,6 +59,14 @@ function crossesFence(x0: number, y0: number, x1: number, y1: number): boolean {
   return false;
 }
 
+/** Whether (x, y) is within `depth` m of a closed barrier's line, within its span: climbing it. */
+function onFence(x: number, y: number, depth: number): boolean {
+  for (const f of fences) {
+    if (Math.abs((x - f.x) * f.dx + (y - f.y) * f.dy) <= depth && Math.abs(-(x - f.x) * f.dy + (y - f.y) * f.dx) <= f.half) return true;
+  }
+  return false;
+}
+
 /** Whether this mover is held by the barriers: everyone living but soldiers, those let through to a tent, and those pressing on round. */
 let fenced = false;
 
@@ -171,7 +179,7 @@ export function integrateMovement(world: World, ctx: Context): void {
     sim.pace += (target - sim.pace) * rate;
     if (target === 0 && sim.pace < inertia.rest) sim.pace = 0;
     fenced = fences.length > 0 && !sim.outsider && sim.tent === null && sim.crossing === null;
-    step(ctx, sim, sim.heading, sim.pace, mv.slideSpeed, mv.climb);
+    step(ctx, sim, sim.heading, sim.crossing === 0 && onFence(sim.x, sim.y, config.cordon.climb.depth) ? sim.pace * mv.climb.share : sim.pace, mv.slideSpeed, mv.climb);
   }
   fenced = false;
 

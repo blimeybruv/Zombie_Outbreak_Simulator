@@ -121,6 +121,21 @@ describe('the cordon', () => {
     s.y = b.y - e.dy * d;
   }
 
+  it('one come up against the barrier unwarned, its soldiers out of ammunition, climbs over it and is out', () => {
+    const { world, ctx, e, s } = closed();
+    for (const x of world.sims) if (x.outsider) x.ammo = 0;
+    standAt(world, s, e, 3);
+    headForExit(world, s);
+    let over = false;
+    for (let k = 0; k < 300 && s.condition === 'healthy'; k++) {
+      step(world, ctx, { checkInvariant: true });
+      if (world.events.some((v) => v.type === 'cordonEvaded' && v.sim === s.id && v.over)) over = true;
+    }
+    expect(s.firedOnAt).toBeNull();
+    expect(s.condition).toBe('evacuated');
+    expect(over).toBe(true);
+  });
+
   it('one making for a closed exit is warned off with a shot, not hit, and gives the exit up', () => {
     const { world, ctx, e, s } = closed();
     s.trust = 1; // the trusting never defy

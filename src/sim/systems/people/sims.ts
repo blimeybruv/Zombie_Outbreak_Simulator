@@ -28,7 +28,7 @@ import { functionalProfile } from '../../mapgen/generate';
 import { noteStreet, remember } from '../../navigation/memory';
 import { dangerAhead, followRoute, headFor, steerAway, steerToward } from './steering';
 import { chance, nextFloat, nextInt } from '../../lib/rng';
-import type { Building, Sim, Stand, StreetId, World } from '../../state';
+import type { Building, Exit, Sim, Stand, StreetId, Vec2, World } from '../../state';
 import { isFirearm } from '../../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
@@ -43,7 +43,7 @@ import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '..
 import { callAmbulance, decideEmt, decidePatient } from '../services/emt';
 import { rideHome, rideToCall } from '../services/dispatch';
 import { parkingSpot } from '../services/traffic';
-import { barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
+import { atBarrier, barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
 import { answersRescue, queueSlot, reachesQueue, tentsAt } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
 import { claustrophobia, diehard, shuns } from './traits';
@@ -723,8 +723,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // Going round it already, it keeps going, at a sprint: panic does not undo the choice.
     if (sim.crossing !== null && sim.destinationKind === 'leave' && sim.destination !== null) {
       const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
-      const f = flank(world, e, sim.crossing);
-      const to = pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
+      const to = crossTo(world, e, sim);
       steerToward(sim, to.x, to.y);
       return;
     }
@@ -899,8 +898,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     if (shut(e)) {
       // Pressing on round it: along the kerb to beside the barrier's end, then out (exits.ts).
       if (sim.crossing !== null) {
-        const f = flank(world, e, sim.crossing);
-        const to = pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
+        const to = crossTo(world, e, sim);
         sim.gait = threat > 0 || sim.firedOnAt !== null ? 'run' : 'walk';
         steerToward(sim, to.x, to.y);
         return;
@@ -959,6 +957,13 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
           clearDestination(sim);
           sim.destinationKind = null;
         }
+        return;
+      }
+      // Up against the barrier itself, unwarned — its soldiers out of ammunition, or busy:
+      // over it, as over a car (movement.ts). Held by it, the claustrophobes stood
+      // pressed against the line of a squad with nothing left to fire.
+      if (!holdsFire(world, i) && atBarrier(world, e, sim.x, sim.y)) {
+        sim.crossing = 0;
         return;
       }
       // Not there yet, or not yet warned: on toward it by the streets, the way it would go
@@ -1246,4 +1251,10 @@ export function simDecisions(world: World, ctx: Context): void {
   }
   drainRepathQueue(world, ctx);
   decideCars(world, ctx);
+}
+
+/** Where someone getting past a closed barrier makes for next: round it, the kerb beside its end and then the road's end on that kerb; over it, straight on out. */
+function crossTo(world: World, e: Exit, sim: Sim): Vec2 {
+  const f = flank(world, e, sim.crossing!);
+  return sim.crossing !== 0 && pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
 }

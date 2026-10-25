@@ -92,7 +92,9 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'cordonWounded':
       return `Soldiers at the cordon on ${n.place} shot ${n.name ?? 'someone'} near their barrier. Wounded, they turned back.`;
     case 'cordonEvaded':
-      return `${n.name ?? 'Someone'} got around the soldiers on ${n.place} and out of the city.`;
+      return e.over
+        ? `${n.name ?? 'Someone'} climbed the soldiers' barrier on ${n.place} and got out of the city.`
+        : `${n.name ?? 'Someone'} got around the soldiers on ${n.place} and out of the city.`;
     case 'simLeft':
       return n.name ? `${n.name} got out of the city on ${n.place}.` : null;
     case 'ambulanceDispatched':

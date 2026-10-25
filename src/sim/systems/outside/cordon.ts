@@ -16,6 +16,8 @@
 //   warned    a person making for the exit gives it up, for another or for shelter;
 //             the less trusting may press on round the barrier along the kerb, under
 //             fire, and out at the edge (sims.ts, exits.ts)
+//   climbed   anyone who comes up against the barrier unwarned — its soldiers out of
+//             ammunition, or busy — climbs over it, as over a car, and is out
 //   rescue    at the rescue's exit, once the rescue has come, nobody is fired on:
 //             those answering the broadcast wait at the barrier for a truck
 
@@ -45,9 +47,10 @@ export function queueAt(world: World, e: Exit): { x: number; y: number } {
 
 /**
  * Getting round a closed barrier on one side of the road: `beside`, on the kerb level
- * with the barrier's end, then `out`, on the same kerb at the edge of the map.
+ * with the barrier's end, then `out`, on the same kerb at the edge of the map. Side 0 is
+ * over it: the barrier's middle, then the road's end.
  */
-export function flank(world: World, e: Exit, side: 1 | -1): { beside: Vec2; out: Vec2 } {
+export function flank(world: World, e: Exit, side: 1 | -1 | 0): { beside: Vec2; out: Vec2 } {
   const w = world.streets[e.street]!.width / 2 + world.config.cordon.kerb;
   const nx = -e.dy * side * w, ny = e.dx * side * w;
   const b = barrierAt(world, e);
@@ -58,6 +61,14 @@ export function flank(world: World, e: Exit, side: 1 | -1): { beside: Vec2; out:
 export function pastBarrier(world: World, e: Exit, x: number, y: number): number {
   const b = barrierAt(world, e);
   return (x - b.x) * e.dx + (y - b.y) * e.dy;
+}
+
+/** Whether a point is up against an exit's barrier: just inside it, within its span. */
+export function atBarrier(world: World, e: Exit, x: number, y: number): boolean {
+  const b = barrierAt(world, e);
+  const p = (x - b.x) * e.dx + (y - b.y) * e.dy;
+  const across = Math.abs(-(x - b.x) * e.dy + (y - b.y) * e.dx);
+  return p <= 0 && p >= -world.config.cordon.climb.reach && across <= world.streets[e.street]!.width / 2 + world.config.cordon.kerb;
 }
 
 /** Whether a point is within the soldiers' warning distance of an exit's barrier. */

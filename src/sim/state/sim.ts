@@ -437,8 +437,8 @@ export interface Sim {
   screenedUntil: Tick | null;
   /** Exits this sim has found closed, as bits (1 << exit index). @range 0–7 @unit bits @readBy leaving (choice of exit) */
   knownClosed: number;
-  /** Pressing on round a closed exit's barrier along the kerb, warned off and defying it, on this side of the road (1 or -1, across it from the exit's outward direction); null otherwise. @range 1 | -1 | null @unit side @readBy leaving (crossing), combat (firing back) */
-  crossing: 1 | -1 | null;
+  /** Pressing on past a closed exit's barrier: round it along the kerb, warned off and defying it, on this side of the road (1 or -1, across it from the exit's outward direction), or 0, climbing over it, come up against it unwarned; null otherwise. @range 1 | -1 | 0 | null @unit side @readBy leaving (crossing), movement (climbing), combat (firing back) */
+  crossing: 1 | -1 | 0 | null;
   /** The last tick a cordon soldier fired at this sim — a warning shot or aimed fire; null if never. @range tick | null @unit tick @readBy leaving (warned off), combat (warning cadence, returning fire) */
   firedOnAt: Tick | null;
   /** When it last went into a building; null before it ever has. @range tick | null @unit tick @readBy building exits (panic expulsion settles) */
