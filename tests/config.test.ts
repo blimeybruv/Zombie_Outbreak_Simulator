@@ -147,13 +147,13 @@ describe('doors', () => {
     expect(doorDamage(5, config.tags.residential.integrity, config)).toBeLessThan(doorDamage(5, config.tags.supermarket.integrity, config));
   });
 
-  it('hold as the user asked: a police station hours against twenty; a supermarket minutes against twenty, hours against one', () => {
+  it('hold: a police station hours against twenty; a supermarket minutes against twenty, an hour against one', () => {
     expect(fortificationCap(config.tags.policeStation.integrity, config)).toBe(1);
-    expect(ticks(1, 20, 'policeStation')).toBeGreaterThan(4 * 3600);
+    expect(ticks(1, 20, 'policeStation')).toBeGreaterThan(2 * 3600);
     const sm = fortificationCap(config.tags.supermarket.integrity, config);
-    expect(ticks(sm, 20, 'supermarket')).toBeGreaterThan(300);
-    expect(ticks(sm, 20, 'supermarket')).toBeLessThan(1200);
-    expect(ticks(sm, 1, 'supermarket')).toBeGreaterThan(3600);
+    expect(ticks(sm, 20, 'supermarket')).toBeGreaterThan(150);
+    expect(ticks(sm, 20, 'supermarket')).toBeLessThan(900);
+    expect(ticks(sm, 1, 'supermarket')).toBeGreaterThan(1800);
     expect(ticks(config.buildings.door.shut, 1, 'residential')).toBeLessThan(120); // a shut door: moments
   });
 

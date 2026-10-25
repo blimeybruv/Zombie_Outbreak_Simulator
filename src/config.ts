@@ -1055,13 +1055,13 @@ export const config = {
     // and repair it under attack with any supplies left. The dead at a door take
     // rate × n^crowd × (1 − integrity)^weakness of it a tick (breach.ts doorDamage),
     // steadily. With integrity cut (the user: houses slashed, police stations and gun shops
-    // lessened), a fully fortified police station (0.8) holds 20 of the dead for about six
-    // hours and a gun shop (0.7) two and a half; a fully barricaded supermarket (0.35,
-    // capped at 0.3) holds one for two hours and 20 for ten minutes; a house (0.45, at most
-    // reinforced) with its furniture up holds one for two hours and ten for a quarter of an
-    // hour; a shut house door holds one for half a minute. Repairs stretch all of these —
-    // guesses
-    door: { shut: 0.001, furniture: 0.2, rate: 9.86e-5, crowd: 0.83, weakness: 2 },
+    // lessened) and the rate doubled once quarantine was in (the outbreak fell under gate
+    // 2), a fully fortified police station (0.8) holds 20 of the dead for about three hours
+    // and a gun shop (0.7) one and a quarter; a fully barricaded supermarket (0.35, capped at
+    // 0.3) holds one for an hour and 20 for five minutes; a house (0.45, at most reinforced)
+    // with its furniture up holds one for an hour and ten for eight minutes; a shut house
+    // door holds one for a few seconds. Repairs stretch all of these — guesses
+    door: { shut: 0.001, furniture: 0.2, rate: 1.97e-4, crowd: 0.83, weakness: 2 },
     exitTicksPerFortification: 40, // exit costs fortification * this
     // Fortification stages, for the inspector, the garrison and leaving. Barricaded: the
     // people inside, knowing of the outbreak, have shoved furniture against the door —
