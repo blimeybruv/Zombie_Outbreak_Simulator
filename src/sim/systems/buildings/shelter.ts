@@ -19,6 +19,7 @@ import { remember } from '../../navigation/memory';
 import { spawnSim } from '../../spawn';
 import type { Building, BuildingBelief, BuildingId, Sim, World } from '../../state';
 import { armAtGunShop, loot } from '../fighting/arms';
+import { agoraphobia, buildSpeed, buildWaste, clings, diehard, groupPeak, shuns } from '../people/traits';
 import { fortificationCap } from './breach';
 import { recognisedWithin } from '../shared/perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from '../shared/common';
@@ -78,7 +79,7 @@ export function desirability(world: World, sim: Sim, b: Building, belief: Buildi
     w.integrity * m.integrity * config.tags[functionalProfile(b.tag, config)].integrity +
     w.fortification * m.fortification * (belief ? belief.fortification : b.fortification) +
     w.streetQuiet * m.streetQuiet * (1 - danger) +
-    w.group * m.group * groupTerm(occupants, config.shelter.groupPeak) +
+    w.group * m.group * groupTerm(occupants, groupPeak(world, sim)) +
     w.supplies * m.supplies * Math.min(1, (belief ? belief.supplies : b.supplies) / config.shelter.suppliesScale) -
     w.distance * m.distance * (distance / 1000)
   );
@@ -214,7 +215,7 @@ function leastUseful(world: World, b: Building): Sim | null {
   for (const id of b.sheltered) {
     const s = world.sims[id]!;
     if (!isLiving(s) || s.shelter !== b.id || s.exitingUntil !== null || s.role === 'dispatcher') continue;
-    if (modeOf(s, world.config) !== 'informed') continue;
+    if (modeOf(s, world.config) !== 'informed' || clings(world, s)) continue; // the agoraphobic do not go out for supplies
     const u = usefulness(world, s);
     if (u < bestU || (u === bestU && best !== null && s.id < best.id)) {
       bestU = u;
@@ -264,6 +265,20 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
 
   const door = doorThreat(world, ctx, b);
 
+  // A claustrophobe goes out again once it is quiet, at the door and to its own eyes,
+  // after about quietTicks of it; a diehard does not stay at all (traits.ts).
+  const te = config.traits.enclosure;
+  if (diehard(world, sim) || (shuns(world, sim) && door === 0 && ctx.threat[sim.id]! === 0 && chance(world.rng, rc.interval / te.quietTicks))) {
+    sim.shelter = null;
+    sim.role = null;
+    sim.roleSince = tick;
+    sim.destinationKind = null;
+    sim.destinationBuilding = null;
+    sim.destination = null;
+    goOut(world, sim, b);
+    return;
+  }
+
   // Migration: a better shelter it has heard of, past the hysteresis, off cooldown.
   const mg = config.migration;
   if (sim.lastMigratedAt === null || tick - sim.lastMigratedAt >= mg.cooldown) {
@@ -280,7 +295,8 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
         best = other;
       }
     }
-    const required = mg.baseDelta + mg.fortificationWeight * b.fortification + mg.cautionWeight * sim.caution;
+    // The agoraphobic need more to leave (traits.ts).
+    const required = mg.baseDelta + mg.fortificationWeight * b.fortification + mg.cautionWeight * sim.caution + te.migrateWeight * agoraphobia(sim);
     if (best !== null && bestScore - here > required && door < rc.scavengeMaxDoorThreat) {
       sim.lastMigratedAt = tick;
       sim.shelter = null;
@@ -295,7 +311,7 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
   if (sim.role !== null && tick - sim.roleSince < rc.minTenure) return;
 
   const arch = config.archetypes[sim.archetype];
-  if (arch.engageThreshold > 0 && capacity(world, sim) > 0 && door > 0 && door < arch.engageThreshold) {
+  if (arch.engageThreshold > 0 && capacity(world, sim) > 0 && door > 0 && door < arch.engageThreshold && !clings(world, sim)) {
     sim.role = 'dispatcher';
     sim.roleSince = tick;
     sim.destinationKind = null;
@@ -402,7 +418,7 @@ function eat(world: World, ctx: Context, b: Building, living: number, onCycle: b
   for (const id of b.sheltered) {
     const s = sims[id]!;
     if (s.insideBuilding !== b.id || s.exitingUntil !== null || s.role === 'scavenger' || s.squadLeader !== null || s.station === b.id || modeOf(s, config) !== 'informed') continue;
-    if (!chance(world.rng, sc.leaveShare)) continue;
+    if (clings(world, s) || !chance(world.rng, sc.leaveShare)) continue; // the agoraphobic stay, hungry
     const to = chooseShelter(world, ctx, s, b.id);
     s.shelter = null;
     s.role = null;
@@ -458,14 +474,23 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
 
   // Work: tracked builders plus a few residents, while there are supplies to spare — or,
   // with the dead at the door, any supplies at all: repairs come before meals.
-  let crew = 0;
+  // Each tracked builder's work counts as its handiness says, and costs as it says (a
+  // bodger slow and wasteful, a builder quick and sparing); residents are ordinary.
+  let crew = 0, waste = 0;
   if (b.zombiesInside === 0) {
-    for (const id of b.sheltered) if (world.sims[id]!.role === 'builder') crew++;
-    crew += Math.min(Math.max(0, b.residents - queued), bc.residentBuilders);
+    for (const id of b.sheltered) {
+      const s = world.sims[id]!;
+      if (s.role !== 'builder') continue;
+      crew += buildSpeed(world, s);
+      waste += buildWaste(world, s);
+    }
+    const residents = Math.min(Math.max(0, b.residents - queued), bc.residentBuilders);
+    crew += residents;
+    waste += residents;
   }
   if (crew > 0 && b.fortification < cap && (canBuild(world, b) || (b.supplies > 0 && doorThreat(world, ctx, b) > 0))) {
     b.fortification += (cap - b.fortification) * Math.min(1, bc.fortifyRate * crew);
-    if ((tick + b.id) % bc.fortifySupplyTicks === 0) b.supplies = Math.max(0, b.supplies - crew);
+    if ((tick + b.id) % bc.fortifySupplyTicks === 0) b.supplies = Math.max(0, b.supplies - roundByChance(world.rng, waste));
     if (b.breached !== null) b.breached = null;
   }
 

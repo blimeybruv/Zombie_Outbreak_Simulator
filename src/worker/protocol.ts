@@ -156,6 +156,11 @@ export interface SimDetail {
   sociality: number;
   trust: number;
   nerve: number;
+  /** The user's four traits, 0–1 (state/sim.ts). */
+  company: number;
+  enclosure: number;
+  resilience: number;
+  handiness: number;
   unease: number;
   /** Ground truth, including the infection nobody else may know about. */
   condition: string;
