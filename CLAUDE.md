@@ -261,17 +261,12 @@ screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement —
 what was merged in the reference.
 
 Open, in priority order:
-1. **Sweep everything since commit a3ad199** (20 runSeeds, `npm run sweep`) and compare
-   with the a3ad199 sweep in the reference ("Bugs the user saw", the last "Swept" entry).
-   Simulation changes since: the sealed city, car inertia/crashes/walls, freeze and pong,
-   the cordon redesign, the rescue's queue and tents, barriers that stop people on foot,
-   the river blocking sight, the dead besieging a peopled door, the dead no longer circling empty
-   doors, the rescue's gate, reservists re-forming at armouries, traffic police checkpoints, and the mall lot fix
-   (which changes some maps, so seed numbers will not match old runs).
-2. **Cars kept out of walls: settle the side effects.** Clipping is gone (2.2% → 0.28% of
-   driving ticks), but to tick 12,000 trips fell on seed 1 (488 → 378) and abandoned cars
-   rose on seed 2 (100 → 146). Find why (cars held by walls, wedged, abandoned), fix, and
-   re-measure with a car-motion probe and `scripts/movement-check.ts`.
+1. **Tune from the 6243b94 sweep** (reference, the last "Swept" entry): both gates pass 20 of
+   20, loss 48–73%, survival by caution 30.6% / 36.7% / 39.5%. Watch: freezes per 100
+   civilians 441 (from claustrophobes living outdoors, short and many), sceptics now
+   surviving best (trust z −13.4), seed 10's mass exodus by car (824 abandoned).
+2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
+   time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
    the ticker (the sweep's timeline, `scripts/lib/run-one.ts TimelineEntry`). Find where and
    why the city goes quiet before changing anything.
