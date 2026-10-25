@@ -7,6 +7,8 @@ import { spawnZombie } from '../../spawn';
 import { turnedInCar } from '../services/cars';
 import type { World } from '../../state';
 import { occupierAppeared } from '../buildings/buildings';
+import { putOutAt, quarantined } from '../buildings/quarantine';
+import { openDoor } from '../shared/common';
 import { dropWeapon } from '../fighting/arms';
 
 export function convertDue(world: World, ctx: Context): void {
@@ -35,6 +37,19 @@ export function convertDue(world: World, ctx: Context): void {
     }
     const b = world.buildings[inside]!;
     b.sheltered = b.sheltered.filter((id) => id !== sim.id);
+    if (quarantined(world, sim)) {
+      // Held apart, it turned where they could see it: put out of the door, the shelter spared.
+      sim.quarantinedUntil = null;
+      sim.insideBuilding = null;
+      const p = putOutAt(world, ctx, b, sim.x, sim.y);
+      openDoor(world, b);
+      const z = spawnZombie(world, p.x, p.y, 'active', null, sim.id);
+      z.intact = false; // everyone saw
+      transfer(world, 'turned.symptomatic', 'turned.outdoors');
+      ctx.events.push({ type: 'simTurned', tick, sim: sim.id, zombie: z.id, x: p.x, y: p.y });
+      ctx.events.push({ type: 'quarantineCaught', tick, building: b.id, sim: sim.id });
+      continue;
+    }
     const z = spawnZombie(world, sim.x, sim.y, 'occupying', b.id, sim.id);
     z.intact = world.config.features.intactZombies && sim.bites <= 1;
     b.zombiesInside++;

@@ -331,6 +331,12 @@ export interface Sim {
    * each (panic.ts breaks). @range 0+ @unit count @readBy panic (breaks)
    */
   nerveBroken: Count;
+  /**
+   * Held apart by the household it came into until then (buildings/quarantine.ts); null
+   * when not. Turning while held, it is put out of the door and the shelter spared.
+   * @range tick | null @unit tick @readBy turning (infection), roles, inspector
+   */
+  quarantinedUntil: Tick | null;
   /** The door it last turned away from, its way there blocked, or that refused it before refusedBy did; not run for again until turnedFromUntil (behaviour.turnedFromHold after). @range building id | null @unit id @readBy sim decisions (flight, way blocked) */
   turnedFrom: BuildingId | null;
   /** @range tick | null @unit tick @readBy sim decisions (flight, way blocked) */

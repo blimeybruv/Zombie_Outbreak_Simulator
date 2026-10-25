@@ -230,6 +230,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     standUntil: null,
     thawedAt: null,
     nerveBroken: 0,
+    quarantinedUntil: null,
     turnedFrom: null,
     turnedFromUntil: null,
     refusedBy: null,

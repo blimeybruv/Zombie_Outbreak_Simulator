@@ -4,6 +4,7 @@
 // allowed to read `panic` (expulsion of tracked sims).
 
 import { doorDamage } from './breach';
+import { holdFor, refusesRunner } from './quarantine';
 import type { Context } from '../../context';
 import { transfer, simLeaf } from '../../counters';
 import { noteStreet, remember } from '../../navigation/memory';
@@ -195,7 +196,7 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
   } else if (b.sheltered.some((id) => world.sims[id]!.knownInfected.has(sim.id))) {
     turnAway(world, sim, b);
     return;
-  } else if (refusedAsStranger(world, sim, b)) {
+  } else if (refusedAsStranger(world, sim, b) || refusesRunner(world, sim, b)) {
     ctx.events.push({ type: 'strangerRefused', tick, building: b.id, sim: sim.id });
     turnAway(world, sim, b);
     return;
@@ -220,6 +221,9 @@ function tryEnter(world: World, ctx: Context, sim: Sim, b: Building): void {
     if (isLiving(other)) merge(world, sim, other);
   }
   b.sheltered.push(sim.id);
+  // A newcomer to a household that knows: held apart a while first (quarantine.ts).
+  const hold = contesting ? 0 : holdFor(world, sim, b);
+  sim.quarantinedUntil = hold > 0 ? tick + hold : null;
   sim.route = [];
   sim.gait = 'still';
   const belief = sim.buildingMemory.get(b.id);

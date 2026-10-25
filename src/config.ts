@@ -1003,6 +1003,13 @@ export const config = {
   // and of those sheltering leave for another shelter (`suppliesRanOut`). Police
   // stations, hospitals and the armoury keep their own stores and are not eaten into
   // (`exempt`) — guesses
+  // Quarantine (B's design; buildings/quarantine.ts). A household that knows of the
+  // outbreak holds a newcomer apart for maxTicks × the caution of its most cautious member
+  // (residentCaution with nobody tracked inside), unless that one's trust is over
+  // trustAbove; one that turns while held is put out `putOut` m beyond the door. Over
+  // refuseRunnersAbove caution, it turns away anyone who comes running — guesses
+  quarantine: { maxTicks: 1200, residentCaution: 0.5, trustAbove: 0.7, refuseRunnersAbove: 0.75, putOut: 1.5 },
+
   // The user's four survivor traits (state/sim.ts). Each is drawn 0.5 ± 0.5 × |v|^shape,
   // v uniform on −1..1: at shape 3, about 58% of people fall within 0.4–0.6 and 3.6% beyond
   // 0.9 at each end — mostly ordinary, a few extremes (the user's call). From a stream of

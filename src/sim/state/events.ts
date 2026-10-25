@@ -47,10 +47,10 @@ export interface ZombieDestroyedEvent extends EventBase, Located {
 
 export interface BuildingEvent extends EventBase {
   /** @range literal @unit — @readBy event consumers */
-  type: 'buildingBreached' | 'turnedInside' | 'shelterEstablished' | 'shelterFell' | 'suppliesRanOut' | 'occupationContested' | 'buildingRetaken' | 'cascadeCrossed' | 'strangerRefused' | 'ambulanceDispatched' | 'patientAdmitted';
+  type: 'buildingBreached' | 'turnedInside' | 'quarantineCaught' | 'shelterEstablished' | 'shelterFell' | 'suppliesRanOut' | 'occupationContested' | 'buildingRetaken' | 'cascadeCrossed' | 'strangerRefused' | 'ambulanceDispatched' | 'patientAdmitted';
   /** @range building id @unit id @readBy ticker, building inspector history */
   building: BuildingId;
-  /** The sim contesting, for occupationContested; the stranger, for strangerRefused; the patient, for patientAdmitted; who turned or rose, for turnedInside (null for a resident); otherwise null. @range sim id | null @unit id @readBy ticker */
+  /** The sim contesting, for occupationContested; the stranger, for strangerRefused; the patient, for patientAdmitted; who turned or rose, for turnedInside (null for a resident); the newcomer, for quarantineCaught; otherwise null. @range sim id | null @unit id @readBy ticker */
   sim: SimId | null;
 }
 

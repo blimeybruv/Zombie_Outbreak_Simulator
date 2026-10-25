@@ -73,7 +73,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     ammo: s.ammo,
     supplies: s.supplies,
     role: s.role,
-    doing: living ? doing(s) : null,
+    doing: living ? doing(s, w.tick) : null,
     home: place(s.home),
     shelter: place(s.shelter),
     streetsKnown: s.streetMemory.size,
@@ -108,7 +108,8 @@ function knownBitten(w: World, s: Sim): SimDetail['knownBitten'] {
 }
 
 /** What a living sim is doing, in words, from its intent. */
-function doing(s: Sim): string | null {
+function doing(s: Sim, tick: number): string | null {
+  if (s.quarantinedUntil !== null && tick < s.quarantinedUntil) return 'held apart at the door, for now';
   if (s.stand === 'fight') return 'standing to fight';
   if (s.stand === 'freeze') return 'frozen, hiding';
   if (s.sortieUntil !== null) return 'on a sortie';

@@ -21,6 +21,7 @@ import type { Building, BuildingBelief, BuildingId, Sim, World } from '../../sta
 import { armAtGunShop, loot } from '../fighting/arms';
 import { agoraphobia, buildSpeed, buildWaste, clings, diehard, groupPeak, shuns } from '../people/traits';
 import { fortificationCap } from './breach';
+import { quarantined } from './quarantine';
 import { recognisedWithin } from '../shared/perception';
 import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from '../shared/common';
 import { modeOf } from '../people/panic';
@@ -257,6 +258,11 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
   const { config, tick, buildings } = world;
   const rc = config.roles;
   const b = buildings[sim.insideBuilding!]!;
+  // Held apart: no part in the household yet (quarantine.ts).
+  if (quarantined(world, sim)) {
+    sim.role = null;
+    return;
+  }
   const calm = modeOf(sim, config) === 'informed';
   if (!calm || b.zombiesInside > 0) {
     if (sim.role !== 'builder' || !canBuild(world, b)) sim.role = null;

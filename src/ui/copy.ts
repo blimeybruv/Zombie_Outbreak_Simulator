@@ -27,6 +27,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${who(n)} is fighting the dead inside ${n.place}.`;
     case 'buildingBreached':
       return `The dead broke into ${n.place}.`;
+    case 'quarantineCaught':
+      return `${n.name ?? 'Someone'} turned while held apart at the door of ${n.place}, and was put out.`;
     case 'turnedInside':
       return `The dead are loose inside ${n.place}: one of the people there turned.`; // (who, the turning's own line says)
     case 'shelterFell':
