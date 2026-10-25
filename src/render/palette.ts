@@ -70,13 +70,14 @@ export const HMMWV_PANEL = '#dcf3d4';
 export const HMMWV_SHADE = '#5e8a58';
 /**
  * Ordinary cars, in plan: hull, a lighter bonnet and roof, darker glass.
- * Muted, and each panel stays under a living dot. Which one a car wears is
+ * Muted, and each panel stays under a living dot. No greens or blues:
+ * those belong to the reservists' HMMWVs and the police. Which one a car wears is
  * chosen in the renderer from its id.
  */
 export const CIVILIAN = [
   { body: '#9aa3ae', panel: '#c5ced6', shade: '#343a42' }, // silver
-  { body: '#7f90a0', panel: '#a8b8c6', shade: '#2e3842' }, // steel blue
-  { body: '#848c78', panel: '#aeb69e', shade: '#34382e' }, // olive
+  { body: '#8c6e70', panel: '#b29698', shade: '#3a2e30' }, // maroon
+  { body: '#887a86', panel: '#aea2ac', shade: '#363038' }, // plum
   { body: '#a08880', panel: '#c4b0a8', shade: '#3e342f' }, // clay
   { body: '#a09480', panel: '#c4b8a4', shade: '#3e382e' }, // sand
   { body: '#6e7882', panel: '#98a2ac', shade: '#2a3036' }, // charcoal
