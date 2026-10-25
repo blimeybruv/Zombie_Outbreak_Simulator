@@ -26,9 +26,11 @@ export const LAMP_GLOW_EDGE = 'rgba(255, 180, 110, 0)'; // fades to nothing
 export const LAMP_HEAD = 'rgba(255, 210, 140, 0.22)'; // the head at near zoom, no brighter than the glow's centre
 export const LIVING = '#dfe7ef';
 export const LIVING_RGB = [223, 231, 239] as const;
-/** Cars: parked (outline), driving (fill), abandoned (dark fill, crossed). */
+/** A plain rectangle's stroke: an abandoned wreck, and any car still drawn as a box. */
 export const CAR = 'rgba(150, 160, 175, 0.45)';
+/** Motorway scenery, and a plain rectangle while it is being driven. */
 export const CAR_DRIVING = 'rgba(200, 208, 220, 0.75)';
+/** Abandoned: a dark fill, then crossed. Ordinary cars wear this instead of their plan. */
 export const CAR_ABANDONED = 'rgba(70, 72, 80, 0.9)';
 /** A container on a truck's trailer, on the motorway: muted rust, a box among the cars. */
 export const CONTAINER = 'rgba(160, 112, 88, 0.7)';
@@ -66,6 +68,20 @@ export const DEPOT_FILL = 'rgba(191, 232, 180, 0.16)';
 /** A reservists' HMMWV: hull in their green, a lighter bonnet and roof, a darker windscreen, cargo well and spare. */
 export const HMMWV_PANEL = '#dcf3d4';
 export const HMMWV_SHADE = '#5e8a58';
+/**
+ * Ordinary cars, in plan: hull, a lighter bonnet and roof, darker glass.
+ * Muted, and each panel stays under a living dot. Which one a car wears is
+ * chosen in the renderer from its id.
+ */
+export const CIVILIAN = [
+  { body: '#9aa3ae', panel: '#c5ced6', shade: '#343a42' }, // silver
+  { body: '#7f90a0', panel: '#a8b8c6', shade: '#2e3842' }, // steel blue
+  { body: '#848c78', panel: '#aeb69e', shade: '#34382e' }, // olive
+  { body: '#a08880', panel: '#c4b0a8', shade: '#3e342f' }, // clay
+  { body: '#a09480', panel: '#c4b8a4', shade: '#3e382e' }, // sand
+  { body: '#6e7882', panel: '#98a2ac', shade: '#2a3036' }, // charcoal
+] as const;
+
 /** A police cruiser's bonnet and roof: lighter than the hull, still under a living dot. */
 export const CRUISER_PANEL = '#b4d9ff';
 /** Windscreen, rear glass and the roof light bar, held well under the hull. */

@@ -15,6 +15,7 @@ import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK, CAR_HMMWV, CHECKPOINT_STRIDE } from '../worker/protocol';
 import { Camera } from './camera';
+import { addCivilianCar, civilianLivery, civilianStyle } from './civilian-cars';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
 import { Interpolator } from './interpolate';
@@ -990,10 +991,12 @@ export class Renderer {
    * like a ping, from the start (the run opens paused) until ORIGIN_TICKS have run.
    */
   /**
-   * Cars: a rectangle along its heading. Driving, filled, every frame (`moving`);
-   * standing still, into the static layer: abandoned, dark and crossed — a road that
-   * will not reopen — at mid and near zoom; parked, a dim outline, at near zoom only
-   * (at mid zoom a parked car is a pixel of clutter).
+   * Cars along their heading. An ordinary one is drawn in plan — sedan, hatchback,
+   * wagon, pickup or minivan, paint from its id — parked and driving alike.
+   * Driving, every frame (`moving`); standing still, into the static layer.
+   * Abandoned, the dark crossed rectangle — a road that will not reopen — at mid
+   * and near zoom. Parked, at near zoom only (at mid zoom a parked car is a pixel
+   * of clutter).
    */
   private drawCars(g: CanvasRenderingContext2D, frame: FrameSnapshot, cam: Camera, dpr: number, moving: boolean): void {
     const xyh = frame.carXYH, st = frame.carState;
@@ -1005,6 +1008,7 @@ export class Renderer {
     const cBody = new Path2D(), cPanel = new Path2D(), cShade = new Path2D();
     const aBody = new Path2D(), aPanel = new Path2D(), aShade = new Path2D(), aMark = new Path2D();
     const sBody = new Path2D(), sPanel = new Path2D(), sShade = new Path2D();
+    const civ = P.CIVILIAN.map(() => ({ body: new Path2D(), panel: new Path2D(), shade: new Path2D() }));
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
       const c = Math.cos(h), s = Math.sin(h);
@@ -1039,6 +1043,12 @@ export class Renderer {
         addSwat(sBody, sPanel, sShade, x, y, c, s);
         continue;
       }
+      // An ordinary car: plan view, no light bar. Abandoned stays the dark crossed rectangle below.
+      if ((st[i]! & CAR_TRUCK) === 0 && state !== CAR_ABANDONED) {
+        const paint = civ[civilianLivery(i)]!;
+        addCivilianCar(paint.body, paint.panel, paint.shade, civilianStyle(i), x, y, c, s);
+        continue;
+      }
       const path = (st[i]! & CAR_TRUCK) !== 0 ? trucks : state === CAR_DRIVING ? driving : state === CAR_ABANDONED ? abandoned : parked;
       path.moveTo(...pt(hl, hw));
       path.lineTo(...pt(-hl, hw));
@@ -1061,6 +1071,15 @@ export class Renderer {
     g.fill(abandoned);
     g.fillStyle = P.TENT;
     g.fill(trucks);
+    for (let k = 0; k < civ.length; k++) {
+      const paint = P.CIVILIAN[k]!;
+      g.fillStyle = paint.body;
+      g.fill(civ[k]!.body);
+      g.fillStyle = paint.panel;
+      g.fill(civ[k]!.panel);
+      g.fillStyle = paint.shade;
+      g.fill(civ[k]!.shade);
+    }
     g.fillStyle = P.GUARD;
     g.fill(hBody);
     g.fillStyle = P.HMMWV_PANEL;
