@@ -1,5 +1,8 @@
 // Colour carries state and nothing else. Agents are the brightest things on
 // screen; the city sits near the noise floor beneath them.
+// Ordinary roofs, and civilian cars, are the exception: a muted identity hashed
+// from an id, never a state. Nothing there is green or blue — those belong to
+// the reservists and the police.
 
 export const BACKGROUND = '#06070a';
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
@@ -7,6 +10,26 @@ export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
 export const BORDER = 'rgba(150, 160, 175, 0.28)'; // the railway and the motorway's fences across the margin
 export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside
+/**
+ * Ordinary roofs, in plan. Close in value, apart in warmth, each under a living
+ * dot and near the road fills. Which one a building wears is chosen from its id.
+ * Churches, hospitals, schools, the armoury and police stations are not filled
+ * with these — their own drawing already says what they are.
+ */
+export const ROOF = [
+  '#1a1d24', // cool
+  '#221c1b', // warm
+  '#1c1c1a', // stone
+  '#241e1c', // clay
+  '#201c17', // sand
+  '#15171c', // charcoal, nearest the ground
+] as const;
+/** Window ticks along an ordinary street face. Near zoom only, a short mark inside the wall. */
+export const FACADE = 'rgba(176, 184, 196, 0.45)';
+/** A door's threshold: a little stronger than a window, still quieter than an agent. */
+export const DOOR_MARK = 'rgba(190, 198, 208, 0.62)';
+/** An interior line on a larger footprint. Mid and near zoom. */
+export const PARTITION = 'rgba(168, 176, 188, 0.28)';
 export const CONTESTED = [192, 58, 67] as const; // a faint red rim, the dead's colour: the living and the dead both inside
 export const STREET = '#0d0e12'; // every street's surface, always: opaque, so crossings do not add up
 // Road hierarchy — still near the noise floor; agents remain brightest.

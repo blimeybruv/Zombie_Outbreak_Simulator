@@ -15,6 +15,7 @@ import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK, CAR_HMMWV, CHECKPOINT_STRIDE } from '../worker/protocol';
 import { Camera } from './camera';
+import { dressBuilding, ordinaryBuilding } from './building-dress';
 import { addCivilianCar, civilianLivery, civilianStyle } from './civilian-cars';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -330,6 +331,13 @@ function addOutline(path: Path2D, o: Float32Array, i: number): void {
   path.closePath();
 }
 
+function addSegments(path: Path2D, pts: ArrayLike<number>): void {
+  for (let i = 0; i < pts.length; i += 4) {
+    path.moveTo(pts[i]!, pts[i + 1]!);
+    path.lineTo(pts[i + 2]!, pts[i + 3]!);
+  }
+}
+
 export class Renderer {
   private readonly g: CanvasRenderingContext2D;
   private readonly staticLayer: HTMLCanvasElement;
@@ -343,6 +351,12 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
+  /** Ordinary roofs, one path per tone. Specials are not in these. */
+  private readonly roofPaths: Path2D[];
+  /** Window ticks, a door threshold, and interior lines. Drawn only when the zoom can bear them. */
+  private readonly facadePath: Path2D;
+  private readonly doorMarkPath: Path2D;
+  private readonly partitionPath: Path2D;
   /** The reservists' armoury (one depot of the many): their green, a faint fill, and a centre cross. */
   private readonly depotPath: Path2D;
   private readonly depots: { x: number; y: number; span: number }[];
@@ -407,6 +421,10 @@ export class Renderer {
     this.staticLayer = document.createElement('canvas');
     this.carLayer = document.createElement('canvas');
     this.outlinePath = new Path2D();
+    this.roofPaths = P.ROOF.map(() => new Path2D());
+    this.facadePath = new Path2D();
+    this.doorMarkPath = new Path2D();
+    this.partitionPath = new Path2D();
     this.depotPath = new Path2D();
     this.depots = [];
     this.stationPath = new Path2D();
@@ -437,6 +455,7 @@ export class Renderer {
       else if (map.buildingStation[i]) this.markBuilding(this.stationPath, this.stations, i, minX, maxX, minY, maxY);
       else this.addBuilding(this.outlinePath, i);
     }
+    this.buildDress();
     this.riverPath = new Path2D();
     map.river.centreline.forEach((p, i) => (i === 0 ? this.riverPath.moveTo(p.x, p.y) : this.riverPath.lineTo(p.x, p.y)));
     // Every street's surface, at its own width, by day and night alike (a street used to
@@ -807,7 +826,13 @@ export class Renderer {
       }
     }
     // At far zoom single-pixel outlines turn into texture; let the density field lead.
+    // Ordinary roofs sit under the outline. Far zoom keeps them faint, so the field
+    // still leads; specials are not in these paths.
     g.globalAlpha = far ? 0.45 : 1;
+    for (let t = 0; t < this.roofPaths.length; t++) {
+      g.fillStyle = P.ROOF[t]!;
+      g.fill(this.roofPaths[t]!);
+    }
     g.strokeStyle = P.BUILDING_OUTLINE;
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
@@ -821,6 +846,7 @@ export class Renderer {
     g.stroke(this.bridgeAbutments);
     g.lineWidth = 1 / (cam.scale * dpr);
     if (cam.mode === 'near') g.stroke(this.doorPath);
+    this.drawDress(g, cam, dpr);
     g.globalAlpha = far ? 0.25 : 0.6;
     g.stroke(this.groundsPath);
     if (cam.mode === 'near') g.stroke(this.stallPath);
@@ -862,6 +888,44 @@ export class Renderer {
     at.resize(c.width / dpr, c.height / dpr);
     at.apply(g, dpr);
     this.drawCars(g, frame, at, dpr, false);
+  }
+
+  /**
+   * Roof tone, window rhythm, door mark and partitions for ordinary plots.
+   * Hashed from the building id. Churches, hospitals, schools, the armoury and
+   * stations are skipped, so their silhouettes stay as drawn.
+   */
+  private buildDress(): void {
+    const n = this.map.outlines.length / 8;
+    const doors: number[][] = Array.from({ length: n }, () => []);
+    const d = this.map.doors;
+    for (let i = 0; i < d.length; i += 5) doors[d[i]!]?.push(d[i + 1]!, d[i + 2]!);
+    const o = this.map.outlines;
+    for (let i = 0; i < n; i++) {
+      if (!ordinaryBuilding(this.map.buildingShape[i]!, this.map.buildingArmoury[i]!, this.map.buildingStation[i]!)) continue;
+      const dress = dressBuilding(i, o.subarray(i * 8, i * 8 + 8), doors[i]!);
+      addOutline(this.roofPaths[dress.tone]!, o, i);
+      addSegments(this.facadePath, dress.windows);
+      addSegments(this.doorMarkPath, dress.door);
+      addSegments(this.partitionPath, dress.partitions);
+    }
+  }
+
+  /** Facade cues, under an agent. Windows and the door only up close; a partition from mid zoom. */
+  private drawDress(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
+    if (cam.mode === 'far') return;
+    const px = 1 / (cam.scale * dpr);
+    g.globalAlpha = 1;
+    g.lineWidth = px;
+    g.strokeStyle = P.PARTITION;
+    g.stroke(this.partitionPath);
+    if (cam.mode !== 'near') return;
+    g.strokeStyle = P.FACADE;
+    g.lineWidth = 1.25 * px;
+    g.stroke(this.facadePath);
+    g.strokeStyle = P.DOOR_MARK;
+    g.lineWidth = 1.7 * px;
+    g.stroke(this.doorMarkPath);
   }
 
   /** The armoury or a police station: off the ordinary outline, with its centre kept for the cross. */
