@@ -4,8 +4,15 @@
 export const BACKGROUND = '#06070a';
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
 export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
-/** A gable ridge on an ordinary roof: one grey line, under an agent. Mid and near zoom. */
-export const RIDGE = 'rgba(168, 176, 188, 0.36)';
+/** A dumpster in a back lot: warm grey, well under a living dot. Near zoom. */
+export const DUMPSTER = '#5c5850';
+/** A hair of an edge, so the box reads on the black ground. */
+export const DUMPSTER_EDGE = 'rgba(156, 150, 140, 0.75)';
+/** The lid seam. */
+export const DUMPSTER_LID = 'rgba(190, 182, 168, 0.9)';
+/** A bench: cooler and thinner than the dumpster. */
+export const BENCH = '#4c515b';
+export const BENCH_EDGE = 'rgba(170, 176, 186, 0.8)';
 export const BORDER = 'rgba(150, 160, 175, 0.28)'; // the railway and the motorway's fences across the margin
 export const HELD = 'rgba(205, 215, 230, 0.55)'; // a held door: barricade bars, reinforced and fortified walls
 export const BUILDING_FILL = [235, 240, 245] as const; // faint white, alpha tracks who is inside

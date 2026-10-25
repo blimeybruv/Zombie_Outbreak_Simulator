@@ -15,7 +15,7 @@ import { SHAPE_CHURCH, SHAPE_L, SHAPE_U } from '../worker/protocol';
 import { BUILDING_CALL_WAITING, TENT_STRIDE } from '../worker/protocol';
 import { BUILDING_CALL, BUILDING_CONTESTED, BUILDING_STAGE_MASK, BUILDING_STAGE_SHIFT, SIM_ARMED, SIM_FIGHTING, SIM_FLEEING, SIM_FROZEN, SIM_GUARD, SIM_HIDDEN, SIM_INFECTED, SIM_POLICE, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_DORMANT, ZOMBIE_INTACT, CAR_ABANDONED, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, CAR_AMBULANCE, CAR_CRUISER, CAR_GONE, CAR_TRUCK, CAR_HMMWV, CHECKPOINT_STRIDE } from '../worker/protocol';
 import { Camera } from './camera';
-import { dressBuilding, ordinaryBuilding } from './building-dress';
+import { placeYards, type YardPiece } from './back-lots';
 import { addCivilianCar, civilianLivery, civilianStyle } from './civilian-cars';
 import { CorpseLayer } from './corpses';
 import { DensityField } from './density';
@@ -331,13 +331,6 @@ function addOutline(path: Path2D, o: Float32Array, i: number): void {
   path.closePath();
 }
 
-function addSegments(path: Path2D, pts: ArrayLike<number>): void {
-  for (let i = 0; i < pts.length; i += 4) {
-    path.moveTo(pts[i]!, pts[i + 1]!);
-    path.lineTo(pts[i + 2]!, pts[i + 3]!);
-  }
-}
-
 export class Renderer {
   private readonly g: CanvasRenderingContext2D;
   private readonly staticLayer: HTMLCanvasElement;
@@ -351,8 +344,11 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
-  /** One gable ridge per ordinary plot. Specials are not in this. */
-  private readonly ridgePath: Path2D;
+  /** Dumpsters in the open ground behind ordinary buildings. Near zoom only. */
+  private readonly dumpsterPath: Path2D;
+  private readonly dumpsterLid: Path2D;
+  /** Benches, the same yards, thinner than a dumpster. */
+  private readonly benchPath: Path2D;
   /** The reservists' armoury (one depot of the many): their green, a faint fill, and a centre cross. */
   private readonly depotPath: Path2D;
   private readonly depots: { x: number; y: number; span: number }[];
@@ -417,7 +413,9 @@ export class Renderer {
     this.staticLayer = document.createElement('canvas');
     this.carLayer = document.createElement('canvas');
     this.outlinePath = new Path2D();
-    this.ridgePath = new Path2D();
+    this.dumpsterPath = new Path2D();
+    this.dumpsterLid = new Path2D();
+    this.benchPath = new Path2D();
     this.depotPath = new Path2D();
     this.depots = [];
     this.stationPath = new Path2D();
@@ -448,7 +446,7 @@ export class Renderer {
       else if (map.buildingStation[i]) this.markBuilding(this.stationPath, this.stations, i, minX, maxX, minY, maxY);
       else this.addBuilding(this.outlinePath, i);
     }
-    this.buildDress();
+    this.buildYards();
     this.riverPath = new Path2D();
     map.river.centreline.forEach((p, i) => (i === 0 ? this.riverPath.moveTo(p.x, p.y) : this.riverPath.lineTo(p.x, p.y)));
     // Every street's surface, at its own width, by day and night alike (a street used to
@@ -833,7 +831,7 @@ export class Renderer {
     g.stroke(this.bridgeAbutments);
     g.lineWidth = 1 / (cam.scale * dpr);
     if (cam.mode === 'near') g.stroke(this.doorPath);
-    this.drawDress(g, cam, dpr);
+    this.drawYards(g, cam, dpr);
     g.globalAlpha = far ? 0.25 : 0.6;
     g.stroke(this.groundsPath);
     if (cam.mode === 'near') g.stroke(this.stallPath);
@@ -877,26 +875,48 @@ export class Renderer {
     this.drawCars(g, frame, at, dpr, false);
   }
 
-  /**
-   * One ridge per ordinary plot, hashed from the building id. Churches,
-   * hospitals, schools, the armoury and stations are skipped.
-   */
-  private buildDress(): void {
-    const o = this.map.outlines;
-    const n = o.length / 8;
-    for (let i = 0; i < n; i++) {
-      if (!ordinaryBuilding(this.map.buildingShape[i]!, this.map.buildingArmoury[i]!, this.map.buildingStation[i]!)) continue;
-      addSegments(this.ridgePath, dressBuilding(i, o.subarray(i * 8, i * 8 + 8)));
+  /** Dumpsters and benches behind ordinary buildings. Churches, hospitals, schools, the armoury and stations are skipped. */
+  private buildYards(): void {
+    const m = this.map;
+    for (const piece of placeYards({
+      size: m.size,
+      outlines: m.outlines,
+      shapes: m.buildingShape,
+      armoury: m.buildingArmoury,
+      station: m.buildingStation,
+      doors: m.doors,
+      streets: m.streets,
+      lots: m.lots,
+    })) this.addYard(piece);
+  }
+
+  private addYard(y: YardPiece): void {
+    if (y.kind === 'dumpster') {
+      addBox(this.dumpsterPath, y.x, y.y, y.dx, y.dy, y.len, y.wid);
+      const ox = y.x - y.nx * y.wid * 0.16, oy = y.y - y.ny * y.wid * 0.16;
+      const hl = y.len * 0.32;
+      this.dumpsterLid.moveTo(ox - y.dx * hl, oy - y.dy * hl);
+      this.dumpsterLid.lineTo(ox + y.dx * hl, oy + y.dy * hl);
+    } else {
+      addBox(this.benchPath, y.x, y.y, y.dx, y.dy, y.len, y.wid);
     }
   }
 
-  /** The ridge. Far zoom leaves it out: at that scale it is texture. */
-  private drawDress(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
-    if (cam.mode === 'far') return;
+  /** Near zoom only: at mid zoom a dumpster is a couple of pixels of noise. */
+  private drawYards(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
+    if (cam.mode !== 'near') return;
     g.globalAlpha = 1;
+    g.fillStyle = P.DUMPSTER;
+    g.fill(this.dumpsterPath);
     g.lineWidth = 1 / (cam.scale * dpr);
-    g.strokeStyle = P.RIDGE;
-    g.stroke(this.ridgePath);
+    g.strokeStyle = P.DUMPSTER_EDGE;
+    g.stroke(this.dumpsterPath);
+    g.strokeStyle = P.DUMPSTER_LID;
+    g.stroke(this.dumpsterLid);
+    g.fillStyle = P.BENCH;
+    g.fill(this.benchPath);
+    g.strokeStyle = P.BENCH_EDGE;
+    g.stroke(this.benchPath);
   }
 
   /** The armoury or a police station: off the ordinary outline, with its centre kept for the cross. */
