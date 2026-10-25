@@ -9,6 +9,7 @@ import { transfer, simLeaf } from '../../counters';
 import { chance, nextInt } from '../../lib/rng';
 import type { Sim, World, Zombie } from '../../state';
 import { isFirearm } from '../../state';
+import { turnFactor } from '../people/traits';
 import { dropWeapon } from './arms';
 import { markRising } from '../dead/rising';
 import { identifies } from '../outside/rescue';
@@ -43,7 +44,8 @@ export function bite(world: World, ctx: Context, victim: Sim): void {
   const from = simLeaf(victim)!;
   victim.condition = 'infected';
   victim.awareAt ??= tick;
-  victim.turnsAt = tick + nextInt(world.rng, config.infection.turnDelay[0]!, config.infection.turnDelay[1]!);
+  // How long it holds out is its own (resilience): longer for the resilient, shorter for the wimpy.
+  victim.turnsAt = tick + Math.round(nextInt(world.rng, config.infection.turnDelay[0]!, config.infection.turnDelay[1]!) * turnFactor(world, victim));
   transfer(world, from, 'turned.symptomatic');
 
   if (victim.insideBuilding !== null) {

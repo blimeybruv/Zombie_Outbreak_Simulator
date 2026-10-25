@@ -4,7 +4,7 @@
 
 import type { Config } from '../config';
 import { functionalProfile } from './mapgen/generate';
-import { chance, nextFloat, nextInt, type RngState } from './lib/rng';
+import { chance, createRng, nextFloat, nextInt, type RngState } from './lib/rng';
 import {
   ARCHETYPES,
   type Archetype,
@@ -157,6 +157,21 @@ export function pickHome(world: World, x: number, y: number, from: BuildingId | 
   return picks[picks.length - 1]!.id;
 }
 
+/**
+ * The user's four traits for one sim, from a stream of its own seeded by the run and the
+ * sim's id, so drawing them moves nothing else in the run. Each is mostly near the middle
+ * with a few at the ends: 0.5 ± 0.5 × |v|^shape, v uniform on −1..1.
+ */
+function traitsFor(world: World, id: number): Pick<Sim, 'company' | 'enclosure' | 'resilience' | 'handiness'> {
+  const t = world.config.traits;
+  const rng = createRng((Math.imul(world.scenario.runSeed, t.streamMix) + id) | 0);
+  const draw = () => {
+    const v = 2 * nextFloat(rng) - 1;
+    return 0.5 + 0.5 * Math.sign(v) * Math.abs(v) ** t.shape;
+  };
+  return { company: draw(), enclosure: draw(), resilience: draw(), handiness: draw() };
+}
+
 export function spawnSim(world: World, spec: SpawnSim): Sim {
   const { rng, config, tick } = world;
   const profession = professionFor(rng, spec.sourceTag, config);
@@ -176,6 +191,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     sociality: Math.min(1, Math.max(0, nextFloat(rng) + (config.spawn.professionSociality[profession] ?? 0))),
     trust: nextFloat(rng),
     nerve: nextFloat(rng),
+    ...traitsFor(world, id),
     condition: 'healthy',
     name: null,
     namedAt: null,

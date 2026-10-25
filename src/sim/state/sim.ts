@@ -177,6 +177,24 @@ export interface Sim {
    * @range 0–1 @unit scalar @readBy panic (breaks), inspector, end stats (nerve band)
    */
   nerve: Unit01;
+  /**
+   * The user's four traits, each drawn from its own stream (spawn.ts traitsFor), mostly
+   * near the middle with a few at the ends (config.traits.shape).
+   * The company it seeks: 0 close-knit, at ease only in a small group; 1 gregarious, in a
+   * big one. Sets where its shelter's company term peaks (config.traits.company).
+   * @range 0–1 @unit scalar @readBy shelter desirability, inspector
+   */
+  company: Unit01;
+  /**
+   * 0 agoraphobic, clinging to shelter; 1 claustrophobic, shunning it — above
+   * traits.enclosure.diehard, never going into a building once it knows (traits.ts).
+   * @range 0–1 @unit scalar @readBy shelter seeking, objectives, entering, leaving, migration, scavenging, sorties, inspector
+   */
+  enclosure: Unit01;
+  /** 0 wimpy, 1 resilient: how long it takes to turn once bitten (config.traits.resilience). @range 0–1 @unit scalar @readBy bites (turn delay), inspector */
+  resilience: Unit01;
+  /** 0 bodger, 1 builder: how fast its work raises fortification and how many supplies it costs (config.traits.handiness). @range 0–1 @unit scalar @readBy fortification work, inspector */
+  handiness: Unit01;
   /** @range 4 values @unit enum @readBy counters, every system that skips the dead, render */
   condition: Condition;
   /** Assigned at promotion; null until then. @range wordlist | null @unit — @readBy roster, ticker, labels */

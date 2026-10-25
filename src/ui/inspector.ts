@@ -41,6 +41,11 @@ const TRAITS: Record<string, string> = {
   trust:
     'How much they believe what they are told. Sceptics hear news as older than it is, need more people to tell them before they believe in the outbreak, and doubt the radio when it calls everyone out.',
   nerve: 'How much fear they can take before it takes over. When cornered, blocked or run to exhaustion, someone whose nerve goes freezes where they stand.',
+  company: 'How big a group they are at ease in. The close-knit look for a shelter with a few others in it; the gregarious for a crowd.',
+  enclosure:
+    'How they bear walls. The agoraphobic cling to shelter: slow to move on, never out for supplies. Claustrophobes go in only with the dead close and out again once it is quiet; the worst never go in at all, and make for a way out of the city.',
+  resilience: 'How long they hold out once bitten, before they turn.',
+  handiness: 'How well they build. A builder raises barricades quickly and sparingly; a bodger slowly, wasting supplies.',
 };
 
 const ARCHETYPES: Record<string, string> = {
@@ -58,11 +63,19 @@ const ARCHETYPES: Record<string, string> = {
 /** A trait as a word, by fifths of its range; the number stays in the tooltip. */
 const WORDS: Record<string, readonly string[]> = {
   caution: ['heedless', 'bold', 'careful', 'cautious', 'very cautious'],
-  sociality: ['solitary', 'reserved', 'sociable', 'outgoing', 'gregarious'],
+  sociality: ['solitary', 'reserved', 'sociable', 'outgoing', 'talkative'],
   trust: ['suspicious', 'sceptical', 'open-minded', 'trusting', 'credulous'],
   nerve: ['brittle', 'jumpy', 'steady', 'cool-headed', 'unshakeable'],
 };
 const WORD_EDGES = [0.15, 0.33, 0.66, 0.85];
+
+/** The user's four traits, named only toward an end (most people sit near the middle); null between. */
+const EXTREMES: Record<string, (v: number) => string | null> = {
+  company: (v) => (v <= 0.25 ? 'close-knit' : v >= 0.75 ? 'gregarious' : null),
+  enclosure: (v) => (v <= 0.25 ? 'agoraphobic' : v > 0.9 ? 'claustrophobic: never goes in' : v >= 0.75 ? 'claustrophobic' : null),
+  resilience: (v) => (v <= 0.25 ? 'wimpy' : v >= 0.75 ? 'resilient' : null),
+  handiness: (v) => (v <= 0.25 ? 'a bodger' : v >= 0.75 ? 'a builder' : null),
+};
 
 function traitWord(name: string, value: number): string {
   let i = 0;
@@ -173,6 +186,11 @@ export class Inspector {
       traits.append(`${words(s.profession)}, ${s.age} · `, tip(s.archetype === 'Army Ranger' ? s.archetype : words(s.archetype), ARCHETYPES[s.archetype]));
       for (const [name, value] of [['caution', s.caution], ['sociality', s.sociality], ['trust', s.trust], ['nerve', s.nerve]] as const) {
         traits.append(' · ', tip(traitWord(name, value), `${TRAITS[name]} (${name[0]!.toUpperCase()}${name.slice(1)} ${value.toFixed(2)}.)`));
+      }
+      // The user's four, mostly unremarkable: named only toward either end.
+      for (const [name, value] of [['company', s.company], ['enclosure', s.enclosure], ['resilience', s.resilience], ['handiness', s.handiness]] as const) {
+        const word = EXTREMES[name]!(value);
+        if (word !== null) traits.append(' · ', tip(word, `${TRAITS[name]} (${name[0]!.toUpperCase()}${name.slice(1)} ${value.toFixed(2)}.)`));
       }
       this.top.replaceChildren(el('div', 'head', s.name ?? 'A survivor'), traits);
     }

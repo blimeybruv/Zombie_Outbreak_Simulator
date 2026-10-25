@@ -999,6 +999,30 @@ export const config = {
   // and of those sheltering leave for another shelter (`suppliesRanOut`). Police
   // stations, hospitals and the armoury keep their own stores and are not eaten into
   // (`exempt`) — guesses
+  // The user's four survivor traits (state/sim.ts). Each is drawn 0.5 ± 0.5 × |v|^shape,
+  // v uniform on −1..1: at shape 3, about 58% of people fall within 0.4–0.6 and 3.6% beyond
+  // 0.9 at each end — mostly ordinary, a few extremes (the user's call). From a stream of
+  // their own (runSeed × streamMix + id), so the rest of a run draws as before.
+  // company: where a sim's shelter company term peaks, from close-knit to gregarious.
+  // enclosure: agoraphobic (0) to claustrophobic (1), traits.ts — above `diehard` never
+  //   into a building once aware; above `shuns`, in only when danger is close and out once
+  //   the door has been quiet `quietTicks`; above 0.5, `seekBonus` × claustrophobia more
+  //   danger before seeking shelter at all. Below 0.5, agoraphobia (0–1) adds
+  //   `migrateWeight` × it to migration's margin, and above `clings` it never goes out for
+  //   supplies, never sorties, and does not move on when the supplies run out.
+  // resilience: the turn delay is scaled turnFactor[0] (wimpy) to turnFactor[1] (resilient),
+  //   geometrically, 1 in the middle.
+  // handiness: a builder's work counts speed[0] (bodger) to speed[1] (builder), and its
+  //   supplies waste[0] to waste[1], geometrically — guesses
+  traits: {
+    shape: 3,
+    streamMix: 0x2545f491,
+    company: { peak: [3, 20] as [number, number] },
+    enclosure: { diehard: 0.9, shuns: 0.75, quietTicks: 300, seekBonus: 0.3, migrateWeight: 0.6, clings: 0.6 },
+    resilience: { turnFactor: [0.5, 2] as [number, number] },
+    handiness: { speed: [0.5, 2] as [number, number], waste: [1.5, 0.667] as [number, number] },
+  },
+
   supplies: { personTicksPerUnit: 10800, scavengeBelow: 3600, buildAbove: 7200, leaveAfter: 14400, leaveShare: 0.1, exempt: ['policeStation', 'hospital'] as string[] },
 
   buildings: {
@@ -1179,7 +1203,6 @@ export const config = {
     strangerVetoFrom: 0.66,
     // desirability = Σ weight × term; distance term is per kilometre.
     weights: { integrity: 2, fortification: 1.5, streetQuiet: 1.2, group: 0.8, supplies: 0.6, distance: 1 },
-    groupPeak: 8, // believed occupants at which groupTerm peaks
     suppliesScale: 20, // supplies at which the supplies term saturates — guess
     closePassRadius: 15, // m; passing this close writes building memory — guess
     garrisonMin: 3, // holders (residents, plus tracked sims who have made it home) for a barricaded building to count as a shelter — guess

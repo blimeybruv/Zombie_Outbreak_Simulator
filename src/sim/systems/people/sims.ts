@@ -46,6 +46,7 @@ import { parkingSpot } from '../services/traffic';
 import { barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
 import { answersRescue, queueSlot, reachesQueue, tentsAt } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
+import { claustrophobia, diehard, shuns } from './traits';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -976,7 +977,20 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     headFor(world, ctx, sim, home.x, home.y);
     return;
   }
-  const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve) : threat >= arch.shelterSeekThreshold + nerve;
+  // A claustrophobe needs more danger before it will go in at all; a diehard never goes
+  // in, but runs; one that shuns shelter, calm, gives up making for one (traits.ts).
+  const shy = config.traits.enclosure.seekBonus * claustrophobia(sim);
+  const seeks = engages ? seen >= Math.min(engageBelow, arch.shelterSeekThreshold + nerve + shy) : threat >= arch.shelterSeekThreshold + nerve + shy;
+  if (seeks && diehard(world, sim)) {
+    if (sim.destinationKind === 'shelter') clearDestination(sim);
+    sim.gait = 'run';
+    steerAway(ctx, sim);
+    return;
+  }
+  if (!seeks && sim.destinationKind === 'shelter' && shuns(world, sim)) {
+    clearDestination(sim);
+    sim.destinationKind = null;
+  }
   if (seeks || sim.destinationKind === 'shelter') {
     // On the way home with trouble now in sight: a home still far off is given up for
     // the best shelter nearer to hand.
@@ -1054,6 +1068,17 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // Aware of the outbreak: an objective, not an errand. (Someone who engages and knows
   // of no trouble has none, and keeps patrolling.)
   if (sim.awareAt !== null) {
+    // One that shuns shelter, calm, makes for a way out of the city instead, and failing
+    // that stays out in the open (traits.ts).
+    if (shuns(world, sim)) {
+      if (sim.destinationKind !== 'leave' && !headForExit(world, sim)) {
+        sim.gait = 'still';
+        return;
+      }
+      sim.gait = mode === 'direct' ? 'run' : 'walk';
+      travel(world, ctx, sim, mode);
+      return;
+    }
     const o = chooseObjective(world, ctx, sim);
     if (o !== null) {
       setObjective(sim, o);
