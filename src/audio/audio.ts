@@ -6,9 +6,11 @@
 // one-shots are built once at start. A cordon transmission is built when it
 // plays, so each one has its own voice. Two kinds of sound:
 //
-//   one-shots  each noise in the snapshot (shots, blows, shouts; car alarms once the
-//              simulation makes them) and a blocked car's horn (an event, the same
-//              chain) is a throwaway source through its own chain:
+//   one-shots  each noise in the snapshot (shots, blows, shouts, the engine pulse and
+//              the siren yelp the dead hear, alarms) and, on the same chain, a blocked
+//              car's horn, a death scream, a door giving way, glass in a crash, and a
+//              cough from someone bitten near the camera. Each is a throwaway source
+//              through its own chain:
 //              distance (quieter, duller and later the farther it is from the middle
 //              of the view), a stereo panner, a category gain — and, for gunfire, a
 //              send to one shared street echo. Heard out to the noise's own radius,
@@ -47,15 +49,21 @@
 
 import type { Camera } from '../render/camera';
 import type { FrameSnapshot } from '../worker/protocol';
-import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
+import { CAR_AMBULANCE, CAR_CRUISER, CAR_DRIVING, CAR_STATE_MASK, CAR_VAN, SIM_FLEEING, SIM_INFECTED, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE, ZOMBIE_INTACT } from '../worker/protocol';
 
-type Category = 'gun' | 'melee' | 'voice' | 'alarm' | 'horn';
+type Category = 'gun' | 'melee' | 'voice' | 'alarm' | 'horn' | 'engine' | 'siren' | 'impact';
 type Bed = 'moan' | 'engine' | 'siren' | 'drone' | 'groan' | 'murmur' | 'steps';
-const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2, horn: 3 };
+const VOICES: Record<Category, number> = { gun: 8, melee: 4, voice: 3, alarm: 2, horn: 3, engine: 1, siren: 1, impact: 3 };
 const PER_FRAME = { normal: 4, thin: 2, loudestOnly: 1 };
 const JITTER = 0.12; // ± half this, in playback rate, so identical shots do not sound synthetic
 
-const CATEGORY: Record<string, Category | undefined> = {
+/**
+ * Snapshot noise kinds, plus events folded into that path. `carHorn` has no stored
+ * buffer: each honk is built from its severity. Every other key has one buffer,
+ * registered from {@link ONE_SHOT_KINDS} at start. A knife never arrives — its
+ * noise radius is 0 — so it is not here.
+ */
+export const NOISE_CATEGORY: Record<string, Category | undefined> = {
   pistol: 'gun',
   smg: 'gun',
   shotgun: 'gun',
@@ -63,11 +71,78 @@ const CATEGORY: Record<string, Category | undefined> = {
   club: 'melee',
   sledgehammer: 'melee',
   shout: 'voice',
+  // A death, distinct from the warning shout. A simDied of cause fedOn.
+  scream: 'voice',
+  // Someone bitten, outdoors, near the camera. Not a stimulus.
+  cough: 'voice',
   // Groundwork: a car alarm, played as soon as the simulation makes the noise (reference, "Sound").
   alarm: 'alarm',
+  // The engine stimulus (every engineInterval). The bed is the rumble; this is the pulse.
+  engine: 'engine',
+  // The siren stimulus (every cars.siren.every). The bed is the wail; this is one yelp.
+  siren: 'siren',
+  // A building's door giving way (buildingBreached). The city's latch is a different buffer.
+  door: 'impact',
+  // A car hitting a building or another car (carCrashed).
+  glass: 'impact',
   // A blocked car's horn (a carHorn event). Same distance, pan and cap path as a noise.
   carHorn: 'horn',
 };
+
+/** Kinds start() stores a buffer for. `carHorn` is built per honk, so it is not listed. */
+export const ONE_SHOT_KINDS = [
+  'pistol', 'smg', 'shotgun', 'rifle',
+  'club', 'sledgehammer',
+  'shout', 'scream', 'cough',
+  'alarm', 'engine', 'siren',
+  'door', 'glass',
+] as const;
+
+/** How far an event-only noise carries, metres. Stimuli bring their own radius. */
+export const EVENT_NOISE = { scream: 36, door: 45, glass: 80, cough: 18 } as const;
+
+/** A shout this close to a death scream is the same cry, and the scream is the one played. */
+const SCREAM_COVERS_SHOUT_M = 4;
+
+export interface HeardNoise {
+  x: number;
+  y: number;
+  kind: string;
+  radius: number;
+  severity?: number;
+}
+
+/**
+ * Events that are heard and are not already stimuli. A horn keeps the radius and
+ * severity the simulation sent. A death, a breach and a crash are located here;
+ * the breach's place is the ticker note, which is the building's centre.
+ */
+export function eventNoises(
+  events: readonly { type: string; x?: number; y?: number; radius?: number; severity?: number; cause?: string }[],
+  notes: readonly ({ x: number; y: number } | null | undefined)[],
+): HeardNoise[] {
+  const out: HeardNoise[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]!;
+    if (e.type === 'carHorn' && e.x !== undefined && e.y !== undefined && e.radius !== undefined) {
+      out.push({ x: e.x, y: e.y, kind: 'carHorn', radius: e.radius, severity: e.severity });
+    } else if (e.type === 'simDied' && e.cause === 'fedOn' && e.x !== undefined && e.y !== undefined) {
+      out.push({ x: e.x, y: e.y, kind: 'scream', radius: EVENT_NOISE.scream });
+    } else if (e.type === 'carCrashed' && e.x !== undefined && e.y !== undefined) {
+      out.push({ x: e.x, y: e.y, kind: 'glass', radius: EVENT_NOISE.glass });
+    } else if (e.type === 'buildingBreached') {
+      const n = notes[i];
+      if (n) out.push({ x: n.x, y: n.y, kind: 'door', radius: EVENT_NOISE.door });
+    }
+  }
+  return out;
+}
+
+/** True when a scream in this batch is the same cry as a shout at (x, y). */
+export function screamCoversShout(x: number, y: number, screams: readonly { x: number; y: number }[]): boolean {
+  for (const s of screams) if (Math.hypot(s.x - x, s.y - y) < SCREAM_COVERS_SHOUT_M) return true;
+  return false;
+}
 
 // Distance. Metres from the listener: the listener's height is this share of the view's
 // width, so a city-wide view hears everything from far off.
@@ -407,6 +482,39 @@ export function outdoorLifeNear(camX: number, camY: number, simXY: ArrayLike<num
 }
 
 /**
+ * The nearest outdoor bitten person within `radiusM` of the camera, or null.
+ * Hidden, healthy and indoor people are not in the living kinds, so they cannot cough.
+ * Ties keep the lower id.
+ */
+export function nearestInfected(
+  camX: number,
+  camY: number,
+  simXY: ArrayLike<number>,
+  simKind: ArrayLike<number>,
+  simFlags: ArrayLike<number>,
+  radiusM = 48,
+): { x: number; y: number } | null {
+  let best = radiusM;
+  let found = false;
+  let x = 0;
+  let y = 0;
+  for (let i = 0; i < simKind.length; i++) {
+    if ((simFlags[i]! & SIM_INFECTED) === 0) continue;
+    const kind = simKind[i]!;
+    if (kind !== SIM_LIVING && kind !== SIM_PROMOTED) continue;
+    const sx = simXY[i * 2]!;
+    const sy = simXY[i * 2 + 1]!;
+    const d = Math.hypot(camX - sx, camY - sy);
+    if (d >= best) continue;
+    best = d;
+    x = sx;
+    y = sy;
+    found = true;
+  }
+  return found ? { x, y } : null;
+}
+
+/**
  * Murmur and life-sound levels. `lifeNear` is outdoorLifeNear. Day is busy; night keeps
  * a few late voices and sparser one-shots. Birds are day only. Groan and cordon duck
  * the crowd so they stay in front.
@@ -460,6 +568,181 @@ function shout(ctx: SampleCtx): AudioBuffer {
     d[i] = y * env * 0.6;
   }
   return buf;
+}
+
+/** A death cry: the same vowel scream as the outbreak, darker and open, not the short shout. */
+function deathScream(ctx: SampleCtx): AudioBuffer {
+  return formantScream(ctx, 480, 5400);
+}
+
+/** Two or three dry bursts. Not a voice and not a shout. */
+function cough(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.5;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const bursts = [0.02, 0.15, 0.32];
+  const hpA = Math.exp((-2 * Math.PI * 160) / rate);
+  const lpA = Math.exp((-2 * Math.PI * 780) / rate);
+  let hp = 0;
+  let prev = 0;
+  let lp = 0;
+  let ph = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    let env = 0;
+    for (const start of bursts) {
+      const u = t - start;
+      if (u < 0 || u > 0.08) continue;
+      const x = u < 0.01 ? u / 0.01 : 1 - (u - 0.01) / 0.07;
+      env = Math.max(env, Math.max(0, x) ** (u < 0.01 ? 0.45 : 1.5));
+    }
+    const nse = rnd();
+    const high = hpA * (hp + nse - prev);
+    hp = high;
+    prev = nse;
+    lp = (1 - lpA) * high + lpA * lp;
+    ph += 130 / rate;
+    const grunt = Math.sin(2 * Math.PI * ph) * env * 0.25;
+    d[i] = lp * env * 1.6 + grunt;
+  }
+  return buf;
+}
+
+/** One exhaust pulse: a short rev, not the engine bed. */
+function enginePulse(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.42;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const lpA = Math.exp((-2 * Math.PI * 180) / rate);
+  let ph = 0;
+  let lp = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const u = t / seconds;
+    const f = 46 + 32 * Math.sin(Math.PI * u);
+    ph += f / rate;
+    const p = ph % 1;
+    const pulse = p < 0.2 ? 1 : -0.18;
+    lp = (1 - lpA) * (pulse + rnd() * 0.35) + lpA * lp;
+    d[i] = lp * Math.sin(Math.PI * u) ** 0.75;
+  }
+  return buf;
+}
+
+/** One yelp, up and down. The siren bed is the wail underneath. */
+function sirenYelp(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.55;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  let ph = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const u = t / seconds;
+    const f = 760 + 920 * Math.sin(Math.PI * u);
+    ph += f / rate;
+    const s = Math.sin(2 * Math.PI * ph);
+    const env = Math.min(1, t / 0.02) * Math.min(1, (seconds - t) / 0.08);
+    d[i] = (s + Math.sin(6 * Math.PI * ph) * 0.18) * 0.4 * env;
+  }
+  return buf;
+}
+
+/** A door forced: a crack, a few splinters, a low thud. Not the city's latch. */
+function doorBreak(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.55;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const a = Math.exp((-2 * Math.PI * 240) / rate);
+  let y = 0;
+  let ph = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    y = (1 - a) * rnd() + a * y;
+    const crack = t < 0.008 ? rnd() * (1 - t / 0.008) * 1.8 : 0;
+    let splinter = 0;
+    for (const at of [0.02, 0.05, 0.09, 0.15]) {
+      const u = t - at;
+      if (u >= 0 && u < 0.012) splinter += rnd() * (1 - u / 0.012) * 0.65;
+    }
+    ph += (58 * (1 - Math.min(1, t / 0.28))) / rate;
+    const thud = Math.sin(2 * Math.PI * ph) * Math.exp(-t / 0.11) * 0.65;
+    d[i] = crack + splinter + y * Math.exp(-t / 0.06) * 2.2 + thud;
+  }
+  return buf;
+}
+
+/** Glass going, with the crunch of the impact under it. */
+function glassBreak(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.7;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const lpA = Math.exp((-2 * Math.PI * 2600) / rate);
+  let lp = 0;
+  const tinkles: readonly (readonly [number, number])[] = [
+    [0.03, 3400], [0.08, 4200], [0.14, 2800], [0.21, 3700], [0.3, 2300], [0.41, 1800],
+  ];
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const crack = t < 0.018 ? rnd() * (1 - t / 0.018) : 0;
+    lp = (1 - lpA) * (crack * 1.5 + rnd() * Math.exp(-t / 0.045) * 0.25) + lpA * lp;
+    let tone = 0;
+    for (const [at, f] of tinkles) {
+      const u = t - at;
+      if (u >= 0 && u < 0.16) tone += Math.sin(2 * Math.PI * f * u) * Math.exp(-u / 0.04) * 0.32;
+    }
+    const crunch = Math.sin(2 * Math.PI * 85 * t) * Math.exp(-t / 0.07) * 0.55;
+    d[i] = lp + tone + crunch;
+  }
+  return buf;
+}
+
+/** The buffer for one snapshot kind. Guns, blows, voices, vehicles, a door, glass. */
+function oneShot(ctx: SampleCtx, kind: (typeof ONE_SHOT_KINDS)[number]): AudioBuffer {
+  switch (kind) {
+    case 'pistol':
+    case 'smg':
+    case 'shotgun':
+    case 'rifle':
+      return gunshot(ctx, SHOTS[kind]!);
+    case 'club':
+      return burst(ctx, 0.18, 0.04, 260);
+    case 'sledgehammer':
+      return burst(ctx, 0.3, 0.07, 180);
+    case 'shout':
+      return shout(ctx);
+    case 'scream':
+      return deathScream(ctx);
+    case 'cough':
+      return cough(ctx);
+    case 'alarm':
+      return alarm(ctx);
+    case 'engine':
+      return enginePulse(ctx);
+    case 'siren':
+      return sirenYelp(ctx);
+    case 'door':
+      return doorBreak(ctx);
+    case 'glass':
+      return glassBreak(ctx);
+  }
+}
+
+/** Peak of each one-shot after normalisation, so a silent buffer shows up as 0. */
+export function oneShotPeaks(sampleRate = 8000): Record<string, number> {
+  const ctx = previewCtx(sampleRate);
+  const peaks: Record<string, number> = {};
+  for (const kind of ONE_SHOT_KINDS) {
+    const buf = normalise(oneShot(ctx, kind));
+    let max = 0;
+    for (const v of buf.getChannelData(0)) max = Math.max(max, Math.abs(v));
+    peaks[kind] = max;
+  }
+  return peaks;
 }
 
 /** Noise shaped by an envelope and a one-pole low-pass; enough for a thud. */
@@ -1617,7 +1900,7 @@ export class Audio {
   private readonly layerGains = new Map<AmbientLayer, GainNode>();
   private readonly beds = new Map<Bed, { gain: GainNode; pan: StereoPannerNode }>();
   private readonly buffers = new Map<string, AudioBuffer>();
-  private readonly active: Record<Category, number> = { gun: 0, melee: 0, voice: 0, alarm: 0, horn: 0 };
+  private readonly active: Record<Category, number> = { gun: 0, melee: 0, voice: 0, alarm: 0, horn: 0, engine: 0, siren: 0, impact: 0 };
   private readonly layerOn: Record<AmbientLayer, boolean> = { city: true, outbreak: true, cordon: true, army: true };
   private exits: ArrayLike<number> = new Float32Array();
   private nextTraffic = Infinity;
@@ -1631,6 +1914,7 @@ export class Audio {
   private nextPhone = Infinity;
   private nextDrunk = Infinity;
   private nextBin = Infinity;
+  private nextCough = Infinity;
   private nextMurmurPan = 0;
   private murmurPan = 0;
   private flying = 0;
@@ -1653,7 +1937,10 @@ export class Audio {
       g.connect(this.master);
       this.layerGains.set(name, g);
     }
-    for (const [cat, level] of [['gun', 0.75], ['melee', 0.3], ['voice', 0.4], ['alarm', 0.2], ['horn', 0.5]] as const) {
+    for (const [cat, level] of [
+      ['gun', 0.75], ['melee', 0.3], ['voice', 0.4], ['alarm', 0.2], ['horn', 0.5],
+      ['engine', 0.18], ['siren', 0.22], ['impact', 0.5],
+    ] as const) {
       const g = ctx.createGain();
       g.gain.value = level;
       g.connect(this.master);
@@ -1662,11 +1949,7 @@ export class Audio {
     this.echo = ctx.createConvolver();
     this.echo.buffer = normalise(streetEcho(ctx), 0.6);
     this.echo.connect(this.gains.get('gun')!);
-    for (const [name, s] of Object.entries(SHOTS)) this.buffers.set(name, normalise(gunshot(ctx, s)));
-    this.buffers.set('club', normalise(burst(ctx, 0.18, 0.04, 260)));
-    this.buffers.set('sledgehammer', normalise(burst(ctx, 0.3, 0.07, 180)));
-    this.buffers.set('shout', normalise(shout(ctx)));
-    this.buffers.set('alarm', normalise(alarm(ctx)));
+    for (const kind of ONE_SHOT_KINDS) this.buffers.set(kind, normalise(oneShot(ctx, kind)));
     // Loops at one peak too: their levels are the bed gains in update().
     // The groan is built after the older beds so those keep their timbre.
     const loops: Record<Bed, AudioBuffer> = {
@@ -1703,7 +1986,7 @@ export class Audio {
     this.buffers.set('flee', normalise(fleeingCrowd(ctx)));
     this.buffers.set('steps', normalise(footsteps(ctx)));
     this.buffers.set('bark', normalise(dogBark(ctx)));
-    this.buffers.set('door', normalise(doorClose(ctx)));
+    this.buffers.set('latch', normalise(doorClose(ctx)));
     this.buffers.set('horn', normalise(carHorn(ctx)));
     this.buffers.set('bell', normalise(bicycleBell(ctx)));
     this.buffers.set('bird', normalise(birdChirp(ctx)));
@@ -1736,6 +2019,7 @@ export class Audio {
     this.nextPhone = t0 + 4 + Math.random() * 6;
     this.nextDrunk = t0 + 8 + Math.random() * 8;
     this.nextBin = t0 + 11 + Math.random() * 8;
+    this.nextCough = t0 + 4 + Math.random() * 6;
     this.nextMurmurPan = t0 + 1;
   }
 
@@ -1843,22 +2127,27 @@ export class Audio {
     this.bed('steps', 0.05 * crowd.steps * fast, 0, 1.2);
 
     // One-shots: heard out to their own reach (how far the dead hear them) or the view,
-    // loudest at the listener first, a few per frame. A blocked car's horn is an event,
-    // folded in here so it takes the same distance, pan, budget and voice cap.
+    // loudest at the listener first, a few per frame. Horns, deaths, doors and crashes
+    // are events, folded in so they take the same distance, pan, budget and voice cap.
+    // A cough is not a stimulus: one, now and then, from a bitten person near the camera.
     const budget = speed >= 8 ? PER_FRAME.loudestOnly : speed > 4 ? PER_FRAME.thin : PER_FRAME.normal;
     const reach = Math.hypot(b.x - a.x, b.y - a.y) / 2;
-    const shots: { x: number; y: number; kind: string; radius: number; severity?: number }[] = [...frame.noises];
-    for (const e of frame.events) {
-      if (e.type === 'carHorn') shots.push({ x: e.x, y: e.y, kind: 'carHorn', radius: e.radius, severity: e.severity });
+    const shots: HeardNoise[] = [...frame.noises, ...eventNoises(frame.events, frame.notes)];
+    if (speed < 8 && ctx.currentTime >= this.nextCough) {
+      const who = nearestInfected(cam.x, cam.y, frame.simXY, frame.simKind, frame.simFlags);
+      this.nextCough = ctx.currentTime + (speed > 4 ? 2 : 1) * (who ? 7 + Math.random() * 9 : 1.5);
+      if (who) shots.push({ x: who.x, y: who.y, kind: 'cough', radius: EVENT_NOISE.cough });
     }
     const heard = shots
-      .filter((n) => CATEGORY[n.kind] && (n.kind === 'carHorn' || this.buffers.has(n.kind)) && Math.hypot(n.x - cam.x, n.y - cam.y) <= Math.max(reach, n.radius))
+      .filter((n) => NOISE_CATEGORY[n.kind] && (n.kind === 'carHorn' || this.buffers.has(n.kind)) && Math.hypot(n.x - cam.x, n.y - cam.y) <= Math.max(reach, n.radius))
       .map((n) => ({ n, d: away(n.x, n.y) }))
       .sort((p, q) => q.n.radius / Math.max(NEAR, q.d) - p.n.radius / Math.max(NEAR, p.d));
+    const screams = heard.filter((o) => o.n.kind === 'scream').map((o) => o.n);
     let played = 0;
     for (const { n, d } of heard) {
       if (played >= budget) break;
-      const cat = CATEGORY[n.kind]!;
+      if (n.kind === 'shout' && screamCoversShout(n.x, n.y, screams)) continue;
+      const cat = NOISE_CATEGORY[n.kind]!;
       if (this.active[cat] >= VOICES[cat]) continue;
       const ground = Math.hypot(n.x - cam.x, n.y - cam.y);
       if (n.kind === 'carHorn') {
@@ -1953,14 +2242,14 @@ export class Audio {
             kind = 'steps';
             from = Math.random() < 0.5 ? -0.55 : 0.55;
             to = -from;
-          } else if (roll < 0.7) kind = 'door';
+          } else if (roll < 0.7) kind = 'latch';
           else kind = 'bark';
-          level = kind === 'door' ? 0.036 : kind === 'bark' ? 0.04 : 0.042;
+          level = kind === 'latch' ? 0.036 : kind === 'bark' ? 0.04 : 0.042;
         } else if (day && crowd.birds > 0.08 && roll < 0.22) {
           kind = 'bird';
           level = 0.028;
         } else if (roll < 0.4) {
-          kind = 'door';
+          kind = 'latch';
           level = 0.036;
         } else if (roll < 0.55) {
           kind = 'horn';

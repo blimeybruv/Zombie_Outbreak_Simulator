@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { armyEngagement, armyMix, cityLevels, cordonDistance, cordonLevel, crowdMix, EXIT_STRIDE, groanedUnderMoan, HORN_BLAST_AT, hornSpan, hornVoice, nearestRanger, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear, rangerPan } from '../src/audio/audio';
-import { SIM_FLEEING, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE } from '../src/worker/protocol';
+import { armyEngagement, armyMix, cityLevels, cordonDistance, cordonLevel, crowdMix, EVENT_NOISE, eventNoises, EXIT_STRIDE, groanedUnderMoan, HORN_BLAST_AT, hornSpan, hornVoice, nearestInfected, nearestRanger, NOISE_CATEGORY, ONE_SHOT_KINDS, oneShotPeaks, outbreakBreathDrive, outbreakLevel, outbreakStages, outdoorLifeNear, rangerPan, screamCoversShout } from '../src/audio/audio';
+import { SIM_FLEEING, SIM_INFECTED, SIM_LIVING, SIM_PROMOTED, ZOMBIE_AWAKE } from '../src/worker/protocol';
 
 describe('city day and night levels', () => {
   it('holds a quiet day drone and distant engines while people are alive', () => {
@@ -246,5 +246,65 @@ describe('obstruction horns', () => {
     expect(hornVoice(3).seconds).toBe(full.seconds);
     expect(hornSpan(mild)).toBe((mild.count - 1) * mild.gap + mild.seconds);
     expect(hornSpan(full)).toBe(full.seconds);
+  });
+});
+
+describe('noise kinds', () => {
+  it('plays a shout, and gives every mapped kind except the horn a buffer', () => {
+    expect(NOISE_CATEGORY.shout).toBe('voice');
+    expect(ONE_SHOT_KINDS).toContain('shout');
+    expect(NOISE_CATEGORY.scream).toBe('voice');
+    expect(NOISE_CATEGORY.cough).toBe('voice');
+    expect(NOISE_CATEGORY.engine).toBe('engine');
+    expect(NOISE_CATEGORY.siren).toBe('siren');
+    expect(NOISE_CATEGORY.door).toBe('impact');
+    expect(NOISE_CATEGORY.glass).toBe('impact');
+    expect(NOISE_CATEGORY.knife).toBeUndefined();
+    const buffered = new Set<string>(ONE_SHOT_KINDS);
+    for (const kind of Object.keys(NOISE_CATEGORY)) {
+      if (kind === 'carHorn') expect(buffered.has(kind)).toBe(false);
+      else expect(buffered.has(kind)).toBe(true);
+    }
+    for (const kind of ONE_SHOT_KINDS) expect(NOISE_CATEGORY[kind]).toBeDefined();
+    const peaks = oneShotPeaks();
+    for (const kind of ONE_SHOT_KINDS) expect(peaks[kind], kind).toBeCloseTo(0.9);
+  });
+
+  it('folds deaths, breaches and crashes into the one-shot path, and leaves a shot as a shot', () => {
+    const notes = [null, { x: 10, y: 20 }, null, null];
+    const heard = eventNoises(
+      [
+        { type: 'carHorn', x: 1, y: 2, radius: 80, severity: 0.25 },
+        { type: 'buildingBreached' },
+        { type: 'simDied', cause: 'fedOn', x: 4, y: 5 },
+        { type: 'simDied', cause: 'shot', x: 6, y: 7 },
+        { type: 'carCrashed', x: 8, y: 9 },
+        { type: 'turnedInside' },
+      ],
+      notes,
+    );
+    expect(heard).toEqual([
+      { x: 1, y: 2, kind: 'carHorn', radius: 80, severity: 0.25 },
+      { x: 10, y: 20, kind: 'door', radius: EVENT_NOISE.door },
+      { x: 4, y: 5, kind: 'scream', radius: EVENT_NOISE.scream },
+      { x: 8, y: 9, kind: 'glass', radius: EVENT_NOISE.glass },
+    ]);
+    expect(eventNoises([{ type: 'buildingBreached' }], [null])).toEqual([]);
+  });
+
+  it('lets a death scream stand in for the shout from the same spot', () => {
+    expect(screamCoversShout(0, 0, [{ x: 1, y: 1 }])).toBe(true);
+    expect(screamCoversShout(0, 0, [{ x: 10, y: 0 }])).toBe(false);
+    expect(screamCoversShout(0, 0, [])).toBe(false);
+  });
+
+  it('coughs from the nearest outdoor bitten person and ignores anyone else', () => {
+    const xy = new Float32Array([0, 0, 30, 0, 10, 0]);
+    const kind = new Uint8Array([SIM_LIVING, SIM_PROMOTED, SIM_LIVING]);
+    const flags = new Uint8Array([0, SIM_INFECTED, SIM_INFECTED]);
+    expect(nearestInfected(0, 0, xy, kind, flags)).toEqual({ x: 10, y: 0 });
+    expect(nearestInfected(0, 0, xy, kind, new Uint8Array(3))).toBeNull();
+    expect(nearestInfected(0, 0, xy, new Uint8Array(3), flags)).toBeNull();
+    expect(nearestInfected(0, 0, xy, kind, flags, 5)).toBeNull();
   });
 });
