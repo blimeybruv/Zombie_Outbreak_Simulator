@@ -1034,6 +1034,17 @@ describe('the dead', () => {
     for (let i = 1; i < after.length; i++) if (after[i]! < after[i - 1]! - 0.3) lunges++;
     expect(lunges).toBeGreaterThanOrEqual(3);
     expect(Math.max(...after)).toBeLessThan(zc.arriveRadius + 2); // never far from it
+    // Each heave is heard: an event at the door, and nothing the dead can hear.
+    const whumps = ctx.events.filter((e) => e.type === 'doorWhump');
+    expect(whumps.length).toBeGreaterThanOrEqual(3);
+    for (const e of whumps) {
+      if (e.type !== 'doorWhump') continue;
+      expect(e.x).toBe(door.x);
+      expect(e.y).toBe(door.y);
+      expect(e.building).toBe(b.id);
+      expect(e.sim).toBeNull();
+    }
+    expect(world.stimuli).toHaveLength(0);
   });
 });
 

@@ -308,10 +308,14 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // heaves rather than marching in step (the user's picture of the dead ramming).
         pace = 0;
         atDoor = true;
-        if ((tick + z.id) % zc.ram.cycle < zc.ram.back && d > 0) {
+        const phase = (tick + z.id) % zc.ram.cycle;
+        if (phase < zc.ram.back && d > 0) {
           gx = -dx / d;
           gy = -dy / d;
           pace = zc.ram.pace;
+        } else if (phase === zc.ram.back && z.heardPoint !== null) {
+          // Still against the door as the heave starts. An event only: not a stimulus.
+          ctx.events.push({ type: 'doorWhump', tick, building: z.besieging, x: z.heardPoint.x, y: z.heardPoint.y, sim: null });
         }
         z.heardAt = tick;
       } else if (d <= zc.arriveRadius && z.target === null) {
@@ -332,6 +336,17 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // than a step carried it past them, and it turned back the next tick — 68% of
         // moves within 3 m of a target were reversals, the dead bouncing like a ball.
         if (z.target !== null) pace = Math.min(pace, Math.max(0, d - config.combat.contactRange * zc.closeIn) / speed);
+        // Coming on into a door it besieges: this step reaches the door. The whump is
+        // that arrival. An event only, so the dead do not hear it.
+        if (
+          z.besieging !== null &&
+          z.heardPoint !== null &&
+          (tick + z.id) % zc.ram.cycle >= zc.ram.back &&
+          d > zc.arriveRadius &&
+          d - speed * pace <= zc.arriveRadius
+        ) {
+          ctx.events.push({ type: 'doorWhump', tick, building: z.besieging, x: z.heardPoint.x, y: z.heardPoint.y, sim: null });
+        }
       }
     }
     if (z.heardPoint === null) {

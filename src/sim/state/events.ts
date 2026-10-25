@@ -189,6 +189,19 @@ export interface CarAlarmEvent extends EventBase, Located {
   sim: null;
 }
 
+export interface DoorWhumpEvent extends EventBase, Located {
+  /**
+   * A besieging zombie bodies a door: the heave of its ram, before the door gives.
+   * Heard, not read. Not a stimulus, so the dead do not hear it and the run is unchanged.
+   * @range literal @unit — @readBy audio
+   */
+  type: 'doorWhump';
+  /** The building whose door it is. @range building id @unit id @readBy audio */
+  building: BuildingId;
+  /** Always null: there is no ticker line. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export interface CarHornEvent extends EventBase, Located {
   /** A driving car, blocked and barely moving, sounds its horn. Heard, not read. @range literal @unit — @readBy audio */
   type: 'carHorn';
@@ -333,6 +346,7 @@ export type SimEvent =
   | SquadEvent
   | CarAbandonedEvent
   | CarAlarmEvent
+  | DoorWhumpEvent
   | CarHornEvent
   | VehicleTakenEvent
   | CarHitEvent
