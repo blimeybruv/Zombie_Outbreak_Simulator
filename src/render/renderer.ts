@@ -351,12 +351,8 @@ export class Renderer {
   private staticX = 0;
   private staticY = 0;
   private readonly outlinePath: Path2D;
-  /** Ordinary roofs, one path per tone. Specials are not in these. */
-  private readonly roofPaths: Path2D[];
-  /** Window ticks, a door threshold, and interior lines. Drawn only when the zoom can bear them. */
-  private readonly facadePath: Path2D;
-  private readonly doorMarkPath: Path2D;
-  private readonly partitionPath: Path2D;
+  /** One gable ridge per ordinary plot. Specials are not in this. */
+  private readonly ridgePath: Path2D;
   /** The reservists' armoury (one depot of the many): their green, a faint fill, and a centre cross. */
   private readonly depotPath: Path2D;
   private readonly depots: { x: number; y: number; span: number }[];
@@ -421,10 +417,7 @@ export class Renderer {
     this.staticLayer = document.createElement('canvas');
     this.carLayer = document.createElement('canvas');
     this.outlinePath = new Path2D();
-    this.roofPaths = P.ROOF.map(() => new Path2D());
-    this.facadePath = new Path2D();
-    this.doorMarkPath = new Path2D();
-    this.partitionPath = new Path2D();
+    this.ridgePath = new Path2D();
     this.depotPath = new Path2D();
     this.depots = [];
     this.stationPath = new Path2D();
@@ -826,13 +819,7 @@ export class Renderer {
       }
     }
     // At far zoom single-pixel outlines turn into texture; let the density field lead.
-    // Ordinary roofs sit under the outline. Far zoom keeps them faint, so the field
-    // still leads; specials are not in these paths.
     g.globalAlpha = far ? 0.45 : 1;
-    for (let t = 0; t < this.roofPaths.length; t++) {
-      g.fillStyle = P.ROOF[t]!;
-      g.fill(this.roofPaths[t]!);
-    }
     g.strokeStyle = P.BUILDING_OUTLINE;
     g.lineWidth = 1 / (cam.scale * dpr); // one device pixel, whatever the zoom
     g.stroke(this.outlinePath);
@@ -891,41 +878,25 @@ export class Renderer {
   }
 
   /**
-   * Roof tone, window rhythm, door mark and partitions for ordinary plots.
-   * Hashed from the building id. Churches, hospitals, schools, the armoury and
-   * stations are skipped, so their silhouettes stay as drawn.
+   * One ridge per ordinary plot, hashed from the building id. Churches,
+   * hospitals, schools, the armoury and stations are skipped.
    */
   private buildDress(): void {
-    const n = this.map.outlines.length / 8;
-    const doors: number[][] = Array.from({ length: n }, () => []);
-    const d = this.map.doors;
-    for (let i = 0; i < d.length; i += 5) doors[d[i]!]?.push(d[i + 1]!, d[i + 2]!);
     const o = this.map.outlines;
+    const n = o.length / 8;
     for (let i = 0; i < n; i++) {
       if (!ordinaryBuilding(this.map.buildingShape[i]!, this.map.buildingArmoury[i]!, this.map.buildingStation[i]!)) continue;
-      const dress = dressBuilding(i, o.subarray(i * 8, i * 8 + 8), doors[i]!);
-      addOutline(this.roofPaths[dress.tone]!, o, i);
-      addSegments(this.facadePath, dress.windows);
-      addSegments(this.doorMarkPath, dress.door);
-      addSegments(this.partitionPath, dress.partitions);
+      addSegments(this.ridgePath, dressBuilding(i, o.subarray(i * 8, i * 8 + 8)));
     }
   }
 
-  /** Facade cues, under an agent. Windows and the door only up close; a partition from mid zoom. */
+  /** The ridge. Far zoom leaves it out: at that scale it is texture. */
   private drawDress(g: CanvasRenderingContext2D, cam: Camera, dpr: number): void {
     if (cam.mode === 'far') return;
-    const px = 1 / (cam.scale * dpr);
     g.globalAlpha = 1;
-    g.lineWidth = px;
-    g.strokeStyle = P.PARTITION;
-    g.stroke(this.partitionPath);
-    if (cam.mode !== 'near') return;
-    g.strokeStyle = P.FACADE;
-    g.lineWidth = 1.25 * px;
-    g.stroke(this.facadePath);
-    g.strokeStyle = P.DOOR_MARK;
-    g.lineWidth = 1.7 * px;
-    g.stroke(this.doorMarkPath);
+    g.lineWidth = 1 / (cam.scale * dpr);
+    g.strokeStyle = P.RIDGE;
+    g.stroke(this.ridgePath);
   }
 
   /** The armoury or a police station: off the ordinary outline, with its centre kept for the cross. */
