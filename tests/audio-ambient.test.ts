@@ -258,6 +258,8 @@ describe('noise kinds', () => {
     expect(NOISE_CATEGORY.engine).toBe('engine');
     expect(NOISE_CATEGORY.siren).toBe('siren');
     expect(NOISE_CATEGORY.door).toBe('impact');
+    expect(NOISE_CATEGORY.whump).toBe('impact');
+    expect(EVENT_NOISE.whump).toBeLessThan(EVENT_NOISE.door);
     expect(NOISE_CATEGORY.glass).toBe('impact');
     expect(NOISE_CATEGORY.knife).toBeUndefined();
     const buffered = new Set<string>(ONE_SHOT_KINDS);
@@ -280,6 +282,7 @@ describe('noise kinds', () => {
         { type: 'simDied', cause: 'shot', x: 6, y: 7 },
         { type: 'carCrashed', x: 8, y: 9 },
         { type: 'turnedInside' },
+        { type: 'doorWhump', x: 12, y: 13 },
       ],
       notes,
     );
@@ -288,6 +291,7 @@ describe('noise kinds', () => {
       { x: 10, y: 20, kind: 'door', radius: EVENT_NOISE.door },
       { x: 4, y: 5, kind: 'scream', radius: EVENT_NOISE.scream },
       { x: 8, y: 9, kind: 'glass', radius: EVENT_NOISE.glass },
+      { x: 12, y: 13, kind: 'whump', radius: EVENT_NOISE.whump },
     ]);
     expect(eventNoises([{ type: 'buildingBreached' }], [null])).toEqual([]);
   });

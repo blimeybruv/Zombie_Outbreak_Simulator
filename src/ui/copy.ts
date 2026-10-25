@@ -114,7 +114,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
     case 'squadDissolved':
       return e.members === 1 ? `The last of a squad stands down on ${n.place}.` : `What is left of a squad stands down on ${n.place}.`;
     case 'carHorn':
-      return null; // heard, not read: a horn in traffic is not news
+    case 'doorWhump':
+      return null; // heard, not read: a horn in traffic, a body against a door, is not news
     case 'zombieDestroyed':
       return null;
   }

@@ -8,8 +8,9 @@
 //
 //   one-shots  each noise in the snapshot (shots, blows, shouts, the engine pulse and
 //              the siren yelp the dead hear, alarms) and, on the same chain, a blocked
-//              car's horn, a death scream, a door giving way, glass in a crash, and a
-//              cough from someone bitten near the camera. Each is a throwaway source
+//              car's horn, a death scream, a door giving way, a body whumping that
+//              door before it gives, glass in a crash, and a cough from someone
+//              bitten near the camera. Each is a throwaway source
 //              through its own chain:
 //              distance (quieter, duller and later the farther it is from the middle
 //              of the view), a stereo panner, a category gain — and, for gunfire, a
@@ -83,6 +84,8 @@ export const NOISE_CATEGORY: Record<string, Category | undefined> = {
   siren: 'siren',
   // A building's door giving way (buildingBreached). The city's latch is a different buffer.
   door: 'impact',
+  // A besieging zombie bodies that door (doorWhump), before it gives. A thud, not the crack.
+  whump: 'impact',
   // A car hitting a building or another car (carCrashed).
   glass: 'impact',
   // A blocked car's horn (a carHorn event). Same distance, pan and cap path as a noise.
@@ -95,11 +98,11 @@ export const ONE_SHOT_KINDS = [
   'club', 'sledgehammer',
   'shout', 'scream', 'cough',
   'alarm', 'engine', 'siren',
-  'door', 'glass',
+  'door', 'whump', 'glass',
 ] as const;
 
 /** How far an event-only noise carries, metres. Stimuli bring their own radius. */
-export const EVENT_NOISE = { scream: 36, door: 45, glass: 80, cough: 18 } as const;
+export const EVENT_NOISE = { scream: 36, door: 45, whump: 24, glass: 80, cough: 18 } as const;
 
 /** A shout this close to a death scream is the same cry, and the scream is the one played. */
 const SCREAM_COVERS_SHOUT_M = 4;
@@ -114,8 +117,9 @@ export interface HeardNoise {
 
 /**
  * Events that are heard and are not already stimuli. A horn keeps the radius and
- * severity the simulation sent. A death, a breach and a crash are located here;
- * the breach's place is the ticker note, which is the building's centre.
+ * severity the simulation sent. A death, a breach, a whump and a crash are located
+ * here; the breach's place is the ticker note, which is the building's centre.
+ * The whump carries the door.
  */
 export function eventNoises(
   events: readonly { type: string; x?: number; y?: number; radius?: number; severity?: number; cause?: string }[],
@@ -133,6 +137,8 @@ export function eventNoises(
     } else if (e.type === 'buildingBreached') {
       const n = notes[i];
       if (n) out.push({ x: n.x, y: n.y, kind: 'door', radius: EVENT_NOISE.door });
+    } else if (e.type === 'doorWhump' && e.x !== undefined && e.y !== undefined) {
+      out.push({ x: e.x, y: e.y, kind: 'whump', radius: EVENT_NOISE.whump });
     }
   }
   return out;
@@ -650,6 +656,30 @@ function sirenYelp(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
+/**
+ * A body against a door: a soft low whump. No crack and no splinters — those are
+ * the breach, {@link doorBreak}.
+ */
+function doorWhump(ctx: SampleCtx): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const seconds = 0.32;
+  const buf = ctx.createBuffer(1, Math.ceil(rate * seconds), rate);
+  const d = buf.getChannelData(0);
+  const lpA = Math.exp((-2 * Math.PI * 120) / rate);
+  let lp = 0;
+  let ph = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    const attack = Math.min(1, t / 0.012);
+    const body = Math.exp(-t / 0.09);
+    lp = (1 - lpA) * rnd() + lpA * lp;
+    ph += (64 * (1 - Math.min(1, t / 0.2))) / rate;
+    const thud = Math.sin(2 * Math.PI * ph) * body;
+    d[i] = (thud * 0.85 + lp * 1.4 * body) * attack;
+  }
+  return buf;
+}
+
 /** A door forced: a crack, a few splinters, a low thud. Not the city's latch. */
 function doorBreak(ctx: SampleCtx): AudioBuffer {
   const rate = ctx.sampleRate;
@@ -701,7 +731,7 @@ function glassBreak(ctx: SampleCtx): AudioBuffer {
   return buf;
 }
 
-/** The buffer for one snapshot kind. Guns, blows, voices, vehicles, a door, glass. */
+/** The buffer for one snapshot kind. Guns, blows, voices, vehicles, a door, a whump, glass. */
 function oneShot(ctx: SampleCtx, kind: (typeof ONE_SHOT_KINDS)[number]): AudioBuffer {
   switch (kind) {
     case 'pistol':
@@ -727,6 +757,8 @@ function oneShot(ctx: SampleCtx, kind: (typeof ONE_SHOT_KINDS)[number]): AudioBu
       return sirenYelp(ctx);
     case 'door':
       return doorBreak(ctx);
+    case 'whump':
+      return doorWhump(ctx);
     case 'glass':
       return glassBreak(ctx);
   }
@@ -2127,8 +2159,9 @@ export class Audio {
     this.bed('steps', 0.05 * crowd.steps * fast, 0, 1.2);
 
     // One-shots: heard out to their own reach (how far the dead hear them) or the view,
-    // loudest at the listener first, a few per frame. Horns, deaths, doors and crashes
-    // are events, folded in so they take the same distance, pan, budget and voice cap.
+    // loudest at the listener first, a few per frame. Horns, deaths, doors, the whump
+    // of a body against a door, and crashes are events, folded in so they take the
+    // same distance, pan, budget and voice cap.
     // A cough is not a stimulus: one, now and then, from a bitten person near the camera.
     const budget = speed >= 8 ? PER_FRAME.loudestOnly : speed > 4 ? PER_FRAME.thin : PER_FRAME.normal;
     const reach = Math.hypot(b.x - a.x, b.y - a.y) / 2;
