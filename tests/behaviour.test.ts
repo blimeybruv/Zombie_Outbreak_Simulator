@@ -564,7 +564,7 @@ describe('cars', () => {
     car.speed = 0;
     const nx = -Math.sin(car.heading), ny = Math.cos(car.heading);
     const z = spawnZombie(world, car.x + nx * 2.2, car.y + ny * 2.2, 'active', null, null);
-    for (const o of world.sims) if (o !== s && o.insideBuilding === null && o.car === null) o.insideBuilding = 0; // nobody else to go for
+    for (const o of world.sims) if (o !== s && o.insideBuilding === null && o.car === null) o.insideBuilding = world.buildings[0]!.id; // nobody else to go for
     s.stamina = 1;
     const dist: number[] = [];
     let broke = false;
