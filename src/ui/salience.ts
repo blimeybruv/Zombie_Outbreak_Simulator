@@ -30,6 +30,7 @@ export const BASE = {
   policeDispatched: 20, // not in the reference: a 911 call answered
   simIsolating: 30, // not in the reference: a decision only the viewer sees
   carAbandoned: 25, // not in the reference: a road closing for good
+  carBrokenInto: 45, // not in the reference: the dead through a car's glass, its people out among them
   carAlarm: 30, // not in the reference: why a horde just changed direction
   vehicleTaken: 35, // not in the reference: why an ambulance is heading for the edge
   carCrashed: 35, // not in the reference: a road blocked, and maybe people dead

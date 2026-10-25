@@ -559,6 +559,40 @@ describe('cars', () => {
     return d;
   }
 
+  it('the dead at a standing car with people in it batter it, break the glass and drag the driver out, shaken', () => {
+    const { world, ctx, s, car } = inCar();
+    car.speed = 0;
+    const nx = -Math.sin(car.heading), ny = Math.cos(car.heading);
+    const z = spawnZombie(world, car.x + nx * 2.2, car.y + ny * 2.2, 'active', null, null);
+    for (const o of world.sims) if (o !== s && o.insideBuilding === null && o.car === null) o.insideBuilding = 0; // nobody else to go for
+    s.stamina = 1;
+    const dist: number[] = [];
+    let broke = false;
+    for (let t = 0; t < 600 && !broke; t++) {
+      world.tick++;
+      car.speed = 0;
+      sizeContext(ctx, world);
+      rebuildHashes(world, ctx);
+      computePerception(world, ctx);
+      zombieDecisions(world, ctx);
+      integrateMovement(world, ctx);
+      // Four heaves first with the doors holding, to watch it batter the car.
+      if (t >= 4 * baseConfig.zombie.ram.cycle) carProcesses(world, ctx);
+      else dist.push(Math.hypot(z.x - car.x, z.y - car.y));
+      broke = ctx.events.some((e) => e.type === 'carBrokenInto' && e.sim === s.id);
+    }
+    expect(broke).toBe(true);
+    expect(car.state).toBe('abandoned');
+    expect(s.car).toBeNull();
+    expect(s.stamina).toBeLessThanOrEqual(baseConfig.cars.forcedOut.stamina);
+    expect(Math.hypot(s.x - z.x, s.y - z.y)).toBeLessThan(baseConfig.combat.contactRange);
+    // Battering: backing off and coming on again, not standing still against it.
+    let lunges = 0;
+    for (let i = 1; i < dist.length; i++) if (dist[i]! < dist[i - 1]! - 0.2) lunges++;
+    expect(lunges).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...dist.slice(baseConfig.zombie.ram.cycle))).toBeLessThan(baseConfig.cars.length / 2 + baseConfig.combat.contactRange);
+  });
+
   it('a car turns no faster than its turning circle allows, and slows to turn', () => {
     const { world, ctx, car } = inCar();
     const cc = baseConfig.cars;

@@ -832,6 +832,10 @@ export const config = {
     // breaks in at breakIn a tick: the doors give, and everyone inside is out among
     // them. Someone who turns inside bites each of the others at turnInsideBite.
     breakIn: 0.02,
+    // Broken into: the driver is put down `dragged` m from the zombie that broke the glass,
+    // toward the car, and everyone out has stamina no higher than `stamina` (slower, from
+    // movement.staminaSpeedFloor) — the user's call, guess
+    forcedOut: { dragged: 0.8, stamina: 0.3 },
     turnInsideBite: 0.6,
   },
 
@@ -910,6 +914,9 @@ export const config = {
     // Battering a door it besieges: every `cycle` ticks it backs off for `back` ticks at
     // `pace` of its speed, then comes on into the door again — guess
     ram: { cycle: 8, back: 2, pace: 0.4 },
+    // At a car with people in it moving no faster than this (m/tick), with nobody in sight,
+    // a zombie batters it as it would a door (ram), until the car's breakIn — guess
+    heaveCarBelow: 0.5,
     wallTouch: 1.2, // m: an idle zombie this close to a building with the living in it makes for its door — guess
     doorStand: 0.6, // m out from a door's wall where a besieging zombie stands, in front of it — guess
     round: 1.5, // m out from a building's corner, the way round it to the door a besieging zombie cannot see — guess

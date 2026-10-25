@@ -118,7 +118,8 @@ export interface HeardNoise {
 /**
  * Events that are heard and are not already stimuli. A horn keeps the radius and
  * severity the simulation sent. A death, a breach, a whump and a crash are located
- * here; the breach's place is the ticker note, which is the building's centre.
+ * here, and glass when the dead break into a car; the breach's place is the ticker
+ * note, which is the building's centre.
  * The whump carries the door.
  */
 export function eventNoises(
@@ -132,7 +133,7 @@ export function eventNoises(
       out.push({ x: e.x, y: e.y, kind: 'carHorn', radius: e.radius, severity: e.severity });
     } else if (e.type === 'simDied' && e.cause === 'fedOn' && e.x !== undefined && e.y !== undefined) {
       out.push({ x: e.x, y: e.y, kind: 'scream', radius: EVENT_NOISE.scream });
-    } else if (e.type === 'carCrashed' && e.x !== undefined && e.y !== undefined) {
+    } else if ((e.type === 'carCrashed' || e.type === 'carBrokenInto') && e.x !== undefined && e.y !== undefined) {
       out.push({ x: e.x, y: e.y, kind: 'glass', radius: EVENT_NOISE.glass });
     } else if (e.type === 'buildingBreached') {
       const n = notes[i];

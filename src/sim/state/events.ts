@@ -109,6 +109,15 @@ export interface PoliceDispatchedEvent extends EventBase {
   sim: null;
 }
 
+export interface CarBrokenIntoEvent extends EventBase, Located {
+  /** The dead broke the glass of a car with people in it and dragged its driver out; the car is abandoned (cars.ts). @range literal @unit — @readBy event consumers */
+  type: 'carBrokenInto';
+  /** @range car id @unit id @readBy ticker */
+  car: CarId;
+  /** The driver. @range sim id @unit id @readBy ticker */
+  sim: SimId;
+}
+
 export interface CarAbandonedEvent extends EventBase, Located {
   /** A car stopped behind something too long, left where it stands for good. @range literal @unit — @readBy event consumers */
   type: 'carAbandoned';
@@ -347,6 +356,7 @@ export type SimEvent =
   | DistrictEvacuatingEvent
   | SquadEvent
   | CarAbandonedEvent
+  | CarBrokenIntoEvent
   | CarAlarmEvent
   | DoorWhumpEvent
   | CarHornEvent

@@ -11,7 +11,7 @@
 import { isOutdoorLiving, type Context } from '../../context';
 import { chance, nextFloat, nextInt } from '../../lib/rng';
 import { pointSegmentDistance } from '../../lib/geometry';
-import type { Building, Vec2, World, Zombie } from '../../state';
+import type { Building, Car, Vec2, World, Zombie } from '../../state';
 import { entranceNearest } from '../shared/common';
 import { detectability } from '../shared/perception';
 import { intensityAt } from '../shared/stimuli';
@@ -253,6 +253,16 @@ export function zombieDecisions(world: World, ctx: Context): void {
   const checkEvery = zc.dormantCheckInterval;
   const idleEvery = zc.idleCheckInterval;
 
+  // The dead at a car with people in it, standing or barely moving: each by the car of
+  // lowest id it is at. Cars process its breaking in (cars.ts).
+  const atCar = new Map<number, Car>();
+  const carReach = config.cars.length / 2 + config.combat.contactRange;
+  for (const car of ctx.cars.driving()) {
+    if (car.occupants.length === 0 || car.speed > zc.heaveCarBelow) continue;
+    ctx.zombieHash.query(car.x, car.y, carReach, ctx.ids2);
+    for (const id of ctx.ids2) if (!atCar.has(id)) atCar.set(id, car);
+  }
+
   const alerts: { x: number; y: number; tx: number; ty: number }[] = [];
   for (const z of world.zombies) {
     ctx.zombieSpeed[z.id] = 0;
@@ -483,6 +493,24 @@ export function zombieDecisions(world: World, ctx: Context): void {
         gx += (config.scent.idleDrift * dx) / d;
         gy += (config.scent.idleDrift * dy) / d;
       }
+    }
+
+    // At a car with people in it, and no one else to go for: it batters the car, a step back
+    // and into it again, as at a door, until it breaks in (cars.ts). It stays awake there.
+    // Drawn in by the engine and left with nothing to do there, the dead had stood about
+    // the car and flocked round it.
+    const car = z.target === null && z.besieging === null ? atCar.get(z.id) : undefined;
+    if (car !== undefined && (z.state === 'active' || z.state === 'wandering')) {
+      const dx = car.x - z.x;
+      const dy = car.y - z.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const back = (tick + z.id) % zc.ram.cycle < zc.ram.back;
+      z.heading = Math.atan2(back ? -dy : dy, back ? -dx : dx);
+      z.state = 'active';
+      z.stateUntil = null;
+      z.heardAt = tick;
+      ctx.zombieSpeed[z.id] = speed * (back ? zc.ram.pace : Math.min(1, d / speed));
+      continue;
     }
 
     // Flocking with nearby awake zombies: weak cohesion and alignment, repulsion when crowded.

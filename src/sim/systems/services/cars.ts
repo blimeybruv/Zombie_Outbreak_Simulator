@@ -21,7 +21,7 @@
 import { isOutdoorLiving, type Context } from '../../context';
 import { functionalProfile } from '../../mapgen/generate';
 import { chance, cloneRng } from '../../lib/rng';
-import type { Building, BuildingId, Car, CarId, Sim, StreetId, World } from '../../state';
+import type { Building, BuildingId, Car, CarId, Sim, StreetId, World, Zombie } from '../../state';
 import { bite, destroyZombie, killSim } from '../fighting/combat';
 import { entranceNearest, isLiving, leaveTalk, setDestination } from '../shared/common';
 import { modeOf, type Mode } from '../people/panic';
@@ -628,16 +628,30 @@ export function carProcesses(world: World, ctx: Context): void {
     // The dead at the doors: each awake one breaks in at breakIn a tick.
     ctx.zombieHash.query(car.x, car.y, cc.length / 2 + config.combat.contactRange, ctx.ids2);
     let at = 0;
+    let first: Zombie | null = null;
     for (const id of ctx.ids2) {
       const z = world.zombies[id]!;
-      if (z.state === 'active' || z.state === 'wandering') at++;
+      if (z.state !== 'active' && z.state !== 'wandering') continue;
+      at++;
+      if (first === null || z.id < first.id) first = z;
     }
     // The dead tearing at it with people inside: its alarm, if armed, tells the district.
     if (at > 0) soundAlarm(world, ctx, car);
-    if (at > 0 && chance(world.rng, 1 - (1 - cc.breakIn) ** at)) {
+    if (first !== null && chance(world.rng, 1 - (1 - cc.breakIn) ** at)) {
+      // The glass gives: the driver is dragged out to the one that broke it, the rest
+      // scramble out, all of them shaken (cars.forcedOut: out of breath, slower at first).
+      const driver = world.sims[car.occupants[0]!]!;
       car.state = 'abandoned';
-      ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });
+      ctx.events.push({ type: 'carBrokenInto', tick, car: car.id, x: car.x, y: car.y, sim: driver.id });
+      const out = [...car.occupants];
       alight(world, ctx, car);
+      const dx = car.x - first.x, dy = car.y - first.y, d = Math.hypot(dx, dy) || 1;
+      const px = first.x + (dx / d) * cc.forcedOut.dragged, py = first.y + (dy / d) * cc.forcedOut.dragged;
+      if (ctx.map.walkable(px, py) && !ctx.cars.blocks(px, py)) {
+        driver.x = px;
+        driver.y = py;
+      }
+      for (const id of out) world.sims[id]!.stamina = Math.min(world.sims[id]!.stamina, cc.forcedOut.stamina);
       continue;
     }
     // Stopped a while: back to the junction behind it and another way round, if there
