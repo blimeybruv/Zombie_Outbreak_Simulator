@@ -108,6 +108,16 @@ function doorAt(world: World, ctx: Context, x: number, y: number): Building | nu
   return null;
 }
 
+/**
+ * Where a zombie besieging `b` stands: in front of its nearest door, zombie.doorStand out
+ * from the wall. Made for the door's point on the wall itself, one coming up from the side
+ * of a building pressed into the wall short of it, round the corner, bashing the brick.
+ */
+function doorFront(world: World, ctx: Context, b: Building, z: Zombie): { x: number; y: number } {
+  const e = entranceNearest(b, z.x, z.y);
+  return ctx.map.outside(b.id, b.entrances.indexOf(e), world.config.zombie.doorStand);
+}
+
 /** A building with the living in it and none of the dead, whose wall this zombie is up against; null if none. */
 function peopledWall(world: World, ctx: Context, z: Zombie): Building | null {
   const r = world.config.zombie.wallTouch;
@@ -243,7 +253,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
         if (s.insideBuilding !== null && (s.condition === 'healthy' || s.condition === 'infected')) {
           // ...unless it went indoors: then to the door it went in by, to stay.
           const b = world.buildings[s.insideBuilding]!;
-          const e = entranceNearest(b, z.x, z.y);
+          const e = doorFront(world, ctx, b, z);
           z.besieging = b.id;
           z.besiegeUntil = tick + zc.besiegeTicks;
           setHeard(z, e.x, e.y);
@@ -369,7 +379,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
       // the living were in, and never tried the door.
       const b = peopledWall(world, ctx, z);
       if (b !== null) {
-        const e = entranceNearest(b, z.x, z.y);
+        const e = doorFront(world, ctx, b, z);
         z.state = 'active';
         z.stateUntil = null;
         z.besieging = b.id;

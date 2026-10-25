@@ -908,6 +908,7 @@ export const config = {
     // `pace` of its speed, then comes on into the door again — guess
     ram: { cycle: 8, back: 2, pace: 0.4 },
     wallTouch: 1.2, // m: an idle zombie this close to a building with the living in it makes for its door — guess
+    doorStand: 0.6, // m out from a door's wall where a besieging zombie stands, in front of it — guess
     // Turned from a single bite: survivors register it at intactSight × their sight
     // radius, but never nearer than intactGiveaway (its gait gives it away) — guess
     intactSight: 0.35,

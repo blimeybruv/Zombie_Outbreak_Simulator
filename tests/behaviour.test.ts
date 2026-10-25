@@ -993,7 +993,10 @@ describe('the dead', () => {
     computePerception(world, ctx);
     zombieDecisions(world, ctx);
     expect(z.besieging).toBe(b.id);
-    expect(b.entrances.some((e) => e.x === z.heardPoint!.x && e.y === z.heardPoint!.y)).toBe(true);
+    // In front of one of its doors, doorStand out from the wall, not on the wall itself.
+    const near = Math.min(...b.entrances.map((e) => Math.hypot(e.x - z.heardPoint!.x, e.y - z.heardPoint!.y)));
+    expect(near).toBeCloseTo(baseConfig.zombie.doorStand, 6);
+    expect(ctx.map.buildingAt(z.heardPoint!.x, z.heardPoint!.y)).toBeNull();
   });
 
   it('one whose quarry goes indoors besieges that door', () => {
