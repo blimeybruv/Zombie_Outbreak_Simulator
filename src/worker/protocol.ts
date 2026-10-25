@@ -171,7 +171,7 @@ export interface SimDetail {
   ammo: number;
   supplies: number;
   role: string | null;
-  /** What they are doing, in words: "heading home", "frozen, hiding", "errands, unaware"... */
+  /** What they are doing, in words: "heading home", "frozen with fear, hiding", "errands, unaware"... */
   doing: string | null;
   /** Where they live, as a place. */
   home: string | null;

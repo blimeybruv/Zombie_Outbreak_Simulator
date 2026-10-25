@@ -111,7 +111,7 @@ function knownBitten(w: World, s: Sim): SimDetail['knownBitten'] {
 function doing(s: Sim, tick: number): string | null {
   if (s.quarantinedUntil !== null && tick < s.quarantinedUntil) return 'held apart at the door, for now';
   if (s.stand === 'fight') return 'standing to fight';
-  if (s.stand === 'freeze') return 'frozen, hiding';
+  if (s.stand === 'freeze') return 'frozen with fear, hiding';
   if (s.sortieUntil !== null) return 'on a sortie';
   if (s.avoidUntil !== null) return 'backing off';
   if (s.gathering !== null) return 'stopped to talk';

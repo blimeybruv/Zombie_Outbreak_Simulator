@@ -359,7 +359,6 @@ export function zombieDecisions(world: World, ctx: Context): void {
     }
 
     // Goal direction and pace.
-    let atDoor = false; // battering the door it besieges: no flocking
     let gx = 0;
     let gy = 0;
     let pace = 1;
@@ -391,7 +390,6 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // arriveRadius it comes on at its pace, below). Staggered by id, so a crowd
         // heaves rather than marching in step (the user's picture of the dead ramming).
         pace = 0;
-        atDoor = true;
         const phase = (tick + z.id) % zc.ram.cycle;
         if (phase < zc.ram.back && d > 0) {
           gx = -dx / d;
@@ -488,7 +486,10 @@ export function zombieDecisions(world: World, ctx: Context): void {
     }
 
     // Flocking with nearby awake zombies: weak cohesion and alignment, repulsion when crowded.
-    if (z.state === 'active' && !atDoor) {
+    // Not one besieging a door, on its way there or battering it: each heave backs it out
+    // past arriveRadius, and for that tick the dead passing by drew it off the door, to
+    // batter the air beside it (the user saw them circle a car and batter that).
+    if (z.state === 'active' && z.besieging === null) {
       ctx.zombieHash.query(z.x, z.y, zc.flockRadius, ctx.ids2);
       let cx = 0, cy = 0, ax = 0, ay = 0, n = 0, crowd = 0, rx = 0, ry = 0;
       for (const oid of ctx.ids2) {

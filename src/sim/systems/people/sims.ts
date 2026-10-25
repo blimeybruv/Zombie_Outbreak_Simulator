@@ -1083,6 +1083,16 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // that stays out in the open (traits.ts).
     if (shuns(world, sim)) {
       if (sim.destinationKind !== 'leave' && !headForExit(world, sim)) {
+        // Out of the soldiers' range first: stood within it, it was warned off every
+        // warnEvery ticks for the rest of the run, ran from the shots, came back, and was
+        // shot over again, lapping the houses near the barrier.
+        const e = barrierNear(world, sim);
+        if (e !== null) {
+          const b = barrierAt(world, e);
+          sim.gait = 'walk';
+          steerToward(sim, b.x - e.dx * 2 * config.cordon.warnRadius, b.y - e.dy * 2 * config.cordon.warnRadius);
+          return;
+        }
         sim.gait = 'still';
         return;
       }
