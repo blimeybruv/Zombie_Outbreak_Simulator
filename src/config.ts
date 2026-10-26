@@ -594,6 +594,8 @@ export const config = {
   // population — guesses
   // breachRadius: a closed barrier with no living soldier within this many metres is
   // breached, and people on foot pass it (vehicles still stop) — guess
+  // newsRadius: anyone outdoors within this many metres of a breached barrier, in sight of
+  // it, knows that way out is open, and passes it on in conversation — guess
   // climb: anyone unwarned within `reach` m inside a closed barrier, within its span,
   // climbs over it, at movement.climb.share of its pace for `depth` m either side of the
   // line (the user's call: as over a car) — guess
@@ -606,7 +608,7 @@ export const config = {
   // facing back into the city. Stood stock still, a line read as frozen; ambling about
   // its place, as jittery (the user's notes) — guess. soldierAge: the age range of every
   // soldier from outside (the cordon and the Rangers), shown by rank, not profession.
-  cordon: { delay: 600, ammo: 120, setback: 40, post: 8, postReach: 6, warnRadius: 75, fireRadius: 25, warnEvery: 20, killShare: 0.5, defy: 0.5, kerb: 1.5, queueGap: 10, queueRadius: 20, queueSpacing: 1.2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, climb: { reach: 1.5, depth: 1 }, soldierAge: [19, 40] as [number, number], atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
+  cordon: { delay: 600, ammo: 120, setback: 40, post: 8, postReach: 6, warnRadius: 75, fireRadius: 25, warnEvery: 20, killShare: 0.5, defy: 0.5, kerb: 1.5, queueGap: 10, queueRadius: 20, queueSpacing: 1.2, returnFor: 60, fireFirstBelow: 0.15, breachRadius: 40, newsRadius: 150, climb: { reach: 1.5, depth: 1 }, soldierAge: [19, 40] as [number, number], atEase: { period: 90, still: 0.35, turn: 0.02, sweep: 1.2 } },
 
   // The faithful: this share of people belong to a church (the nearest to home), know
   // it from the start, and shelter only in churches while they know one that has not

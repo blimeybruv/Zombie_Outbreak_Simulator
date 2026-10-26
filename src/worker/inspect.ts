@@ -82,6 +82,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     backstory: story,
     thoughts: living ? thoughts(w, s) : [],
     knownBitten: knownBitten(w, s),
+    waysOut: w.exits.filter((_, i) => (s.knownBreached & (1 << i)) !== 0).length,
     ending: ending(w, s.id),
     kills: s.history.kills,
   };

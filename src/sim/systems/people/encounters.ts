@@ -27,6 +27,7 @@ import type { Sim, World } from '../../state';
 import { entranceNearest, leaveTalk, setDestination } from '../shared/common';
 import { modeOf } from './panic';
 import { rebuildSimHash } from '../shared/perception';
+import { learnBreached } from '../outside/exits';
 
 /**
  * Takes what `from` knows that is newer, as the listener hears it: `shift` ticks older
@@ -149,6 +150,12 @@ export function merge(world: World, a: Sim, b: Sim): void {
   const fromB = b.knownInfected.size > 0 && chance(world.rng, trustOf(world, a)) ? [...b.knownInfected] : [];
   if (a.knownInfected.size > 0 && chance(world.rng, trustOf(world, b))) for (const id of a.knownInfected) if (id !== b.id) b.knownInfected.add(id);
   for (const id of fromB) if (id !== a.id) a.knownInfected.add(id);
+
+  // Which ways out the cordon has lost: someone stranded with every exit it knew of shut
+  // makes for one it now hears is open (sims.ts).
+  const breachedA = a.knownBreached;
+  learnBreached(a, b.knownBreached);
+  learnBreached(b, breachedA);
 }
 
 /** Free to stop and talk: outdoors, not already talking, nothing in sight, not in flight, fighting, backing off or on a call, nor holding a place in the rescue's queue (gathered, the rows broke up). */

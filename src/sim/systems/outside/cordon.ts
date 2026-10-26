@@ -21,8 +21,9 @@
 //   rescue    at the rescue's exit, once the rescue has come, nobody is fired on:
 //             those answering the broadcast wait at the barrier for a truck
 
-import type { Context } from '../../context';
+import { isOutdoorLiving, type Context } from '../../context';
 import { admit } from '../../counters';
+import { learnBreached } from './exits';
 import { nextInt } from '../../lib/rng';
 import { spawnSim } from '../../spawn';
 import type { Exit, Sim, Vec2, World } from '../../state';
@@ -150,6 +151,19 @@ export function updateCordon(world: World, ctx: Context): void {
     e.breachedAt = tick;
     world.streets[e.street]!.blocked = 0;
     ctx.events.push({ type: 'cordonBreached', tick, sim: null, x: b.x, y: b.y });
+  }
+  // A barrier with nobody holding it is seen to be: anyone within newsRadius of it, in
+  // sight, knows that way out is open (and passes it on, encounters.ts).
+  for (let i = 0; i < exits.length; i++) {
+    const e = exits[i]!;
+    if (e.breachedAt === null) continue;
+    const b = barrierAt(world, e);
+    ctx.simHash.query(b.x, b.y, cc.newsRadius, ctx.ids2);
+    for (const id of ctx.ids2) {
+      const s = sims[id]!;
+      if (s.outsider || (s.knownBreached & (1 << i)) !== 0 || !isOutdoorLiving(s)) continue;
+      if (Math.hypot(s.x - b.x, s.y - b.y) <= cc.newsRadius && ctx.map.lineOfSight(s.x, s.y, b.x, b.y)) learnBreached(s, 1 << i);
+    }
   }
   for (const e of exits) {
     if (e.closedAt !== null) continue;

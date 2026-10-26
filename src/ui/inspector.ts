@@ -213,6 +213,7 @@ export class Inspector {
             : `${kb.names.join(', ')} and ${kb.count - kb.names.length} more`;
       r.append(el('div', 'sub warn', `Knows ${who} ${kb.count === 1 ? 'has' : 'have'} been bitten, and would turn ${kb.count === 1 ? 'them' : 'them'} away from a shelter.`));
     }
+    if (s.waysOut > 0) r.append(el('div', 'sub', `Knows the soldiers are gone from ${s.waysOut === 1 ? 'a road' : `${s.waysOut} roads`} out of the city.`));
     if (s.thoughts.length > 0) {
       const t = el('div', 'thoughts');
       for (const line of s.thoughts) t.append(el('div', undefined, line));

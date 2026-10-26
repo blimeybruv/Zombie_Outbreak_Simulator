@@ -42,6 +42,12 @@ export function headForExit(world: World, sim: Sim): boolean {
   return true;
 }
 
+/** News that the cordon has lost the exits in `bits`: none of them is shut to this sim again. */
+export function learnBreached(sim: Sim, bits: number): void {
+  sim.knownBreached |= bits;
+  sim.knownClosed &= ~sim.knownBreached;
+}
+
 /** Out of play: through the exit, counted as evacuated (bitten or not). */
 export function leaveMap(world: World, ctx: Context, sim: Sim): void {
   const from = simLeaf(sim);

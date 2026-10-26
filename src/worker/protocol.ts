@@ -186,6 +186,8 @@ export interface SimDetail {
   thoughts: string[];
   /** Those it knows have been bitten: up to three names (of the named), and how many in all. */
   knownBitten: { names: string[]; count: number };
+  /** Ways out it knows the cordon has lost (Sim.knownBreached). */
+  waysOut: number;
   /** How its story ended, for the dead, the turned and those who got out (endings.ts): hours are on the viewer's clock, since the outbreak began. */
   ending: { how: 'fedOn' | 'breach' | 'shot' | 'mistaken' | 'returned' | 'crash' | 'turned' | 'evacuated'; place: string; hoursIn: number; roseAfter: number | null } | null;
   /** The dead it destroyed. */

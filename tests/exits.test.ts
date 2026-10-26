@@ -3,7 +3,9 @@ import { config } from '../src/config';
 import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { transfer } from '../src/sim/counters';
-import { carLeaves, exitArrivals, headForExit } from '../src/sim/systems/outside/exits';
+import { carLeaves, exitArrivals, headForExit, nearestExit } from '../src/sim/systems/outside/exits';
+import { merge } from '../src/sim/systems/people/encounters';
+import { rebuildSimHash } from '../src/sim/systems/shared/perception';
 import { assertInvariant, step } from '../src/sim/tick';
 import { barrierAt, flank, queueAt, updateCordon } from '../src/sim/systems/outside/cordon';
 import { queueSlot } from '../src/sim/systems/outside/rescue';
@@ -249,4 +251,27 @@ describe('the cordon', () => {
     expect(e.breachedAt).not.toBeNull();
     expect(s.condition).toBe('evacuated');
   }, 60_000);
+
+  it('one who sees a barrier left unheld knows that way is open, and tells one stranded elsewhere, who makes for it', () => {
+    const { world, ctx, e, s } = closed();
+    const all = (1 << world.exits.length) - 1;
+    const far = world.sims.find((x) => x !== s && x.condition === 'healthy' && x.insideBuilding === null && x.car === null && !x.outsider)!;
+    s.knownClosed = all;
+    far.knownClosed = all;
+    standAt(world, s, e, config.cordon.warnRadius + 20); // out of the soldiers' range, the barrier in sight
+    far.x = world.exits[1]!.x - world.exits[1]!.dx * 400;
+    far.y = world.exits[1]!.y - world.exits[1]!.dy * 400;
+    rebuildSimHash(world, ctx);
+    updateCordon(world, ctx);
+    expect(s.knownBreached).toBe(0); // still held
+    e.breachedAt = world.tick; // its squad gone
+    updateCordon(world, ctx);
+    expect(s.knownBreached).toBe(1 << 0);
+    expect(s.knownClosed & 1).toBe(0);
+    expect(far.knownBreached).toBe(0);
+    merge(world, s, far);
+    expect(far.knownBreached).toBe(1 << 0);
+    expect(headForExit(world, far)).toBe(true);
+    expect(nearestExit(world, far.destination!.x, far.destination!.y)).toBe(0);
+  });
 });
