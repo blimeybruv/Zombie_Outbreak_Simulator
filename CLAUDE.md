@@ -237,6 +237,12 @@ If one seems necessary, raise it rather than adding it.
     where to look, not for judging a change.
   - `npx tsx scripts/movement-check.ts` reports how often moving agents are stuck or
     reversing; it should stay near zero after any change to steering or movement.
+  - `npx tsx scripts/oddities.ts [runSeed] [mapSeed] [--ticks N]` — the oddity check: what
+    would look wrong to someone watching (laps, stuck, jitter, the dead against a wall or
+    besieging a point that is no door, the same event on one person again and again,
+    repeated freezes), by kind and by place, each with a link that opens the viewer there
+    (`?advance=…&at=x,y`, with `npm run dev` running). Run it after any change to behaviour
+    or steering, before asking the user to look.
 - **The viewer:** `npm run dev`. A frame counter (top centre; F toggles, `?fps` in a
   build) shows fps, the worst frame, draw time and the simulation's achieved tick rate.
   `npx tsx scripts/view.ts [--advance N]` screenshots far, mid and near zoom in headless

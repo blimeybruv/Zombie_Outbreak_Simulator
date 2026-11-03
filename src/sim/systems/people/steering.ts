@@ -5,6 +5,7 @@
 
 import type { Context } from '../../context';
 import { sharedNode } from '../../navigation/pathfinding';
+import { roundCorner } from '../../navigation/round';
 import type { Sim, World } from '../../state';
 
 export function steerToward(sim: Sim, x: number, y: number): void {
@@ -76,6 +77,11 @@ function lastLeg(world: World, ctx: Context, sim: Sim): boolean {
   // Seen from here: a point just out from the door toward its street (the door itself lies on the wall).
   const ox = d.x + ((fx - d.x) / fl) * world.config.behaviour.doorStep, oy = d.y + ((fy - d.y) / fl) * world.config.behaviour.doorStep;
   if (ctx.map.lineOfSight(sim.x, sim.y, ox, oy)) return headFor(world, ctx, sim, d.x, d.y);
+  // Its own building between: round its corners to the door. Making for the street in
+  // front of it through the building, a sim at the back pressed into the wall and slid
+  // to and fro along it for good (the oddity check, scripts/oddities.ts: lap).
+  const w = roundCorner(world, ctx, world.buildings[bid]!, sim.x, sim.y, d.x, d.y);
+  if (w !== null) return headFor(world, ctx, sim, w.x, w.y);
   return headFor(world, ctx, sim, fx, fy);
 }
 

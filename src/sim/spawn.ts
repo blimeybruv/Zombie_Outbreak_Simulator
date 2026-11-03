@@ -234,6 +234,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     turnedFrom: null,
     turnedFromUntil: null,
     refusedBy: null,
+    refusals: new Map(),
     weapon,
     ammo,
     supplies: 0,

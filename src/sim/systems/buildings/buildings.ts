@@ -151,6 +151,8 @@ function turnAway(world: World, sim: Sim, b: Building): void {
     sim.turnedFromUntil = world.tick + world.config.behaviour.turnedFromHold;
   }
   sim.refusedBy = b.id;
+  for (const [id, until] of [...sim.refusals]) if (until <= world.tick) sim.refusals.delete(id);
+  sim.refusals.set(b.id, world.tick + world.config.behaviour.refusedHold);
   if (sim.shelter === b.id) sim.shelter = null;
   sim.destinationBuilding = null;
   sim.destination = null;

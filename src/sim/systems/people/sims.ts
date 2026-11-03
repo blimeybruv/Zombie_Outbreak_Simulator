@@ -33,7 +33,7 @@ import { isFirearm } from '../../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
 import { outOfAmmo } from '../fighting/arms';
-import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, setDestination } from '../shared/common';
+import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, refusedLately, setDestination } from '../shared/common';
 import { carStillMine, considerDriving, giveUpCar } from '../services/cars';
 import { decideCars } from '../services/driving';
 import { breaks, modeOf, type Mode } from './panic';
@@ -226,7 +226,7 @@ function nearestDoor(world: World, ctx: Context, sim: Sim, toward: 'any' | 'pena
   let door: Building | null = null;
   let doorD = Infinity;
   for (const bid of ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.doorSearchRadius, ctx.buildingIds)) {
-    if (bid === sim.refusedBy || bid === skip || bid === skipToo) continue;
+    if (bid === sim.refusedBy || bid === skip || bid === skipToo || refusedLately(world, sim, bid)) continue;
     const b = buildings[bid]!;
     const e = entranceNearest(b, sim.x, sim.y);
     let d = Math.hypot(e.x - sim.x, e.y - sim.y);
@@ -734,6 +734,13 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
         steerToward(sim, b.x - e.dx * 2 * config.cordon.warnRadius, b.y - e.dy * 2 * config.cordon.warnRadius);
         return;
       }
+    }
+    // One that will never go indoors runs from it in the open. Running for doors, a
+    // claustrophobe was turned away by house after house, froze, and ran round them again.
+    if (diehard(world, sim)) {
+      sim.gait = 'sprint';
+      steerAway(ctx, sim);
+      return;
     }
     // Not choosing a shelter: running for a door in sight, preferring one that does not
     // lie toward what it is running from — and, once chosen, keeping to it while it is

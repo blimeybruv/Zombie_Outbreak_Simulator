@@ -408,6 +408,7 @@ export const config = {
     pathStreetSearch: 200, // m; widest search for the street a route starts or ends on
     observeInterval: 5, // ticks between close-pass building observations, staggered by id
     avoidHold: 15, // ticks a sim keeps avoiding after the threat drops out of sight
+    refusedHold: 900, // ticks a door that turned a sim away is not tried again (Sim.refusals) — guess
     turnedFromHold: 120, // ticks a door it turned from (its way blocked, or refused before the last refusal) is not run for again — guess
     // A warning is shouted out loud: it is a stimulus
     // (encounters.shoutNoiseRadius, by default the warning's), heard by the dead as well as the living — telling the
@@ -859,6 +860,9 @@ export const config = {
       run: { speed: 2.2, stamina: -0.006, detectability: 1.3, noise: 8 },
       sprint: { speed: 2.9, stamina: -0.015, detectability: 1.6, noise: 15 },
     },
+    // m out from a building's corner, on the way round it to a door on its far side
+    // (navigation/round.ts): the dead besieging it, the living on their last stretch — guess
+    roundCorner: 1.5,
     staminaSpeedFloor: 0.5, // effectiveSpeed = gaitSpeed * (floor + (1-floor) * stamina) * ageFactor (fleeAgeFactor when running or sprinting)
     ageFactor: { atAge: [20, 80], value: [1.05, 0.75] }, // linear between, clamped outside
     // Running and sprinting age far worse than walking: at 80 a sprint is barely faster
@@ -921,7 +925,6 @@ export const config = {
     heaveCarBelow: 0.5,
     wallTouch: 1.2, // m: an idle zombie this close to a building with the living in it makes for its door — guess
     doorStand: 0.6, // m out from a door's wall where a besieging zombie stands, in front of it — guess
-    round: 1.5, // m out from a building's corner, the way round it to the door a besieging zombie cannot see — guess
     // Turned from a single bite: survivors register it at intactSight × their sight
     // radius, but never nearer than intactGiveaway (its gait gives it away) — guess
     intactSight: 0.35,

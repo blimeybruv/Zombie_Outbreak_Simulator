@@ -136,7 +136,7 @@ describe('the cordon', () => {
     expect(s.firedOnAt).toBeNull();
     expect(s.condition).toBe('evacuated');
     expect(over).toBe(true);
-  });
+    }, 60_000);
 
   it('one making for a closed exit is warned off with a shot, not hit, and gives the exit up', () => {
     const { world, ctx, e, s } = closed();

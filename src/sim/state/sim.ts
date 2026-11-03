@@ -343,6 +343,8 @@ export interface Sim {
   turnedFromUntil: Tick | null;
   /** The last building that turned this sim away (occupied, or someone inside knew it was bitten); never chosen again as a door or shelter. @range building id | null @unit id @readBy door and shelter choice */
   refusedBy: BuildingId | null;
+  /** Every door that turned it away lately, each to the tick it is tried again (behaviour.refusedHold after). Remembering two, a runner turned away by three houses ran round them for good. @range building ids → tick @unit tick @readBy door and shelter choice */
+  refusals: Map<BuildingId, Tick>;
 
   // Carried
 

@@ -100,9 +100,11 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     renderer = new Renderer(canvas, msg.map);
     audio.setExits(msg.map.exits);
     // Open on where it began: the first building the dead started in, close enough to see the street.
-    const origin = msg.map.origins[0];
+    // Or on `at=x,y` in the address, close in (the oddity check's links, scripts/oddities.ts).
+    const at = params.get('at')?.split(',').map(Number);
+    const origin = at !== undefined && at.length === 2 && at.every(Number.isFinite) ? { x: at[0]!, y: at[1]! } : msg.map.origins[0];
     if (origin !== undefined) {
-      camera.scale = 1;
+      camera.scale = at !== undefined ? 4 : 1;
       camera.centreOn(origin.x, origin.y);
       camera.version++;
     }

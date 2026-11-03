@@ -2,7 +2,7 @@
 // economy. Kept apart so those systems do not import each other.
 
 import { functionalProfile } from '../../mapgen/generate';
-import type { Building, Sim, World } from '../../state';
+import type { Building, BuildingId, Sim, World } from '../../state';
 import { isFirearm } from '../../state';
 
 export function entranceNearest(b: Building, x: number, y: number): { x: number; y: number } {
@@ -84,4 +84,9 @@ export function exitTicks(world: World, b: Building): number {
 
 export function isLiving(s: Sim): boolean {
   return s.condition === 'healthy' || s.condition === 'infected';
+}
+
+/** Whether this door turned the sim away lately (Sim.refusals): not run for, nor chosen as a shelter, until then. */
+export function refusedLately(world: World, sim: Sim, b: BuildingId): boolean {
+  return (sim.refusals.get(b) ?? -1) > world.tick;
 }

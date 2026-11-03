@@ -23,7 +23,7 @@ import { agoraphobia, buildSpeed, buildWaste, clings, diehard, groupPeak, shuns 
 import { fortificationCap } from './breach';
 import { quarantined } from './quarantine';
 import { recognisedWithin } from '../shared/perception';
-import { capacity, entranceNearest, exitTicks, isLiving, setDestination, stageOf } from '../shared/common';
+import { capacity, entranceNearest, exitTicks, isLiving, refusedLately, setDestination, stageOf } from '../shared/common';
 import { modeOf } from '../people/panic';
 
 // Door watch
@@ -104,7 +104,7 @@ export function chooseShelter(world: World, ctx: Context, sim: Sim, exclude: Bui
   let best: Building | null = null;
   let bestScore = -Infinity;
   for (const bid of [...candidates].sort((a, b) => a - b)) {
-    if (bid === exclude) continue;
+    if (bid === exclude || refusedLately(world, sim, bid)) continue;
     const b = buildings[bid]!;
     const belief = sim.buildingMemory.get(bid);
     if (loner && (belief ? belief.believedOccupants : visibleFill(b)) > 0) continue;
@@ -570,7 +570,9 @@ function cascadeWatch(world: World, ctx: Context, b: Building): void {
     z.state = 'active';
     z.stateUntil = null;
     z.heardAt = tick;
-    if (z.target === null) {
+    // Not one besieging a door: drawn to the crowd's middle, it battered the open ground
+    // there (the oddity check, scripts/oddities.ts: noDoor).
+    if (z.target === null && z.besieging === null) {
       if (z.heardPoint === null) z.heardPoint = { x: cx, y: cy };
       else {
         z.heardPoint.x = cx;
