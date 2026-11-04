@@ -30,6 +30,10 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
   if (ctx.map.lineOfSight(px, py, door.x, door.y)) return null;
   const o = b.outline;
   const n = o.length;
+  // A place beyond: only this building's own way round, when it is this building in the
+  // way. Something further off hiding it, the way round this one swung the dead back and
+  // forth at its corner.
+  if (!toDoor && !o.some((p, i) => crosses(px, py, door.x, door.y, p.x, p.y, o[(i + 1) % n]!.x, o[(i + 1) % n]!.y))) return null;
   const edge = (px: number, py: number): number => {
     let best = 0;
     let bestD = Infinity;
@@ -105,3 +109,11 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
   return near <= 2 * r ? 'shut' : null;
 }
 
+
+/** Whether segment a–b crosses segment c–d. */
+function crosses(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): boolean {
+  const side = (px: number, py: number, qx: number, qy: number, rx: number, ry: number) => (qx - px) * (ry - py) - (qy - py) * (rx - px);
+  const d1 = side(cx, cy, dx, dy, ax, ay), d2 = side(cx, cy, dx, dy, bx, by);
+  const d3 = side(ax, ay, bx, by, cx, cy), d4 = side(ax, ay, bx, by, dx, dy);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
