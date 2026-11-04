@@ -219,7 +219,8 @@ If one seems necessary, raise it rather than adding it.
   test suite does not mean the infection curve still has its shape. `npm run sweep` runs
   20 runSeeds on one mapSeed in parallel, asserts the invariant every tick and checks the
   gates (`--seeds 8` for quicker exploration, `--set path=value` overrides any config
-  value). A full sweep takes about an hour on 16 cores.
+  value). A full sweep takes about an hour on 16 cores. It runs the oddity check
+  alongside (below) and prints its findings per seed: the two go together.
 - Tuning is the actual work on this project; the code is the easy part.
 - Prefer small modules and small commits. Architecture debt compounds badly here
   because everything reads the same state.

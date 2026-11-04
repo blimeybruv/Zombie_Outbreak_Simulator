@@ -12,7 +12,7 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { step } from '../src/sim/tick';
 import { settingsFrom } from '../src/ui/setup';
-import { ODDITY, OddityCheck, viewerLink, type Oddity, type OddityKind } from './lib/oddities';
+import { hotspots, ODDITY, ODDITY_KINDS, OddityCheck, viewerLink, type Oddity } from './lib/oddities';
 
 const args = process.argv.slice(2);
 const opt = (name: string, fallback: string) => {
@@ -34,7 +34,7 @@ while (world.tick < ticks) {
   check.observe(world, ctx);
 }
 
-const kinds: OddityKind[] = ['lap', 'stuck', 'jitter', 'wallPress', 'noDoor', 'repeated', 'freezes'];
+const kinds = ODDITY_KINDS;
 const hours = (t: number) => `${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
 const show = (o: Oddity) => `  ${hours(o.tick).padStart(5)}  ${o.who.padEnd(12)} ${o.detail}\n         ${viewerLink(o, runSeed, mapSeed)}`;
 
@@ -44,12 +44,7 @@ for (const k of kinds) console.log(`${k.padEnd(11)} ${String(check.found.filter(
 
 // Places where several agents were odd at once: a ring round a block, a crowd at a wall.
 const cell = 100;
-const spots = new Map<string, Oddity[]>();
-for (const o of check.found) {
-  const k = `${Math.floor(o.x / cell)},${Math.floor(o.y / cell)},${Math.floor(o.tick / ODDITY.quiet)}`;
-  spots.set(k, [...(spots.get(k) ?? []), o]);
-}
-const busy = [...spots.values()].filter((v) => v.length >= 3).sort((a, b) => b.length - a.length).slice(0, top * 2);
+const busy = hotspots(check.found, cell).filter((v) => v.length >= 3).slice(0, top * 2);
 if (busy.length > 0) {
   console.log(`\nWhere several were odd together (${cell} m, within ${ODDITY.quiet} ticks):`);
   for (const v of busy) {

@@ -13,6 +13,7 @@ import { BASE, MAJOR, Salience } from '../../src/ui/salience';
 import { isFirearm, type Sim, type World } from '../../src/sim/state';
 import { isSwat } from '../../src/sim/systems/services/squads';
 import { rescueTally } from '../../src/sim/systems/outside/rescue';
+import { hotspots, ODDITY_KINDS, OddityCheck, type OddityKind } from './oddities';
 
 /**
  * What a sample window looked like beyond the counters: why a run smoulders or takes
@@ -164,6 +165,8 @@ export interface RunSummary {
   byLight: { day: { ticks: number; turned: number; killed: number }; night: { ticks: number; turned: number; killed: number } };
   /** One entry per sample window: zombie states, awareness outdoors, talk, noise, events, ticker lines. */
   timeline: TimelineEntry[];
+  /** The oddity check over the run (scripts/lib/oddities.ts): agents found, by kind, and the most found together in one place. */
+  oddities: { counts: Record<OddityKind, number>; together: number; at: { x: number; y: number; tick: number } | null };
   runLength: number;
 }
 
@@ -258,12 +261,14 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const archOf = (a: string) => (arch[a] ??= { alive: 0, total: 0, panic: 0, samples: 0, freezes: 0 });
   const frozen: boolean[] = [];
   let alarms = 0;
+  const odd = new OddityCheck();
   const t0 = performance.now();
   try {
     while (world.tick < config.time.runLength) {
       const named = world.roster.length;
       anyoneAlive = world.counters.unturned.outdoors + world.counters.unturned.indoors > 0;
       step(world, ctx, { checkInvariant: true });
+      odd.observe(world, ctx);
       (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
       for (const s of world.sims) {
         const f = s.stand === 'freeze';
@@ -426,6 +431,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     roster,
     stages,
     fates,
+    oddities: oddityTally(odd),
     runLength: config.time.runLength,
   };
+}
+
+function oddityTally(odd: OddityCheck): RunSummary['oddities'] {
+  const counts = Object.fromEntries(ODDITY_KINDS.map((k) => [k, odd.found.filter((o) => o.kind === k).length])) as Record<OddityKind, number>;
+  const top = hotspots(odd.found)[0];
+  return { counts, together: top?.length ?? 0, at: top ? { x: top[0]!.x, y: top[0]!.y, tick: top[0]!.tick } : null };
 }

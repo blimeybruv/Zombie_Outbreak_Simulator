@@ -217,3 +217,17 @@ export class OddityCheck {
 export function viewerLink(o: Oddity, runSeed: number, mapSeed: number, base = 'http://localhost:5173/'): string {
   return `${base}?start=1&run=${runSeed}&map=${mapSeed}&advance=${Math.max(0, o.tick - ODDITY.window)}&at=${o.x.toFixed(0)},${o.y.toFixed(0)}`;
 }
+
+export const ODDITY_KINDS: OddityKind[] = ['lap', 'stuck', 'jitter', 'wallPress', 'noDoor', 'repeated', 'freezes'];
+
+/** Findings close together in place and time (`cell` m, `ODDITY.quiet` ticks), biggest first: a ring round a block, a crowd at a wall. */
+export function hotspots(found: readonly Oddity[], cell = 100): Oddity[][] {
+  const spots = new Map<string, Oddity[]>();
+  for (const o of found) {
+    const k = `${Math.floor(o.x / cell)},${Math.floor(o.y / cell)},${Math.floor(o.tick / ODDITY.quiet)}`;
+    const v = spots.get(k);
+    if (v) v.push(o);
+    else spots.set(k, [o]);
+  }
+  return [...spots.values()].sort((a, b) => b.length - a.length);
+}

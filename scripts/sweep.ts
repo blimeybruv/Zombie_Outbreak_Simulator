@@ -20,6 +20,9 @@
 // conversations, gunshots and shouts, ticker lines per 10 minutes at 1× (every event
 // treated as on screen), "dead air" (10-minute windows after the first hour with no
 // ticker line at all), and conversions, breaches and 911 dispatches.
+// Also reported, not gated: the oddity check (scripts/lib/oddities.ts) per seed — what
+// would look wrong to someone watching, by kind, and the most found in one place. To
+// see a seed's findings with viewer links: npx tsx scripts/oddities.ts <seed> <map>.
 // Also reported, not gated: survival by sociality band, over the sims whose archetype
 // ever joins anyone — whether going along with others helps or hurts; and by trust
 // band — whether believing what one is told does; and by caution among the asocial,
@@ -31,6 +34,7 @@ import { availableParallelism } from 'node:os';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { GATE_LOSS, KILLERS, runOne, type RunSummary } from './lib/run-one';
+import { ODDITY_KINDS } from './lib/oddities';
 import { config as baseConfig } from '../src/config';
 
 /** Who got named, and why: does scoring find different characters, or one character many times? */
@@ -276,6 +280,7 @@ if (process.argv[2] === '--worker') {
   const trusting = bandSurvival(results.map((r) => r.trust));
   console.log(`survival by trust low/mid/high ${trusting.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${trusting.z.toFixed(1)}; not gated)`);
   rosterSummary(results, rosterOut);
+  oddityTable(results);
   console.log(`wall time ${((performance.now() - started) / 1000).toFixed(0)} s`);
   if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ mapSeed, overrides, results }, null, 1));
   process.exitCode = gate2 && gate4 ? 0 : 1;
@@ -297,4 +302,17 @@ function bandSurvival(runs: { alive: number[]; total: number[] }[]): { rate: num
 
 function bandsEdge(): number {
   return baseConfig.promotion.cautionBands[0]!;
+}
+
+/** The oddity check, per seed: agents found by kind, and the most found together in one place (where, and when). */
+function oddityTable(results: RunSummary[]): void {
+  console.log(`\nseed  oddities: ${ODDITY_KINDS.join('/')}  most together (at x,y, tick)`);
+  const total = ODDITY_KINDS.map(() => 0);
+  for (const r of results) {
+    const o = r.oddities;
+    ODDITY_KINDS.forEach((k, i) => (total[i]! += o.counts[k]));
+    const at = o.at === null ? '' : ` (${o.at.x.toFixed(0)},${o.at.y.toFixed(0)}, ${o.at.tick})`;
+    console.log(`${String(r.runSeed).padStart(4)}  ${ODDITY_KINDS.map((k) => o.counts[k]).join('/')}  ${o.together}${at}`);
+  }
+  console.log(`  all  ${total.join('/')}; per seed ${total.map((n) => (n / Math.max(1, results.length)).toFixed(1)).join('/')}  (scripts/oddities.ts <seed> for links; a sweep run has no stalemate controller, the viewer's does)`);
 }
