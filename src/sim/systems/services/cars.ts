@@ -645,9 +645,16 @@ export function carProcesses(world: World, ctx: Context): void {
       ctx.events.push({ type: 'carBrokenInto', tick, car: car.id, x: car.x, y: car.y, sim: driver.id });
       const out = [...car.occupants];
       alight(world, ctx, car);
-      const dx = car.x - first.x, dy = car.y - first.y, d = Math.hypot(dx, dy) || 1;
-      const px = first.x + (dx / d) * cc.forcedOut.dragged, py = first.y + (dy / d) * cc.forcedOut.dragged;
-      if (ctx.map.walkable(px, py) && !ctx.cars.blocks(px, py)) {
+      // Beside the zombie, the clear ground nearest the car (toward the car's middle, from
+      // its nose or tail, is the car itself).
+      const toward = Math.atan2(car.y - first.y, car.x - first.x);
+      let best = Infinity;
+      for (let k = 0; k < 8; k++) {
+        const a = toward + (k * Math.PI) / 4;
+        const px = first.x + Math.cos(a) * cc.forcedOut.dragged, py = first.y + Math.sin(a) * cc.forcedOut.dragged;
+        const d = Math.hypot(car.x - px, car.y - py);
+        if (d >= best || !ctx.map.walkable(px, py) || ctx.cars.blocks(px, py)) continue;
+        best = d;
         driver.x = px;
         driver.y = py;
       }
