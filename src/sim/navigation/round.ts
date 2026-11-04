@@ -18,12 +18,15 @@ const pinch: BuildingId[] = [];
  * against the building, neither way round gets it any further — a terraced house, its
  * neighbours against both sides, seen from the back: the door is a long way round the
  * row, not round this house.
+ *
+ * With `toDoor` false, (x, y) is itself the place to get to — a sound beyond the
+ * building — and the way goes round to the side of it nearest that place.
  */
-export function roundCorner(world: World, ctx: Context, b: Building, px: number, py: number, x: number, y: number): Vec2 | null | 'shut' {
+export function roundCorner(world: World, ctx: Context, b: Building, px: number, py: number, x: number, y: number, toDoor = true): Vec2 | null | 'shut' {
   const r = world.config.movement.roundCorner;
   let entrance = b.entrances[0]!;
   for (const e of b.entrances) if (Math.hypot(e.x - x, e.y - y) < Math.hypot(entrance.x - x, entrance.y - y)) entrance = e;
-  const door = ctx.map.outside(b.id, b.entrances.indexOf(entrance), r);
+  const door = toDoor ? ctx.map.outside(b.id, b.entrances.indexOf(entrance), r) : { x, y };
   if (ctx.map.lineOfSight(px, py, door.x, door.y)) return null;
   const o = b.outline;
   const n = o.length;
@@ -40,7 +43,7 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
     return best;
   };
   const from = edge(px, py);
-  const to = edge(entrance.x, entrance.y);
+  const to = toDoor ? edge(entrance.x, entrance.y) : edge(x, y);
   if (from === to) return null;
   let cx = 0;
   let cy = 0;

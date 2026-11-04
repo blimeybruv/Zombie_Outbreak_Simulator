@@ -353,6 +353,20 @@ export function zombieDecisions(world: World, ctx: Context): void {
       } else if (d > 0) {
         gx = dx / d;
         gy = dy / d;
+        // Making for a sound with a building it is up against in between: round that
+        // building first. Straight for it, a pack of the dead slid to and fro along a
+        // wall for twenty minutes (the oddity check: lap).
+        if (z.besieging === null && z.target === null) {
+          const b = ctx.map.buildingsNear(z.x, z.y, zc.wallTouch, ctx.buildingIds)[0];
+          if (b !== undefined) {
+            const w = roundCorner(world, ctx, world.buildings[b]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y, false);
+            if (w !== null && w !== 'shut') {
+              const wd = Math.hypot(w.x - z.x, w.y - z.y) || 1;
+              gx = (w.x - z.x) / wd;
+              gy = (w.y - z.y) / wd;
+            }
+          }
+        }
         // Making for the door of a building it is round the side or back of: round the
         // corner first. Straight for the door, the dead pressed into the wall short of it.
         if (z.besieging !== null && z.target === null) {
