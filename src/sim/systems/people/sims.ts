@@ -730,6 +730,10 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     if (sim.crossing === null && sim.firedOnAt !== null && tick - sim.firedOnAt <= config.cordon.warnEvery) {
       const e = barrierNear(world, sim);
       if (e !== null) {
+        // Frightened or not, it knows now that way out is held. Learning it only when
+        // calm, the panicked came back to be shot over again, ran for the houses by the
+        // barrier, were turned away and froze, over and over (the oddity check).
+        sim.knownClosed |= 1 << world.exits.indexOf(e);
         const b = barrierAt(world, e);
         steerToward(sim, b.x - e.dx * 2 * config.cordon.warnRadius, b.y - e.dy * 2 * config.cordon.warnRadius);
         return;
@@ -903,6 +907,15 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     const i = nearestExit(world, sim.destination.x, sim.destination.y)!;
     const e = world.exits[i]!;
     if (shut(e)) {
+      // Making for a way out it has learned is held (warned off in a panic, sims.ts
+      // flight): another, or none.
+      if (sim.crossing === null && (sim.knownClosed & (1 << i)) !== 0 && !holdsFire(world, i)) {
+        if (!headForExit(world, sim)) {
+          clearDestination(sim);
+          sim.destinationKind = null;
+        }
+        return;
+      }
       // Pressing on round it: along the kerb to beside the barrier's end, then out (exits.ts).
       if (sim.crossing !== null) {
         const to = crossTo(world, e, sim);

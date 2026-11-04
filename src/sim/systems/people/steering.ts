@@ -81,7 +81,7 @@ function lastLeg(world: World, ctx: Context, sim: Sim): boolean {
   // front of it through the building, a sim at the back pressed into the wall and slid
   // to and fro along it for good (the oddity check, scripts/oddities.ts: lap).
   const w = roundCorner(world, ctx, world.buildings[bid]!, sim.x, sim.y, d.x, d.y);
-  if (w !== null) return headFor(world, ctx, sim, w.x, w.y);
+  if (w !== null && w !== 'shut') return headFor(world, ctx, sim, w.x, w.y);
   return headFor(world, ctx, sim, fx, fy);
 }
 

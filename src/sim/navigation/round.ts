@@ -11,9 +11,12 @@ import type { Building, Vec2, World } from '../state';
  * stands between: the next corner (movement.roundCorner metres out from it) along the shorter
  * way round its outline, from the side the zombie is nearest to the door's side. Null
  * with the way clear (sighted on a point as far out from the door: the door itself is on
- * the wall, and no line to it is clear), or once on the door's side.
+ * the wall, and no line to it is clear), or once on the door's side. 'shut' when, up
+ * against the building, neither way round gets it any further — a terraced house, its
+ * neighbours against both sides, seen from the back: the door is a long way round the
+ * row, not round this house.
  */
-export function roundCorner(world: World, ctx: Context, b: Building, px: number, py: number, x: number, y: number): Vec2 | null {
+export function roundCorner(world: World, ctx: Context, b: Building, px: number, py: number, x: number, y: number): Vec2 | null | 'shut' {
   const r = world.config.movement.roundCorner;
   let entrance = b.entrances[0]!;
   for (const e of b.entrances) if (Math.hypot(e.x - x, e.y - y) < Math.hypot(entrance.x - x, entrance.y - y)) entrance = e;
@@ -64,19 +67,31 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
     return { corners, length: length + Math.hypot(door.x - at.x, door.y - at.y) };
   };
   // The furthest corner along the way still in sight, so it cuts each corner it can see
-  // past, with no corner to arrive at and turn on; `undefined` when the first is out of
-  // sight or in another building — a gap between houses too narrow, say.
+  // past, with no corner to arrive at and turn on; `undefined` when that way is shut: the
+  // first out of sight or in another building (a gap between houses too narrow), or, at
+  // a corner already, no clear way on from it to the next corner or the door.
   const toward = (corners: Vec2[]): Vec2 | undefined => {
-    let seen: Vec2 | undefined;
-    for (const c of corners) {
+    let k = -1;
+    for (let i = 0; i < corners.length; i++) {
+      const c = corners[i]!;
       if (!ctx.map.walkable(c.x, c.y) || !ctx.map.lineOfSight(px, py, c.x, c.y)) break;
-      seen = c;
+      k = i;
     }
-    return seen;
+    if (k < 0) return undefined;
+    const seen = corners[k]!;
+    if (Math.hypot(seen.x - px, seen.y - py) > r) return seen;
+    const next = corners[k + 1] ?? door;
+    return ctx.map.walkable(next.x, next.y) && ctx.map.lineOfSight(seen.x, seen.y, next.x, next.y) ? seen : undefined;
   };
   const fwd = way(1);
   const back = way(-1);
   const [first, second] = fwd.length <= back.length ? [fwd, back] : [back, fwd];
-  return toward(first.corners) ?? toward(second.corners) ?? null;
+  const w = toward(first.corners) ?? toward(second.corners);
+  if (w !== undefined) return w;
+  // Shut only for one up against it: further off, something else is in the way, and it
+  // goes on as before.
+  let near = Infinity;
+  for (let i = 0; i < n; i++) near = Math.min(near, pointSegmentDistance(px, py, o[i]!.x, o[i]!.y, o[(i + 1) % n]!.x, o[(i + 1) % n]!.y));
+  return near <= 2 * r ? 'shut' : null;
 }
 

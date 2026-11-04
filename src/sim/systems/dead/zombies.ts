@@ -119,12 +119,14 @@ function doorFront(world: World, ctx: Context, b: Building, z: Zombie): { x: num
   return ctx.map.outside(b.id, b.entrances.indexOf(e), world.config.zombie.doorStand);
 }
 
-/** A building with the living in it and none of the dead, whose wall this zombie is up against; null if none. */
+/** A building with the living in it and none of the dead, whose wall this zombie is up against and whose door it can get round to; null if none. */
 function peopledWall(world: World, ctx: Context, z: Zombie): Building | null {
   const r = world.config.zombie.wallTouch;
   for (const id of ctx.map.buildingsNear(z.x, z.y, r, ctx.buildingIds)) {
     const b = world.buildings[id]!;
-    if (b.zombiesInside === 0 && b.residents + b.sheltered.length > 0) return b;
+    if (b.zombiesInside > 0 || b.residents + b.sheltered.length === 0) continue;
+    const e = doorFront(world, ctx, b, z);
+    if (roundCorner(world, ctx, b, z.x, z.y, e.x, e.y) !== 'shut') return b;
   }
   return null;
 }
@@ -355,7 +357,16 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // corner first. Straight for the door, the dead pressed into the wall short of it.
         if (z.besieging !== null && z.target === null) {
           const w = roundCorner(world, ctx, world.buildings[z.besieging]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y);
-          if (w !== null) {
+          if (w === 'shut') {
+            // No way round this house to its door from here (its neighbours against both
+            // sides): not this door. Pushing on, one stood at the back of a terraced house
+            // for hours (the oddity check: wallPress).
+            z.besieging = null;
+            z.besiegeUntil = null;
+            z.heardPoint = null;
+            gx = 0;
+            gy = 0;
+          } else if (w !== null) {
             const wd = Math.hypot(w.x - z.x, w.y - z.y) || 1;
             gx = (w.x - z.x) / wd;
             gy = (w.y - z.y) / wd;
