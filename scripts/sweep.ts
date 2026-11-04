@@ -1,7 +1,11 @@
 // Parameter sweep and gate check: many runSeeds against one mapSeed, in parallel
 // child processes, with config overrides.
 //
-//   npx tsx scripts/sweep.ts [--seeds 20] [--map 1] [--jobs 4] [--set zombie.wanderRate=0.001 ...] [--scenario initialZombies=20 --scenario origin=scattered ...] [--json out.json] [--roster out.txt]
+//   npx tsx scripts/sweep.ts [--seeds 20] [--map 1] [--jobs 4] [--set zombie.wanderRate=0.001 ...] [--scenario initialZombies=20 --scenario origin=scattered ...] [--json out.json] [--roster out.txt] [--resume dir]
+//
+// --resume dir: each run's summary is saved there as it finishes (seed-N.json), and runs
+// already there are not run again — a sweep that is stopped (a machine restarted) picks
+// up where it was. Use a fresh dir for a fresh sweep: what is there is trusted as is.
 //
 // Also summarises who promotion named — which counters won, how ticksSurvived
 // correlates with the rest — and with --roster writes every promoted survivor, per
@@ -29,7 +33,7 @@
 // who seldom talk or join, so caution can be seen to matter where sociality does not
 // stand in for it.
 
-import { writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -131,17 +135,26 @@ if (process.argv[2] === '--worker') {
   const jsonOut = opt('json', '');
   const rosterOut = opt('roster', '');
 
-  const runSeeds = Array.from({ length: seeds }, (_, i) => i + 1);
+  const resume = opt('resume', '');
   const results: RunSummary[] = [];
+  if (resume !== '') mkdirSync(resume, { recursive: true });
+  const saved = (seed: number) => `${resume}/seed-${seed}.json`;
+  const runSeeds = Array.from({ length: seeds }, (_, i) => i + 1).filter((seed) => {
+    if (resume === '' || !existsSync(saved(seed))) return true;
+    results.push(JSON.parse(readFileSync(saved(seed), 'utf8')) as RunSummary);
+    return false;
+  });
+  if (resume !== '') process.stderr.write(`resuming: ${results.length} of ${seeds} runs already done\n`);
   const started = performance.now();
   await Promise.all(
-    Array.from({ length: jobs }, (_, j) => {
+    Array.from({ length: Math.min(jobs, runSeeds.length) }, (_, j) => {
       const mine = runSeeds.filter((_, i) => i % jobs === j);
       return new Promise<void>((resolve, reject) => {
         const child = fork(fileURLToPath(import.meta.url), ['--worker'], { execArgv: ['--import', 'tsx'] });
         child.send({ runSeeds: mine, mapSeed, overrides, scenario } satisfies Job);
         child.on('message', (r: RunSummary) => {
           results.push(r);
+          if (resume !== '') writeFileSync(saved(r.runSeed), JSON.stringify(r));
           process.stderr.write('.');
         });
         child.on('error', reject);
