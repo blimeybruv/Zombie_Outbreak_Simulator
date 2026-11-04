@@ -5,7 +5,7 @@
 
 import type { Context } from '../../context';
 import { sharedNode } from '../../navigation/pathfinding';
-import { roundCorner } from '../../navigation/round';
+import { roundCorner, roundObstacle } from '../../navigation/round';
 import type { Sim, World } from '../../state';
 
 export function steerToward(sim: Sim, x: number, y: number): void {
@@ -82,6 +82,9 @@ function lastLeg(world: World, ctx: Context, sim: Sim): boolean {
   // to and fro along it for good (the oddity check, scripts/oddities.ts: lap).
   const w = roundCorner(world, ctx, world.buildings[bid]!, sim.x, sim.y, d.x, d.y);
   if (w !== null && w !== 'shut') return headFor(world, ctx, sim, w.x, w.y);
+  // Another building between, one it is up against: round that one.
+  const o = w === null ? roundObstacle(world, ctx, sim.x, sim.y, ox, oy, bid) : null;
+  if (o !== null) return headFor(world, ctx, sim, o.x, o.y);
   return headFor(world, ctx, sim, fx, fy);
 }
 

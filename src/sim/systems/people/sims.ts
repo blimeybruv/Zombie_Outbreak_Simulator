@@ -27,7 +27,7 @@ import { isOutdoorLiving, type Context } from '../../context';
 import { functionalProfile } from '../../mapgen/generate';
 import { noteStreet, remember } from '../../navigation/memory';
 import { dangerAhead, followRoute, headFor, steerAway, steerToward } from './steering';
-import { roundCorner } from '../../navigation/round';
+import { roundCorner, roundObstacle } from '../../navigation/round';
 import { chance, nextFloat, nextInt } from '../../lib/rng';
 import type { Building, Exit, Sim, Stand, StreetId, Vec2, World } from '../../state';
 import { isFirearm } from '../../state';
@@ -771,7 +771,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       // Round the building to a door on its far side. Straight at the nearest door, the
       // panicked sprinted to and fro along a hotel's back wall at the rescue's hour, dozens
       // of them (the oddity check: lap).
-      const w = roundCorner(world, ctx, door, sim.x, sim.y, sim.destination!.x, sim.destination!.y);
+      const own = roundCorner(world, ctx, door, sim.x, sim.y, sim.destination!.x, sim.destination!.y);
+      const w = own === null ? roundObstacle(world, ctx, sim.x, sim.y, sim.destination!.x, sim.destination!.y, door.id) : own;
       const to = w !== null && w !== 'shut' ? w : sim.destination!;
       if (headFor(world, ctx, sim, to.x, to.y)) wayBlocked(world, ctx, sim, mode);
     } else {

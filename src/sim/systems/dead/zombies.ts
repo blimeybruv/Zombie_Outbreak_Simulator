@@ -10,7 +10,7 @@
 
 import { isOutdoorLiving, type Context } from '../../context';
 import { chance, nextFloat, nextInt } from '../../lib/rng';
-import { roundCorner } from '../../navigation/round';
+import { roundCorner, roundObstacle } from '../../navigation/round';
 import type { Building, Car, World, Zombie } from '../../state';
 import { entranceNearest } from '../shared/common';
 import { detectability } from '../shared/perception';
@@ -357,20 +357,19 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // building first. Straight for it, a pack of the dead slid to and fro along a
         // wall for twenty minutes (the oddity check: lap).
         if (z.besieging === null && z.target === null) {
-          const b = ctx.map.buildingsNear(z.x, z.y, zc.wallTouch, ctx.buildingIds)[0];
-          if (b !== undefined) {
-            const w = roundCorner(world, ctx, world.buildings[b]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y, false);
-            if (w !== null && w !== 'shut') {
-              const wd = Math.hypot(w.x - z.x, w.y - z.y) || 1;
-              gx = (w.x - z.x) / wd;
-              gy = (w.y - z.y) / wd;
-            }
+          const w = roundObstacle(world, ctx, z.x, z.y, z.heardPoint.x, z.heardPoint.y, null);
+          if (w !== null) {
+            const wd = Math.hypot(w.x - z.x, w.y - z.y) || 1;
+            gx = (w.x - z.x) / wd;
+            gy = (w.y - z.y) / wd;
           }
         }
         // Making for the door of a building it is round the side or back of: round the
         // corner first. Straight for the door, the dead pressed into the wall short of it.
         if (z.besieging !== null && z.target === null) {
-          const w = roundCorner(world, ctx, world.buildings[z.besieging]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y);
+          // Its own building clear, another in the way: round that one to the door.
+          const own = roundCorner(world, ctx, world.buildings[z.besieging]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y);
+          const w = own === null ? roundObstacle(world, ctx, z.x, z.y, z.heardPoint.x, z.heardPoint.y, z.besieging) : own;
           if (w === 'shut') {
             // No way round this house to its door from here (its neighbours against both
             // sides): not this door. Pushing on, one stood at the back of a terraced house

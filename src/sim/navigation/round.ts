@@ -110,6 +110,26 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
 }
 
 
+/** Scratch for the buildings one is up against: its own, as `pinch` is. */
+const touching: BuildingId[] = [];
+
+/**
+ * Round whatever other building one is up against, when that is what stands between it
+ * and (x, y): a door across the road behind a building, say — the dead besieging a gun
+ * shop came up on the far side of the hotel facing it and slid along the hotel's back
+ * wall for good (the oddity check, the hotel at (1430, 1945)). `skip` is the building
+ * the door belongs to, already gone round by roundCorner. Null when nothing it touches
+ * is in the way.
+ */
+export function roundObstacle(world: World, ctx: Context, px: number, py: number, x: number, y: number, skip: BuildingId | null): Vec2 | null {
+  for (const id of ctx.map.buildingsNear(px, py, world.config.movement.roundCorner, touching)) {
+    if (id === skip) continue;
+    const w = roundCorner(world, ctx, world.buildings[id]!, px, py, x, y, false);
+    if (w !== null && w !== 'shut') return w;
+  }
+  return null;
+}
+
 /** Whether segment a–b crosses segment c–d. */
 function crosses(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): boolean {
   const side = (px: number, py: number, qx: number, qy: number, rx: number, ry: number) => (qx - px) * (ry - py) - (qy - py) * (rx - px);
