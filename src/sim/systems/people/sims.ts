@@ -609,7 +609,7 @@ function policeStationFor(world: World, sim: Sim): Building | null {
   if (own !== null && usable(own)) return own;
   let best: Building | null = null, bestD = Infinity;
   for (const b of policeStations(world)) {
-    if (!usable(b)) continue;
+    if (!usable(b) || refusedLately(world, sim, b.id)) continue;
     const e = b.entrances[0]!;
     const d = Math.hypot(e.x - sim.x, e.y - sim.y);
     if (d < bestD) {

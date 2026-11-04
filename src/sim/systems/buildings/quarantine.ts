@@ -32,6 +32,9 @@ export function householdCaution(world: World, b: Building): number {
 
 /** No stranger here: coming home, to its church, station or depot, a crew, a squad, someone carried in, a soldier. */
 function belongs(sim: Sim, b: Building): boolean {
+  // An officer at any police station, as at its own: turned away at another's door, one
+  // run dry was refused there every tick, its station chosen again each time.
+  if (sim.archetype === 'police' && b.tag === 'policeStation') return true;
   return sim.home === b.id || sim.shelter === b.id || sim.church === b.id || sim.station === b.id || sim.depot === b.id || sim.crew !== null || sim.carriedBy !== null || sim.squadLeader !== null || sim.outsider;
 }
 

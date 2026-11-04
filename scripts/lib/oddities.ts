@@ -32,10 +32,16 @@ export const ODDITY = {
   wallTouch: 1, // m from a building's outline
   wallTicks: 300, // ticks pressed there
   doorNear: 3, // m from an entrance, for a besieged point to count as a door
-  // Most of one event type on one person a run, before it is odd; for an event at a
-  // building, on one person at the same building (turned away by one door after another
-  // is a cautious street, by the same door again and again a loop).
-  repeated: { cordonWarned: 25, strangerRefused: 3, quarantineCaught: 2, cordonWounded: 3 } as Record<string, number>,
+  // Most of one event type on one person within `within` ticks, before it is odd; for an
+  // event at a building, on one person at the same building (turned away by one door
+  // after another is a cautious street, by the same door again and again a loop; by the
+  // same door three times in a day, a street it came back to).
+  repeated: {
+    cordonWarned: { count: 25, within: 64800 },
+    strangerRefused: { count: 3, within: 900 },
+    quarantineCaught: { count: 2, within: 64800 },
+    cordonWounded: { count: 3, within: 64800 },
+  } as Record<string, { count: number; within: number }>,
   freezes: 20,
   quiet: 1800, // ticks before the same agent is reported again for the same kind
 };
@@ -68,7 +74,7 @@ export class OddityCheck {
   private tracks = new Map<string, Track>();
   private last = new Map<string, number>();
   private pressed = new Map<number, number>();
-  private events = new Map<string, number>();
+  private events = new Map<string, number[]>();
   private frozen = new Map<number, number>();
   private wasFrozen = new Set<number>();
   private readonly size = ODDITY.window / ODDITY.every;
@@ -80,10 +86,12 @@ export class OddityCheck {
       if (limit === undefined || !('sim' in e) || e.sim === null) continue;
       const at = 'building' in e ? e.building : null;
       const k = `${e.type}:${e.sim}:${at}`;
-      const n = (this.events.get(k) ?? 0) + 1;
-      this.events.set(k, n);
+      const ticks = (this.events.get(k) ?? []).filter((t) => world.tick - t < limit.within);
+      ticks.push(world.tick);
+      this.events.set(k, ticks);
       const s = world.sims[e.sim]!;
-      if (n === limit) this.report(world, 'repeated', `sim ${e.sim}`, s.x, s.y, `${e.type} ${n} times${at === null ? '' : ` at building ${at}`}`);
+      const span = limit.within >= world.config.time.runLength ? '' : ` in ${world.tick - ticks[0]!} ticks`;
+      if (ticks.length === limit.count) this.report(world, 'repeated', `sim ${e.sim}`, s.x, s.y, `${e.type} ${ticks.length} times${span}${at === null ? '' : ` at building ${at}`}`);
     }
     if (world.tick % ODDITY.every !== 0) return;
     const zc = world.config.zombie;

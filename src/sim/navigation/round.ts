@@ -4,7 +4,10 @@
 
 import type { Context } from '../context';
 import { pointSegmentDistance } from '../lib/geometry';
-import type { Building, Vec2, World } from '../state';
+import type { Building, BuildingId, Vec2, World } from '../state';
+
+/** Scratch for the buildings by a corner: its own, since callers walk ctx.buildingIds while calling. */
+const pinch: BuildingId[] = [];
 
 /**
  * Where to make for on the way round `b` to its door nearest (x, y), when the building
@@ -68,9 +71,13 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
   };
   // The furthest corner along the way still in sight, so it cuts each corner it can see
   // past, with no corner to arrive at and turn on; `undefined` when that way is shut: the
-  // first out of sight or in another building (a gap between houses too narrow), or, at
-  // a corner already, no clear way on from it to the next corner or the door.
+  // first out of sight or in another building (a gap between houses too narrow), any
+  // corner pinched against another building, or, at a corner already, no clear way on
+  // from it to the next corner or the door.
   const toward = (corners: Vec2[]): Vec2 | undefined => {
+    // A corner with another building against it shuts the way: squeezing past, seen
+    // from one step and not the next, the dead swung between the two ways every tick.
+    for (const c of corners) if (ctx.map.buildingsNear(c.x, c.y, r, pinch).some((id) => id !== b.id)) return undefined;
     let k = -1;
     for (let i = 0; i < corners.length; i++) {
       const c = corners[i]!;
