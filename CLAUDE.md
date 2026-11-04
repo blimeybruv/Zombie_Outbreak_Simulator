@@ -268,10 +268,12 @@ screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement —
 what was merged in the reference.
 
 Open, in priority order:
-1. **Tune from the 6243b94 sweep** (reference, the last "Swept" entry): both gates pass 20 of
-   20, loss 48–73%, survival by caution 30.6% / 36.7% / 39.5%. Watch: freezes per 100
-   civilians 441 (from claustrophobes living outdoors, short and many), sceptics now
-   surviving best (trust z −13.4), seed 10's mass exodus by car (824 abandoned).
+1. **Tune from the 5d81cc4 sweep** (reference, the last "Swept" entry): both gates pass 20 of
+   20, loss 44–88% (median 77%: stronger since the dead reach doors), survival by caution
+   28.9% / 32.3% / 34.1% (z 13.6), freezes per 100 civilians 107. Watch: the doubled
+   `buildings.door.rate` may want undoing; sceptics still survive best (trust z −6.5);
+   mass exoduses by car (seed 11, 665 abandoned); the oddities it lists per seed (stuck
+   uneven, the hotel at (1430, 1945) recurring).
 2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
