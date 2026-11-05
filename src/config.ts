@@ -202,7 +202,8 @@ export const config = {
   // while the dead and the living are both there, or its person is still in sight, then
   // `after` ticks more once that ends; never less than `minTicks`, never more than
   // `maxTicks` while something else is waiting. `forget`: an offer older than this is
-  // stale. The camera eases there at `ease` of the way a frame, at `scale` px/m — guess
+  // stale. The camera eases there at `ease` of the way a frame, and goes straight to
+  // `scale` px/m (a zoom redraws the static city) — guess
   director: { minWeight: 35, radius: 40, after: 90, minTicks: 150, maxTicks: 1500, forget: 300, ease: 0.06, scale: 4 },
 
   playback: {

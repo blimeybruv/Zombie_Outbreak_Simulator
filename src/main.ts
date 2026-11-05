@@ -15,6 +15,7 @@ import { Roster } from './ui/roster';
 import { addressFor, settingsFrom, showSetup } from './ui/setup';
 import { Ticker } from './ui/ticker';
 import { Director } from './ui/director';
+import { FrameTiming } from './ui/frame-timing';
 import type { EventNote, FrameSnapshot, FromWorker, ToWorker } from './worker/protocol';
 
 const params = new URLSearchParams(location.search);
@@ -30,6 +31,8 @@ document.querySelector<HTMLElement>('#controls')!.hidden = !starting;
 newRun.addEventListener('click', () => (location.href = addressFor(settings, false, params)));
 // The director (ui/director.ts): the camera goes to scenes on its own until the viewer takes it back.
 const director = new Director();
+// Where each frame's time goes (ui/frame-timing.ts), for scripts/frame-check.ts.
+const timing = new FrameTiming();
 const directorButton = document.querySelector<HTMLButtonElement>('#director')!;
 directorButton.hidden = !starting;
 function direct(on: boolean): void {
@@ -127,27 +130,33 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   } else if (msg.type === 'ended') {
     endScreen.show(msg.end);
   } else {
-    latest = msg.frame;
-    stats.tick = latest.tick;
+    const f = msg.frame;
+    latest = f;
+    stats.tick = f.tick;
+    timing.snapshot(f.perf);
     const now = performance.now();
-    renderer?.ingest(latest, now);
-    ticker.take(latest.events, latest.notes, controls.currentSpeed, now);
-    director.offer(latest.events, latest.notes, latest.tick);
-    latest.events.forEach((ev, i) => {
-      const n = latest!.notes[i];
-      if (!n || n.building === null) return;
-      const text = line(ev, n);
-      if (text === null) return;
-      const h = buildingHistory.get(n.building) ?? [];
-      h.push(text);
-      if (h.length > 20) h.shift();
-      buildingHistory.set(n.building, h);
+    timing.time('ingest', () => renderer?.ingest(f, now));
+    timing.time('ticker', () => ticker.take(f.events, f.notes, controls.currentSpeed, now));
+    timing.time('offers', () => director.offer(f.events, f.notes, f.tick));
+    timing.time('history', () =>
+      f.events.forEach((ev, i) => {
+        const n = f.notes[i];
+        if (!n || n.building === null) return;
+        const text = line(ev, n);
+        if (text === null) return;
+        const h = buildingHistory.get(n.building) ?? [];
+        h.push(text);
+        if (h.length > 20) h.shift();
+        buildingHistory.set(n.building, h);
+      }),
+    );
+    timing.time('panels', () => {
+      inspector.show(f.inspected, f.inspected?.kind === 'building' ? (buildingHistory.get(f.inspected.id) ?? []) : []);
+      roster.show(f, tracked);
+      controls.show(f);
     });
-    inspector.show(latest.inspected, latest.inspected?.kind === 'building' ? (buildingHistory.get(latest.inspected.id) ?? []) : []);
-    roster.show(latest, tracked);
     awaiting = false;
-    controls.show(latest);
-    audio.update(latest, camera, controls.currentSpeed);
+    timing.time('audio', () => audio.update(f, camera, controls.currentSpeed));
   }
 };
 if (starting) send({ type: 'start', runSeed, mapSeed, advance, settings });
@@ -258,25 +267,30 @@ function centreOnFlagged(flags: number): boolean {
   centreOnBusiest,
   centreOnFlagged,
   director: { enable: direct, focus: () => director.focus() },
+  timing,
   ready: () => latest !== null,
 };
 
 const frameCounter = new FrameCounter(document.querySelector<HTMLElement>('#fps')!, import.meta.env.DEV || params.has('fps'));
 
 function frame(now: number): void {
+  timing.frame(now, latest ? latest.simKind.reduce((a, k) => a + (k ? 1 : 0), 0) + latest.zombieKind.reduce((a, k) => a + (k === 1 ? 1 : 0), 0) : 0);
   if (!awaiting) {
     awaiting = true;
     send({ type: 'frame' });
   }
   let drawMs = 0;
   if (renderer && latest) {
-    renderer.advance(latest, now, rate);
+    const f = latest;
+    timing.time('advance', () => renderer!.advance(f, now, rate));
     // The director's scene, eased to, close in.
-    const to = director.update(latest);
+    const to = timing.time('director', () => director.update(f));
     if (to !== null) {
       const dc = config.director;
       camera.centreOn(camera.x + (to.x - camera.x) * dc.ease, camera.y + (to.y - camera.y) * dc.ease);
-      camera.scale += (dc.scale - camera.scale) * dc.ease;
+      // In at once, not eased: every change of scale redraws the whole static city (35 ms
+      // a frame, eased every frame, in the frame check); a pan only shifts it.
+      if (camera.scale !== dc.scale) camera.scale = dc.scale;
       camera.version++;
     }
     // Follow the tracked sim while it is on the map; indoors, the camera waits at the door.
@@ -285,13 +299,14 @@ function frame(now: number): void {
       camera.centreOn(p.x, p.y);
     }
     const t0 = performance.now();
-    renderer.draw(latest, camera, window.devicePixelRatio || 1, now);
-    renderer.drawSelection(selected, latest, camera, window.devicePixelRatio || 1);
+    timing.time('draw', () => renderer!.draw(f, camera, window.devicePixelRatio || 1, now));
+    timing.drew(renderer.layerMs);
+    timing.time('selection', () => renderer!.drawSelection(selected, f, camera, window.devicePixelRatio || 1));
     drawMs = performance.now() - t0;
     stats.drawMs += drawMs;
     stats.frames++;
   }
-  frameCounter.tick(now, drawMs, latest, controls.currentSpeed * config.playback.ticksPerSecondAt1x);
+  timing.time('counter', () => frameCounter.tick(now, drawMs, latest, controls.currentSpeed * config.playback.ticksPerSecondAt1x));
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

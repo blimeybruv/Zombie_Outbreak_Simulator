@@ -244,6 +244,12 @@ If one seems necessary, raise it rather than adding it.
     repeated freezes), by kind and by place, each with a link that opens the viewer there
     (`?advance=…&at=x,y`, with `npm run dev` running). Run it after any change to behaviour
     or steering, before asking the user to look.
+  - `npx tsx scripts/frame-check.ts [--speeds 1,4,8] [--seconds 8] [--scale 0.55] [--director] [--headed]`
+    — the frame check: where frame time goes when the frame rate dips. Per frame interval,
+    the main thread's work by phase (`ui/frame-timing.ts`) and the draw by layer
+    (`renderer.ts layerMs`), the worker's ticks behind each snapshot (`WorkerPerf`), and
+    garbage collection from a Chrome trace; each slow interval put down to what took most
+    of it. Run it `--headed` on a real machine: headless, the browser's share is inflated.
   - `npx tsx scripts/observe.ts [--advance N] [--play 4] [--frames 8] [--every 6] [--scale 1.6] [--director]`
     — the observation check: plays the viewer as a spectator would and keeps frames, with
     the tick, camera and ticker lines for each (`observe.json`), for a review of what the

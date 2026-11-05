@@ -197,8 +197,22 @@ export interface SimDetail {
 export type Inspected = BuildingDetail | SimDetail;
 
 /** One moment of the run, for drawing. */
+/** The worker's own time since the last snapshot, for finding where frames are lost (scripts/frame-check.ts). Wall milliseconds. */
+export interface WorkerPerf {
+  /** Ticks stepped since the last snapshot, their time in all, and the slowest. */
+  steps: number;
+  stepMs: number;
+  worstStepMs: number;
+  /** Gathering each tick's events and notes for the ticker (collect), in all. */
+  collectMs: number;
+  /** Building this snapshot. */
+  snapshotMs: number;
+}
+
 export interface FrameSnapshot {
   tick: number;
+  /** The worker's time since the last snapshot (WorkerPerf). */
+  perf: WorkerPerf;
   /** 1 in daylight, 0 at night. */
   daylight: number;
   /** Hour of day, 0–24. */

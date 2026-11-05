@@ -714,10 +714,13 @@ export class Renderer {
     if (key === this.staticKey) {
       const p = placed();
       if (p.x <= 0 && p.y <= 0 && p.x + c.width >= this.canvas.width && p.y + c.height >= this.canvas.height) {
+        const t0 = performance.now();
         this.standingCars(cam, dpr, frame);
+        this.layerMs.parked = (this.layerMs.parked ?? 0) + performance.now() - t0;
         return p;
       }
     }
+    this.layerMs.rebuilds = (this.layerMs.rebuilds ?? 0) + 1;
     this.staticKey = key;
     this.staticX = cam.x;
     this.staticY = cam.y;
@@ -942,25 +945,42 @@ export class Renderer {
     }
   }
 
+  /** Time spent on each layer of the last draw (ms), for the frame check (ui/frame-timing.ts): its own clock reads, a few a frame. */
+  readonly layerMs: Record<string, number> = {};
+
   draw(frame: FrameSnapshot, cam: Camera, dpr: number, wallMs: number): void {
     const g = this.g;
     const night = frame.daylight < 0.5;
+    for (const k in this.layerMs) this.layerMs[k] = 0;
+    let t = performance.now();
+    const lap = (layer: string) => {
+      const now = performance.now();
+      this.layerMs[layer] = (this.layerMs[layer] ?? 0) + now - t;
+      t = now;
+    };
     g.setTransform(1, 0, 0, 1, 0, 0);
     const city = this.staticFor(cam, dpr, night, frame);
     g.drawImage(city.layer, city.x, city.y);
+    lap('city');
     if (cam.mode !== 'far') g.drawImage(this.carLayer, city.x, city.y);
     this.traffic.draw(g, cam, dpr, this.interp.time);
+    lap('traffic');
 
     this.corpses.draw(g, cam, dpr);
+    lap('corpses');
     if (cam.mode === 'far') {
       this.density.draw(g, frame, cam, dpr);
+      lap('density');
       this.drawCalls(g, frame, cam, dpr, wallMs);
       this.drawOrigin(g, frame, cam, dpr, wallMs);
+      lap('marks');
       return;
     }
     if (cam.mode === 'mid') this.density.draw(g, frame, cam, dpr, MID_DENSITY);
+    lap('density');
     this.drawOccupancy(g, frame, cam, dpr, wallMs);
     if (cam.mode === 'near') this.drawStages(g, frame, cam, dpr);
+    lap('buildings');
     this.simTrails.sample(frame.simXY, frame.simKind, frame.tick, wallMs);
     this.zombieTrails.sample(frame.zombieXY, frame.zombieKind, frame.tick, wallMs);
     const near = cam.mode === 'near';
@@ -971,19 +991,24 @@ export class Renderer {
     const fleeing: number[] = [];
     for (let i = 0; i < frame.simFlags.length; i++) if (frame.simFlags[i]! & SIM_FLEEING) fleeing.push(i);
     if (fleeing.length > 0) this.simTrails.draw(g, cam, dpr, P.LIVING_RGB, near ? 1.8 : 1.4, undefined, 0.8, fleeing);
+    lap('trails');
     this.drawCars(g, frame, cam, dpr, true);
     this.drawVanLights(g, frame, cam, dpr, wallMs);
+    lap('cars');
     this.drawBarriers(g, frame, cam, dpr, wallMs);
     this.drawCheckpoints(g, frame, cam, dpr);
     this.drawTents(g, frame, cam, dpr);
+    lap('edge');
     this.drawTalk(g, frame, cam, dpr);
     if (cam.mode === 'near') this.drawSquads(g, frame, cam, dpr);
     this.drawAgents(g, frame, cam, dpr, wallMs);
+    lap('agents');
     this.drawPulses(g, cam, dpr, wallMs);
     this.drawThrown(g, cam, dpr, wallMs);
     this.drawSounds(g, cam, dpr, wallMs);
     this.drawCalls(g, frame, cam, dpr, wallMs);
     this.drawOrigin(g, frame, cam, dpr, wallMs);
+    lap('marks');
   }
 
   /**
@@ -1009,8 +1034,13 @@ export class Renderer {
     const aBody = new Path2D(), aPanel = new Path2D(), aShade = new Path2D(), aMark = new Path2D();
     const sBody = new Path2D(), sPanel = new Path2D(), sShade = new Path2D();
     const civ = P.CIVILIAN.map(() => ({ body: new Path2D(), panel: new Path2D(), shade: new Path2D() }));
+    // Only what the camera covers (for the parked layer, the layer's own larger view).
+    // Every car in the city, each in plan, made a parked-layer redraw — on any car
+    // starting or stopping — take 200 ms at near zoom (the frame check).
+    const lo = cam.toWorld(0, 0), hi = cam.toWorld(cam.width, cam.height);
     for (let i = 0; i < st.length; i++) {
       const x = xyh[i * 3]!, y = xyh[i * 3 + 1]!, h = xyh[i * 3 + 2]!;
+      if (x < lo.x - VAN_L || x > hi.x + VAN_L || y < lo.y - VAN_L || y > hi.y + VAN_L) continue;
       const c = Math.cos(h), s = Math.sin(h);
       const state = st[i]! & CAR_STATE_MASK;
       if (state === CAR_GONE) continue; // off the map

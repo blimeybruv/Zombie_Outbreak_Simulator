@@ -84,6 +84,8 @@ const NOISE_CAP = 400;
 let notes: (EventNote | null)[] = [];
 let dropped = 0;
 const recent: number[] = []; // wall times of recent ticks, for the achieved rate
+/** The worker's time since the last snapshot (protocol.ts WorkerPerf), reset as each is sent. */
+let perf = { steps: 0, stepMs: 0, worstStepMs: 0, collectMs: 0, snapshotMs: 0 };
 
 function collect(w: World, c: Context): void {
   for (const s of w.stimuli) {
@@ -227,6 +229,7 @@ function frameSnapshot(w: World): FrameSnapshot {
     checkpointsSet: w.checkpoints.reduce((bits, c, i) => (c.setAt !== null ? bits | (1 << i) : bits), 0),
     checkpointsFallen: w.checkpoints.reduce((bits, c, i) => (c.fallenAt !== null ? bits | (1 << i) : bits), 0),
     breachedExits: w.exits.reduce((bits, e, i) => (e.breachedAt !== null ? bits | (1 << i) : bits), 0),
+    perf: { steps: 0, stepMs: 0, worstStepMs: 0, collectMs: 0, snapshotMs: 0 },
     tents: tentsFrame(w),
     rangers: rangerPositions(w.sims),
     tented: w.tented,
@@ -372,10 +375,16 @@ function run(): void {
       steppedSinceAnchor = 0;
     }
     for (let i = 0; i < due && performance.now() - start < SLICE_MS && world.tick < world.config.time.runLength; i++) {
+      const t0 = performance.now();
       step(world, ctx, { checkInvariant: false });
+      const t1 = performance.now();
       steppedSinceAnchor++;
-      recent.push(performance.now());
+      recent.push(t1);
       collect(world, ctx);
+      perf.steps++;
+      perf.stepMs += t1 - t0;
+      perf.worstStepMs = Math.max(perf.worstStepMs, t1 - t0);
+      perf.collectMs += performance.now() - t1;
     }
   }
   // Yield between slices so messages are handled. With ticks still due, yield by a
@@ -426,7 +435,11 @@ scope.onmessage = (e) => {
   } else if (msg.type === 'inspect') {
     inspecting = msg.target;
   } else if (msg.type === 'frame' && world) {
+    const t0 = performance.now();
     const f = frameSnapshot(world);
+    perf.snapshotMs = performance.now() - t0;
+    f.perf = perf;
+    perf = { steps: 0, stepMs: 0, worstStepMs: 0, collectMs: 0, snapshotMs: 0 };
     scope.postMessage({ type: 'frame', frame: f }, [f.simXY.buffer, f.simKind.buffer, f.simFlags.buffer, f.simHeading.buffer, f.simTurnIn.buffer, f.talk.buffer, f.squad.buffer, f.zombieXY.buffer, f.zombieKind.buffer, f.carXYH.buffer, f.carState.buffer, f.fill.buffer, f.buildingFlags.buffer, f.rangers.buffer]);
     if (!ended && world.tick >= world.config.time.runLength) {
       ended = true;
