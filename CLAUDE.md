@@ -276,8 +276,10 @@ Open, in priority order:
    20, loss 44–88% (median 77%: stronger since the dead reach doors), survival by caution
    28.9% / 32.3% / 34.1% (z 13.6), freezes per 100 civilians 107. Watch: the doubled
    `buildings.door.rate` may want undoing; sceptics still survive best (trust z −6.5);
-   mass exoduses by car (seed 11, 665 abandoned); the oddities it lists per seed (stuck
-   uneven, the hotel at (1430, 1945) recurring).
+   mass exoduses by car (seed 11, 665 abandoned). Since then: the 9c3b37b sweep (stuck
+   doubled to 23 per seed — look into `roundObstacle`; features that barely fire listed
+   there: EMTs admit 0.5 a run, barriers fall 0.1, `districtChanged` never sent), and
+   runners and the director, neither swept yet.
 2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
