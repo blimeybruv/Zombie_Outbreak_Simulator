@@ -69,6 +69,10 @@ function intent(w: World, s: Sim): string | null {
       return to ? `Call at ${to}.` : 'Answering a call.';
     case 'scavenge':
       return to ? `Maybe there's something at ${to}.` : 'We need supplies.';
+    case 'fetch':
+      return to ? `Nobody's in ${to}. Grab what's there and go.` : 'Someone out there needs this more than I do.';
+    case 'deliver':
+      return to ? `They're short at ${to}. Leave it at the door.` : 'Leave it at the door. Not going in.';
     case 'shelter':
       if (s.insideBuilding !== null) return null;
       if (s.destinationBuilding !== null && s.destinationBuilding === s.home) return 'Home. Just get home.';

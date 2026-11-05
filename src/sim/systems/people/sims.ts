@@ -33,6 +33,7 @@ import type { Building, Exit, Sim, Stand, StreetId, Vec2, World } from '../../st
 import { isFirearm } from '../../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
+import { nextRun, running } from './runners';
 import { outOfAmmo } from '../fighting/arms';
 import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, refusedLately, setDestination } from '../shared/common';
 import { carStillMine, considerDriving, giveUpCar } from '../services/cars';
@@ -1109,6 +1110,19 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     // One that shuns shelter, calm, makes for a way out of the city instead, and failing
     // that stays out in the open (traits.ts).
     if (shuns(world, sim)) {
+      // Running supplies (runners.ts) while every way out it knows of is held.
+      if (running(sim) && world.rescueExit === null && nearestExit(world, sim.x, sim.y, sim.knownClosed) === null) {
+        if (sim.idleUntil !== null) {
+          if (tick < sim.idleUntil) {
+            sim.gait = 'still';
+            return;
+          }
+          sim.idleUntil = null;
+        }
+        sim.gait = mode === 'direct' ? 'run' : 'walk';
+        travel(world, ctx, sim, mode);
+        return;
+      }
       if (sim.destinationKind !== 'leave' && !headForExit(world, sim)) {
         // Out of the soldiers' range first: stood within it, it was warned off every
         // warnEvery ticks for the rest of the run, ran from the shots, came back, and was
@@ -1118,6 +1132,12 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
           const b = barrierAt(world, e);
           sim.gait = 'walk';
           steerToward(sim, b.x - e.dx * 2 * config.cordon.warnRadius, b.y - e.dy * 2 * config.cordon.warnRadius);
+          return;
+        }
+        // Nowhere to go and nothing to do: a job instead — supplies to the shelters.
+        if (nextRun(world, sim)) {
+          sim.gait = 'walk';
+          travel(world, ctx, sim, mode);
           return;
         }
         sim.gait = 'still';

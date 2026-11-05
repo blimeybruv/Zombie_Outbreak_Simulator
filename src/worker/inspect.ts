@@ -132,6 +132,10 @@ function doing(s: Sim, tick: number): string | null {
       return 'responding to trouble';
     case 'scavenge':
       return 'scavenging';
+    case 'fetch':
+      return 'running supplies, fetching a load';
+    case 'deliver':
+      return 'running supplies to a shelter';
     case 'shelter':
       if (s.insideBuilding !== null) return s.shelter === s.insideBuilding ? 'sheltering' : null;
       return s.destinationBuilding !== null && s.destinationBuilding === s.home ? 'heading home' : 'heading for shelter';

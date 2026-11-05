@@ -46,7 +46,7 @@ export type Condition = (typeof CONDITIONS)[number];
 export const GAITS = ['still', 'sneak', 'walk', 'run', 'sprint'] as const;
 export type Gait = (typeof GAITS)[number];
 
-export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car', 'muster', 'leave'] as const;
+export const DESTINATION_KINDS = ['routine', 'shelter', 'scavenge', 'regroup', 'respond', 'isolate', 'car', 'muster', 'leave', 'fetch', 'deliver'] as const;
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
 
 /**
@@ -298,7 +298,7 @@ export interface Sim {
   routeIndex: number;
   /** Earliest tick a repath may run (cooldown). @range tick @unit tick @readBy repath gating */
   nextRepathAt: Tick;
-  /** Routine idle at a stop ends here; null when not idling. @range tick | null @unit tick @readBy routine behaviour */
+  /** Routine idle at a stop ends here, or a runner's stop at a door (loading up, trading news); null when not idling. @range tick | null @unit tick @readBy routine behaviour, runners */
   idleUntil: Tick | null;
   /**
    * Last tick a zombie was in sight. A sighting after more than avoidHold ticks

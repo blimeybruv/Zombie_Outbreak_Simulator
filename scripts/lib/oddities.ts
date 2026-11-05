@@ -18,6 +18,7 @@
 
 import { isOutdoorLiving, type Context } from '../../src/sim/context';
 import type { World } from '../../src/sim/state';
+import { running } from '../../src/sim/systems/people/runners';
 
 export const ODDITY = {
   every: 10, // ticks between samples
@@ -65,6 +66,8 @@ interface Track {
   moving: boolean[];
   /** Whether it was exempt (battering a door or a car, talking...) at each sample. */
   exempt: boolean[];
+  /** Whether it was running supplies (runners.ts) at each sample: to and fro between two doors is its job, not a lap. */
+  errand: boolean[];
 }
 
 export class OddityCheck {
@@ -111,7 +114,7 @@ export class OddityCheck {
       else this.wasFrozen.delete(s.id);
       // Standing about by choice is not stuck: talking, queued, at ease at a post.
       const exempt = s.gathering !== null || s.queuedSince !== null || s.stand !== null || (s.outsider && s.post !== null);
-      this.sample(world, key, s.x, s.y, s.gait !== 'still' && s.pace > 0.2, exempt);
+      this.sample(world, key, s.x, s.y, s.gait !== 'still' && s.pace > 0.2, exempt, running(s));
     }
     for (const z of world.zombies) {
       const key = `zombie ${z.id}`;
@@ -156,21 +159,23 @@ export class OddityCheck {
     }
   }
 
-  private sample(world: World, key: string, x: number, y: number, moving: boolean, exempt: boolean): void {
+  private sample(world: World, key: string, x: number, y: number, moving: boolean, exempt: boolean, errand = false): void {
     let t = this.tracks.get(key);
     if (t === undefined) {
-      t = { xs: [], ys: [], moving: [], exempt: [] };
+      t = { xs: [], ys: [], moving: [], exempt: [], errand: [] };
       this.tracks.set(key, t);
     }
     t.xs.push(x);
     t.ys.push(y);
     t.moving.push(moving);
     t.exempt.push(exempt);
+    t.errand.push(errand);
     if (t.xs.length > this.size) {
       t.xs.shift();
       t.ys.shift();
       t.moving.shift();
       t.exempt.shift();
+      t.errand.shift();
     }
     if (t.xs.length < this.size || t.exempt.some(Boolean)) return;
     const n = t.xs.length;
@@ -194,7 +199,7 @@ export class OddityCheck {
     let spread = 0;
     for (let i = 0; i < n; i++) spread = Math.max(spread, Math.hypot(t.xs[i]! - cx, t.ys[i]! - cy));
     const net = Math.hypot(t.xs[n - 1]! - t.xs[0]!, t.ys[n - 1]! - t.ys[0]!);
-    if (path >= ODDITY.pathLong && spread >= ODDITY.spreadMin && path >= ODDITY.lapRatio * spread) {
+    if (path >= ODDITY.pathLong && spread >= ODDITY.spreadMin && path >= ODDITY.lapRatio * spread && !t.errand.some(Boolean)) {
       this.report(world, 'lap', key, x, y, `${path.toFixed(0)} m walked in ${ODDITY.window} ticks, ${net.toFixed(0)} m from where it began, within ${spread.toFixed(0)} m`);
     } else if (reversals >= ODDITY.reversals) {
       this.report(world, 'jitter', key, x, y, `${reversals} reversals in ${ODDITY.window} ticks`);

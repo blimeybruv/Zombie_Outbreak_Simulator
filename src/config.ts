@@ -842,6 +842,11 @@ export const config = {
     turnInsideBite: 0.6,
   },
 
+  // Runners (systems/people/runners.ts): those who will not shelter, stranded, run
+  // supplies from stores nobody is in to shelters, at the door. pause: ticks at each door,
+  // loading up or handing over and trading news — guess
+  runners: { pause: [30, 90] as [number, number] },
+
   pathfinding: {
     dangerWeight: 400, // m of detour one unit of believed danger is worth — guess
     // Multiplier on dangerWeight at caution 0 and 1, linear between: cautious sims pay

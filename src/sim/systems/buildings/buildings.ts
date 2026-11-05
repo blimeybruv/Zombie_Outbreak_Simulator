@@ -5,6 +5,7 @@
 
 import { doorDamage } from './breach';
 import { holdFor, refusesRunner } from './quarantine';
+import { runnerArrives, running } from '../people/runners';
 import type { Context } from '../../context';
 import { transfer, simLeaf } from '../../counters';
 import { noteStreet, remember } from '../../navigation/memory';
@@ -279,7 +280,9 @@ function arrivals(world: World, ctx: Context): void {
     if (sim.destinationBuilding === null || sim.destination === null) continue;
     // The destination is the entrance chosen when the building was.
     if (Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) > radius) continue;
-    tryEnter(world, ctx, sim, world.buildings[sim.destinationBuilding]!);
+    // A runner does its business at the door (runners.ts).
+    if (running(sim)) runnerArrives(world, ctx, sim, world.buildings[sim.destinationBuilding]!);
+    else tryEnter(world, ctx, sim, world.buildings[sim.destinationBuilding]!);
   }
 }
 
