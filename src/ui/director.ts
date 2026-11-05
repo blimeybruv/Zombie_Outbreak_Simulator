@@ -30,6 +30,8 @@ export interface Scene {
   since: number;
   lastDanger: number;
   lostAt: number | null;
+  /** Whether any danger has been seen there since it was taken up. */
+  seen: boolean;
 }
 
 interface Offer {
@@ -86,11 +88,20 @@ export class Director {
         }
       }
       if (s.sim !== null && !inSight) s.lostAt ??= tick;
-      if (danger(frame, s.x, s.y) > 0 || (s.sim === null && danger(frame, s.ax, s.ay) > 0)) s.lastDanger = tick;
+      if (danger(frame, s.x, s.y) > 0 || (s.sim === null && danger(frame, s.ax, s.ay) > 0)) {
+        s.lastDanger = tick;
+        s.seen = true;
+      }
       const held = tick - s.since;
       const calm = tick - s.lastDanger;
       // Its person gone a moment (a third of `after`): nothing left here to watch.
       const lost = s.lostAt !== null && tick - s.lostAt >= dc.after / 3;
+      // Nothing to see there at all (what happened was indoors: a building retaken): on,
+      // without waiting out minTicks on an empty street.
+      if (!s.seen && held >= dc.after / 3) {
+        this.scene = this.next(frame);
+        return this.scene === null ? null : { x: this.scene.x, y: this.scene.y };
+      }
       const better = this.offers.some((o) => o.weight > s.weight && o.tick >= s.since);
       const done = held >= dc.minTicks && (calm >= dc.after || lost || (held >= dc.maxTicks && this.offers.length > 0) || (better && calm > 0));
       if (!done) return { x: s.x, y: s.y };
@@ -106,10 +117,10 @@ export class Director {
     for (const o of this.offers) if (best === null || o.weight > best.weight || (o.weight === best.weight && o.tick > best.tick)) best = o;
     if (best !== null) {
       this.offers = this.offers.filter((o) => o !== best);
-      return { x: best.x, y: best.y, ax: best.x, ay: best.y, sim: best.sim, why: best.why, weight: best.weight, since: tick, lastDanger: tick, lostAt: null };
+      return { x: best.x, y: best.y, ax: best.x, ay: best.y, sim: best.sim, why: best.why, weight: best.weight, since: tick, lastDanger: tick, lostAt: null, seen: false };
     }
     const hot = liveliest(frame);
-    return hot === null ? null : { x: hot.x, y: hot.y, ax: hot.x, ay: hot.y, sim: hot.sim, why: 'on screen', weight: 0, since: tick, lastDanger: tick, lostAt: null };
+    return hot === null ? null : { x: hot.x, y: hot.y, ax: hot.x, ay: hot.y, sim: hot.sim, why: 'on screen', weight: 0, since: tick, lastDanger: tick, lostAt: null, seen: false };
   }
 
   /** What it is watching, in words, for the observation check and the controls. */

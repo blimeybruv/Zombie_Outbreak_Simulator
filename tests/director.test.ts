@@ -57,11 +57,27 @@ describe('the director', () => {
     d.update(frame(1, [100, 100], [104, 100]));
     const to = d.update(frame(2, [130, 100], [134, 100]));
     expect(to?.x).toBe(130); // with them
-    let t = dc.minTicks;
+    let t = 3;
+    for (; t < dc.minTicks; t++) d.update(frame(t, [130, 100], [134, 100]));
     d.offer([breach], [note(900, 900, null)], t);
-    // Gone indoors (or dead): the scene ends a third of `after` later, danger or not.
-    for (; t < dc.minTicks + dc.after / 3; t++) d.update(frame(t, null, [134, 100]));
-    d.update(frame(t + 1, null, [134, 100]));
+    // Gone indoors (or dead), the danger still about: the scene ends a third of `after` later.
+    const lostAt = t;
+    for (; t < lostAt + dc.after / 3; t++) d.update(frame(t, null, [134, 100]));
+    expect(d.scene?.ax).toBe(100);
+    d.update(frame(t, null, [134, 100]));
+    expect(d.scene?.ax).toBe(900);
+  });
+
+  it('does not wait out an empty street: nothing seen there, it moves on', () => {
+    const d = new Director();
+    d.enable(true);
+    d.offer([breach], [note(100, 100, null)], 0);
+    d.update(frame(1, [500, 500], [800, 800])); // nobody near what happened
+    d.offer([breach], [note(900, 900, null)], 2);
+    let t = 2;
+    for (; t < 1 + dc.after / 3; t++) d.update(frame(t, [500, 500], [800, 800]));
+    expect(d.scene?.ax).toBe(100);
+    d.update(frame(t + 1, [500, 500], [800, 800]));
     expect(d.scene?.ax).toBe(900);
   });
 });
