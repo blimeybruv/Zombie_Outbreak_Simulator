@@ -77,15 +77,16 @@ export class Director {
         s.x = frame.simXY[s.sim! * 2]!;
         s.y = frame.simXY[s.sim! * 2 + 1]!;
       } else if (s.sim === null) {
-        // A place (a horde at a building): the middle of who is there, not the building's.
-        const c = middle(frame, s.ax, s.ay);
+        // A place (a horde at a building): the middle of who is there, not the building's —
+        // out to twice the radius, to reach the doors of a large building from its middle.
+        const c = middle(frame, s.ax, s.ay, 2 * config.director.radius);
         if (c !== null) {
           s.x = c.x;
           s.y = c.y;
         }
       }
       if (s.sim !== null && !inSight) s.lostAt ??= tick;
-      if (danger(frame, s.x, s.y) > 0) s.lastDanger = tick;
+      if (danger(frame, s.x, s.y) > 0 || (s.sim === null && danger(frame, s.ax, s.ay) > 0)) s.lastDanger = tick;
       const held = tick - s.since;
       const calm = tick - s.lastDanger;
       // Its person gone a moment (a third of `after`): nothing left here to watch.
@@ -149,9 +150,8 @@ function liveliest(frame: FrameSnapshot): { x: number; y: number; sim: number } 
   return best < 0 ? null : { x: frame.simXY[best * 2]!, y: frame.simXY[best * 2 + 1]!, sim: best };
 }
 
-/** The middle of the living and the awake dead within director.radius of (x, y); null with nobody there. */
-function middle(frame: FrameSnapshot, x: number, y: number): { x: number; y: number } | null {
-  const r = config.director.radius;
+/** The middle of the living and the awake dead within r of (x, y); null with nobody there. */
+function middle(frame: FrameSnapshot, x: number, y: number, r: number): { x: number; y: number } | null {
   let sx = 0;
   let sy = 0;
   let n = 0;
