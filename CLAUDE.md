@@ -244,6 +244,10 @@ If one seems necessary, raise it rather than adding it.
     repeated freezes), by kind and by place, each with a link that opens the viewer there
     (`?advance=…&at=x,y`, with `npm run dev` running). Run it after any change to behaviour
     or steering, before asking the user to look.
+  - `npx tsx scripts/observe.ts [--advance N] [--play 4] [--frames 8] [--every 6] [--scale 1.6] [--director]`
+    — the observation check: plays the viewer as a spectator would and keeps frames, with
+    the tick, camera and ticker lines for each (`observe.json`), for a review of what the
+    viewer actually saw and what could be better.
 - **The viewer:** `npm run dev`. A frame counter (top centre; F toggles, `?fps` in a
   build) shows fps, the worst frame, draw time and the simulation's achieved tick rate.
   `npx tsx scripts/view.ts [--advance N]` screenshots far, mid and near zoom in headless
