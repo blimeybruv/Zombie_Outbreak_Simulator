@@ -75,6 +75,8 @@
       #setup .start { margin-top: 8px; align-self: flex-end; padding: 5px 18px; color: #eef3f7; border-color: #5a636d; }
       #newrun { position: fixed; left: 12px; bottom: 52px; background: rgba(6, 7, 10, 0.75); color: #7c858f; border: 1px solid #2a2f36; border-radius: 3px; font: inherit; padding: 2px 8px; cursor: pointer; }
       #newrun:hover { color: #e6ecf2; border-color: #5a636d; }
+      #director { position: fixed; left: 104px; bottom: 52px; background: rgba(6, 7, 10, 0.75); color: #7c858f; border: 1px solid #2a2f36; border-radius: 3px; font: inherit; padding: 2px 8px; cursor: pointer; }
+      #director:hover, #director.on { color: #e6ecf2; border-color: #5a636d; }
       #inspector .history { color: #7c858f; border-top: 1px solid #1a1f26; margin-top: 4px; padding-top: 4px; font-size: 11px; }
     </style>
   </head>
@@ -88,6 +90,7 @@
     <div id="fps" hidden></div>
     <div id="setup" hidden></div>
     <button id="newrun" hidden>new run…</button>
+    <button id="director" hidden title="Let the director choose where to look (D)">director</button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

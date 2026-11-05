@@ -80,7 +80,7 @@ export function dropsTo1x(kind: Kind, n: EventNote): boolean {
   return true;
 }
 
-function kindOf(e: SimEvent, n: EventNote): Kind | null {
+export function kindOf(e: SimEvent, n: EventNote): Kind | null {
   if (e.type === 'simDied' && (e.cause === 'shot' || e.cause === 'mistaken' || e.cause === 'returned')) return 'cordonShot';
   if (e.type === 'cordonFiredOn' || e.type === 'cordonWounded') return 'cordonShot';
   if (e.type === 'districtEvacuating' && e.first) return 'firstEvacuation';

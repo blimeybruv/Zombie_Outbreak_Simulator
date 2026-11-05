@@ -196,6 +196,15 @@ export const config = {
     initialZombies: [1, 200],
   },
 
+  // The director (src/ui/director.ts): the viewer's curator, toggled on, taking the camera
+  // to scenes. A scene is offered by an event worth `minWeight` or more (ui/salience.ts
+  // BASE), or found on screen: the living within `radius` m of the awake dead. It holds
+  // while the dead and the living are both there, or its person is still in sight, then
+  // `after` ticks more once that ends; never less than `minTicks`, never more than
+  // `maxTicks` while something else is waiting. `forget`: an offer older than this is
+  // stale. The camera eases there at `ease` of the way a frame, at `scale` px/m — guess
+  director: { minWeight: 35, radius: 40, after: 90, minTicks: 150, maxTicks: 1500, forget: 300, ease: 0.06, scale: 4 },
+
   playback: {
     ticksPerSecondAt1x: 10,
     speeds: [0.25, 1, 2, 4, 8],

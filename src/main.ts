@@ -14,6 +14,7 @@ import { Inspector } from './ui/inspector';
 import { Roster } from './ui/roster';
 import { addressFor, settingsFrom, showSetup } from './ui/setup';
 import { Ticker } from './ui/ticker';
+import { Director } from './ui/director';
 import type { EventNote, FrameSnapshot, FromWorker, ToWorker } from './worker/protocol';
 
 const params = new URLSearchParams(location.search);
@@ -27,6 +28,16 @@ const newRun = document.querySelector<HTMLButtonElement>('#newrun')!;
 newRun.hidden = !starting;
 document.querySelector<HTMLElement>('#controls')!.hidden = !starting;
 newRun.addEventListener('click', () => (location.href = addressFor(settings, false, params)));
+// The director (ui/director.ts): the camera goes to scenes on its own until the viewer takes it back.
+const director = new Director();
+const directorButton = document.querySelector<HTMLButtonElement>('#director')!;
+directorButton.hidden = !starting;
+function direct(on: boolean): void {
+  director.enable(on);
+  directorButton.classList.toggle('on', on);
+  if (on) tracked = null;
+}
+directorButton.addEventListener('click', () => direct(!director.enabled));
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const worker = new Worker(new URL('./worker/sim-worker.ts', import.meta.url), { type: 'module' });
@@ -43,6 +54,7 @@ window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   const layer = e.key === 'c' || e.key === 'C' ? 'city' : e.key === 'o' || e.key === 'O' ? 'outbreak' : e.key === 'k' || e.key === 'K' ? 'cordon' : e.key === 'r' || e.key === 'R' ? 'army' : null;
   if (layer) audio.setLayerEnabled(layer, !audio.layerEnabled(layer));
+  if (e.key === 'd' || e.key === 'D') direct(!director.enabled);
 });
 let latest: FrameSnapshot | null = null;
 /** Ticks per second now requested (0 paused): how long the ticks between two snapshots take. */
@@ -70,6 +82,7 @@ const controls = new Controls(document.querySelector<HTMLElement>('#controls')!,
 });
 
 function track(simId: number): void {
+  direct(false);
   tracked = simId;
   select({ kind: 'sim', id: simId });
   if (camera.scale < 0.8) {
@@ -84,6 +97,7 @@ const ticker = new Ticker(document.querySelector<HTMLElement>('#ticker')!, {
     return x >= a.x && x <= b.x && y >= a.y && y <= b.y;
   },
   onSelect: (note: EventNote) => {
+    direct(false);
     if (note.sim !== null) track(note.sim);
     else tracked = null;
     camera.centreOn(note.x, note.y);
@@ -118,6 +132,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     const now = performance.now();
     renderer?.ingest(latest, now);
     ticker.take(latest.events, latest.notes, controls.currentSpeed, now);
+    director.offer(latest.events, latest.notes, latest.tick);
     latest.events.forEach((ev, i) => {
       const n = latest!.notes[i];
       if (!n || n.building === null) return;
@@ -156,7 +171,10 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag) return;
-  if (pressedAt && Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) > 4) tracked = null; // a drag lets go
+  if (pressedAt && Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) > 4) {
+    tracked = null; // a drag lets go
+    direct(false); // and takes the camera back from the director
+  }
   camera.panBy(e.clientX - drag.x, e.clientY - drag.y);
   drag = { x: e.clientX, y: e.clientY };
 });
@@ -232,7 +250,16 @@ function centreOnFlagged(flags: number): boolean {
   }
   return false;
 }
-(window as unknown as { __view: unknown }).__view = { stats, camera, controls, ticker, centreOnBusiest, centreOnFlagged, ready: () => latest !== null };
+(window as unknown as { __view: unknown }).__view = {
+  stats,
+  camera,
+  controls,
+  ticker,
+  centreOnBusiest,
+  centreOnFlagged,
+  director: { enable: direct, focus: () => director.focus() },
+  ready: () => latest !== null,
+};
 
 const frameCounter = new FrameCounter(document.querySelector<HTMLElement>('#fps')!, import.meta.env.DEV || params.has('fps'));
 
@@ -244,8 +271,16 @@ function frame(now: number): void {
   let drawMs = 0;
   if (renderer && latest) {
     renderer.advance(latest, now, rate);
+    // The director's scene, eased to, close in.
+    const to = director.update(latest);
+    if (to !== null) {
+      const dc = config.director;
+      camera.centreOn(camera.x + (to.x - camera.x) * dc.ease, camera.y + (to.y - camera.y) * dc.ease);
+      camera.scale += (dc.scale - camera.scale) * dc.ease;
+      camera.version++;
+    }
     // Follow the tracked sim while it is on the map; indoors, the camera waits at the door.
-    if (tracked !== null && latest.simKind[tracked]) {
+    else if (tracked !== null && latest.simKind[tracked]) {
       const p = renderer.simAt(tracked);
       camera.centreOn(p.x, p.y);
     }
