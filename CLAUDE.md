@@ -278,13 +278,14 @@ screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement —
 what was merged in the reference.
 
 Open, in priority order:
-1. **Tune from the 1306479 sweep** (reference, the last "Swept" entry): both gates pass, loss 53–85%
-   (median ~72%; seed 3 fizzled at 13%), survival by caution 32.7% / 36.3% / 37.7% (z 12.7),
-   freezes per 100 civilians 122. Oddities per seed: lap 22.9, stuck 4.0 (from 23.3, fixed),
-   jitter 20.4 (rising). Look at: the cluster by the western cordon at about (40–145, 1215–1240)
-   recurring on seeds 1, 14, 16, 18; sceptics still survive best (trust z −5.6). Features that
-   barely fire (9c3b37b entry): EMTs admit 0.5 a run, barriers fall 0.1, `districtChanged` never
-   sent. The runner gait (zombies run only at people now) has not been swept as a scenario.
+1. **Tune from the 9d964de sweep** (reference, the last "Swept" entry): both gates pass, loss 46–84%
+   (median ~71%; seed 2 low at 28%), survival by caution 34.4% / 37.3% / 38.4% (z 10.1),
+   freezes per 100 civilians 51 (from 122, since panic spreads one hop). Oddities per seed: lap
+   29.8 (up from 22.9, mostly seed 18: 13 together at (2130, 1231) at tick 2,480), stuck 6.3,
+   jitter 22.4. Also open: seed 14's people warned off the closed west exit again and again;
+   sceptics still survive best (trust z −5.3); features that barely fire (9c3b37b entry); the
+   runner gait not swept as a scenario. The user's idea awaiting answers: a fallen-city start
+   (up to 200 survivors among the dead, cordon sealed from the start).
 2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
