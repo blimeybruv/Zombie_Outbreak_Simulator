@@ -76,17 +76,6 @@ export interface WeaponFoundEvent extends EventBase {
   weapon: Weapon;
 }
 
-export interface DistrictChangedEvent extends EventBase {
-  /** Emitted for promoted survivors only. @range literal @unit — @readBy event consumers */
-  type: 'districtChanged';
-  /** @range sim id @unit id @readBy ticker */
-  sim: SimId;
-  /** @range district id @unit id @readBy ticker copy */
-  from: DistrictId;
-  /** @range district id @unit id @readBy ticker copy */
-  to: DistrictId;
-}
-
 export interface SimIsolatingEvent extends EventBase {
   /** A bitten sim goes off alone to turn where it can hurt nobody. @range literal @unit — @readBy event consumers */
   type: 'simIsolating';
@@ -373,5 +362,4 @@ export type SimEvent =
   | ZombieDestroyedEvent
   | BuildingEvent
   | SuppliesDeliveredEvent
-  | WeaponFoundEvent
-  | DistrictChangedEvent;
+  | WeaponFoundEvent;

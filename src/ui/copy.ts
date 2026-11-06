@@ -43,8 +43,6 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${who(n)} brought ${e.amount} supplies back to ${n.place}.`;
     case 'weaponFound':
       return `${who(n)} found a ${e.weapon} in ${n.place}.`;
-    case 'districtChanged':
-      return n.name ? `${n.name} crossed into ${n.district}.` : null;
     case 'policeDispatched':
       return `${e.officers === 1 ? 'An officer is' : 'Officers are'} on the way to ${n.place}.`;
     case 'simIsolating':

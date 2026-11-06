@@ -49,9 +49,6 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
       sim = e.sim;
       building = e.building;
       break;
-    case 'districtChanged':
-      sim = e.sim;
-      break;
     case 'vehicleTaken':
     case 'cordonFiredOn':
     case 'outOfAmmo':
@@ -109,7 +106,6 @@ export function noteFor(w: World, c: Context, e: SimEvent): EventNote | null {
     place = `the ${words(b.tag)} on ${w.streets[b.street]!.name}`;
     district = w.districts[b.district]!.name;
   } else {
-    if (s && e.type === 'districtChanged') ({ x, y } = s);
     const street = c.map.nearestStreet(x, y, 80);
     place = street === null ? 'open ground' : w.streets[street]!.name;
     district = districtAt(w, x, y);
