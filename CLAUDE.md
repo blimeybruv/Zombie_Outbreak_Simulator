@@ -278,14 +278,13 @@ screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement —
 what was merged in the reference.
 
 Open, in priority order:
-1. **Tune from the 5d81cc4 sweep** (reference, the last "Swept" entry): both gates pass 20 of
-   20, loss 44–88% (median 77%: stronger since the dead reach doors), survival by caution
-   28.9% / 32.3% / 34.1% (z 13.6), freezes per 100 civilians 107. Watch: the doubled
-   `buildings.door.rate` may want undoing; sceptics still survive best (trust z −6.5);
-   mass exoduses by car (seed 11, 665 abandoned). Since then: the 9c3b37b sweep (stuck
-   doubled to 23 per seed — look into `roundObstacle`; features that barely fire listed
-   there: EMTs admit 0.5 a run, barriers fall 0.1, `districtChanged` never sent), and
-   runners and the director, neither swept yet.
+1. **Tune from the 1306479 sweep** (reference, the last "Swept" entry): both gates pass, loss 53–85%
+   (median ~72%; seed 3 fizzled at 13%), survival by caution 32.7% / 36.3% / 37.7% (z 12.7),
+   freezes per 100 civilians 122. Oddities per seed: lap 22.9, stuck 4.0 (from 23.3, fixed),
+   jitter 20.4 (rising). Look at: the cluster by the western cordon at about (40–145, 1215–1240)
+   recurring on seeds 1, 14, 16, 18; sceptics still survive best (trust z −5.6). Features that
+   barely fire (9c3b37b entry): EMTs admit 0.5 a run, barriers fall 0.1, `districtChanged` never
+   sent. The runner gait (zombies run only at people now) has not been swept as a scenario.
 2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
