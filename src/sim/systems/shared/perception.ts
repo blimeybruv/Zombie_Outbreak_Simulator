@@ -60,8 +60,10 @@ export function computePerception(world: World, ctx: Context): void {
   const contact = config.combat.contactRange;
   const ids = ctx.ids;
 
+  ctx.sawDeadBefore.set(ctx.sawDead);
   for (const sim of sims) {
     const id = sim.id;
+    ctx.sawDead[id] = 0;
     ctx.threat[id] = 0;
     ctx.threatX[id] = 0;
     ctx.threatY[id] = 0;
@@ -113,7 +115,8 @@ export function computePerception(world: World, ctx: Context): void {
         nearest = zid;
       }
     }
-    // Second-hand danger: people running this way, from whatever is behind them.
+    ctx.sawDead[id] = nearest !== -1 ? 1 : 0;
+    // Second-hand danger: people running this way, from what they saw behind them.
     const pc = config.crowd;
     ctx.simHash.query(sim.x, sim.y, pc.fleeingRadius, ctx.ids2);
     let fleeing = 0;
@@ -137,6 +140,7 @@ export function computePerception(world: World, ctx: Context): void {
         cx += hx * (1 - d / pc.crowdRadius);
         cy += hy * (1 - d / pc.crowdRadius);
       }
+      if (ctx.sawDeadBefore[oid] === 0) continue; // running from nothing it saw: no news
       if ((hx * dx + hy * dy) / d < pc.fleeingTowardCos) continue;
       if (!ctx.map.lineOfSight(sim.x, sim.y, o.x, o.y)) continue;
       const w = pc.fleeingWeight * (1 - d / pc.fleeingRadius);

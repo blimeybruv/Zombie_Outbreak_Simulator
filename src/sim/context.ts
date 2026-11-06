@@ -37,6 +37,14 @@ export interface Context {
   threatFocus: Float64Array;
   /** The part of perceived threat that is people running this way (panic contagion). */
   fleeingSeen: Float64Array;
+  /**
+   * 1 if the sim had the dead in its own sight this tick, and as it stood the tick before
+   * (read by everyone alike, whatever their id): only someone running from what it saw
+   * frightens those it runs toward. Contagion from contagion fed itself — two hundred of a
+   * rescue queue on a bridge in flight from nothing, back and forth (the oddity check).
+   */
+  sawDead: Uint8Array;
+  sawDeadBefore: Uint8Array;
   /** Calm company: living people within company.radius and in sight, neither running nor frozen. */
   company: Int32Array;
   /** Mean heading of people running nearby, weighted by nearness (crowd alignment); 0,0 with none. */
@@ -103,6 +111,8 @@ export function createContext(world: World): Context {
     threatY: new Float64Array(0),
     threatFocus: new Float64Array(0),
     fleeingSeen: new Float64Array(0),
+    sawDead: new Uint8Array(0),
+    sawDeadBefore: new Uint8Array(0),
     company: new Int32Array(0),
     crowdX: new Float64Array(0),
     crowdY: new Float64Array(0),
@@ -148,6 +158,8 @@ export function sizeContext(ctx: Context, world: World): void {
     ctx.threatY = new Float64Array(cap);
     ctx.threatFocus = new Float64Array(cap);
     ctx.fleeingSeen = new Float64Array(cap);
+    ctx.sawDead = new Uint8Array(cap);
+    ctx.sawDeadBefore = new Uint8Array(cap);
     ctx.company = new Int32Array(cap);
     ctx.crowdX = new Float64Array(cap);
     ctx.crowdY = new Float64Array(cap);
