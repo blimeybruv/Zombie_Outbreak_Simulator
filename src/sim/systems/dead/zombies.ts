@@ -142,6 +142,30 @@ function crowdNearer(world: World, ctx: Context, z: Zombie, x: number, y: number
   return false;
 }
 
+/**
+ * A sound heard at (x, y): made for there — or, from inside a building (shots, a scream),
+ * for its door, where the dead would go. Made for the point inside, one pressed against
+ * the wall and swung between the two ways round for good (the oddity check: stuck).
+ */
+function hearAt(world: World, ctx: Context, z: Zombie, x: number, y: number): void {
+  const b = ctx.map.buildingAt(x, y);
+  if (b !== null) {
+    const e = doorFront(world, ctx, world.buildings[b]!, z);
+    return setHeard(z, e.x, e.y);
+  }
+  // A sound at a door (a bashing, a shot from the doorway) lies on the wall line, a hair
+  // outside: made for there, the zombie swung between the ways round just the same.
+  const r = world.config.zombie.doorStand;
+  for (const id of ctx.map.buildingsNear(x, y, r, ctx.buildingIds)) {
+    const o = world.buildings[id]!;
+    const i = o.entrances.findIndex((e) => Math.hypot(e.x - x, e.y - y) < r);
+    if (i < 0) continue;
+    const e = ctx.map.outside(o.id, i, r);
+    return setHeard(z, e.x, e.y);
+  }
+  setHeard(z, x, y);
+}
+
 /** Points a zombie at a place, reusing its existing point record. */
 function setHeard(z: Zombie, x: number, y: number): void {
   if (z.heardPoint === null) z.heardPoint = { x, y };
@@ -227,7 +251,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
       if (heard.intensity >= zc.wakeThreshold || ctx.ids2.length > 0) {
         z.state = 'active';
         z.heardAt = tick;
-        if (heard.intensity > 0) setHeard(z, heard.x, heard.y);
+        if (heard.intensity > 0) hearAt(world, ctx, z, heard.x, heard.y);
       } else if (
         chance(world.rng, 1 - Math.pow(1 - zc.wanderRate * (1 + (config.scent.maxWakeMultiplier - 1) * scentAt(world, ctx, z).strength), checkEvery))
       ) {
@@ -292,7 +316,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
         z.stateUntil = null;
       }
       if (z.state === 'active') {
-        setHeard(z, heard.x, heard.y);
+        hearAt(world, ctx, z, heard.x, heard.y);
         z.heardAt = tick;
       }
     }
@@ -357,7 +381,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // building first. Straight for it, a pack of the dead slid to and fro along a
         // wall for twenty minutes (the oddity check: lap).
         if (z.besieging === null && z.target === null) {
-          const w = roundObstacle(world, ctx, z.x, z.y, z.heardPoint.x, z.heardPoint.y, null);
+          const w = roundObstacle(world, ctx, z.x, z.y, z.heardPoint.x, z.heardPoint.y, null, z.heading);
           if (w !== null) {
             const wd = Math.hypot(w.x - z.x, w.y - z.y) || 1;
             gx = (w.x - z.x) / wd;
@@ -368,8 +392,8 @@ export function zombieDecisions(world: World, ctx: Context): void {
         // corner first. Straight for the door, the dead pressed into the wall short of it.
         if (z.besieging !== null && z.target === null) {
           // Its own building clear, another in the way: round that one to the door.
-          const own = roundCorner(world, ctx, world.buildings[z.besieging]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y);
-          const w = own === null ? roundObstacle(world, ctx, z.x, z.y, z.heardPoint.x, z.heardPoint.y, z.besieging) : own;
+          const own = roundCorner(world, ctx, world.buildings[z.besieging]!, z.x, z.y, z.heardPoint.x, z.heardPoint.y, true, z.heading);
+          const w = own === null ? roundObstacle(world, ctx, z.x, z.y, z.heardPoint.x, z.heardPoint.y, z.besieging, z.heading) : own;
           if (w === 'shut') {
             // No way round this house to its door from here (its neighbours against both
             // sides): not this door. Pushing on, one stood at the back of a terraced house

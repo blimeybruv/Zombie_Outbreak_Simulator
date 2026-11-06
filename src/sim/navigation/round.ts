@@ -22,7 +22,7 @@ const pinch: BuildingId[] = [];
  * With `toDoor` false, (x, y) is itself the place to get to — a sound beyond the
  * building — and the way goes round to the side of it nearest that place.
  */
-export function roundCorner(world: World, ctx: Context, b: Building, px: number, py: number, x: number, y: number, toDoor = true): Vec2 | null | 'shut' {
+export function roundCorner(world: World, ctx: Context, b: Building, px: number, py: number, x: number, y: number, toDoor = true, heading?: number): Vec2 | null | 'shut' {
   const r = world.config.movement.roundCorner;
   let entrance = b.entrances[0]!;
   for (const e of b.entrances) if (Math.hypot(e.x - x, e.y - y) < Math.hypot(entrance.x - x, entrance.y - y)) entrance = e;
@@ -99,7 +99,15 @@ export function roundCorner(world: World, ctx: Context, b: Building, px: number,
   };
   const fwd = way(1);
   const back = way(-1);
-  const [first, second] = fwd.length <= back.length ? [fwd, back] : [back, fwd];
+  // Near enough the same either way: the way it is already facing, so a step does not
+  // swing it to the other (with `heading`).
+  const ahead = (w: { corners: Vec2[] }) => {
+    const c = w.corners[0];
+    return c === undefined || heading === undefined ? 0 : Math.cos(heading) * (c.x - px) + Math.sin(heading) * (c.y - py);
+  };
+  const close = heading !== undefined && Math.abs(fwd.length - back.length) < 2 * r;
+  const fwdFirst = close ? ahead(fwd) >= ahead(back) : fwd.length <= back.length;
+  const [first, second] = fwdFirst ? [fwd, back] : [back, fwd];
   const w = toward(first.corners) ?? toward(second.corners);
   if (w !== undefined) return w;
   // Shut only for one up against it: further off, something else is in the way, and it
@@ -121,10 +129,10 @@ const touching: BuildingId[] = [];
  * the door belongs to, already gone round by roundCorner. Null when nothing it touches
  * is in the way.
  */
-export function roundObstacle(world: World, ctx: Context, px: number, py: number, x: number, y: number, skip: BuildingId | null): Vec2 | null {
+export function roundObstacle(world: World, ctx: Context, px: number, py: number, x: number, y: number, skip: BuildingId | null, heading?: number): Vec2 | null {
   for (const id of ctx.map.buildingsNear(px, py, world.config.movement.roundCorner, touching)) {
     if (id === skip) continue;
-    const w = roundCorner(world, ctx, world.buildings[id]!, px, py, x, y, false);
+    const w = roundCorner(world, ctx, world.buildings[id]!, px, py, x, y, false, heading);
     if (w !== null && w !== 'shut') return w;
   }
   return null;

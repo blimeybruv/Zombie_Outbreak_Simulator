@@ -567,7 +567,14 @@ export function swatVan(world: World, ctx: Context, sim: Sim, t: SquadTarget): b
   // Close enough to walk, unless going to man a checkpoint: there the vehicle is part of it.
   if (sim.checkpoint === null && Math.hypot(t.x - van.x, t.y - van.y) <= config.swat.vanBeyond) return false;
   const members = sims.filter((s) => s.squadLeader === sim.id && isLiving(s));
-  const gathered = members.every((s) => s.insideBuilding === null && s.car === null && Math.hypot(s.x - van.x, s.y - van.y) <= config.swat.vanGather);
+  // At the vehicle: each member within vanGather of it, or — the leader there — standing in
+  // its place in the line. Counting only the first, the last of a line behind its leader
+  // stood just past vanGather, held its place, and the squad waited for it for an hour.
+  const leaderThere = Math.hypot(sim.x - van.x, sim.y - van.y) <= config.swat.vanGather;
+  const inPlace = (s: Sim) =>
+    Math.hypot(s.x - van.x, s.y - van.y) <= config.swat.vanGather ||
+    (leaderThere && Math.hypot(s.x - ctx.slotX[s.id]!, s.y - ctx.slotY[s.id]!) <= config.squads.rejoinRadius);
+  const gathered = members.every((s) => s.insideBuilding === null && s.car === null && inPlace(s));
   if (gathered && boardSquad(world, ctx, van, members, t)) return true;
   sim.destination = { x: van.x, y: van.y };
   sim.destinationBuilding = null;

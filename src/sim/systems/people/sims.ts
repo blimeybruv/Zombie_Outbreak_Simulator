@@ -482,7 +482,10 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
   }
   const t = squadTarget(world, ctx, sim);
   if (t !== null && Math.hypot(t.x - sim.x, t.y - sim.y) <= sq.sceneRadius) {
-    if (t.building !== null && t.building.zombiesInside > 0) {
+    // Into a building the dead hold — unless it has just turned the squad back at the door
+    // (the odds not worth it, buildings.ts): then that call is done. Sent straight back,
+    // a police squad stood at one door for an hour (the oddity check: stuck).
+    if (t.building !== null && t.building.zombiesInside > 0 && !refusedLately(world, sim, t.building.id)) {
       if (sim.destinationBuilding !== t.building.id) setDestination(sim, t.building, 'respond');
       sim.gait = 'walk';
       headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
@@ -495,7 +498,9 @@ function decideLeader(world: World, ctx: Context, sim: Sim): void {
   // SWAT with its van at the station and a long way to go: to the van, and in together.
   if (t !== null && swatVan(world, ctx, sim, t)) {
     if (sim.car === null) {
-      sim.gait = ctx.squadLag[sim.id] ? 'still' : 'walk';
+      // At the vehicle, waiting for the rest: it stands, rather than stepping over the spot.
+      const there = Math.hypot(sim.destination!.x - sim.x, sim.destination!.y - sim.y) <= config.behaviour.arrivalRadius;
+      sim.gait = ctx.squadLag[sim.id] || there ? 'still' : 'walk';
       if (sim.gait === 'walk') headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
     }
     return;
@@ -772,8 +777,8 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       // Round the building to a door on its far side. Straight at the nearest door, the
       // panicked sprinted to and fro along a hotel's back wall at the rescue's hour, dozens
       // of them (the oddity check: lap).
-      const own = roundCorner(world, ctx, door, sim.x, sim.y, sim.destination!.x, sim.destination!.y);
-      const w = own === null ? roundObstacle(world, ctx, sim.x, sim.y, sim.destination!.x, sim.destination!.y, door.id) : own;
+      const own = roundCorner(world, ctx, door, sim.x, sim.y, sim.destination!.x, sim.destination!.y, true, sim.heading);
+      const w = own === null ? roundObstacle(world, ctx, sim.x, sim.y, sim.destination!.x, sim.destination!.y, door.id, sim.heading) : own;
       const to = w !== null && w !== 'shut' ? w : sim.destination!;
       if (headFor(world, ctx, sim, to.x, to.y)) wayBlocked(world, ctx, sim, mode);
     } else {

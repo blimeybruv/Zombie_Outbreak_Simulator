@@ -80,10 +80,10 @@ function lastLeg(world: World, ctx: Context, sim: Sim): boolean {
   // Its own building between: round its corners to the door. Making for the street in
   // front of it through the building, a sim at the back pressed into the wall and slid
   // to and fro along it for good (the oddity check, scripts/oddities.ts: lap).
-  const w = roundCorner(world, ctx, world.buildings[bid]!, sim.x, sim.y, d.x, d.y);
+  const w = roundCorner(world, ctx, world.buildings[bid]!, sim.x, sim.y, d.x, d.y, true, sim.heading);
   if (w !== null && w !== 'shut') return headFor(world, ctx, sim, w.x, w.y);
   // Another building between, one it is up against: round that one.
-  const o = w === null ? roundObstacle(world, ctx, sim.x, sim.y, ox, oy, bid) : null;
+  const o = w === null ? roundObstacle(world, ctx, sim.x, sim.y, ox, oy, bid, sim.heading) : null;
   if (o !== null) return headFor(world, ctx, sim, o.x, o.y);
   return headFor(world, ctx, sim, fx, fy);
 }
