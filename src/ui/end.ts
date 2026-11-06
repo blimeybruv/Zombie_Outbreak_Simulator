@@ -41,14 +41,11 @@ export class EndScreen {
         `against ${pct(tr.believedLived, tr.believed)} of the ${n(tr.believed)} who believed it.`;
       this.root.append(p);
     }
-    const l = end.loners;
-    if (l.loners > 0 && l.civilians > 0) {
-      const pct = (a: number, b: number) => `${Math.round((a / b) * 100)}%`;
+    const line = lonerLine(end.loners);
+    if (line !== null) {
       const p = document.createElement('p');
       p.className = 'broadcast';
-      p.textContent =
-        `Those who kept away from other people did best: ${pct(l.lonersLived, l.loners)} of the ${n(l.loners)} loners lived or got out, ` +
-        `against ${pct(l.civiliansLived, l.civilians)} of the ${n(l.civilians)} who went about among others. Crowds draw the dead and fall together.`;
+      p.textContent = line;
       this.root.append(p);
     }
     if (end.trucked > 0) {
@@ -59,4 +56,19 @@ export class EndScreen {
     }
     this.root.hidden = false;
   }
+}
+
+/**
+ * How loners fared against those who went about among others, said the way the numbers
+ * fell: it once said loners "did best" whatever they were (the user saw 1% against 3%,
+ * at the most runners).
+ */
+export function lonerLine(l: EndSummary['loners']): string | null {
+  if (l.loners === 0 || l.civilians === 0) return null;
+  const a = Math.round((l.lonersLived / l.loners) * 100);
+  const b = Math.round((l.civiliansLived / l.civilians) * 100);
+  const figures = `${a}% of the ${n(l.loners)} loners lived or got out, against ${b}% of the ${n(l.civilians)} who went about among others.`;
+  if (a > b) return `Those who kept away from other people did best: ${figures} Crowds draw the dead and fall together.`;
+  if (a < b) return `Keeping away from other people did not save them: ${figures} Alone, nobody watches your back.`;
+  return `Keeping to themselves made no difference: ${figures}`;
 }
