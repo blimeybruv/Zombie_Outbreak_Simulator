@@ -635,7 +635,9 @@ A scenario toggle, set before the run and never changed during it.
 | Setting | Zombie speed | Effect |
 | --- | --- | --- |
 | `shambler` | 1.1 m | Default. Stamina management is the survival skill |
-| `runner` | 2.4 m | Faster than a walk, slower than a sprint |
+| `runner` | 2.4 m at someone it has in its sights; otherwise 1.1 m, like a shambler | Faster than a walk, slower than a sprint |
+
+Runners run at people, not everywhere (the user's call): wandering, idle, or going to a sound, a door or a car they shamble; only while tracking a target (`Zombie.target`) do they break into a run (`zombies.ts`, `amble` and `sprint`).
 
 This inverts which strategies work rather than just raising difficulty. Against runners, stamina cannot save anyone — sprinting only buys distance briefly, sneaking is worthless once detected, and shelter is the only viable answer. It should be swept as a separate scenario, not as a parameter within one, because every other default is tuned against shamblers.
 
@@ -1794,3 +1796,4 @@ Floated by the user after the survivor revisions; each was measured on seed 1 be
   - *Swinging between ways round* in general: `roundCorner` and `roundObstacle` take the walker's heading, and when the two ways are within two corner radii of each other in length keep to the one ahead (heading hysteresis), for the living and the dead.
   - *A SWAT squad held at its van for an hour:* the last follower in formation stood 15.1 m from the van, past `swat.vanGather` 15, so the squad never counted as gathered. A member in its formation slot about a leader at the van now counts (`squads.ts swatVan`), and the leader stands still there rather than walking on the spot; a leader also no longer heads for a scene at a building that refused it lately (`sims.ts decideLeader`, `refusedLately`).
   - Stuck, seed 12: 14 → 1; seed 4: 11 → 2 (full runs). What is left is a runner or two on an errand and a sheltering sim.
+- **Runners run at people, not everywhere** (the user: zombies that sprint to human targets, but not necessarily everywhere; `zombies.ts` `amble`/`sprint`). The runner gait had every zombie at 2.4 m a tick wherever it went — wandering, to sounds, to doors. Now a runner shambles (1.1 m) unless it is tracking someone it has seen, and then runs. Runner scenario, seed 1, full run, before → after: alive in the city at the end 105 → 829, got out 132 → 225, dead 2,282 → 2,035, turned at the end 655 → 413; mean pace while chasing 1.38 → 1.30 m (closing to striking distance holds it down near the target). The shambler default is unchanged. Test: `behaviour.test.ts` "runners shamble to a sound and run only at someone in their sights".

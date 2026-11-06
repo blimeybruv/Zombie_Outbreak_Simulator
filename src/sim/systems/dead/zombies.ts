@@ -200,7 +200,11 @@ function stalemateStep(world: World): void {
 export function zombieDecisions(world: World, ctx: Context): void {
   const { config, tick, sims } = world;
   const zc = config.zombie;
-  const speed = zc.speed[world.scenario.zombieGait];
+  // Runners run at people, not everywhere: wandering, going to a sound or a door, they
+  // shamble like the rest, and only with someone in their sights break into a run (the
+  // user's call: every runner at 2.4 m wherever it went read as a swarm, not a chase).
+  const amble = zc.speed.shambler;
+  const sprint = zc.speed[world.scenario.zombieGait];
   stalemateStep(world);
   refreshScent(world, ctx);
   const checkEvery = zc.dormantCheckInterval;
@@ -240,7 +244,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
       ctx.zombieSees[z.id] === -1 &&
       z.id % idleEvery !== tick % idleEvery
     ) {
-      ctx.zombieSpeed[z.id] = speed * (z.state === 'wandering' ? zc.wanderSpeedFactor : zc.idleSpeedFactor);
+      ctx.zombieSpeed[z.id] = amble * (z.state === 'wandering' ? zc.wanderSpeedFactor : zc.idleSpeedFactor);
       continue;
     }
 
@@ -322,6 +326,7 @@ export function zombieDecisions(world: World, ctx: Context): void {
     }
 
     // Goal direction and pace.
+    const speed = z.target !== null ? sprint : amble;
     let gx = 0;
     let gy = 0;
     let pace = 1;

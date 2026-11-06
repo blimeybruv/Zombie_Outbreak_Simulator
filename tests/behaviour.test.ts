@@ -991,6 +991,26 @@ describe('release', () => {
 });
 
 describe('the dead', () => {
+  it('runners shamble to a sound and run only at someone in their sights', () => {
+    const { world, ctx } = fresh();
+    world.scenario.zombieGait = 'runner';
+    const p = streetPoint(world);
+    const z = spawnZombie(world, p.x, p.y, 'active', null, null);
+    z.heardPoint = { x: p.x + p.ux * 30, y: p.y + p.uy * 30 };
+    z.heardAt = world.tick;
+    const look = () => {
+      sizeContext(ctx, world);
+      rebuildHashes(world, ctx);
+      computePerception(world, ctx);
+      zombieDecisions(world, ctx);
+      return ctx.zombieSpeed[z.id]!;
+    };
+    expect(look()).toBeCloseTo(baseConfig.zombie.speed.shambler, 6);
+    const s = walker(world, p.x + p.ux * 10, p.y + p.uy * 10);
+    expect(look()).toBeCloseTo(baseConfig.zombie.speed.runner, 6);
+    expect(z.target).toBe(s.id);
+  });
+
   it('a zombie that sights someone wakes the dormant dead near it', () => {
     const { world, ctx } = fresh();
     const p = streetPoint(world);

@@ -902,7 +902,7 @@ export const config = {
   },
 
   zombie: {
-    speed: { shambler: 1.1, runner: 2.4 }, // m/tick
+    speed: { shambler: 1.1, runner: 2.4 }, // m/tick; a runner runs only at someone it has in its sights, and otherwise shambles (zombies.ts)
     sightRadius: 18, // m, times sim detectability; fixed regardless of light
     sightRamp: 0.2, // outer fraction of range over which detection probability ramps 0→1
     trackingLossTicks: 40, // unseen this long → target lost
