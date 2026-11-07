@@ -97,6 +97,8 @@ export interface Scenario {
   survivors: Count;
   /** Share of each archetype; sums to 1. @range 0–1 each @unit fraction @readBy setup */
   archetypeMix: Record<Archetype, Unit01>;
+  /** Share of people (not police, reservists or the already armed) who keep a gun at home and start with it (spawn.ts kitFor). One dial of its own (B: firearms, preparedness and compliance vary apart). @range 0–0.4 @unit fraction @readBy spawn */
+  homeFirearms: Unit01;
   /** @range 2 values @unit enum @readBy zombie movement */
   zombieGait: ZombieGait;
   /** Street and interior lighting on or off for the whole run. @range true/false @unit — @readBy setup (lit flags) */

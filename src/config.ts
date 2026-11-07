@@ -195,6 +195,8 @@ export const config = {
     population: [2000, 10000, 500],
     initialZombies: [1, 200],
     survivors: [20, 200], // a fallen city: the living left when it is handed over
+    preppers: [0, 0.5], // the prepper share of the archetype mix; civilians take up the rest
+    homeFirearms: [0, 0.4], // share keeping a gun at home
   },
 
   // A fallen city (the user's idea; B: earn the state, do not synthesise it). The outbreak
@@ -1033,6 +1035,9 @@ export const config = {
     meleeWeights: { knife: 3, club: 2, sledgehammer: 1 }, // guess
     recklessFirearmShare: 0.15, // reckless sims who start with a found shotgun — guess
     recklessAmmo: 6, // guess
+    // A gun kept at home (Scenario.homeFirearms, the setup screen's dial): a pistol or a
+    // shotgun, with what was in the drawer — guess
+    homeFirearm: { weights: { pistol: 2, shotgun: 1 }, ammo: 8 },
   },
 
   // Supplies are eaten: an alerted building's people — residents and those sheltering —

@@ -72,10 +72,14 @@ function archetypeFor(rng: RngState, profession: Profession, world: World): Arch
   return weighted(rng, weights, ARCHETYPES);
 }
 
-function kitFor(rng: RngState, archetype: Archetype, config: Config): { weapon: Weapon | null; ammo: number } {
+function kitFor(rng: RngState, archetype: Archetype, config: Config, homeFirearms: number): { weapon: Weapon | null; ammo: number } {
   const kit = config.startingKit;
   if (archetype === 'police') return { weapon: 'pistol', ammo: kit.policeAmmo };
   if (archetype === 'reckless' && chance(rng, kit.recklessFirearmShare)) return { weapon: 'shotgun', ammo: kit.recklessAmmo };
+  // A gun at home. Drawn only when the dial is up, so a run without them draws as before.
+  if (homeFirearms > 0 && archetype !== 'reservist' && chance(rng, homeFirearms)) {
+    return { weapon: weighted(rng, kit.homeFirearm.weights, ['pistol', 'shotgun'] as const), ammo: kit.homeFirearm.ammo };
+  }
   if (chance(rng, kit.meleeShare[archetype])) {
     return { weapon: weighted(rng, kit.meleeWeights, ['knife', 'club', 'sledgehammer'] as const), ammo: 0 };
   }
@@ -177,7 +181,7 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
   const profession = professionFor(rng, spec.sourceTag, config);
   // A cop is police whatever the mix says; anyone else draws from the mix.
   const archetype = (config.spawn.policeProfessions as readonly string[]).includes(profession) ? 'police' : archetypeFor(rng, profession, world);
-  const { weapon, ammo } = kitFor(rng, archetype, config);
+  const { weapon, ammo } = kitFor(rng, archetype, config, world.scenario.homeFirearms);
   const id = world.sims.length as SimId;
   const home = profession === 'homeless' ? null : pickHome(world, spec.x, spec.y, spec.from ?? null);
   const anchor = home === null ? spec : world.buildings[home]!.entrances[0]!;

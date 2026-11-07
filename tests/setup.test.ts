@@ -12,6 +12,8 @@ describe('setup settings from the address', () => {
       origin: defaultScenario.origin,
       start: defaultScenario.start,
       survivors: defaultScenario.survivors,
+      archetypeMix: defaultScenario.archetypeMix,
+      homeFirearms: defaultScenario.homeFirearms,
       startHour: defaultScenario.startHour,
       zombieGait: defaultScenario.zombieGait,
       power: defaultScenario.power,
@@ -33,5 +35,14 @@ describe('setup settings from the address', () => {
     const s = settingsFrom(new URLSearchParams('opening=fallen&left=5'));
     expect([s.start, s.survivors]).toEqual(['fallen', config.setup.survivors[0]]);
     expect(settingsFrom(new URLSearchParams('opening=ruins&left=150'))).toMatchObject({ start: 'outbreak', survivors: 150 });
+  });
+
+  it('reads preparedness and guns at home as separate dials, the mix still summing to one', () => {
+    const s = settingsFrom(new URLSearchParams('preppers=40&guns=20'));
+    expect(s.archetypeMix.prepper).toBeCloseTo(0.4, 10);
+    expect(Object.values(s.archetypeMix).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
+    expect(s.homeFirearms).toBeCloseTo(0.2, 10);
+    expect(settingsFrom(new URLSearchParams('preppers=26')).archetypeMix).toBe(defaultScenario.archetypeMix); // unchanged: the very same mix
+    expect(settingsFrom(new URLSearchParams('guns=99')).homeFirearms).toBe(config.setup.homeFirearms[1]);
   });
 });
