@@ -41,8 +41,9 @@ export const ODDITY = {
     cordonWarned: { count: 25, within: 64800 },
     strangerRefused: { count: 3, within: 900 },
     quarantineCaught: { count: 2, within: 64800 },
-    cordonWounded: { count: 3, within: 64800 },
-  } as Record<string, { count: number; within: number }>,
+    // A squad's volley wounds on consecutive ticks, one soldier a tick: one occasion, not three.
+    cordonWounded: { count: 3, within: 64800, apart: 60 },
+  } as Record<string, { count: number; within: number; apart?: number }>,
   freezes: 20,
   quiet: 1800, // ticks before the same agent is reported again for the same kind
 };
@@ -90,6 +91,8 @@ export class OddityCheck {
       const at = 'building' in e ? e.building : null;
       const k = `${e.type}:${e.sim}:${at}`;
       const ticks = (this.events.get(k) ?? []).filter((t) => world.tick - t < limit.within);
+      // Within `apart` of the last counted: the same occasion.
+      if (limit.apart !== undefined && ticks.length > 0 && world.tick - ticks[ticks.length - 1]! < limit.apart) continue;
       ticks.push(world.tick);
       this.events.set(k, ticks);
       const s = world.sims[e.sim]!;

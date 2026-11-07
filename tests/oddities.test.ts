@@ -32,6 +32,22 @@ describe('the oddity check', () => {
     expect(viewerLink(lap!, 7, 1)).toContain(`at=${lap!.x.toFixed(0)},${lap!.y.toFixed(0)}`);
   });
 
+  it('takes a volley of wounds on consecutive ticks for one occasion, and three apart for a repeat', () => {
+    const { world, ctx, s } = walker();
+    const check = new OddityCheck();
+    const wound = (tick: number) => {
+      world.tick = tick;
+      world.events.length = 0;
+      world.events.push({ type: 'cordonWounded', tick, sim: s.id, x: s.x, y: s.y });
+      check.observe(world, ctx);
+    };
+    const repeats = () => check.found.filter((o) => o.kind === 'repeated' && o.who === `sim ${s.id}`).length;
+    for (const t of [100, 101, 102]) wound(t); // one volley, three soldiers
+    expect(repeats()).toBe(0);
+    for (const t of [1000, 2000]) wound(t);
+    expect(repeats()).toBe(1);
+  });
+
   it('does not take an errand there and back for a lap', () => {
     const { world, ctx, s } = walker();
     const check = new OddityCheck();
