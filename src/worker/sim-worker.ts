@@ -10,6 +10,7 @@ import { config } from '../config';
 import { daylight, timeOfDay } from '../sim/derived';
 import { defaultScenario } from '../sim/scenario';
 import { createWorld } from '../sim/setup';
+import { fallen, livingInCity } from '../sim/fall';
 import type { SimEvent, World } from '../sim/state';
 import { stageOf } from '../sim/systems/shared/common';
 import { modeOf } from '../sim/systems/people/panic';
@@ -237,6 +238,8 @@ function frameSnapshot(w: World): FrameSnapshot {
     rescueGate: w.config.rescue.gate,
     weekday: (w.config.time.startWeekday + Math.floor(w.scenario.startHour / 24 + w.tick / w.config.time.dayLength)) % 7,
     sinceOutbreak: (w.tick * 86400) / w.config.time.dayLength,
+    falling,
+    livingInCity: livingInCity(w),
     simXY,
     simKind,
     simFlags,
@@ -270,6 +273,9 @@ function frameSnapshot(w: World): FrameSnapshot {
 }
 
 let ended = false;
+/** A fallen city still falling (sim/fall.ts): stepped flat out, deaths to the corpse layer only, nothing for the ticker. */
+let falling = false;
+const FALL_SLICE_MS = 40; // a longer slice while falling: frames are only watched
 
 /** How far past the map's edge the rescue's truck starts and ends its drive, m: out of sight. */
 const TRUCK_OFF_MAP = 12;
@@ -364,7 +370,34 @@ function endSummary(w: World): EndSummary {
   };
 }
 
+/** Steps without notes: history, not news, but its dead still belong on the corpse layer. */
+function stepQuietly(w: World, c: Context): void {
+  step(w, c, { checkInvariant: false });
+  noteEndings(w, c, w.events);
+  for (const e of w.events) {
+    if (e.type !== 'simDied' && e.type !== 'zombieDestroyed') continue;
+    if (pending.length >= EVENT_CAP) {
+      dropped++;
+      continue;
+    }
+    pending.push(e);
+    notes.push(null);
+  }
+}
+
 function run(): void {
+  // A fallen city falling: as fast as it will go, whatever the speed set, until it has fallen.
+  if (falling && world && ctx) {
+    const start = performance.now();
+    while (falling && performance.now() - start < FALL_SLICE_MS) {
+      stepQuietly(world, ctx);
+      if (fallen(world)) falling = false;
+    }
+    anchor = performance.now();
+    steppedSinceAnchor = 0;
+    yieldChannel.port2.postMessage(null);
+    return;
+  }
   if (world && ctx && rate > 0 && world.tick < world.config.time.runLength) {
     const start = performance.now();
     const due = Math.floor(((start - anchor) / 1000) * rate) - steppedSinceAnchor;
@@ -416,16 +449,9 @@ scope.onmessage = (e) => {
       ...world.zombies.filter((z) => z.insideBuilding === null && z.state !== 'destroyed').map((z) => ({ x: z.x, y: z.y })),
     ];
     clearEndings();
-    while (world.tick < msg.advance) {
-      step(world, ctx, { checkInvariant: false });
-      noteEndings(world, ctx, world.events);
-      // Deaths while fast-forwarding still belong on the corpse layer.
-      for (const e of world.events) {
-        if (e.type !== 'simDied' && e.type !== 'zombieDestroyed') continue;
-        pending.push(e);
-        notes.push(null); // history, not news
-      }
-    }
+    // Deaths while fast-forwarding still belong on the corpse layer.
+    while (world.tick < msg.advance) stepQuietly(world, ctx);
+    falling = !fallen(world);
     const map = mapSnapshot(world);
     scope.postMessage({ type: 'map', map }, [map.streets.buffer, map.streetLit.buffer, map.streetBridge.buffer, map.outlines.buffer, map.buildingShape.buffer, map.buildingArmoury.buffer, map.buildingStation.buffer, map.doors.buffer]);
   } else if (msg.type === 'rate') {

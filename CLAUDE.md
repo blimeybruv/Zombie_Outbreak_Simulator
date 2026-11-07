@@ -284,8 +284,8 @@ Open, in priority order:
    29.8 (up from 22.9, mostly seed 18: 13 together at (2130, 1231) at tick 2,480), stuck 6.3,
    jitter 22.4. Also open: seed 14's people warned off the closed west exit again and again;
    sceptics still survive best (trust z −5.3); features that barely fire (9c3b37b entry); the
-   runner gait not swept as a scenario. The user's idea awaiting answers: a fallen-city start
-   (up to 200 survivors among the dead, cordon sealed from the start).
+   runner gait not swept as a scenario. The fallen city is built (reference, "A fallen city"):
+   the rescue's arithmetic with two hundred left is B's to say more on.
 2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on

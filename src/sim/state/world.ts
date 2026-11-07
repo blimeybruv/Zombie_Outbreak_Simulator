@@ -26,6 +26,10 @@ import type { Zombie } from './zombie';
 export const OUTBREAK_ORIGINS = ['enclosed', 'scattered', 'street'] as const;
 export type OutbreakOrigin = (typeof OUTBREAK_ORIGINS)[number];
 
+/** How a run opens: the outbreak at its start, or a city that has already fallen (fall.ts). */
+export const RUN_STARTS = ['outbreak', 'fallen'] as const;
+export type RunStart = (typeof RUN_STARTS)[number];
+
 export const ZOMBIE_GAITS = ['shambler', 'runner'] as const;
 export type ZombieGait = (typeof ZOMBIE_GAITS)[number];
 
@@ -85,8 +89,12 @@ export interface Scenario {
   startHour: number;
   /** @range 3 values @unit enum @readBy setup */
   origin: OutbreakOrigin;
-  /** How many of the population have turned at tick 0 (taken from it, so the invariant holds). @range 1–200 @unit zombies @readBy setup */
+  /** How many of the population have turned at tick 0 (taken from it, so the invariant holds); a fallen city sets its own (fallen.wave). @range 1–200 @unit zombies @readBy setup */
   initialZombies: Count;
+  /** The outbreak from its start, or a fallen city: the outbreak run until `survivors` are left, then handed over (fall.ts). @range 2 values @unit enum @readBy setup, fall */
+  start: RunStart;
+  /** A fallen city: how many of the living are left when it is handed over. @range 20–200 @unit people @readBy fall */
+  survivors: Count;
   /** Share of each archetype; sums to 1. @range 0–1 each @unit fraction @readBy setup */
   archetypeMix: Record<Archetype, Unit01>;
   /** @range 2 values @unit enum @readBy zombie movement */

@@ -40,6 +40,9 @@
       #inspector .thoughts { color: #d7dee5; margin-top: 3px; border-left: 2px solid #3a414a; padding-left: 6px; }
       #inspector .thoughts div::before { content: '“'; color: #6c757f; }
       #inspector .thoughts div::after { content: '”'; color: #6c757f; }
+      #fall { position: fixed; left: 50%; transform: translateX(-50%); top: 38%; max-width: min(560px, calc(100vw - 32px)); background: rgba(6, 7, 10, 0.82); color: #d6dde4; border: 1px solid #2a2f36; border-radius: 4px; padding: 10px 16px; text-align: center; pointer-events: none; }
+      #fall[hidden] { display: none; }
+      #fall .sub { color: #7c858f; margin-top: 4px; font-size: 11px; }
       #fps { position: fixed; left: 50%; transform: translateX(-50%); top: 8px; background: rgba(6, 7, 10, 0.75); color: #8fbf8f; padding: 3px 8px; border-radius: 3px; font-size: 11px; pointer-events: none; white-space: nowrap; }
       #fps.slow { color: #e0a060; }
       #inspector .head { color: #eef3f7; }
@@ -64,6 +67,7 @@
       #setup .title { color: #eef3f7; font-size: 16px; }
       #setup .sub { color: #7c858f; margin-bottom: 6px; }
       #setup .row { display: flex; align-items: center; gap: 10px; }
+      #setup [hidden] { display: none; }
       #setup .label { width: 120px; color: #9aa3ad; flex: none; }
       #setup input[type=range] { flex: 1; min-width: 0; accent-color: #8b949e; }
       #setup .value { width: 110px; color: #d6dde4; flex: none; }
@@ -88,6 +92,7 @@
     <div id="inspector"></div>
     <div id="end" hidden></div>
     <div id="fps" hidden></div>
+    <div id="fall" hidden></div>
     <div id="setup" hidden></div>
     <button id="newrun" hidden>new run…</button>
     <button id="director" hidden title="Let the director choose where to look (D)">director</button>

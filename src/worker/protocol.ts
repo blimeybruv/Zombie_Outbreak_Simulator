@@ -211,6 +211,10 @@ export interface WorkerPerf {
 
 export interface FrameSnapshot {
   tick: number;
+  /** A fallen city still falling: the worker runs it flat out and the viewer only watches (sim/fall.ts). */
+  falling: boolean;
+  /** The living in the city, less soldiers from outside (fall.ts livingInCity). */
+  livingInCity: number;
   /** The worker's time since the last snapshot (WorkerPerf). */
   perf: WorkerPerf;
   /** 1 in daylight, 0 at night. */

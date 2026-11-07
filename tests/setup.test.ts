@@ -10,6 +10,8 @@ describe('setup settings from the address', () => {
       population: defaultScenario.population,
       initialZombies: defaultScenario.initialZombies,
       origin: defaultScenario.origin,
+      start: defaultScenario.start,
+      survivors: defaultScenario.survivors,
       startHour: defaultScenario.startHour,
       zombieGait: defaultScenario.zombieGait,
       power: defaultScenario.power,
@@ -25,5 +27,11 @@ describe('setup settings from the address', () => {
     expect([s.origin, s.startHour, s.zombieGait, s.power, s.mapSeed, s.runSeed]).toEqual(['street', 23, 'runner', false, 7, 42]);
     const t = settingsFrom(new URLSearchParams('origin=moon&zombies=flying&population=abc'));
     expect([t.origin, t.zombieGait, t.population]).toEqual([defaultScenario.origin, defaultScenario.zombieGait, defaultScenario.population]);
+  });
+
+  it('reads a fallen city and how many are left, clamped', () => {
+    const s = settingsFrom(new URLSearchParams('opening=fallen&left=5'));
+    expect([s.start, s.survivors]).toEqual(['fallen', config.setup.survivors[0]]);
+    expect(settingsFrom(new URLSearchParams('opening=ruins&left=150'))).toMatchObject({ start: 'outbreak', survivors: 150 });
   });
 });

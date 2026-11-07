@@ -194,7 +194,15 @@ export const config = {
   setup: {
     population: [2000, 10000, 500],
     initialZombies: [1, 200],
+    survivors: [20, 200], // a fallen city: the living left when it is handed over
   },
+
+  // A fallen city (the user's idea; B: earn the state, do not synthesise it). The outbreak
+  // runs from a first wave of `wave` of the population, scattered, until the living are
+  // down to the scenario's survivors or `maxTicks` have passed, and the viewer takes over
+  // from there (fall.ts; the worker shows the fall as it runs). A wave of a tenth brought
+  // 6,000 down to about 200 in six to seven hours (seed 1); ten zombies take far longer.
+  fallen: { wave: 0.1, maxTicks: 36000 },
 
   // The director (src/ui/director.ts): the viewer's curator, toggled on, taking the camera
   // to scenes. A scene is offered by an event worth `minWeight` or more (ui/salience.ts

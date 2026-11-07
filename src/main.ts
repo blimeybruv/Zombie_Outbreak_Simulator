@@ -110,6 +110,22 @@ const ticker = new Ticker(document.querySelector<HTMLElement>('#ticker')!, {
 const roster = new Roster(document.querySelector<HTMLElement>('#roster')!, track);
 const inspector = new Inspector(document.querySelector<HTMLElement>('#inspector')!, track);
 const endScreen = new EndScreen(document.querySelector<HTMLElement>('#end')!);
+const fallCaption = document.querySelector<HTMLElement>('#fall')!;
+
+/** While a fallen city falls (sim/fall.ts): the city falling in time-lapse, and when the viewer takes over. */
+function showFall(f: FrameSnapshot): void {
+  fallCaption.hidden = !f.falling;
+  if (!f.falling) return;
+  const m = Math.floor(f.sinceOutbreak / 60);
+  const since = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+  fallCaption.replaceChildren();
+  const head = document.createElement('div');
+  head.textContent = `The city is falling. ${since} since the outbreak; ${f.livingInCity.toLocaleString('en-US')} still alive.`;
+  const sub = document.createElement('div');
+  sub.className = 'sub';
+  sub.textContent = `You take over when ${settings.survivors} are left.`;
+  fallCaption.append(head, sub);
+}
 
 worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const msg = e.data;
@@ -120,7 +136,12 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
     // Or on `at=x,y` in the address, close in (the oddity check's links, scripts/oddities.ts).
     const at = params.get('at')?.split(',').map(Number);
     const origin = at !== undefined && at.length === 2 && at.every(Number.isFinite) ? { x: at[0]!, y: at[1]! } : msg.map.origins[0];
-    if (origin !== undefined) {
+    if (settings.start === 'fallen' && at === undefined) {
+      // A fallen city: the whole of it, to watch it fall.
+      camera.scale = (0.95 * Math.min(camera.width, camera.height)) / msg.map.size;
+      camera.centreOn(msg.map.size / 2, msg.map.size / 2);
+      camera.version++;
+    } else if (origin !== undefined) {
       camera.scale = at !== undefined ? 4 : 1;
       camera.centreOn(origin.x, origin.y);
       camera.version++;
@@ -132,6 +153,7 @@ worker.onmessage = (e: MessageEvent<FromWorker>) => {
   } else {
     const f = msg.frame;
     latest = f;
+    showFall(f);
     stats.tick = f.tick;
     timing.snapshot(f.perf);
     const now = performance.now();

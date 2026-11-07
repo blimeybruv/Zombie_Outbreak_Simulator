@@ -147,8 +147,10 @@ function turnResident(world: World, ctx: Context, b: Building): void {
  */
 function seedOutbreak(world: World, ctx: Context): void {
   const { scenario, rng, buildings } = world;
-  const n = Math.max(1, Math.round(scenario.initialZombies));
-  if (scenario.origin === 'street') {
+  // A fallen city: a first wave of its own, scattered through buildings (fall.ts).
+  const fallen = scenario.start === 'fallen';
+  const n = Math.max(1, Math.round(fallen ? scenario.population * world.config.fallen.wave : scenario.initialZombies));
+  if (!fallen && scenario.origin === 'street') {
     const outdoors = world.sims.filter((s) => s.insideBuilding === null && s.car === null);
     if (outdoors.length > 0) {
       for (let k = 0; k < n && outdoors.length > 0; k++) {
@@ -164,7 +166,7 @@ function seedOutbreak(world: World, ctx: Context): void {
       return;
     }
   }
-  if (scenario.origin === 'scattered') {
+  if (fallen || scenario.origin === 'scattered') {
     const pool = buildings.filter((b) => b.residents > 0);
     let total = pool.reduce((sum, b) => sum + b.residents, 0);
     for (let k = 0; k < n && pool.length > 0; k++) {

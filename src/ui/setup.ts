@@ -8,13 +8,14 @@
 
 import { config } from '../config';
 import { defaultScenario } from '../sim/scenario';
-import { OUTBREAK_ORIGINS, ZOMBIE_GAITS, type OutbreakOrigin, type Scenario, type ZombieGait } from '../sim/state';
+import { OUTBREAK_ORIGINS, RUN_STARTS, ZOMBIE_GAITS, type OutbreakOrigin, type RunStart, type Scenario, type ZombieGait } from '../sim/state';
 
 /** What the viewer may set: everything else in a scenario is the defaults'. */
-export type Settings = Pick<Scenario, 'population' | 'initialZombies' | 'origin' | 'startHour' | 'zombieGait' | 'power' | 'mapSeed' | 'runSeed'>;
+export type Settings = Pick<Scenario, 'population' | 'initialZombies' | 'origin' | 'start' | 'survivors' | 'startHour' | 'zombieGait' | 'power' | 'mapSeed' | 'runSeed'>;
 
 const ORIGIN_WORDS: Record<OutbreakOrigin, string> = { enclosed: 'all in one building', scattered: 'scattered through buildings', street: 'out on the streets' };
 const GAIT_WORDS: Record<ZombieGait, string> = { shambler: 'shamblers', runner: 'runners' };
+const START_WORDS: Record<RunStart, string> = { outbreak: 'the outbreak', fallen: 'a fallen city' };
 
 const clamp = (v: number, [lo, hi]: readonly number[]) => Math.min(hi!, Math.max(lo!, v));
 const num = (p: URLSearchParams, key: string, fallback: number) => {
@@ -28,10 +29,14 @@ export function settingsFrom(p: URLSearchParams): Settings {
   const d = defaultScenario;
   const origin = p.get('origin');
   const gait = p.get('zombies');
+  const opening = p.get('opening');
   return {
     population: Math.round(clamp(num(p, 'population', d.population), s.population)),
     initialZombies: Math.round(clamp(num(p, 'initial', d.initialZombies), s.initialZombies)),
     origin: (OUTBREAK_ORIGINS as readonly string[]).includes(origin ?? '') ? (origin as OutbreakOrigin) : d.origin,
+    // `start` in the address already means "skip this screen": the opening is `opening`.
+    start: (RUN_STARTS as readonly string[]).includes(opening ?? '') ? (opening as RunStart) : d.start,
+    survivors: Math.round(clamp(num(p, 'left', d.survivors), s.survivors)),
     startHour: Math.round(clamp(num(p, 'hour', d.startHour), [0, 23])),
     zombieGait: (ZOMBIE_GAITS as readonly string[]).includes(gait ?? '') ? (gait as ZombieGait) : d.zombieGait,
     power: p.has('power') ? p.get('power') !== '0' : d.power,
@@ -46,6 +51,8 @@ export function addressFor(s: Settings, start: boolean, keep: URLSearchParams): 
   p.set('population', String(s.population));
   p.set('initial', String(s.initialZombies));
   p.set('origin', s.origin);
+  p.set('opening', s.start);
+  p.set('left', String(s.survivors));
   p.set('hour', String(s.startHour));
   p.set('zombies', s.zombieGait);
   p.set('power', s.power ? '1' : '0');
@@ -126,6 +133,8 @@ export function showSetup(root: HTMLElement, params: URLSearchParams): void {
   const pop = slider(c.population[0]!, c.population[1]!, c.population[2]!, s.population, (v) => `${v.toLocaleString()} people`);
   const initial = slider(c.initialZombies[0]!, c.initialZombies[1]!, 1, s.initialZombies, (v) => `${v} ${v === 1 ? 'zombie' : 'zombies'}`);
   const origin = select(OUTBREAK_ORIGINS, ORIGIN_WORDS, s.origin);
+  const opening = select(RUN_STARTS, START_WORDS, s.start);
+  const left = slider(c.survivors[0]!, c.survivors[1]!, 10, s.survivors, (v) => `${v} left alive`);
   const hour = slider(0, 23, 1, s.startHour, (v) => `${String(v).padStart(2, '0')}:00`);
   const gait = select(ZOMBIE_GAITS, GAIT_WORDS, s.zombieGait);
   const power = document.createElement('input');
@@ -142,6 +151,8 @@ export function showSetup(root: HTMLElement, params: URLSearchParams): void {
       population: Number(pop.input.value),
       initialZombies: Number(initial.input.value),
       origin: origin.value as OutbreakOrigin,
+      start: opening.value as RunStart,
+      survivors: Number(left.input.value),
       startHour: Number(hour.input.value),
       zombieGait: gait.value as ZombieGait,
       power: power.checked,
@@ -151,12 +162,33 @@ export function showSetup(root: HTMLElement, params: URLSearchParams): void {
     location.href = addressFor(chosen, true, params);
   });
 
+  // A fallen city sets its own first wave (config.fallen.wave), scattered: the viewer
+  // chooses how few are left instead.
+  const initialRow = row('Initial zombies', initial.input, initial.note);
+  const originRow = row('Where they start', origin);
+  const leftRow = row('Survivors', left.input, left.note);
+  const openingNote = document.createElement('div');
+  openingNote.className = 'sub';
+  const showOpening = () => {
+    const f = opening.value === 'fallen';
+    initialRow.hidden = f;
+    originRow.hidden = f;
+    leftRow.hidden = !f;
+    openingNote.hidden = !f;
+    openingNote.textContent = 'The outbreak runs from a first wave until only that many are left, and you watch the city fall before taking over.';
+  };
+  opening.addEventListener('change', showOpening);
+  showOpening();
+
   root.append(
     title,
     sub,
-    row('Survivors', pop.input, pop.note),
-    row('Initial zombies', initial.input, initial.note),
-    row('Where they start', origin),
+    row('Begin with', opening),
+    openingNote,
+    row('People', pop.input, pop.note),
+    initialRow,
+    originRow,
+    leftRow,
     row('Start hour', hour.input, hour.note),
     row('Zombies', gait),
     row('Power', power),
