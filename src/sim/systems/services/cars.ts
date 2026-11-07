@@ -458,6 +458,7 @@ function board(world: World, ctx: Context, sim: Sim, car: Car): void {
   vehicleTaken(world, ctx, car, sim);
   car.route = route;
   car.routeIndex = 0;
+  car.reroutes = 0; // a fresh journey, its turns back to spend afresh (they were the car's for life)
   car.blockedSince = null;
   car.stuckAt = null;
   car.passing = null;
@@ -497,6 +498,7 @@ export function boardSquad(world: World, ctx: Context, car: Car, members: Sim[],
   soundAlarm(world, ctx, car);
   car.route = route;
   car.routeIndex = 0;
+  car.reroutes = 0; // a fresh journey, its turns back to spend afresh (they were the car's for life)
   car.blockedSince = null;
   car.stuckAt = null;
   car.passing = null;
@@ -666,12 +668,15 @@ export function carProcesses(world: World, ctx: Context): void {
     // car behind it in turn: one abandoned car could strand a street of them.
     // Stuck near where it is going (its spot round a corner, or up an alley it cannot get
     // into): it parks where it is, and they walk the rest.
+    // A police car, SWAT van or ambulance turns back sooner and more often: stood behind a
+    // queue for long, the dead broke into ambulances on their way to a call.
+    const svc = car.home !== null ? cc.service : cc;
     if (car.blockedSince !== null && tick - car.blockedSince >= cc.rerouteAfter && car.exit === null && toGo <= cc.parkStuck) {
       car.state = 'parked';
       alight(world, ctx, car);
       continue;
     }
-    if (car.blockedSince !== null && tick - car.blockedSince >= cc.rerouteAfter && car.reroutes < cc.maxReroutes && reroute(world, ctx, car)) continue;
+    if (car.blockedSince !== null && tick - car.blockedSince >= svc.rerouteAfter && car.reroutes < svc.maxReroutes && reroute(world, ctx, car)) continue;
     if (car.blockedSince !== null && tick - car.blockedSince >= cc.jamTicks) {
       car.state = 'abandoned';
       ctx.events.push({ type: 'carAbandoned', tick, car: car.id, x: car.x, y: car.y, sim: null });

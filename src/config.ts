@@ -806,6 +806,9 @@ export const config = {
     // jamTicks stopped and it is abandoned — guess
     rerouteAfter: 60,
     maxReroutes: 2,
+    // A police car, SWAT van or ambulance (one with a home): sooner and more often, each journey
+    // afresh. Ambulances were lost behind jams after two turns back, or broken into while held — guess
+    service: { rerouteAfter: 30, maxReroutes: 6 },
     // Stopped counts until the car has got unstuck metres from where it stopped: a car
     // backing off and nosing in again, a metre each way, had its clock reset for hours.
     // Held by walls (no car ahead: a kerb spot round a corner, an alley too tight for it, a

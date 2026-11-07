@@ -5,6 +5,7 @@ import { createWorld } from '../src/sim/setup';
 import { spawnSim } from '../src/sim/spawn';
 import type { Building, Sim, World } from '../src/sim/state';
 import { awaitingAmbulance, callAmbulance, dispatchAmbulances, emtEnter } from '../src/sim/systems/services/emt';
+import { boardSquad } from '../src/sim/systems/services/cars';
 
 const always = { ...config, emt: { ...config.emt, answer: 1, answerHalfLife: 1e12 } };
 
@@ -61,6 +62,22 @@ describe('EMTs', () => {
     callAmbulance(world, sim);
     expect(b.ambulancePatient).toBe(sim.id);
     expect(awaitingAmbulance(world, sim)).toBe(true);
+  });
+
+  it('an ambulance setting out has its turns back to spend afresh', () => {
+    const { world, ctx } = fresh();
+    const { b } = bittenIndoors(world);
+    const car = world.cars.find((c) => c.kind === 'ambulance')!;
+    const crew = world.sims.filter((s) => s.crew === car.id);
+    for (const s of crew) {
+      s.insideBuilding = null;
+      s.x = car.x;
+      s.y = car.y;
+    }
+    car.reroutes = config.cars.service.maxReroutes; // spent on an earlier job
+    const door = b.entrances[0]!;
+    expect(boardSquad(world, ctx, car, crew, { x: door.x, y: door.y, building: b })).toBe(true);
+    expect(car.reroutes).toBe(0);
   });
 
   it('a crew is sent, and on walking in takes the patient without looking: nobody screens', () => {
