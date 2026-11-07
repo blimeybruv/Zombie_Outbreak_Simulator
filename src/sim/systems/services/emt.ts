@@ -66,12 +66,24 @@ export function callAmbulance(world: World, sim: Sim): void {
   if (sim.ambulanceCalledAt !== null || sim.carriedBy !== null || sim.crew !== null || !believesHurt(sim)) return;
   const b = world.buildings[sim.insideBuilding]!;
   if (b.ambulanceAt !== null || b.tag === 'hospital') return;
+  // Not from among the dead: called from the building where it was bitten, with them
+  // still inside, the patient was dead or turned (bitten again, each bite halving the
+  // time left) within three minutes, the ambulance still a kilometre off. From a door
+  // that holds, once it has got to one (B's design).
+  if (b.zombiesInside > 0) return;
   sim.ambulanceCalledAt = world.tick;
   // Early calls are answered; late ones do not get through.
   const ec = world.config.emt;
   if (!chance(world.rng, ec.answer * 0.5 ** (world.tick / ec.answerHalfLife))) return;
   b.ambulanceAt = world.tick;
   b.ambulancePatient = sim.id;
+}
+
+/** Its call is in: it waits indoors for the crew rather than going about its business. */
+export function awaitingAmbulance(world: World, sim: Sim): boolean {
+  if (sim.insideBuilding === null) return false;
+  const b = world.buildings[sim.insideBuilding]!;
+  return b.ambulanceAt !== null && b.ambulancePatient === sim.id;
 }
 
 function crewOf(world: World, car: Car): Sim[] {

@@ -42,7 +42,7 @@ import { breaks, modeOf, type Mode } from './panic';
 import { emitStimulus, intensityAt } from '../shared/stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from '../buildings/shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '../services/squads';
-import { callAmbulance, decideEmt, decidePatient } from '../services/emt';
+import { awaitingAmbulance, callAmbulance, decideEmt, decidePatient } from '../services/emt';
 import { rideHome, rideToCall } from '../services/dispatch';
 import { parkingSpot } from '../services/traffic';
 import { atBarrier, barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
@@ -1194,6 +1194,8 @@ function decideIndoor(world: World, ctx: Context, sim: Sim): void {
   sim.gait = 'still';
   sim.stamina = Math.min(1, sim.stamina + config.movement.gait.still.stamina);
   if (sim.exitingUntil !== null) return;
+  // Called an ambulance: waits for it (B: a model lacking a wait state, not a choice).
+  if (awaitingAmbulance(world, sim)) return;
   // A squad, a reservist waiting at its depot, or one called up somewhere else (out, and on).
   if (sim.squadLeader !== null) return decideSquadIndoor(world, ctx, sim);
   if (sim.muster === 'waiting') return;

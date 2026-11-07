@@ -4,7 +4,7 @@ import { defaultScenario } from '../src/sim/scenario';
 import { createWorld } from '../src/sim/setup';
 import { spawnSim } from '../src/sim/spawn';
 import type { Building, Sim, World } from '../src/sim/state';
-import { callAmbulance, dispatchAmbulances, emtEnter } from '../src/sim/systems/services/emt';
+import { awaitingAmbulance, callAmbulance, dispatchAmbulances, emtEnter } from '../src/sim/systems/services/emt';
 
 const always = { ...config, emt: { ...config.emt, answer: 1, answerHalfLife: 1e12 } };
 
@@ -47,6 +47,20 @@ describe('EMTs', () => {
     b.ambulanceAt = null;
     callAmbulance(world, sim);
     expect(b.ambulanceAt).toBeNull();
+  });
+
+  it('nobody calls from among the dead, and one whose call is in waits for the crew', () => {
+    const { world } = fresh();
+    const { sim, b } = bittenIndoors(world);
+    b.zombiesInside = 2;
+    callAmbulance(world, sim);
+    expect(b.ambulanceAt).toBeNull();
+    expect(sim.ambulanceCalledAt).toBeNull(); // free to call once it reaches a door that holds
+    expect(awaitingAmbulance(world, sim)).toBe(false);
+    b.zombiesInside = 0;
+    callAmbulance(world, sim);
+    expect(b.ambulancePatient).toBe(sim.id);
+    expect(awaitingAmbulance(world, sim)).toBe(true);
   });
 
   it('a crew is sent, and on walking in takes the patient without looking: nobody screens', () => {

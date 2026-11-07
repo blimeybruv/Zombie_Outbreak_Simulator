@@ -27,6 +27,13 @@ function ahead(car: Car, x: number, y: number, reach: number, half: number): boo
  * moving cars stop for each other; slowed by congestion. Writes heading and speed only,
  * then a horn event for a car that has been blocked long enough.
  */
+/** Which of two cars blocking each other goes: an ambulance on a job, then the higher id. */
+function outranks(a: Car, b: Car): boolean {
+  const pa = a.kind === 'ambulance' && a.job !== null ? 1 : 0;
+  const pb = b.kind === 'ambulance' && b.job !== null ? 1 : 0;
+  return pa !== pb ? pa > pb : a.id > b.id;
+}
+
 export function decideCars(world: World, ctx: Context): void {
   const { config, tick, nodes, streets, sims, zombies, cars } = world;
   const cc = config.cars;
@@ -231,8 +238,10 @@ export function decideCars(world: World, ctx: Context): void {
 
   for (const car of moving) {
     const moved = car.speed !== 0; // last tick's move went ahead (movement zeroes a move stopped by contact)
-    // Two moving cars stopped by each other: the lower id yields, the higher goes.
-    const stoppedBy = blockers.get(car.id)!.filter((id) => !(id < car.id && blockers.get(id)!.includes(car.id)));
+    // Two moving cars stopped by each other: an ambulance on a job goes first (B: the
+    // ambulances were lost in the first quarter-hour's traffic), and otherwise the lower
+    // id yields, the higher goes.
+    const stoppedBy = blockers.get(car.id)!.filter((id) => !(outranks(car, cars[id]!) && blockers.get(id)!.includes(car.id)));
     const blocked = other.has(car.id) || stoppedBy.length > 0;
     const room = roomOf.get(car.id)!;
     // Turning toward where it is going, no faster than its turning circle allows at its
