@@ -107,6 +107,17 @@ export interface CarBrokenIntoEvent extends EventBase, Located {
   sim: SimId;
 }
 
+export interface AmbulanceTurnedEvent extends EventBase, Located {
+  /** The patient in an ambulance turned on the way to hospital, shut in with the crew, who were bitten at cars.turnInsideBite each (cars.ts turnedInCar). @range literal @unit — @readBy event consumers */
+  type: 'ambulanceTurned';
+  /** The patient. @range sim id @unit id @readBy ticker */
+  sim: SimId;
+  /** The crew aboard. @range 0–emt.crew @unit people @readBy ticker copy */
+  crew: number;
+  /** Of them, bitten. @range 0–crew @unit people @readBy ticker copy */
+  bitten: number;
+}
+
 export interface CarAbandonedEvent extends EventBase, Located {
   /** A car stopped behind something too long, left where it stands for good. @range literal @unit — @readBy event consumers */
   type: 'carAbandoned';
@@ -346,6 +357,7 @@ export type SimEvent =
   | SquadEvent
   | CarAbandonedEvent
   | CarBrokenIntoEvent
+  | AmbulanceTurnedEvent
   | CarAlarmEvent
   | DoorWhumpEvent
   | CarHornEvent

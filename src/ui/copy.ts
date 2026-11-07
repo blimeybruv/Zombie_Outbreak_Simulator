@@ -49,6 +49,12 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return `${n.name ?? 'A survivor'}, bitten, is going off alone to ${n.place}.`;
     case 'strangerRefused':
       return `${who(n)} was turned away from ${n.place}.`;
+    case 'ambulanceTurned': {
+      const who = e.bitten === 0 ? '' : e.bitten === e.crew ? (e.crew === 2 ? 'both of the crew' : 'the crew') : e.bitten === 1 ? 'one of the crew' : `${e.bitten} of the crew`;
+      return e.bitten === 0
+        ? `The patient in an ambulance on ${n.place} turned on the way to hospital. The crew got out unbitten.`
+        : `The patient in an ambulance on ${n.place} turned on the way to hospital and bit ${who}.`;
+    }
     case 'carAbandoned':
       return `A car was abandoned on ${n.place}.`;
     case 'carBrokenInto':

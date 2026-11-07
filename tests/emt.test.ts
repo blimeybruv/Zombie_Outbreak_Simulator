@@ -5,7 +5,7 @@ import { createWorld } from '../src/sim/setup';
 import { spawnSim } from '../src/sim/spawn';
 import type { Building, Sim, World } from '../src/sim/state';
 import { awaitingAmbulance, callAmbulance, dispatchAmbulances, emtEnter } from '../src/sim/systems/services/emt';
-import { boardSquad } from '../src/sim/systems/services/cars';
+import { boardSquad, turnedInCar } from '../src/sim/systems/services/cars';
 
 const always = { ...config, emt: { ...config.emt, answer: 1, answerHalfLife: 1e12 } };
 
@@ -78,6 +78,27 @@ describe('EMTs', () => {
     const door = b.entrances[0]!;
     expect(boardSquad(world, ctx, car, crew, { x: door.x, y: door.y, building: b })).toBe(true);
     expect(car.reroutes).toBe(0);
+  });
+
+  it('a patient turning in the back of an ambulance is news, with how many of the crew it bit', () => {
+    const { world, ctx } = fresh();
+    const { sim: patient } = bittenIndoors(world);
+    const car = world.cars.find((c) => c.kind === 'ambulance')!;
+    const crew = world.sims.filter((s) => s.crew === car.id);
+    for (const s of [...crew, patient]) {
+      s.insideBuilding = null;
+      s.car = car.id;
+      s.x = car.x;
+      s.y = car.y;
+    }
+    car.occupants = [...crew.map((s) => s.id), patient.id];
+    car.patient = patient.id;
+    car.state = 'driving';
+    ctx.events.length = 0;
+    turnedInCar(world, ctx, patient);
+    const e = ctx.events.find((x) => x.type === 'ambulanceTurned');
+    expect(e).toMatchObject({ sim: patient.id, crew: crew.length });
+    expect(crew.filter((s) => s.condition === 'infected').length).toBe((e as { bitten: number }).bitten);
   });
 
   it('a crew is sent, and on walking in takes the patient without looking: nobody screens', () => {

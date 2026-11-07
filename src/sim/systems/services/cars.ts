@@ -849,7 +849,16 @@ export function turnedInCar(world: World, ctx: Context, sim: Sim): void {
   sim.car = null;
   car.occupants = car.occupants.filter((id) => id !== sim.id);
   // Shut in with it: each of the others is bitten at turnInsideBite.
-  for (const id of car.occupants) if (chance(world.rng, world.config.cars.turnInsideBite)) bite(world, ctx, world.sims[id]!);
+  let bitten = 0;
+  for (const id of car.occupants) {
+    if (!chance(world.rng, world.config.cars.turnInsideBite)) continue;
+    bite(world, ctx, world.sims[id]!);
+    bitten++;
+  }
+  // In the back of an ambulance, on the way to hospital: the user wanted it on the ticker.
+  if (car.kind === 'ambulance' && car.patient === sim.id) {
+    ctx.events.push({ type: 'ambulanceTurned', tick: world.tick, sim: sim.id, crew: car.occupants.length, bitten, x: car.x, y: car.y });
+  }
   if (car.state === 'driving') {
     car.state = 'abandoned';
     ctx.events.push({ type: 'carAbandoned', tick: world.tick, car: car.id, x: car.x, y: car.y, sim: null });

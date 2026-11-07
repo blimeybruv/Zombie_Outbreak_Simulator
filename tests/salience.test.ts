@@ -62,6 +62,13 @@ describe('dropping to 1×', () => {
 });
 
 describe('ticker copy', () => {
+  it('tells of a patient turning in the back of an ambulance', () => {
+    const e = (bitten: number) => ({ type: 'ambulanceTurned', tick: 1, sim: 1 as never, crew: 2, bitten, x: 0, y: 0 }) as const;
+    expect(line(e(1), note())).toBe('The patient in an ambulance on Elm Street turned on the way to hospital and bit one of the crew.');
+    expect(line(e(2), note())).toBe('The patient in an ambulance on Elm Street turned on the way to hospital and bit both of the crew.');
+    expect(line(e(0), note())).toBe('The patient in an ambulance on Elm Street turned on the way to hospital. The crew got out unbitten.');
+  });
+
   it('names promoted survivors and nobody else', () => {
     expect(line(turned(1), note({ name: 'Ada Kemp' }))).toBe('Ada Kemp turned on Elm Street.');
     expect(line(turned(1), note())).toBe('A survivor turned on Elm Street.');
