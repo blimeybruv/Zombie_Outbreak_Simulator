@@ -27,6 +27,7 @@ function elapsed(seconds: number): string {
 export class Controls {
   private speed: number;
   private paused = true; // the scenario starts paused
+  private falling = false; // a fallen city still falling (sim/fall.ts): time is not the viewer's yet
   private readonly status: HTMLElement;
   private readonly buttons = new Map<number, HTMLButtonElement>();
   private readonly playButton: HTMLButtonElement;
@@ -63,11 +64,13 @@ export class Controls {
   }
 
   toggle(): void {
+    if (this.falling) return;
     this.paused = !this.paused;
     this.refresh();
   }
 
   setSpeed(s: number): void {
+    if (this.falling) return;
     this.speed = s;
     this.refresh();
   }
@@ -88,11 +91,18 @@ export class Controls {
   }
 
   show(frame: FrameSnapshot): void {
+    // While a fallen city falls the worker runs it flat out whatever is set: the buttons
+    // are greyed out rather than seeming to do nothing.
+    if (frame.falling !== this.falling) {
+      this.falling = frame.falling;
+      this.playButton.disabled = this.falling;
+      for (const b of this.buttons.values()) b.disabled = this.falling;
+    }
     const c = frame.counters;
     const living = c.unturned.outdoors + c.unturned.indoors;
     const dead = c.turned.outdoors + c.turned.occupying;
     const target = this.paused ? 0 : this.speed * this.options.ticksPerSecondAt1x;
-    const lag = target > 0 && frame.achievedRate < target * 0.9 ? `  ·  running at ${frame.achievedRate}/s of ${target}` : '';
-    this.status.textContent = `${WEEKDAYS[frame.weekday]} ${clock(frame.hour)} (${elapsed(frame.sinceOutbreak)} since outbreak)  ·  tick ${frame.tick}  ·  living ${living} (${c.unturned.outdoors} out)  ·  evacuated ${c.unturned.evacuated}  ·  infected ${c.turned.symptomatic}  ·  dead walking ${dead}  ·  lost ${c.unturned.dead + c.turned.destroyed}${lag}`;
+    const lag = !this.falling && target > 0 && frame.achievedRate < target * 0.9 ? `  ·  running at ${frame.achievedRate}/s of ${target}` : '';
+    this.status.textContent = `${this.falling ? 'falling, as fast as it will go  ·  ' : ''}${WEEKDAYS[frame.weekday]} ${clock(frame.hour)} (${elapsed(frame.sinceOutbreak)} since outbreak)  ·  tick ${frame.tick}  ·  living ${living} (${c.unturned.outdoors} out)  ·  evacuated ${c.unturned.evacuated}  ·  infected ${c.turned.symptomatic}  ·  dead walking ${dead}  ·  lost ${c.unturned.dead + c.turned.destroyed}${lag}`;
   }
 }

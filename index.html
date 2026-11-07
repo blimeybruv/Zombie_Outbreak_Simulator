@@ -13,6 +13,7 @@
       #controls[hidden] { display: none; }
       #controls button { background: none; color: #7c858f; border: 1px solid #2a2f36; border-radius: 3px; padding: 2px 7px; font: inherit; cursor: pointer; }
       #controls button.on, #controls button:hover { color: #e6ecf2; border-color: #5a636d; }
+      #controls button:disabled { opacity: 0.35; cursor: default; color: #7c858f; border-color: #2a2f36; }
       #controls .status { margin-left: 10px; white-space: nowrap; }
       #ticker { position: fixed; top: 12px; right: 12px; width: min(460px, 45vw); display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
       #ticker .line { pointer-events: auto; text-align: left; background: rgba(6, 7, 10, 0.72); color: #d6dde4; border: 0; border-radius: 3px; padding: 3px 7px; font: inherit; cursor: pointer; transition: opacity 0.6s; }
