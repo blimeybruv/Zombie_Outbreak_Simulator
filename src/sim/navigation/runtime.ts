@@ -155,8 +155,8 @@ export class MapIndex {
     return !this.bridges.some((br) => pointSegmentDistance(x, y, br.ax, br.ay, br.bx, br.by) <= br.half);
   }
 
-  /** Whether segment a→b crosses the river's middle anywhere off a bridge. */
-  private crossesWater(ax: number, ay: number, bx: number, by: number): boolean {
+  /** Whether segment a→b crosses the river's middle anywhere off a bridge (sight lines; a sound the dead cannot walk straight to, zombies.ts hearAt). */
+  crossesWater(ax: number, ay: number, bx: number, by: number): boolean {
     if (Math.max(ay, by) < this.riverMinY || Math.min(ay, by) > this.riverMaxY) return false;
     const line = this.riverLine;
     const a = { x: ax, y: ay }, b = { x: bx, y: by };

@@ -148,6 +148,10 @@ function crowdNearer(world: World, ctx: Context, z: Zombie, x: number, y: number
  * the wall and swung between the two ways round for good (the oddity check: stuck).
  */
 function hearAt(world: World, ctx: Context, z: Zombie, x: number, y: number): void {
+  // Across the river but by a bridge: heard, and not made for. The dead steer and do not
+  // find their way; making for it, a crowd of them pressed against the bank and slid round
+  // and round there for as long as the sound went on (the oddity check: lap, seed 11).
+  if (ctx.map.crossesWater(z.x, z.y, x, y)) return;
   const b = ctx.map.buildingAt(x, y);
   if (b !== null) {
     const e = doorFront(world, ctx, world.buildings[b]!, z);
