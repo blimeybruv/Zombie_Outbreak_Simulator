@@ -13,6 +13,7 @@ import { BASE, MAJOR, Salience } from '../../src/ui/salience';
 import { isFirearm, type Sim, type World } from '../../src/sim/state';
 import { isSwat } from '../../src/sim/systems/services/squads';
 import { rescueTally } from '../../src/sim/systems/outside/rescue';
+import { diehard } from '../../src/sim/systems/people/traits';
 import { hotspots, ODDITY_KINDS, OddityCheck, type OddityKind } from './oddities';
 
 /**
@@ -173,6 +174,19 @@ export interface RunSummary {
   timeline: TimelineEntry[];
   /** The oddity check over the run (scripts/lib/oddities.ts): agents found, by kind, and the most found together in one place. */
   oddities: { counts: Record<OddityKind, number>; together: number; at: { x: number; y: number; tick: number } | null };
+  /**
+   * Where tracked civilians were lost (B: the unconfounded answer to whether shelters
+   * protect): at the bite, or at the killing for one fed on unbitten — indoors, outdoors on
+   * the way to a shelter or home, on an errand (runners), making for a way out, or anything
+   * else outdoors.
+   */
+  lostWhere: Record<'indoors' | 'toShelter' | 'errand' | 'leaving' | 'otherOutdoors', number>;
+  /**
+   * Civilians alive or got out by enclosure band within role (B: enclosure selects a job, so
+   * compare runners with runners): `runner` ran supplies at some point, `neverIn` would never
+   * go indoors (and never ran), `other` everyone else.
+   */
+  enclosureByRole: Record<'runner' | 'neverIn' | 'other', { alive: number[]; total: number[] }>;
   runLength: number;
 }
 
@@ -267,6 +281,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const archOf = (a: string) => (arch[a] ??= { alive: 0, total: 0, panic: 0, samples: 0, freezes: 0 });
   const frozen: boolean[] = [];
   let alarms = 0;
+  // Where civilians are lost, and who ran supplies or never went in (B's questions).
+  const lostWhere = { indoors: 0, toShelter: 0, errand: 0, leaving: 0, otherOutdoors: 0 };
+  const wasBitten: boolean[] = [];
+  const ran: boolean[] = [];
+  const neverIn: boolean[] = [];
+  const whereNow = (s: Sim): keyof typeof lostWhere =>
+    s.insideBuilding !== null ? 'indoors' : s.destinationKind === 'shelter' ? 'toShelter' : s.destinationKind === 'fetch' || s.destinationKind === 'deliver' ? 'errand' : s.destinationKind === 'leave' ? 'leaving' : 'otherOutdoors';
   const odd = new OddityCheck();
   const t0 = performance.now();
   try {
@@ -277,6 +298,14 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       odd.observe(world, ctx);
       (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
       for (const s of world.sims) {
+        if (!s.outsider && s.archetype === 'civilian') {
+          if (s.condition === 'infected' && !wasBitten[s.id]) {
+            wasBitten[s.id] = true;
+            lostWhere[whereNow(s)]++;
+          }
+          if (s.destinationKind === 'fetch' || s.destinationKind === 'deliver') ran[s.id] = true;
+          if (diehard(world, s)) neverIn[s.id] = true;
+        }
         const f = s.stand === 'freeze';
         if (f && !frozen[s.id] && !s.outsider) archOf(s.archetype).freezes++;
         frozen[s.id] = f;
@@ -299,6 +328,13 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       }
       for (const e of world.events) {
         if (e.type === 'carAlarm') alarms++;
+        if (e.type === 'simDied' && e.cause === 'fedOn' && e.sim !== null && !wasBitten[e.sim]) {
+          const s = world.sims[e.sim]!;
+          if (!s.outsider && s.archetype === 'civilian') {
+            wasBitten[e.sim] = true;
+            lostWhere[whereNow(s)]++;
+          }
+        }
         win.events[e.type] = (win.events[e.type] ?? 0) + 1;
         const n = noteFor(world, ctx, e);
         if (n && line(e, n) !== null) {
@@ -453,6 +489,19 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     stages,
     fates,
     oddities: oddityTally(odd),
+    lostWhere,
+    enclosureByRole: (() => {
+      const r = { runner: { alive: [0, 0, 0], total: [0, 0, 0] }, neverIn: { alive: [0, 0, 0], total: [0, 0, 0] }, other: { alive: [0, 0, 0], total: [0, 0, 0] } };
+      const eb = config.promotion.cautionBands;
+      for (const s of world.sims) {
+        if (s.outsider || s.archetype !== 'civilian') continue;
+        const role = ran[s.id] ? 'runner' : neverIn[s.id] ? 'neverIn' : 'other';
+        const band = s.enclosure < eb[0]! ? 0 : s.enclosure < eb[1]! ? 1 : 2;
+        r[role].total[band]!++;
+        if (survived(s)) r[role].alive[band]!++;
+      }
+      return r;
+    })(),
     runLength: config.time.runLength,
   };
 }

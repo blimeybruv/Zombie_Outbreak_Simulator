@@ -293,12 +293,27 @@ if (process.argv[2] === '--worker') {
   const trusting = bandSurvival(results.map((r) => r.trust));
   console.log(`survival by trust low/mid/high ${trusting.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${trusting.z.toFixed(1)}; not gated)`);
   // Compliance and the user's four (the trait review); runs saved before these were counted have none.
-  for (const k of ['compliance', 'company', 'enclosure', 'resilience', 'handiness'] as const) {
+  for (const k of ['compliance', 'company', 'resilience', 'handiness'] as const) {
     const have = results.filter((r) => r[k] !== undefined);
     if (have.length === 0) continue;
     const b = bandSurvival(have.map((r) => r[k]));
     console.log(`survival by ${k} low/mid/high ${b.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${b.z.toFixed(1)}; not gated)`);
+  }  // Enclosure selects a job (B): reported within role, never beside the dispositions.
+  const roles = results.filter((r) => r.enclosureByRole !== undefined);
+  if (roles.length > 0) {
+    const parts = (['runner', 'neverIn', 'other'] as const).map((role) => {
+      const alive = [0, 1, 2].map((b) => roles.reduce((a, r) => a + r.enclosureByRole[role].alive[b]!, 0));
+      const total = [0, 1, 2].map((b) => roles.reduce((a, r) => a + r.enclosureByRole[role].total[b]!, 0));
+      const all = total.reduce((a, b) => a + b, 0);
+      return `${role} (${all}) ${alive.map((x, b) => (total[b]! === 0 ? '—' : `${((x / total[b]!) * 100).toFixed(1)}%`)).join(' / ')}`;
+    });
+    console.log(`survival by enclosure low/mid/high, within role (civilians; runner = ran supplies, neverIn = would not go indoors): ${parts.join(' | ')}`);
+    const lost = { indoors: 0, toShelter: 0, errand: 0, leaving: 0, otherOutdoors: 0 };
+    for (const r of roles) for (const k of Object.keys(lost) as (keyof typeof lost)[]) lost[k] += r.lostWhere[k];
+    const n = Object.values(lost).reduce((a, b) => a + b, 0) || 1;
+    console.log(`where civilians were lost (at the bite, or the killing if unbitten): ${Object.entries(lost).map(([k, v]) => `${k} ${((v / n) * 100).toFixed(0)}%`).join(', ')} (of ${n})`);
   }
+
   rosterSummary(results, rosterOut);
   oddityTable(results);
   console.log(`wall time ${((performance.now() - started) / 1000).toFixed(0)} s`);
