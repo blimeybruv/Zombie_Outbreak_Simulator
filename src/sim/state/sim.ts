@@ -462,6 +462,10 @@ export interface Sim {
   sweep: boolean;
   /** When it set out for the rescue's exit after the broadcast; null if it never did. What became of those who answered is the end screen's darkest line (rescue.ts rescueTally). @range tick | null @unit tick @readBy rescue (the tally), end stats */
   answeredAt: Tick | null;
+  /** Whether it would do as the stay-at-home order says, rolled once on its compliance when the order goes out (or when it appears after); null before. It stays in only while it also believes in the outbreak (orders.ts stayingIn). @range true/false | null @unit — @readBy orders (stayingIn) */
+  obeysOrder: boolean | null;
+  /** When an officer last told it to go indoors (orders.ts); null if never. Officers pass by anyone told in the last stayHome.retell ticks. @range tick | null @unit tick @readBy orders (police telling) */
+  orderedInAt: Tick | null;
   /** An EMT's ambulance; null for everyone else. @range car id | null @unit id @readBy EMTs, alighting */
   crew: CarId | null;
   /** A patient in an ambulance crew's care: its driver's id; null otherwise. @range sim id | null @unit id @readBy EMTs, alighting */

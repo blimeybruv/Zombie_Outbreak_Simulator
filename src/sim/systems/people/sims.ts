@@ -43,6 +43,7 @@ import { emitStimulus, intensityAt } from '../shared/stimuli';
 import { alert, chooseShelter, evaluateRole, visibleFill } from '../buildings/shelter';
 import { radioForSwat, resolveTarget, squadPass, squadTarget, swatVan } from '../services/squads';
 import { awaitingAmbulance, callAmbulance, decideEmt, decidePatient } from '../services/emt';
+import { stayingIn, tellPeopleIn } from '../services/orders';
 import { rideHome, rideToCall } from '../services/dispatch';
 import { parkingSpot } from '../services/traffic';
 import { atBarrier, barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
@@ -1068,6 +1069,10 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
     return;
   }
 
+  // Out for supplies when the order came, and minded to obey: home, not on (orders.ts).
+  if (sim.destinationKind === 'scavenge' && sim.supplies === 0 && stayingIn(world, sim) && sim.shelter !== null) {
+    setDestination(sim, buildings[sim.shelter]!, 'shelter');
+  }
   if (sim.destinationKind === 'scavenge' && sim.destinationBuilding !== null) {
     sim.gait = mode === 'direct' ? 'run' : 'walk';
     travel(world, ctx, sim, mode);
@@ -1109,6 +1114,9 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
       return;
     }
   }
+
+  // An officer on patrol with the order standing: telling people on the street to go in.
+  if (sim.archetype === 'police' && sim.answering === null && mode === 'informed' && tellPeopleIn(world, ctx, sim)) return;
 
   // Aware of the outbreak: an objective, not an errand. (Someone who engages and knows
   // of no trouble has none, and keeps patrolling.)
@@ -1207,6 +1215,16 @@ function decideIndoor(world: World, ctx: Context, sim: Sim): void {
   }
   if (sim.muster === 'mobilised' && sim.insideBuilding !== sim.depot) {
     sim.exitingUntil = tick + exitTicks(world, buildings[sim.insideBuilding!]!);
+    return;
+  }
+  // Told to stay in, and doing so: wherever the order found it is where it stays
+  // (orders.ts) — out on an errand, it does not set out again.
+  if (sim.destinationKind === 'routine' && stayingIn(world, sim)) {
+    const here = buildings[sim.insideBuilding!]!;
+    sim.idleUntil = null;
+    sim.shelter = here.id;
+    sim.destinationKind = 'shelter';
+    alert(world, here);
     return;
   }
   // Heard the news while out on an errand: stay, if this is as good a shelter as it

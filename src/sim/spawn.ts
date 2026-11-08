@@ -282,6 +282,8 @@ export function spawnSim(world: World, spec: SpawnSim): Sim {
     firedOnCordon: false,
     sweep: false,
     answeredAt: null,
+    obeysOrder: null,
+    orderedInAt: null,
     crew: null,
     carriedBy: null,
     ambulanceCalledAt: null,

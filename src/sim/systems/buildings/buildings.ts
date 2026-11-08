@@ -29,6 +29,7 @@ import { updateTraffic } from '../services/traffic';
 import { updateEvacuation, updateRelease } from '../outside/release';
 import { carProcesses } from '../services/cars';
 import { dispatchCalls, placeCall } from '../services/dispatch';
+import { issueStayHome, newcomersHear } from '../services/orders';
 import { alert, deliver, scavenge, shelterWork, visibleFill } from './shelter';
 import { emitStimulus } from '../shared/stimuli';
 
@@ -607,6 +608,8 @@ export function buildingProcesses(world: World, ctx: Context, probe: (stage: str
   noiseExpulsion(world, ctx);
   probe('buildings.noise');
   dispatchCalls(world, ctx);
+  issueStayHome(world, ctx);
+  newcomersHear(world);
   dispatchAmbulances(world, ctx);
   carProcesses(world, ctx);
   for (const bid of breachCandidates(world)) breachRolls(world, ctx, world.buildings[bid]!);

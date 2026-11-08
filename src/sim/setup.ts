@@ -210,6 +210,7 @@ export function createWorld(scenario: Scenario, config: Config): { world: World;
     noticedAt: null,
     callsTaken: 0,
     calledUpAt: null,
+    stayHomeAt: null,
     outsiders: 0,
     drops: [],
     rescueExit: null,

@@ -237,6 +237,13 @@ export interface SquadEvent extends EventBase, Located {
   members: Count;
 }
 
+export interface StayHomeOrderedEvent extends EventBase, Located {
+  /** The authorities tell everyone to stay indoors (orders.ts issueStayHome). Located at the middle of the map. @range literal @unit — @readBy event consumers */
+  type: 'stayHomeOrdered';
+  /** Always null: the line is about the order. @range null @unit — @readBy ticker notes */
+  sim: null;
+}
+
 export interface ReservistsCalledUpEvent extends EventBase, Located {
   /** The reserve is activated (squads.ts callUp): from now on, what a reservist sees calls it up. Located at the first armoury. @range literal @unit — @readBy event consumers */
   type: 'reservistsCalledUp';
@@ -345,6 +352,7 @@ export type SimEvent =
   | RescueEvent
   | BodyRoseEvent
   | ReservistsCalledUpEvent
+  | StayHomeOrderedEvent
   | CordonClosedEvent
   | CheckpointEvent
   | CordonEvadedEvent

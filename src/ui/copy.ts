@@ -115,6 +115,8 @@ export function line(e: SimEvent, n: EventNote): string | null {
       return e.first
         ? `${n.district} is the first to leave: its people are out on the roads. The world outside will not leave the roads open long.`
         : `${n.district} is leaving: its people are out on the roads.`;
+    case 'stayHomeOrdered':
+      return 'An order on every channel: stay indoors. Lock your doors and do not go out until told it is safe.';
     case 'reservistsCalledUp':
       return 'The National Guard reserve has been called up. Reservists are to report to their armories.';
     case 'squadFormed':

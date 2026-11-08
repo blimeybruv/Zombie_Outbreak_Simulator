@@ -23,7 +23,7 @@
 import { isOutdoorLiving, type Context } from '../../context';
 import { noteStreet, settleDanger, trim, trimStreets } from '../../navigation/memory';
 import { chance } from '../../lib/rng';
-import type { Sim, World } from '../../state';
+import type { Sim, SimId, World } from '../../state';
 import { entranceNearest, leaveTalk, setDestination } from '../shared/common';
 import { modeOf } from './panic';
 import { rebuildSimHash } from '../shared/perception';
@@ -94,9 +94,27 @@ function trustOf(world: World, s: Sim): number {
  * the listener's trust, once per teller, and at `believeAt` it believes.
  */
 function told(world: World, listener: Sim, teller: Sim): void {
-  if (listener.awareAt !== null || teller.awareAt === null || listener.toldBy.has(teller.id)) return;
+  if (teller.awareAt === null) return;
+  tell(world, listener, teller.id);
+}
+
+/** An officer telling someone on the street to go in (orders.ts): a telling from that officer, so the authorities' word heard twice. */
+export function toldByOfficer(world: World, listener: Sim, officer: Sim): void {
+  told(world, listener, officer);
+}
+
+/** The authorities' word (orders.ts): a telling like any other, from a teller of its own, believed by the listener's trust. */
+export function toldByAuthorities(world: World, listener: Sim): void {
+  tell(world, listener, AUTHORITIES);
+}
+
+/** Stands in toldBy for the authorities: no sim has a negative id. */
+const AUTHORITIES = -1 as SimId;
+
+function tell(world: World, listener: Sim, from: SimId): void {
+  if (listener.awareAt !== null || listener.toldBy.has(from)) return;
   const uc = world.config.unease;
-  listener.toldBy.add(teller.id);
+  listener.toldBy.add(from);
   if (!world.config.features.unease) {
     listener.awareAt = world.tick;
     listener.toldBy.clear();

@@ -25,6 +25,7 @@ import { quarantined } from './quarantine';
 import { recognisedWithin } from '../shared/perception';
 import { capacity, entranceNearest, exitTicks, isLiving, refusedLately, setDestination, stageOf } from '../shared/common';
 import { modeOf } from '../people/panic';
+import { orderStands, stayingIn } from '../services/orders';
 
 // Door watch
 
@@ -287,7 +288,8 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
 
   // Migration: a better shelter it has heard of, past the hysteresis, off cooldown.
   const mg = config.migration;
-  if (sim.lastMigratedAt === null || tick - sim.lastMigratedAt >= mg.cooldown) {
+  // Told to stay in, and doing so: no moving on to a better shelter (orders.ts).
+  if (!stayingIn(world, sim) && (sim.lastMigratedAt === null || tick - sim.lastMigratedAt >= mg.cooldown)) {
     const here = desirability(world, sim, b, undefined, 0);
     let best: Building | null = null;
     let bestScore = -Infinity;
@@ -328,7 +330,8 @@ export function evaluateRole(world: World, ctx: Context, sim: Sim): void {
     return;
   }
 
-  if (needsSupplies(world, b) && door < rc.scavengeMaxDoorThreat && canSpare(world, b) && !scavengerOut(world, b) && leastUseful(world, b) === sim) {
+  // Staying in as told, it goes out for supplies only once there are none (hunger beats orders).
+  if (needsSupplies(world, b) && door < rc.scavengeMaxDoorThreat && canSpare(world, b) && !scavengerOut(world, b) && leastUseful(world, b) === sim && (b.supplies === 0 || !stayingIn(world, sim))) {
     const target = pickScavengeTarget(world, sim, null);
     if (target !== null) {
       startScavenging(world, sim, b, target);
@@ -504,7 +507,8 @@ export function shelterWork(world: World, ctx: Context, b: Building, queued: num
   if (onCycle && needsSupplies(world, b) && canSpare(world, b) && !scavengerOut(world, b)) {
     const candidate = leastUseful(world, b);
     const trackedCanGo = candidate !== null && pickScavengeTarget(world, candidate, null) !== null;
-    if (!trackedCanGo && doorThreat(world, ctx, b) < rc.scavengeMaxDoorThreat) sendResident(world, ctx, b, queued);
+    // Residents keep the order too, until the larder is empty (orders.ts).
+    if (!trackedCanGo && doorThreat(world, ctx, b) < rc.scavengeMaxDoorThreat && (b.supplies === 0 || !orderStands(world))) sendResident(world, ctx, b, queued);
   }
 
   // Garrisons form and fall. A garrison is held by the people who live here — residents

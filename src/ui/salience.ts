@@ -52,6 +52,7 @@ export const BASE = {
   truckLeft: 35, // not in the reference
   firstEvacuation: 85, // not in the reference: the evacuation the world outside reacts to — drops playback to 1×
   districtEvacuating: 70, // not in the reference: a whole neighbourhood leaving at once
+  stayHomeOrdered: 85, // the first order: the city told to stay in (orders.ts) — drops playback to 1×
   reservistsCalledUp: 85, // not in the reference: the institution admitting the scale of it — drops playback to 1×
   squadFormed: 50, // not in the reference: an armed group, mid-run — rare
   squadDissolved: 40, // not in the reference

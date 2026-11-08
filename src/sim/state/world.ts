@@ -151,6 +151,8 @@ export interface World {
   callsTaken: Count;
   /** When the reservists were called up, once reservists.callUpCalls calls had come in; null until then. @range tick | null @unit tick @readBy squads (mobilise) */
   calledUpAt: Tick | null;
+  /** When the authorities told everyone to stay indoors, once stayHome.calls calls had come in; null until then (orders.ts). @range tick | null @unit tick @readBy orders (stayingIn), sims, shelter, runners, buildings (residents' sorties) */
+  stayHomeAt: Tick | null;
   /** Soldiers who came in from outside to hold the cordon: counted in the leaves like anyone, so the invariant is population + outsiders. @range 0–exits × squads.size @unit people @readBy invariant, cordon, end stats */
   outsiders: Count;
   /** Weapons lying where someone fell outdoors, or was dropped for a better one (systems/fighting/arms.ts), until picked up. @range 0–hundreds @unit — @readBy arms (pickup) */
