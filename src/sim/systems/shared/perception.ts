@@ -122,7 +122,7 @@ export function computePerception(world: World, ctx: Context): void {
     let fleeing = 0;
     let cx = 0, cy = 0;
     let company = 0;
-    const companyR = config.company.radius;
+    const companyR = config.steadying.radius;
     for (const oid of ctx.ids2) {
       if (oid === id) continue;
       const o = sims[oid]!;

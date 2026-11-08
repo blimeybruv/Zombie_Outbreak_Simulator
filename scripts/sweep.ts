@@ -292,6 +292,13 @@ if (process.argv[2] === '--worker') {
   if (nerved.rate.length) console.log(`survival by nerve low/mid/high ${nerved.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${nerved.z.toFixed(1)}; not gated)`);
   const trusting = bandSurvival(results.map((r) => r.trust));
   console.log(`survival by trust low/mid/high ${trusting.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${trusting.z.toFixed(1)}; not gated)`);
+  // Compliance and the user's four (the trait review); runs saved before these were counted have none.
+  for (const k of ['compliance', 'company', 'enclosure', 'resilience', 'handiness'] as const) {
+    const have = results.filter((r) => r[k] !== undefined);
+    if (have.length === 0) continue;
+    const b = bandSurvival(have.map((r) => r[k]));
+    console.log(`survival by ${k} low/mid/high ${b.rate.map((x) => `${(x * 100).toFixed(1)}%`).join(' / ')} (z ${b.z.toFixed(1)}; not gated)`);
+  }
   rosterSummary(results, rosterOut);
   oddityTable(results);
   console.log(`wall time ${((performance.now() - started) / 1000).toFixed(0)} s`);

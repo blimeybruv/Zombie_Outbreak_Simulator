@@ -170,6 +170,15 @@ export interface Sim {
    */
   trust: Unit01;
   /**
+   * How readily it does what authority tells it: 0 defiant, 1 obedient. A uniform draw from
+   * the sim's own trait stream, independent of trust (the trait review: trust had held both
+   * believing what one hears and obeying soldiers, and sweeps could not tell which kept
+   * sceptics alive). Read where an order is given: pressing on round the cordon under its
+   * warning fire, and firing first at its soldiers; stay-at-home messaging to come.
+   * @range 0–1 @unit scalar @readBy cordon (defying the warning, sims.ts), combat (firing first, crosserFire), inspector, end stats (compliance band)
+   */
+  compliance: Unit01;
+  /**
    * Composure under terror: a uniform draw, independent of archetype (those trained to
    * it are held up to config.nerve.floor). Its nerve breaks when panic passes it
    * (panic.ts breaks): cornered, it freezes in shock whatever it carries; with the way

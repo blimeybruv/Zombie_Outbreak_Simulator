@@ -977,9 +977,10 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
           return;
         }
       } else if (sim.firedOnAt !== null && tick - sim.firedOnAt <= config.cordon.warnEvery && nearBarrier(world, e, sim.x, sim.y)) {
-        // Warned off: shots over its head. The less trusting press on round the barrier
-        // under fire; the rest give this way out up, for another or for none.
-        if (chance(world.rng, config.cordon.defy * (1 - sim.trust))) {
+        // Warned off: shots over its head. The defiant press on round the barrier under
+        // fire; the rest give this way out up, for another or for none. (An order, not
+        // news: compliance, not trust.)
+        if (chance(world.rng, config.cordon.defy * (1 - sim.compliance))) {
           const b = barrierAt(world, e);
           sim.crossing = (b.x - sim.x) * -e.dy + (b.y - sim.y) * e.dx > 0 ? -1 : 1; // the side it is already on
           return;

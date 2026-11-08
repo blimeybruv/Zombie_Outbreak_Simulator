@@ -155,6 +155,7 @@ export interface SimDetail {
   caution: number;
   sociality: number;
   trust: number;
+  compliance: number;
   nerve: number;
   /** The user's four traits, 0–1 (state/sim.ts). */
   company: number;

@@ -45,7 +45,7 @@ export interface Context {
    */
   sawDead: Uint8Array;
   sawDeadBefore: Uint8Array;
-  /** Calm company: living people within company.radius and in sight, neither running nor frozen. */
+  /** Calm company: living people within steadying.radius and in sight, neither running nor frozen. */
   company: Int32Array;
   /** Mean heading of people running nearby, weighted by nearness (crowd alignment); 0,0 with none. */
   crowdX: Float64Array;

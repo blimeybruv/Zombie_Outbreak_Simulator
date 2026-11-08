@@ -183,7 +183,7 @@ export const config = {
     cars: true,
     strangerVeto: true,
     cautiousRouting: true,
-    company: true,
+    steadying: true,
     carAlarms: true,
     sirens: true, // emergency vehicles' sirens draw the dead: the city hears what the viewer hears (reference, "Car alarms and sirens")
     traffic: true, // traffic police set checkpoints on the roads out once the cordon closes (reference, "Checkpoints")
@@ -326,6 +326,13 @@ export const config = {
     habituation: { grace: 5, fade: 0.3 },
     collapseStamina: 0.05,
     collapseTicks: 120,
+    // How fast panic rises in it (panic.ts updatePanic): every rise — a turning seen, a
+    // noise close by, a crowd running this way — scaled from panicRise[0] at nerve 0 to
+    // panicRise[1] at nerve 1 (those trained to it held up to their floor). Nerve is a
+    // uniform draw, so the city's mean rise is unchanged (the user: nerve should be the
+    // most life-or-death trait; before this it decided only who froze, and survival did
+    // not differ by it, z 0.3) — guess
+    panicRise: [1.5, 0.5] as [number, number],
   },
 
   panic: {
@@ -361,12 +368,12 @@ export const config = {
     crowdAlignment: 0.35,
   },
 
-  // Company (panic.ts breaks): calm people beside a sim — within `radius` and in sight,
+  // Steadying (panic.ts breaks; was `company`, renamed apart from the company trait): calm people beside a sim — within `radius` and in sight,
   // neither running nor frozen — hold its nerve at the moment it is tested (cornered,
   // blocked, run to exhaustion): the panic it takes to break rises by up to `nerve` ×
   // sociality, in full with `cap` of them. Nothing about panic itself changes, so a calm
   // crowd can still tip, and a crowd running steadies nobody — guess
-  company: {
+  steadying: {
     radius: 8, // m
     cap: 4, // companions for the full effect
     nerve: 0.3,
@@ -605,7 +612,7 @@ export const config = {
   // within `fireRadius`, aimed fire: the rifle's ordinary roll, of whose hits `killShare`
   // kill and the rest wound (no wound state: the wounded turn back). Warned, a person
   // making for the exit gives it up for another, or for shelter — or, at
-  // `defy` × (1 − trust), presses on round the barrier: along the kerb, `kerb` metres
+  // `defy` × (1 − compliance), presses on round the barrier: along the kerb, `kerb` metres
   // outside the road's edge, and out at the edge, under fire. A car making for a closed
   // exit is left `warnRadius` metres short of the barrier; the cars behind it stop.
   // At the rescue's exit, once the rescue has come, nobody is fired on: those answering
@@ -621,7 +628,7 @@ export const config = {
   // climbs over it, at movement.climb.share of its pace for `depth` m either side of the
   // line (the user's call: as over a car) — guess
   // returnFor: an armed sim getting round the barrier fires back at the soldiers for this
-  // many ticks after they fire on it; fireFirstBelow: one whose trust is below this fires
+  // many ticks after they fire on it; fireFirstBelow: one whose compliance is below this fires
   // first (the user's third exception to no survivor-on-survivor combat) — guess
   // atEase: a cordon soldier with nothing in sight stays where it stands; each `period`
   // ticks (out of step with the others, from its id) it either holds still (at chance

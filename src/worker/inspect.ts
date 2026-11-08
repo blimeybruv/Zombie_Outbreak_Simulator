@@ -60,6 +60,7 @@ export function inspect(w: World, target: { kind: 'sim' | 'building'; id: number
     caution: s.caution,
     sociality: s.sociality,
     trust: s.trust,
+    compliance: s.compliance,
     nerve: s.nerve,
     company: s.company,
     enclosure: s.enclosure,

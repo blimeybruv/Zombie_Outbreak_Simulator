@@ -40,6 +40,7 @@ const TRAITS: Record<string, string> = {
     'How readily they stop to talk and go along with others. Talk is how people learn: about the outbreak, which streets are bad, which buildings are held, who has been bitten.',
   trust:
     'How much they believe what they are told. Sceptics hear news as older than it is, need more people to tell them before they believe in the outbreak, and doubt the radio when it calls everyone out.',
+  compliance: 'How readily they do what they are told by those in authority. The defiant press on past soldiers firing warning shots, and may fire first.',
   nerve: 'How much fear they can take before it takes over. When cornered, blocked or run to exhaustion, someone whose nerve goes freezes where they stand.',
   company: 'How big a group they are at ease in. The close-knit look for a shelter with a few others in it; the gregarious for a crowd.',
   enclosure:
@@ -65,6 +66,7 @@ const WORDS: Record<string, readonly string[]> = {
   caution: ['heedless', 'bold', 'careful', 'cautious', 'very cautious'],
   sociality: ['solitary', 'reserved', 'sociable', 'outgoing', 'talkative'],
   trust: ['suspicious', 'sceptical', 'open-minded', 'trusting', 'credulous'],
+  compliance: ['defiant', 'contrary', 'biddable', 'dutiful', 'obedient'],
   nerve: ['brittle', 'jumpy', 'steady', 'cool-headed', 'unshakeable'],
 };
 const WORD_EDGES = [0.15, 0.33, 0.66, 0.85];
@@ -184,7 +186,7 @@ export class Inspector {
       this.topKey = topKey;
       const traits = el('div', 'sub');
       traits.append(`${words(s.profession)}, ${s.age} · `, tip(s.archetype === 'Army Ranger' ? s.archetype : words(s.archetype), ARCHETYPES[s.archetype]));
-      for (const [name, value] of [['caution', s.caution], ['sociality', s.sociality], ['trust', s.trust], ['nerve', s.nerve]] as const) {
+      for (const [name, value] of [['caution', s.caution], ['sociality', s.sociality], ['trust', s.trust], ['compliance', s.compliance], ['nerve', s.nerve]] as const) {
         traits.append(' · ', tip(traitWord(name, value), `${TRAITS[name]} (${name[0]!.toUpperCase()}${name.slice(1)} ${value.toFixed(2)}.)`));
       }
       // The user's four, mostly unremarkable: named only toward either end.

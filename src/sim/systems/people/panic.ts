@@ -36,8 +36,8 @@ export function modeOf(sim: Sim, config: Config): Mode {
  */
 export function breaks(sim: Sim, config: Config, company: number): boolean {
   if (config.archetypes[sim.archetype].panicImmune || sim.outsider) return false; // trained soldiers from outside hold
-  const cc = config.company;
-  const steadied = config.features.company && company > 0 ? cc.nerve * sim.sociality * (Math.min(company, cc.cap) / cc.cap) : 0;
+  const cc = config.steadying;
+  const steadied = config.features.steadying && company > 0 ? cc.nerve * sim.sociality * (Math.min(company, cc.cap) / cc.cap) : 0;
   return sim.panic > seasoned(sim, config) + steadied;
 }
 
@@ -51,6 +51,13 @@ export function seasoned(sim: Sim, config: Config): number {
   const h = config.nerve.habituation;
   const past = Math.max(0, sim.nerveBroken - h.grace);
   return nerve + (1 - nerve) * (1 - (1 - h.fade) ** past);
+}
+
+/** How fast panic rises in this sim, by its nerve (config.nerve.panicRise): the brittle take fright faster, the steady slower. */
+export function panicRise(sim: Sim, config: Config): number {
+  const nerve = Math.max(sim.nerve, config.nerve.floor[sim.archetype] ?? 0);
+  const [lo, hi] = config.nerve.panicRise;
+  return lo + (hi - lo) * nerve;
 }
 
 export function updatePanic(world: World, ctx: Context): void {
@@ -70,12 +77,13 @@ export function updatePanic(world: World, ctx: Context): void {
       if (sim.panic < floor) sim.panic += (floor - sim.panic) * uc.panicFloorRate;
     }
     if (!isOutdoorLiving(sim)) continue;
+    const rise = panicRise(sim, config);
     const r = ctx.radius[sim.id]!;
     for (const e of conversions) {
       if (e.sim === sim.id) continue;
       if (Math.hypot(e.x - sim.x, e.y - sim.y) > r) continue;
       if (!ctx.map.lineOfSight(sim.x, sim.y, e.x, e.y)) continue;
-      sim.panic = clamp01(sim.panic + pc.risePerEvent);
+      sim.panic = clamp01(sim.panic + pc.risePerEvent * rise);
       sim.history.conversionsWitnessed++;
       sim.awareAt ??= tick;
       // Someone turned there: the street remembers it, whatever walks it next.
@@ -83,7 +91,7 @@ export function updatePanic(world: World, ctx: Context): void {
       if (street !== null) noteStreet(world, sim, street, config.memory.witnessedDanger);
     }
     // Contagion: a crowd running this way frightens, toward how many and how close.
-    const target = Math.min(1, ctx.fleeingSeen[sim.id]! * config.crowd.fleeingGain);
+    const target = Math.min(1, ctx.fleeingSeen[sim.id]! * config.crowd.fleeingGain * rise);
     if (target > sim.panic) sim.panic += (target - sim.panic) * config.crowd.fleeingRate;
     const uc = config.unease;
     const unaware = config.features.unease && sim.awareAt === null;
@@ -94,7 +102,7 @@ export function updatePanic(world: World, ctx: Context): void {
       const i = intensityAt(s, sim.x, sim.y);
       // A shout frightens; what it means is for the encounters step (hearWarnings).
       if (i >= pc.noiseIntensityFloor) {
-        sim.panic = clamp01(sim.panic + pc.risePerEvent);
+        sim.panic = clamp01(sim.panic + pc.risePerEvent * rise);
         if (s.kind !== 'shout') sim.awareAt ??= tick; // gunfire close enough to know for what it is
       } else if (i > 0 && unaware && s.kind !== 'shout') {
         sim.unease += (1 - sim.unease) * uc.distantNoise; // gunfire, far off

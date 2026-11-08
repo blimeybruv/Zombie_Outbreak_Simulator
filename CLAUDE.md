@@ -299,6 +299,12 @@ Open, in priority order:
    door (reference, "The dead went back and forth at a store's door", open note).
 6. **Rangers across the river:** line of sight no longer crosses it; confirm by eye that
    their back-and-forth along the bank is gone.
-7. **Decisions for the user:** what a cordon wound should mean (now: no state, the person
+7. **Arms, the user's ideas (not built):** accuracy and sight-range traits, or a class perk for
+   police, preppers and soldiers, with the untrained at a malus to accuracy and reload and a
+   chance to jam or fumble the safety; guns at home tip the outbreak between 5% and 10% meanwhile
+   (reference, "Setup dials"). Runner zombies may become the default.
+8. **Compliance** (reference, "The trait review"): the trait is in; stay-at-home messaging, its
+   own channel, wants a design note before code. Kettling is a late maybe.
+9. **Decisions for the user:** what a cordon wound should mean (now: no state, the person
    turns back); whether to add the story blurbs (an opening blurb, a chronicle per named
    survivor — worker-side, from events).

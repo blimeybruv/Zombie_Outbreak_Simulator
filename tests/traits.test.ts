@@ -8,7 +8,7 @@ import type { Building, Sim, World } from '../src/sim/state';
 import { evaluateRole } from '../src/sim/systems/buildings/shelter';
 import { bite } from '../src/sim/systems/fighting/combat';
 import { buildSpeed, buildWaste, groupPeak, turnFactor } from '../src/sim/systems/people/traits';
-import { seasoned } from '../src/sim/systems/people/panic';
+import { panicRise, seasoned } from '../src/sim/systems/people/panic';
 import { computePerception, rebuildHashes } from '../src/sim/systems/shared/perception';
 
 function fresh() {
@@ -125,3 +125,31 @@ describe('the four traits', () => {
     expect(go(0)).not.toBe('scavenger');
   });
 });
+
+describe('compliance and nerve (the trait review)', () => {
+  it('compliance is drawn for everyone, evenly, apart from trust', () => {
+    const { world } = fresh();
+    const v = world.sims.map((s) => s.compliance);
+    expect(v.every((x) => x >= 0 && x <= 1)).toBe(true);
+    const low = v.filter((x) => x < 1 / 3).length / v.length;
+    expect(low).toBeGreaterThan(0.28);
+    expect(low).toBeLessThan(0.39);
+    const n = world.sims.length;
+    const mt = world.sims.reduce((a, s) => a + s.trust, 0) / n, mc = v.reduce((a, b) => a + b, 0) / n;
+    const cov = world.sims.reduce((a, s) => a + (s.trust - mt) * (s.compliance - mc), 0) / n;
+    expect(Math.abs(cov)).toBeLessThan(0.01); // independent of trust
+  });
+
+  it('the brittle take fright faster than the steady, the trained held up to their floor', () => {
+    const s = { nerve: 0, archetype: 'civilian' } as Sim;
+    const steady = { nerve: 1, archetype: 'civilian' } as Sim;
+    const cop = { nerve: 0, archetype: 'police' } as Sim;
+    expect(panicRise(s, config)).toBeCloseTo(config.nerve.panicRise[0], 10);
+    expect(panicRise(steady, config)).toBeCloseTo(config.nerve.panicRise[1], 10);
+    expect(panicRise(cop, config)).toBeLessThan(panicRise(s, config));
+    // The mean over an even spread of nerve is unchanged: the city's panic is redistributed, not raised.
+    const [lo, hi] = config.nerve.panicRise;
+    expect((lo + hi) / 2).toBeCloseTo(1, 10);
+  });
+});
+

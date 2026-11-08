@@ -242,7 +242,7 @@ function cordonFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile)
 /**
  * An armed sim getting round a cordon's barrier, with no dead in reach: it fires back at
  * the nearest cordon soldier in range and in sight for cordon.returnFor ticks after the
- * soldiers fired on it, or fires first if its trust is below cordon.fireFirstBelow. The
+ * soldiers fired on it, or fires first if its compliance is below cordon.fireFirstBelow. The
  * ordinary ranged roll and noise. The third and last exception to no survivor-on-survivor
  * combat (the user's, CLAUDE.md), as narrow as the other two: only at the barrier, only
  * while crossing.
@@ -251,7 +251,7 @@ function crosserFire(world: World, ctx: Context, sim: Sim, ranged: RangedProfile
   const { config, tick } = world;
   const cc = config.cordon;
   const provoked = sim.firedOnAt !== null && tick - sim.firedOnAt <= cc.returnFor;
-  if (!provoked && sim.trust >= cc.fireFirstBelow) return;
+  if (!provoked && sim.compliance >= cc.fireFirstBelow) return;
   let target: Sim | null = null;
   let targetD = Infinity;
   ctx.simHash.query(sim.x, sim.y, ranged.range, ctx.ids2);

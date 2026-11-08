@@ -1391,6 +1391,6 @@ describe('company', () => {
     s.sociality = 0;
     expect(breaks(s, baseConfig, 4)).toBe(true);
     s.sociality = 1;
-    expect(breaks(s, { ...baseConfig, features: { ...baseConfig.features, company: false } }, 4)).toBe(true);
+    expect(breaks(s, { ...baseConfig, features: { ...baseConfig.features, steadying: false } }, 4)).toBe(true);
   });
 });

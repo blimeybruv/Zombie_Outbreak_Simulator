@@ -166,14 +166,16 @@ export function pickHome(world: World, x: number, y: number, from: BuildingId | 
  * sim's id, so drawing them moves nothing else in the run. Each is mostly near the middle
  * with a few at the ends: 0.5 ± 0.5 × |v|^shape, v uniform on −1..1.
  */
-function traitsFor(world: World, id: number): Pick<Sim, 'company' | 'enclosure' | 'resilience' | 'handiness'> {
+function traitsFor(world: World, id: number): Pick<Sim, 'company' | 'enclosure' | 'resilience' | 'handiness' | 'compliance'> {
   const t = world.config.traits;
   const rng = createRng((Math.imul(world.scenario.runSeed, t.streamMix) + id) | 0);
   const draw = () => {
     const v = 2 * nextFloat(rng) - 1;
     return 0.5 + 0.5 * Math.sign(v) * Math.abs(v) ** t.shape;
   };
-  return { company: draw(), enclosure: draw(), resilience: draw(), handiness: draw() };
+  const four = { company: draw(), enclosure: draw(), resilience: draw(), handiness: draw() };
+  // Drawn after the four, so adding it moved none of them: a uniform draw, like trust.
+  return { ...four, compliance: nextFloat(rng) };
 }
 
 export function spawnSim(world: World, spec: SpawnSim): Sim {

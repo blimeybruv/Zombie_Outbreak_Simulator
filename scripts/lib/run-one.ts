@@ -146,6 +146,12 @@ export interface RunSummary {
   sociality: { alive: number[]; total: number[] };
   /** The same by trust band, every tracked sim. */
   trust: { alive: number[]; total: number[] };
+  /** The same by compliance band, and by each of the user's four traits (the trait review). */
+  compliance: { alive: number[]; total: number[] };
+  company: { alive: number[]; total: number[] };
+  enclosure: { alive: number[]; total: number[] };
+  resilience: { alive: number[]; total: number[] };
+  handiness: { alive: number[]; total: number[] };
   /** The same by nerve band, every tracked sim. */
   nerve: { alive: number[]; total: number[] };
   /** By caution band among the asocial (sociality below the lowest band edge): whether caution still matters for those who seldom talk or join. */
@@ -396,6 +402,16 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     trust.total[band]!++;
     if (survived(s)) trust.alive[band]!++;
   }
+  // Compliance and the user's four, by the same bands (the trait review).
+  const byTrait = (k: 'compliance' | 'company' | 'enclosure' | 'resilience' | 'handiness') => {
+    const r = { alive: [0, 0, 0], total: [0, 0, 0] };
+    for (const s of world.sims) {
+      const band = s[k] < bands[0]! ? 0 : s[k] < bands[1]! ? 1 : 2;
+      r.total[band]!++;
+      if (survived(s)) r.alive[band]!++;
+    }
+    return r;
+  };
   const sociality = { alive: [0, 0, 0], total: [0, 0, 0] };
   for (const s of world.sims) {
     if (config.archetypes[s.archetype].sociality <= 0) continue;
@@ -424,6 +440,11 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     sociality,
     nerve,
     trust,
+    compliance: byTrait('compliance'),
+    company: byTrait('company'),
+    enclosure: byTrait('enclosure'),
+    resilience: byTrait('resilience'),
+    handiness: byTrait('handiness'),
     cautionAsocial,
     cautionSplit,
     archetypes: arch,
