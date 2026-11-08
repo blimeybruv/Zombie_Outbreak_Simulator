@@ -312,6 +312,13 @@ if (process.argv[2] === '--worker') {
     for (const r of roles) for (const k of Object.keys(lost) as (keyof typeof lost)[]) lost[k] += r.lostWhere[k];
     const n = Object.values(lost).reduce((a, b) => a + b, 0) || 1;
     console.log(`where civilians were lost (at the bite, or the killing if unbitten): ${Object.entries(lost).map(([k, v]) => `${k} ${((v / n) * 100).toFixed(0)}%`).join(', ')} (of ${n})`);
+    const why: Record<string, number> = {};
+    for (const r of roles) for (const [k, v] of Object.entries(r.transitWhy ?? {})) why[k] = (why[k] ?? 0) + v;
+    const wn = Object.values(why).reduce((a, b) => a + b, 0) || 1;
+    console.log(`  outdoors, why on the road (refused = turned away in the last 600 ticks; out: = out of a building in the last 1,800): ${Object.entries(why).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((v / wn) * 100).toFixed(0)}%`).join(', ')} (of ${wn})`);
+    const len: Record<string, number[]> = {};
+    for (const r of roles) for (const [k, v] of Object.entries(r.tripLength ?? {})) len[k] = (len[k] ?? [0, 0, 0, 0]).map((x, i) => x + v[i]!);
+    console.log(`  trips to shelter or home that ended in a loss, by length (<200 / 200–600 / 600–1,200 / 1,200+ m): ${Object.entries(len).map(([k, v]) => `${k} ${v.join('/')}`).join(' | ')}`);
   }
 
   rosterSummary(results, rosterOut);

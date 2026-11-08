@@ -187,6 +187,15 @@ export interface RunSummary {
    * go indoors (and never ran), `other` everyone else.
    */
   enclosureByRole: Record<'runner' | 'neverIn' | 'other', { alive: number[]; total: number[] }>;
+  /**
+   * Why civilians lost outdoors were on the road (B: decompose the trip): turned away from a
+   * door within refusedWithin ticks; out of a building within outWithin ticks (to scavenge,
+   * moving to another shelter, or otherwise); on the way home; a first trip to a shelter;
+   * an errand; making for a way out; anything else.
+   */
+  transitWhy: Record<string, number>;
+  /** Length of the trip (from where it set out to where it was going) of everyone lost on the way to a shelter or home, by archetype: under 200 m, 200–600, 600–1,200, 1,200 and over. */
+  tripLength: Record<string, number[]>;
   runLength: number;
 }
 
@@ -286,6 +295,35 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
   const wasBitten: boolean[] = [];
   const ran: boolean[] = [];
   const neverIn: boolean[] = [];
+  const transitWhy: Record<string, number> = {};
+  const tripLength: Record<string, number[]> = {};
+  const lastRefused: number[] = [];
+  const lastInside: number[] = [];
+  const tripFrom: { x: number; y: number; dest: number | null; kind: string | null }[] = [];
+  const REFUSED_WITHIN = 600, OUT_WITHIN = 1800;
+  const tripNoted: boolean[] = [];
+  const why = (s: Sim): string => {
+    const t = world.tick, dk = s.destinationKind;
+    if (lastRefused[s.id] !== undefined && t - lastRefused[s.id]! <= REFUSED_WITHIN) return 'refused';
+    if (dk === 'fetch' || dk === 'deliver') return 'errand';
+    if (dk === 'leave') return 'leaving';
+    if (lastInside[s.id] !== undefined && t - lastInside[s.id]! <= OUT_WITHIN) return dk === 'scavenge' ? 'out:scavenge' : dk === 'shelter' ? 'out:moving' : 'out:other';
+    if (dk === 'shelter') return s.destinationBuilding !== null && s.destinationBuilding === s.home ? 'home' : 'firstToShelter';
+    return 'other';
+  };
+  const noteLoss = (s: Sim) => {
+    if (s.insideBuilding !== null) return;
+    const w = why(s);
+    transitWhy[w] = (transitWhy[w] ?? 0) + 1;
+  };
+  const noteTrip = (s: Sim) => {
+    if (s.insideBuilding !== null || s.destinationKind !== 'shelter' || s.destination === null) return;
+    const f = tripFrom[s.id];
+    if (f === undefined) return;
+    const d = Math.hypot(s.destination.x - f.x, s.destination.y - f.y);
+    const b = d < 200 ? 0 : d < 600 ? 1 : d < 1200 ? 2 : 3;
+    (tripLength[s.archetype] ??= [0, 0, 0, 0])[b]!++;
+  };
   const whereNow = (s: Sim): keyof typeof lostWhere =>
     s.insideBuilding !== null ? 'indoors' : s.destinationKind === 'shelter' ? 'toShelter' : s.destinationKind === 'fetch' || s.destinationKind === 'deliver' ? 'errand' : s.destinationKind === 'leave' ? 'leaving' : 'otherOutdoors';
   const odd = new OddityCheck();
@@ -298,10 +336,21 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       odd.observe(world, ctx);
       (ctx.daylight < 0.5 ? byLight.night : byLight.day).ticks++;
       for (const s of world.sims) {
+        if (!s.outsider) {
+          // Where its trip began: wherever it was when it last set a new destination.
+          const f = tripFrom[s.id];
+          if (f === undefined || f.dest !== s.destinationBuilding || f.kind !== s.destinationKind) tripFrom[s.id] = { x: s.x, y: s.y, dest: s.destinationBuilding, kind: s.destinationKind };
+          if (s.insideBuilding !== null) lastInside[s.id] = world.tick;
+          if (s.condition === 'infected' && !tripNoted[s.id]) {
+            tripNoted[s.id] = true;
+            noteTrip(s);
+          }
+        }
         if (!s.outsider && s.archetype === 'civilian') {
           if (s.condition === 'infected' && !wasBitten[s.id]) {
             wasBitten[s.id] = true;
             lostWhere[whereNow(s)]++;
+            noteLoss(s);
           }
           if (s.destinationKind === 'fetch' || s.destinationKind === 'deliver') ran[s.id] = true;
           if (diehard(world, s)) neverIn[s.id] = true;
@@ -328,11 +377,17 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       }
       for (const e of world.events) {
         if (e.type === 'carAlarm') alarms++;
+        if (e.type === 'strangerRefused' && e.sim !== null) lastRefused[e.sim] = world.tick;
         if (e.type === 'simDied' && e.cause === 'fedOn' && e.sim !== null && !wasBitten[e.sim]) {
           const s = world.sims[e.sim]!;
+          if (!s.outsider && !tripNoted[e.sim]) {
+            tripNoted[e.sim] = true;
+            noteTrip(s);
+          }
           if (!s.outsider && s.archetype === 'civilian') {
             wasBitten[e.sim] = true;
             lostWhere[whereNow(s)]++;
+            noteLoss(s);
           }
         }
         win.events[e.type] = (win.events[e.type] ?? 0) + 1;
@@ -490,6 +545,8 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     fates,
     oddities: oddityTally(odd),
     lostWhere,
+    transitWhy,
+    tripLength,
     enclosureByRole: (() => {
       const r = { runner: { alive: [0, 0, 0], total: [0, 0, 0] }, neverIn: { alive: [0, 0, 0], total: [0, 0, 0] }, other: { alive: [0, 0, 0], total: [0, 0, 0] } };
       const eb = config.promotion.cautionBands;
