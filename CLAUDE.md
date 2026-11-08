@@ -278,14 +278,14 @@ screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement —
 what was merged in the reference.
 
 Open, in priority order:
-1. **Tune from the 9d964de sweep** (reference, the last "Swept" entry): both gates pass, loss 46–84%
-   (median ~71%; seed 2 low at 28%), survival by caution 34.4% / 37.3% / 38.4% (z 10.1),
-   freezes per 100 civilians 51 (from 122, since panic spreads one hop). Oddities per seed: lap
-   29.8 (up from 22.9, mostly seed 18: 13 together at (2130, 1231) at tick 2,480), stuck 6.3,
-   jitter 22.4. Also open: seed 14's people warned off the closed west exit again and again;
-   sceptics still survive best (trust z −5.3); features that barely fire (9c3b37b entry); the
-   runner gait not swept as a scenario. The fallen city is built (reference, "A fallen city"):
-   the rescue's arithmetic with two hundred left is B's to say more on.
+1. **Tune from the 2531c88 sweep** (reference, the last "Swept" entry): both gates pass (loss in
+   range 20 of 20, median ~77%), survival by caution 28.1% / 30.4% / 31.8% (z 10.0). Survival has
+   fallen about three points in each of the last two sweeps: find which change costs it. By trait:
+   enclosure z −11.2 (claustrophobes die most), nerve z 3.4 (now that it sets panic's rise), trust
+   z −4.9 (sceptics' edge is belief, not defiance), compliance 1.5. Oddities per seed: lap 17.6,
+   stuck 4.7, jitter 17.7. Left in the laps: officers drawn back into trouble they have only heard
+   of (a cooldown after a fruitless response). Also: features that barely fire (9c3b37b entry); the
+   runner gait not swept as a scenario; the fallen city's rescue arithmetic (B to say more).
 2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
 3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
