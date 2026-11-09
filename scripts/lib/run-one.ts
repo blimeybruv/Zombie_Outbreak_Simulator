@@ -194,6 +194,8 @@ export interface RunSummary {
    * an errand; making for a way out; anything else.
    */
   transitWhy: Record<string, number>;
+  /** Civilians alive or out by compliance band within each enclosure band, [enclosure][compliance] (B: compliance must not be enclosure under another name). */
+  complianceByEnclosure: { alive: number[][]; total: number[][] };
   /** Length of the trip (from where it set out to where it was going) of everyone lost on the way to a shelter or home, by archetype: under 200 m, 200–600, 600–1,200, 1,200 and over. */
   tripLength: Record<string, number[]>;
   runLength: number;
@@ -546,6 +548,18 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     oddities: oddityTally(odd),
     lostWhere,
     transitWhy,
+    complianceByEnclosure: (() => {
+      const r = { alive: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], total: [[0, 0, 0], [0, 0, 0], [0, 0, 0]] };
+      const eb = config.promotion.cautionBands;
+      const band = (v: number) => (v < eb[0]! ? 0 : v < eb[1]! ? 1 : 2);
+      for (const s of world.sims) {
+        if (s.outsider || s.archetype !== 'civilian') continue;
+        const e = band(s.enclosure), c = band(s.compliance);
+        r.total[e]![c]!++;
+        if (survived(s)) r.alive[e]![c]!++;
+      }
+      return r;
+    })(),
     tripLength,
     enclosureByRole: (() => {
       const r = { runner: { alive: [0, 0, 0], total: [0, 0, 0] }, neverIn: { alive: [0, 0, 0], total: [0, 0, 0] }, other: { alive: [0, 0, 0], total: [0, 0, 0] } };

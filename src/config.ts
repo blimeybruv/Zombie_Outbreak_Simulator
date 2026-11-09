@@ -202,15 +202,17 @@ export const config = {
   },
 
   // Stay at home (orders.ts; B's answers to the design note, docs/proposal-stay-at-home.md).
-  // Once `calls` 911 calls have come in — before the reserve's call-up (reservists.callUpCalls
-  // 300) and the cordon — the authorities tell everyone to stay indoors: the cheap response
-  // that comes first and fails. Everyone tracked hears it as a telling, believed by trust as
+  // Once `calls` 911 calls have come in — before the cordon and the reserve's call-up — the
+  // authorities tell everyone to stay indoors: the cheap response that comes first and fails.
+  // B proposed 100, taking the call-up's 300 for the cordon's; but the cordon closes on its own
+  // clock (cordon.delay after the first district leaves), by 60–90 calls on seeds 1–4, so 100
+  // landed after it on all four. At 30 the order leads the cordon by 350–700 ticks. Everyone tracked hears it as a telling, believed by trust as
   // any telling is; whether a believer goes in is compliance, rolled once. It stands until the
   // rescue's broadcast supersedes it; a breach, panic or empty larders override it for
   // whoever they reach. Officers on patrol go to people on the street within `policeReach` m
   // and tell them again (a second telling; the obedient go in), each person at most once in
   // `retell` ticks — guesses
-  stayHome: { calls: 100, policeReach: 30, retell: 600 },
+  stayHome: { calls: 30, policeReach: 30, retell: 600 },
 
   // A fallen city (the user's idea; B: earn the state, do not synthesise it). The outbreak
   // runs from a first wave of `wave` of the population, scattered, until the living are

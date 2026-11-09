@@ -312,6 +312,14 @@ if (process.argv[2] === '--worker') {
     for (const r of roles) for (const k of Object.keys(lost) as (keyof typeof lost)[]) lost[k] += r.lostWhere[k];
     const n = Object.values(lost).reduce((a, b) => a + b, 0) || 1;
     console.log(`where civilians were lost (at the bite, or the killing if unbitten): ${Object.entries(lost).map(([k, v]) => `${k} ${((v / n) * 100).toFixed(0)}%`).join(', ')} (of ${n})`);
+    const ce = roles.filter((r) => r.complianceByEnclosure !== undefined);
+    if (ce.length > 0) {
+      const cell = (e: number, c: number) => {
+        const a = ce.reduce((s, r) => s + r.complianceByEnclosure.alive[e]![c]!, 0), t = ce.reduce((s, r) => s + r.complianceByEnclosure.total[e]![c]!, 0);
+        return t === 0 ? '—' : `${((a / t) * 100).toFixed(1)}%`;
+      };
+      console.log(`survival by compliance low/mid/high within enclosure bands (civilians): ${['low', 'mid', 'high'].map((n, e) => `enclosure ${n} ${[0, 1, 2].map((c) => cell(e, c)).join(' / ')}`).join(' | ')}`);
+    }
     const why: Record<string, number> = {};
     for (const r of roles) for (const [k, v] of Object.entries(r.transitWhy ?? {})) why[k] = (why[k] ?? 0) + v;
     const wn = Object.values(why).reduce((a, b) => a + b, 0) || 1;
