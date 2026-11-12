@@ -324,6 +324,10 @@ if (process.argv[2] === '--worker') {
     for (const r of roles) for (const [k, v] of Object.entries(r.transitWhy ?? {})) why[k] = (why[k] ?? 0) + v;
     const wn = Object.values(why).reduce((a, b) => a + b, 0) || 1;
     console.log(`  outdoors, why on the road (refused = turned away in the last 600 ticks; out: = out of a building in the last 1,800): ${Object.entries(why).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((v / wn) * 100).toFixed(0)}%`).join(', ')} (of ${wn})`);
+    const out: Record<string, number> = {};
+    for (const r of roles) for (const [k, v] of Object.entries(r.outWhy ?? {})) out[k] = (out[k] ?? 0) + v;
+    const on = Object.values(out).reduce((a, b) => a + b, 0);
+    if (on > 0) console.log(`  out of a building and lost on the road, what took them out (tagged as they set off): ${Object.entries(out).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((v / on) * 100).toFixed(0)}%`).join(', ')} (of ${on})`);
     const len: Record<string, number[]> = {};
     for (const r of roles) for (const [k, v] of Object.entries(r.tripLength ?? {})) len[k] = (len[k] ?? [0, 0, 0, 0]).map((x, i) => x + v[i]!);
     console.log(`  trips to shelter or home that ended in a loss, by length (<200 / 200–600 / 600–1,200 / 1,200+ m): ${Object.entries(len).map(([k, v]) => `${k} ${v.join('/')}`).join(' | ')}`);

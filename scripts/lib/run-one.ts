@@ -13,7 +13,8 @@ import { BASE, MAJOR, Salience } from '../../src/ui/salience';
 import { isFirearm, type Sim, type World } from '../../src/sim/state';
 import { isSwat } from '../../src/sim/systems/services/squads';
 import { rescueTally } from '../../src/sim/systems/outside/rescue';
-import { diehard } from '../../src/sim/systems/people/traits';
+import { diehard, shuns } from '../../src/sim/systems/people/traits';
+import { modeOf } from '../../src/sim/systems/people/panic';
 import { hotspots, ODDITY_KINDS, OddityCheck, type OddityKind } from './oddities';
 
 /**
@@ -194,6 +195,8 @@ export interface RunSummary {
    * an errand; making for a way out; anything else.
    */
   transitWhy: Record<string, number>;
+  /** Of civilians lost on the road having come out of a building within 1,800 ticks: what took them out, tagged when they set off (B: decide whether the order, patrols or something else fits). */
+  outWhy: Record<string, number>;
   /** Civilians alive or out by compliance band within each enclosure band, [enclosure][compliance] (B: compliance must not be enclosure under another name). */
   complianceByEnclosure: { alive: number[][]; total: number[][] };
   /** Length of the trip (from where it set out to where it was going) of everyone lost on the way to a shelter or home, by archetype: under 200 m, 200–600, 600–1,200, 1,200 and over. */
@@ -313,10 +316,33 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     if (dk === 'shelter') return s.destinationBuilding !== null && s.destinationBuilding === s.home ? 'home' : 'firstToShelter';
     return 'other';
   };
+  // What took each one out of the building it was in: tagged at the tick it set off.
+  const outWhy: Record<string, number> = {};
+  const exitTag: (string | undefined)[] = [];
+  const wasExiting: boolean[] = [];
+  const quarantinedOut = new Set<number>();
+  const tagExit = (s: Sim): string => {
+    const b = world.buildings[s.insideBuilding!]!;
+    if (quarantinedOut.has(s.id)) return 'quarantine';
+    if (b.zombiesInside > 0) return 'deadInside';
+    if (s.lastMigratedAt === world.tick) return 'migrate';
+    if (s.role === 'dispatcher' || s.sortieUntil !== null) return 'sortie';
+    if (s.destinationKind === 'scavenge') return 'scavenge';
+    if (s.destinationKind === 'leave' || s.answeredAt === world.tick) return 'leaveCity';
+    if (b.outOfSuppliesAt !== null && world.tick - b.outOfSuppliesAt >= config.supplies.leaveAfter) return 'hunger';
+    if (shuns(world, s)) return 'claustrophobe';
+    if (modeOf(s, config) === 'flight') return 'panic';
+    if (s.destinationKind === 'routine') return 'errandEnd';
+    return 'other';
+  };
   const noteLoss = (s: Sim) => {
     if (s.insideBuilding !== null) return;
     const w = why(s);
     transitWhy[w] = (transitWhy[w] ?? 0) + 1;
+    if (w.startsWith('out:')) {
+      const t = exitTag[s.id] ?? 'untagged';
+      outWhy[t] = (outWhy[t] ?? 0) + 1;
+    }
   };
   const noteTrip = (s: Sim) => {
     if (s.insideBuilding !== null || s.destinationKind !== 'shelter' || s.destination === null) return;
@@ -342,7 +368,12 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
           // Where its trip began: wherever it was when it last set a new destination.
           const f = tripFrom[s.id];
           if (f === undefined || f.dest !== s.destinationBuilding || f.kind !== s.destinationKind) tripFrom[s.id] = { x: s.x, y: s.y, dest: s.destinationBuilding, kind: s.destinationKind };
-          if (s.insideBuilding !== null) lastInside[s.id] = world.tick;
+          if (s.insideBuilding !== null) {
+            lastInside[s.id] = world.tick;
+            const exiting = s.exitingUntil !== null;
+            if (exiting && !wasExiting[s.id]) exitTag[s.id] = tagExit(s);
+            wasExiting[s.id] = exiting;
+          } else wasExiting[s.id] = false;
           if (s.condition === 'infected' && !tripNoted[s.id]) {
             tripNoted[s.id] = true;
             noteTrip(s);
@@ -380,6 +411,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
       for (const e of world.events) {
         if (e.type === 'carAlarm') alarms++;
         if (e.type === 'strangerRefused' && e.sim !== null) lastRefused[e.sim] = world.tick;
+        if (e.type === 'quarantineCaught' && e.sim !== null) quarantinedOut.add(e.sim);
         if (e.type === 'simDied' && e.cause === 'fedOn' && e.sim !== null && !wasBitten[e.sim]) {
           const s = world.sims[e.sim]!;
           if (!s.outsider && !tripNoted[e.sim]) {
@@ -548,6 +580,7 @@ export function runOne(runSeed: number, mapSeed: number, overrides: Record<strin
     oddities: oddityTally(odd),
     lostWhere,
     transitWhy,
+    outWhy,
     complianceByEnclosure: (() => {
       const r = { alive: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], total: [[0, 0, 0], [0, 0, 0], [0, 0, 0]] };
       const eb = config.promotion.cautionBands;
