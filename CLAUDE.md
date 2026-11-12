@@ -279,8 +279,9 @@ what was merged in the reference.
 
 Open, in priority order:
 1. **Tune from the 2531c88 sweep** (reference, the last "Swept" entry): both gates pass (loss in
-   range 20 of 20, median ~77%), survival by caution 28.1% / 30.4% / 31.8% (z 10.0). Survival has
-   fallen about three points in each of the last two sweeps: find which change costs it. By trait:
+   range 20 of 20, median ~77%), survival by caution 28.1% / 30.4% / 31.8% (z 10.0). (The "three points
+   lower" each sweep is inside run-to-run noise: per-seed survival swings 20–40 points with any
+   change, so between-setting effects under ~10 points need 40+ seeds — reference, "Why police telling".) By trait:
    enclosure z −11.2 (claustrophobes die most), nerve z 3.4 (now that it sets panic's rise), trust
    z −4.9 (sceptics' edge is belief, not defiance), compliance 1.5. Oddities per seed: lap 17.6,
    stuck 4.7, jitter 17.7. Left in the laps: officers drawn back into trouble they have only heard
