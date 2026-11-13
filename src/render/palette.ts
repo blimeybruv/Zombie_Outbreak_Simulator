@@ -2,6 +2,7 @@
 // screen; the city sits near the noise floor beneath them.
 
 export const BACKGROUND = '#06070a';
+export const OPEN_GROUND = '#08090d'; // empty lots / open ground — slightly different from BACKGROUND
 export const RIVER = 'rgba(70, 95, 130, 0.10)';
 export const BUILDING_OUTLINE = 'rgba(150, 160, 175, 0.20)';
 /** A dumpster in a back lot: warm grey, well under a living dot. Near zoom. */
