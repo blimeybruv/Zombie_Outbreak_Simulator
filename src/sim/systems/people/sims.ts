@@ -6,7 +6,7 @@
 //             a fresh sighting is noted and shouted
 //   stand     holding ground: fighting, or frozen, until the stand is reconsidered
 //   cornered  no way out: fight if armed, else any door in reach, else freeze
-//   flight    panicked: no routing; run for the nearest door, else away from threat
+//   flight    panicked: no routing; run for the nearest door, else away from threat (flight.ts)
 //   engage    police and reckless approach zombies while threat is under their threshold
 //   sortie    a dispatcher holds near its door until the sortie ends, then goes back in
 //   shelter   threat over the archetype's threshold (or already heading in): home if it
@@ -27,15 +27,14 @@ import { isOutdoorLiving, type Context } from '../../context';
 import { functionalProfile } from '../../mapgen/generate';
 import { noteStreet, remember } from '../../navigation/memory';
 import { dangerAhead, followRoute, headFor, steerAway, steerToward } from './steering';
-import { roundCorner, roundObstacle } from '../../navigation/round';
 import { chance, nextFloat, nextInt } from '../../lib/rng';
-import type { Building, Exit, Sim, Stand, StreetId, Vec2, World } from '../../state';
+import type { Building, Sim, StreetId, World } from '../../state';
 import { isFirearm } from '../../state';
 import { chooseObjective, reconsider, setObjective } from './awareness';
 import { decideBitten, emptyBuilding } from './bitten';
 import { nextRun, running } from './runners';
 import { outOfAmmo } from '../fighting/arms';
-import { capacity, clearDestination, entranceNearest, exitTicks, isLiving, leaveTalk, refusedLately, setDestination } from '../shared/common';
+import { capacity, clearDestination, exitTicks, isLiving, leaveTalk, refusedLately, setDestination } from '../shared/common';
 import { carStillMine, considerDriving, giveUpCar } from '../services/cars';
 import { decideCars } from '../services/driving';
 import { breaks, modeOf, type Mode } from './panic';
@@ -46,10 +45,12 @@ import { awaitingAmbulance, callAmbulance, decideEmt, decidePatient } from '../s
 import { stayingIn, tellPeopleIn } from '../services/orders';
 import { rideHome, rideToCall } from '../services/dispatch';
 import { parkingSpot } from '../services/traffic';
-import { atBarrier, barrierAt, barrierNear, cordonShot, flank, holdsFire, nearBarrier, pastBarrier, shut } from '../outside/cordon';
+import { atBarrier, barrierAt, barrierNear, cordonShot, holdsFire, nearBarrier, shut } from '../outside/cordon';
 import { answersRescue, queueSlot, reachesQueue, tentsAt } from '../outside/rescue';
 import { headForExit, nearestExit } from '../outside/exits';
 import { claustrophobia, diehard, shuns } from './traits';
+import { crossTo, flee } from './flight';
+import { nearestDoor, replan, takeStand, wayBlocked } from './ways';
 
 /**
  * Observation is the only way memory is written from the world. A street is
@@ -176,14 +177,6 @@ function aheadOfPartner(world: World, sim: Sim, dest: { x: number; y: number }):
   return false;
 }
 
-/** Anyone going somewhere other than a routine stop, routing on memory, plans again now. */
-function replan(world: World, ctx: Context, sim: Sim, mode: Mode): void {
-  if (sim.destination === null || sim.destinationKind === 'routine' || mode !== 'informed') return;
-  sim.route = ctx.paths.route(sim, sim.destination.x, sim.destination.y, true) ?? [];
-  sim.routeIndex = 0;
-  sim.nextRepathAt = world.tick + world.config.pathfinding.repathCooldown;
-}
-
 /**
  * A fresh sighting: the sim writes the street the zombie is on into memory as
  * dangerous — an observation, like any other — shouts a warning about it, and, if it
@@ -210,41 +203,6 @@ function noteThreat(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   replan(world, ctx, sim, mode);
 }
 
-/** Whether a door lies toward what the sim fears: within doorTowardThreatCos of its direction. */
-function towardThreat(world: World, ctx: Context, sim: Sim, x: number, y: number): boolean {
-  const tx = ctx.threatX[sim.id]!, ty = ctx.threatY[sim.id]!;
-  const tl = Math.hypot(tx, ty);
-  const d = Math.hypot(x - sim.x, y - sim.y);
-  if (tl === 0 || d === 0) return false;
-  return ((x - sim.x) * tx + (y - sim.y) * ty) / (d * tl) > world.config.behaviour.doorTowardThreatCos;
-}
-
-/**
- * The nearest door within doorSearchRadius, never the one that last turned the sim
- * away nor `skip`. A door lying toward the danger is taken anyway ('any'), counts
- * doorTowardThreatPenalty times as far ('penalise'), or is passed over ('exclude').
- */
-function nearestDoor(world: World, ctx: Context, sim: Sim, toward: 'any' | 'penalise' | 'exclude', skip: number | null = null, skipToo: number | null = null): Building | null {
-  const { config, buildings } = world;
-  let door: Building | null = null;
-  let doorD = Infinity;
-  for (const bid of ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.doorSearchRadius, ctx.buildingIds)) {
-    if (bid === sim.refusedBy || bid === skip || bid === skipToo || refusedLately(world, sim, bid)) continue;
-    const b = buildings[bid]!;
-    const e = entranceNearest(b, sim.x, sim.y);
-    let d = Math.hypot(e.x - sim.x, e.y - sim.y);
-    if (toward !== 'any' && towardThreat(world, ctx, sim, e.x, e.y)) {
-      if (toward === 'exclude') continue;
-      d *= config.behaviour.doorTowardThreatPenalty;
-    }
-    if (d < doorD) {
-      doorD = d;
-      door = b;
-    }
-  }
-  return door;
-}
-
 /**
  * No way out: a zombie within `cornered.near` — close enough that running is worse
  * than swinging — danger enough, and either on several sides (threatFocus under
@@ -263,13 +221,6 @@ export function cornered(world: World, ctx: Context, sim: Sim): boolean {
   const tx = ctx.threatX[sim.id]!, ty = ctx.threatY[sim.id]!;
   const tl = Math.hypot(tx, ty);
   return tl > 0 && !ctx.map.walkable(sim.x - (tx / tl) * cc.probe, sim.y - (ty / tl) * cc.probe);
-}
-
-function takeStand(world: World, sim: Sim, stand: Stand, ticks?: number): void {
-  const cc = world.config.cornered;
-  sim.stand = stand;
-  sim.standUntil = world.tick + (ticks ?? (stand === 'fight' ? cc.fightTicks : cc.freezeTicks));
-  sim.gait = 'still';
 }
 
 /** A fighter faces the nearest zombie (combat does the rest); a frozen sim keeps still. */
@@ -304,45 +255,6 @@ function resolveCornered(world: World, ctx: Context, sim: Sim): void {
   if (sim.destinationBuilding !== door.id || sim.destinationKind !== 'shelter') setDestination(sim, door, 'shelter');
   sim.gait = 'sprint';
   steerToward(sim, sim.destination!.x, sim.destination!.y);
-}
-
-/**
- * The danger is squarely between the sim and where it is going, though there is a
- * way out. Fight, if what it carries is up to the zombies close by; else another
- * door, one that does not lie toward them; else back off for avoidHold ticks, with
- * the route planned again around what it saw.
- */
-function wayBlocked(world: World, ctx: Context, sim: Sim, mode: Mode): void {
-  const { config } = world;
-  const cap = capacity(world, sim);
-  if (cap > 0 && !breaks(sim, config, ctx.company[sim.id]!)) {
-    ctx.zombieHash.query(sim.x, sim.y, config.cornered.fightRadius, ctx.ids2);
-    if (ctx.ids2.length > 0 && cap >= ctx.ids2.length) return takeStand(world, sim, 'fight');
-  }
-  // (Someone going off alone, bitten, wants no other door: it backs off and goes on.)
-  // Not back to the door it last turned from, for a while: two doors whose ways both
-  // looked blocked had sims swapping between them, some every tick, like pong balls.
-  const from = sim.turnedFromUntil !== null && world.tick < sim.turnedFromUntil ? sim.turnedFrom : null;
-  const door = sim.destinationKind === 'isolate' ? null : nearestDoor(world, ctx, sim, 'exclude', sim.destinationBuilding, from);
-  if (door !== null) {
-    if (sim.destinationBuilding !== null) {
-      sim.turnedFrom = sim.destinationBuilding;
-      sim.turnedFromUntil = world.tick + config.behaviour.turnedFromHold;
-    }
-    setDestination(sim, door, 'shelter');
-    sim.lastMigratedAt = world.tick;
-    sim.gait = 'run';
-    headFor(world, ctx, sim, sim.destination!.x, sim.destination!.y);
-    return;
-  }
-  // Backing off. A shelter not yet its own is given up, to be chosen afresh when the
-  // hold ends with what it has just seen in mind; walking the same way into the same
-  // danger was a slow loop. A shelter it holds, or a trip it is on, is planned again.
-  sim.avoidUntil = world.tick + config.behaviour.avoidHold;
-  if (sim.destinationKind === 'shelter' && sim.destinationBuilding !== sim.shelter) clearDestination(sim);
-  else replan(world, ctx, sim, mode);
-  sim.gait = 'run';
-  steerAway(ctx, sim);
 }
 
 /** On along the route, dealing with a blocked way. */
@@ -718,77 +630,7 @@ function decideOutdoor(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   if (sim.muster === 'mobilised') return decideMuster(world, ctx, sim, mode);
   if (sim.squadLeader !== null) return sim.squadLeader === sim.id ? decideLeader(world, ctx, sim) : decideFollower(world, ctx, sim);
 
-  if (mode === 'flight') {
-    sim.gait = 'sprint';
-    // Fired on at a barrier: it runs from the guns, back the way it came. Running from the dead as anywhere else, with no door out on the
-    // road, the frightened sprinted straight into the soldiers' aimed fire.
-    // In the rescue's queue: it keeps its place, cowering, among the soldiers. Bolting,
-    // the frightened left the queue for the end of the road.
-    if (sim.queuedSince !== null && sim.destinationKind === 'leave' && world.rescueExit !== null) {
-      sim.gait = 'still';
-      return;
-    }
-    // Going round it already, it keeps going, at a sprint: panic does not undo the choice.
-    if (sim.crossing !== null && sim.destinationKind === 'leave' && sim.destination !== null) {
-      const e = world.exits[nearestExit(world, sim.destination.x, sim.destination.y)!]!;
-      const to = crossTo(world, e, sim);
-      steerToward(sim, to.x, to.y);
-      return;
-    }
-    if (sim.crossing === null && sim.firedOnAt !== null && tick - sim.firedOnAt <= config.cordon.warnEvery) {
-      const e = barrierNear(world, sim);
-      if (e !== null) {
-        // Frightened or not, it knows now that way out is held. Learning it only when
-        // calm, the panicked came back to be shot over again, ran for the houses by the
-        // barrier, were turned away and froze, over and over (the oddity check).
-        sim.knownClosed |= 1 << world.exits.indexOf(e);
-        const b = barrierAt(world, e);
-        steerToward(sim, b.x - e.dx * 2 * config.cordon.warnRadius, b.y - e.dy * 2 * config.cordon.warnRadius);
-        return;
-      }
-    }
-    // One that will never go indoors runs from it in the open. Running for doors, a
-    // claustrophobe was turned away by house after house, froze, and ran round them again.
-    if (diehard(world, sim)) {
-      sim.gait = 'sprint';
-      steerAway(ctx, sim);
-      return;
-    }
-    // Not choosing a shelter: running for a door in sight, preferring one that does not
-    // lie toward what it is running from — and, once chosen, keeping to it while it is
-    // near, unless the danger comes squarely between (wayBlocked picks another).
-    // Re-choosing every tick swung the sim between doors as the danger moved.
-    // A door it has just chosen is kept wherever it is: one picked as lying away from the
-    // danger was often just past the search radius, dropped the next tick for the nearer
-    // door it had turned from, and picked again the tick after.
-    let door: Building | null = null;
-    const chosenLately = sim.lastMigratedAt !== null && tick - sim.lastMigratedAt < config.behaviour.turnedFromHold;
-    if (sim.destinationKind === 'shelter' && sim.destinationBuilding !== null && sim.destination !== null) {
-      if (chosenLately || Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= config.behaviour.doorSearchRadius) door = buildings[sim.destinationBuilding]!;
-    }
-    door ??= nearestDoor(world, ctx, sim, 'penalise', null, sim.turnedFromUntil !== null && tick < sim.turnedFromUntil ? sim.turnedFrom : null);
-    if (door !== null) {
-      if (sim.destinationBuilding !== door.id || sim.destinationKind !== 'shelter') {
-        // A change of shelter like any other: calm again a tick later, it does not
-        // reconsider straight back to the one it was making for. Panic flickering about
-        // the flight threshold swung it between the two every tick or two.
-        setDestination(sim, door, 'shelter');
-        sim.lastMigratedAt = tick;
-      }
-      // Round the building to a door on its far side. Straight at the nearest door, the
-      // panicked sprinted to and fro along a hotel's back wall at the rescue's hour, dozens
-      // of them (the oddity check: lap).
-      const own = roundCorner(world, ctx, door, sim.x, sim.y, sim.destination!.x, sim.destination!.y, true, sim.heading);
-      const w = own === null ? roundObstacle(world, ctx, sim.x, sim.y, sim.destination!.x, sim.destination!.y, door.id, sim.heading) : own;
-      const to = w !== null && w !== 'shut' ? w : sim.destination!;
-      if (headFor(world, ctx, sim, to.x, to.y)) wayBlocked(world, ctx, sim, mode);
-    } else {
-      clearDestination(sim);
-      sim.destinationKind = null;
-      steerAway(ctx, sim);
-    }
-    return;
-  }
+  if (mode === 'flight') return flee(world, ctx, sim, mode);
 
   // An officer run dry: back to its station (or the nearest) to take what rounds it still
   // holds (buildings.ts restock), giving up any call. A station overrun is no help.
@@ -1334,10 +1176,4 @@ export function simDecisions(world: World, ctx: Context): void {
   }
   drainRepathQueue(world, ctx);
   decideCars(world, ctx);
-}
-
-/** Where someone getting past a closed barrier makes for next: round it, the kerb beside its end and then the road's end on that kerb; over it, straight on out. */
-function crossTo(world: World, e: Exit, sim: Sim): Vec2 {
-  const f = flank(world, e, sim.crossing!);
-  return sim.crossing !== 0 && pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
 }
