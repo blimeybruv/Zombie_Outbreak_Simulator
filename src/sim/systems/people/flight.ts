@@ -5,14 +5,14 @@
 
 import type { Context } from '../../context';
 import { roundCorner, roundObstacle } from '../../navigation/round';
-import type { Building, Exit, Sim, Vec2, World } from '../../state';
-import { clearDestination, setDestination } from '../shared/common';
+import type { Building, Exit, Sim, StreetId, Vec2, World } from '../../state';
+import { clearDestination, entranceNearest, refusedLately, setDestination } from '../shared/common';
 import { barrierAt, barrierNear, flank, pastBarrier } from '../outside/cordon';
 import { nearestExit } from '../outside/exits';
 import type { Mode } from './panic';
 import { headFor, steerAway, steerToward } from './steering';
 import { diehard } from './traits';
-import { nearestDoor, wayBlocked } from './ways';
+import { nearestDoor, towardThreat, wayBlocked } from './ways';
 
 /** A panicked sim on foot, outdoors, not cornered, standing or backing off: this tick's flight. */
 export function flee(world: World, ctx: Context, sim: Sim, mode: Mode): void {
@@ -49,7 +49,7 @@ export function flee(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   // claustrophobe was turned away by house after house, froze, and ran round them again.
   if (diehard(world, sim)) {
     sim.gait = 'sprint';
-    steerAway(ctx, sim);
+    runOpen(world, ctx, sim);
     return;
   }
   // Not choosing a shelter: running for a door in sight, preferring one that does not
@@ -63,8 +63,13 @@ export function flee(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   const chosenLately = sim.lastMigratedAt !== null && tick - sim.lastMigratedAt < config.behaviour.turnedFromHold;
   if (sim.destinationKind === 'shelter' && sim.destinationBuilding !== null && sim.destination !== null) {
     if (chosenLately || Math.hypot(sim.destination.x - sim.x, sim.destination.y - sim.y) <= config.behaviour.doorSearchRadius) door = buildings[sim.destinationBuilding]!;
+    // ...unless it has since seen the dead on that door's street: news, not a swing.
+    // Kept regardless, most runs onto a street just seen dangerous were for a door picked
+    // before the sighting (the flight-choice probe, reference "Flight and memory").
+    if (door !== null && config.features.flightMemory && door.street !== sim.street && learntSince(world, sim, door.street, sim.lastMigratedAt)) door = null;
   }
-  door ??= nearestDoor(world, ctx, sim, 'penalise', null, sim.turnedFromUntil !== null && tick < sim.turnedFromUntil ? sim.turnedFrom : null);
+  const from = sim.turnedFromUntil !== null && tick < sim.turnedFromUntil ? sim.turnedFrom : null;
+  door ??= config.features.flightMemory ? fleeDoor(world, ctx, sim, from) : nearestDoor(world, ctx, sim, 'penalise', null, from);
   if (door !== null) {
     if (sim.destinationBuilding !== door.id || sim.destinationKind !== 'shelter') {
       // A change of shelter like any other: calm again a tick later, it does not
@@ -83,13 +88,110 @@ export function flee(world: World, ctx: Context, sim: Sim, mode: Mode): void {
   } else {
     clearDestination(sim);
     sim.destinationKind = null;
-    steerAway(ctx, sim);
+    runOpen(world, ctx, sim);
   }
 }
 
+/**
+ * Danger the sim remembers on a street from the last flight.recent ticks — seen, shouted
+ * to it, or a building fallen there — else 0. Flight does not plan, but it does not
+ * forget what it ran from a minute ago: it reads the same street memory routing does,
+ * only the fresh part of it, and only for the few streets in front of it.
+ */
+function recentDanger(world: World, sim: Sim, street: StreetId): number {
+  const b = sim.streetMemory.get(street);
+  return b !== undefined && world.tick - b.observedAt <= world.config.flight.recent ? b.danger : 0;
+}
+
+/** Whether the sim has lately seen danger on `street` that it did not know of at tick `since`. */
+function learntSince(world: World, sim: Sim, street: StreetId, since: number | null): boolean {
+  const b = sim.streetMemory.get(street);
+  return recentDanger(world, sim, street) > 0 && b !== undefined && (since === null || b.observedAt > since);
+}
+
+/**
+ * The door to run for: the nearest within doorSearchRadius, by distance, made
+ * doorTowardThreatPenalty times as far if it lies toward what is in sight and
+ * (1 + flight.doorRecent × recent danger) times as far if its street is one the sim
+ * has lately seen the dead on — not its own street, where what it can see decides.
+ * Never the door that last turned it away, `from`, or one that refused it lately.
+ */
+function fleeDoor(world: World, ctx: Context, sim: Sim, from: number | null): Building | null {
+  const { config, buildings } = world;
+  let door: Building | null = null;
+  let doorD = Infinity;
+  for (const bid of ctx.map.buildingsNear(sim.x, sim.y, config.behaviour.doorSearchRadius, ctx.buildingIds)) {
+    if (bid === sim.refusedBy || bid === from || refusedLately(world, sim, bid)) continue;
+    const b = buildings[bid]!;
+    const e = entranceNearest(b, sim.x, sim.y);
+    let d = Math.hypot(e.x - sim.x, e.y - sim.y);
+    if (towardThreat(world, ctx, sim, e.x, e.y)) d *= config.behaviour.doorTowardThreatPenalty;
+    if (b.street !== sim.street) d *= 1 + config.flight.doorRecent * recentDanger(world, sim, b.street);
+    if (d < doorD) {
+      doorD = d;
+      door = b;
+    }
+  }
+  return door;
+}
+
+/**
+ * Running in the open, no door to make for: which way. Without flight memory, straight
+ * away from what is in sight. With it, the ways open to it are scored and the best
+ * taken — at a junction (within flight.junction of the nearer end of its street) every
+ * street leaving it, a little way along each; between junctions, on toward either end.
+ *
+ *   score = flight.away    × (the way · away from what is in sight)
+ *         − flight.recentWeight × danger lately seen on that street (between junctions: on
+ *                            the best street beyond that end; a dead end, flight.deadEnd)
+ *         − flight.reverse × how far the way turns back on its heading
+ *
+ * Away from what is visible being the only term was the crossroads reversal: the dead
+ * seen on one street, then on another, and the sim ran straight back to the first.
+ * Now a side street beats both. Ties keep the lower street id. Off the streets, or
+ * with the way squarely blocked, straight away as before.
+ */
+export function runOpen(world: World, ctx: Context, sim: Sim): void {
+  const { config, streets, nodes } = world;
+  if (!config.features.flightMemory || sim.street === null) return steerAway(ctx, sim);
+  const fc = config.flight;
+  const tx = ctx.threatX[sim.id]!, ty = ctx.threatY[sim.id]!;
+  const tl = Math.hypot(tx, ty);
+  const ax = tl > 0 ? -tx / tl : 0, ay = tl > 0 ? -ty / tl : 0;
+  const hx = Math.cos(sim.heading), hy = Math.sin(sim.heading);
+  const st = streets[sim.street]!;
+  const na = nodes[st.a]!, nb = nodes[st.b]!;
+  const da = Math.hypot(na.x - sim.x, na.y - sim.y), db = Math.hypot(nb.x - sim.x, nb.y - sim.y);
+  const near = da <= db ? st.a : st.b;
+  let best = -Infinity, bestStreet = Infinity, bx = 0, by = 0;
+  const consider = (x: number, y: number, danger: number, street: number) => {
+    const ux = x - sim.x, uy = y - sim.y;
+    const ul = Math.hypot(ux, uy);
+    if (ul === 0) return;
+    const ex = ux / ul, ey = uy / ul;
+    const score = fc.away * (ex * ax + ey * ay) - fc.recentWeight * danger - fc.reverse * Math.max(0, -(ex * hx + ey * hy));
+    if (score > best || (score === best && street < bestStreet)) [best, bestStreet, bx, by] = [score, street, x, y];
+  };
+  if (Math.min(da, db) <= fc.junction) {
+    const n = nodes[near]!;
+    for (const adj of ctx.map.adjacency[near]!) {
+      const far = nodes[adj.node]!;
+      const t = Math.min(1, fc.lookahead / (adj.length || 1));
+      consider(n.x + (far.x - n.x) * t, n.y + (far.y - n.y) * t, adj.street === sim.street ? 0 : recentDanger(world, sim, adj.street), adj.street);
+    }
+  } else {
+    for (const end of [st.a, st.b]) {
+      let beyond = Infinity;
+      for (const adj of ctx.map.adjacency[end]!) if (adj.street !== sim.street) beyond = Math.min(beyond, recentDanger(world, sim, adj.street));
+      const n = nodes[end]!;
+      consider(n.x, n.y, beyond === Infinity ? fc.deadEnd : beyond, sim.street);
+    }
+  }
+  if (best === -Infinity || headFor(world, ctx, sim, bx, by)) steerAway(ctx, sim);
+}
+
 /** Where someone getting past a closed barrier makes for next: round it, the kerb beside its end and then the road's end on that kerb; over it, straight on out. */
-export /** Where someone getting past a closed barrier makes for next: round it, the kerb beside its end and then the road's end on that kerb; over it, straight on out. */
-function crossTo(world: World, e: Exit, sim: Sim): Vec2 {
+export function crossTo(world: World, e: Exit, sim: Sim): Vec2 {
   const f = flank(world, e, sim.crossing!);
   return sim.crossing !== 0 && pastBarrier(world, e, sim.x, sim.y) < 0 ? f.beside : f.out;
 }

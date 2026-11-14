@@ -140,7 +140,8 @@ describe('the cordon', () => {
 
   it('one making for a closed exit is warned off with a shot, not hit, and gives the exit up', () => {
     const { world, ctx, e, s } = closed();
-    s.trust = 1; // the trusting never defy
+    s.trust = 1;
+    s.compliance = 1; // the compliant never defy (cordon.defy × (1 − compliance)); trust is belief, not obedience
     standAt(world, s, e, (config.cordon.warnRadius + config.cordon.fireRadius) / 2);
     headForExit(world, s);
     let warned = false;

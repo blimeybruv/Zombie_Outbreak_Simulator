@@ -185,6 +185,7 @@ export const config = {
     cautiousRouting: true,
     steadying: true,
     stayHome: false, // the authorities' order to stay indoors (orders.ts) — off until measured
+    flightMemory: true, // flight reads the fresh part of street memory and scores its ways (flight.ts); off: straight away from what is in sight
     policeOrders: false, // officers on patrol telling people on the street to go in (orders.ts); swept apart, B
     carAlarms: true,
     sirens: true, // emergency vehicles' sirens draw the dead: the city hears what the viewer hears (reference, "Car alarms and sirens")
@@ -213,6 +214,18 @@ export const config = {
   // and tell them again (a second telling; the obedient go in), each person at most once in
   // `retell` ticks — guesses
   stayHome: { calls: 30, policeReach: 30, retell: 600 },
+  // Flight with memory (flight.ts; features.flightMemory). Panic gates how far ahead a sim
+  // plans, not what it recalls: a sim in flight scores the few ways in front of it.
+  flight: {
+    recent: 60, // ticks; street memory this fresh counts in flight — "the last minute" (B)
+    away: 1, // weight: the way's alignment with away-from-what-is-in-sight (−1 to 1)
+    recentWeight: 1.5, // weight: danger lately seen on the street a way leads into (0–1); over away/0.8, so a side street beats running onto a street seen 0.8 dangerous — guess
+    reverse: 0.5, // weight: how far a way turns back on the heading (0–1); under away, so danger in sight still turns it — guess
+    junction: 12, // m from the nearer end of its street within which a sim chooses among the streets there
+    lookahead: 20, // m along each street from a junction: the point it runs for
+    deadEnd: 1, // danger a dead end counts as, beyond the end of a street
+    doorRecent: 2, // a door on a street lately seen dangerous counts (1 + this × danger) times as far — guess
+  },
 
   // A fallen city (the user's idea; B: earn the state, do not synthesise it). The outbreak
   // runs from a first wave of `wave` of the population, scattered, until the living are
