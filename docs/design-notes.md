@@ -218,13 +218,16 @@ One scalar per sim, kept separate from memory. Panic is internal state, memory i
 
 **It transmits on the same proximity check as memory** — one meeting handler serves both. Panic averages toward the higher value with a damping factor, so calm spreads too, but more slowly than fear.
 
-**It gates exactly three things:**
+**It gates two things:**
 
-1. Whether a sim uses local steering instead of pathfinding. This is the main compute saving: panicked sims do not route.
-2. Whether it consults its memory table at all. A panicked sim acts on what it can see, not on what it knows.
-3. Whether occupants are expelled from a building.
+1. How far ahead a sim plans: a full route on what it knows, the shortest route, or none — local choices only. This is the main compute saving: panicked sims do not route.
+2. Whether occupants are expelled from a building.
 
 Nothing else reads it, for the same reason nothing but the release reads phase.
+
+**Revised: panic gates planning, not recall.** The original rule had a third gate — a panicked sim did not consult its memory at all, and acted only on what it could see. That conflated not planning ahead with not remembering the last twenty seconds. A panicking person does not consult a mental map of the city, but does know which way the thing chasing them came from; the rule made them amnesiac rather than frightened. The user saw the result: a sim spots the dead on one street, runs to another, meets more, and runs straight back to the first, because the first were out of sight and "away from what is visible" was flight's only term. Measured before the change, a fleeing sim chose a street it had seen the dead on within the last minute at chance — memory carried nothing into flight. Now flight scores the two to four ways in front of it (away from what is visible, danger lately seen on the street each leads into, a penalty for turning back) and reads only the fresh part of the same street memory routing uses.
+
+*Not built, and why:* a separate store of recent threat positions for flight. It would have been a second source of truth about danger, ageing on its own clock, not merged on encounter, not trimmed by relevance — the shape the rule against stored group totals forbids, with no check to catch it drifting. Position-based repulsion is also blind to walls: a zombie ten metres away through a building would push as hard as one ten metres down the street. The street-keyed memory already encodes where a sim can actually go, and reading the entries for the few streets in front of it costs a lookup each.
 
 **Police are immune.** Panic never gates their behaviour, which is what makes the rest of their profile work: they keep pathfinding, so retreating *toward* a defensible position is possible rather than being indistinguishable from fleeing. It also makes them the population's information carriers, since they go on consulting and updating their memory tables while everyone around them is running blind. Reckless sims are the obvious alternative, but they already ignore threat thresholds, so immunity there would change almost nothing.
 

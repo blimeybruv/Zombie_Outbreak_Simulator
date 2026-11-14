@@ -144,11 +144,18 @@ outside the allowed files fails `npm run check`.
 - **`district.released` / `releaseAt` / `evacuatedAt`** — read *only* by
   `systems/outside/release.ts`. Never by behaviour, shelter criteria, or any threshold.
   `phase` is derived for display and never stored.
-- **`panic`** — gates exactly three things: whether a sim routes or steers, whether it
-  consults its memory table, and whether occupants are expelled from a building. Read
-  only in `systems/people/panic.ts` (which also derives the informed/direct/flight mode
-  that everything else reads, `modeOf`), `systems/people/encounters.ts` (transmission)
-  and `systems/buildings/buildings.ts` (expulsion).
+- **`panic`** — gates two things: how far ahead a sim plans, and whether occupants are
+  expelled from a building. It also spreads (transmission). Read only in
+  `systems/people/panic.ts` (which derives the mode everything else reads, `modeOf`),
+  `systems/people/encounters.ts` (transmission) and `systems/buildings/buildings.ts`
+  (expulsion).
+  - informed (≤ 0.40) — a full route: the cost function over the street graph, memory in it
+  - direct (0.40–0.55) — a full route by the shortest path: memory left out of the cost
+  - flight (> 0.55) — no route: a door in sight, or the best of the few ways in front of
+    it, scored on what it sees and the last minute of its memory (`people/flight.ts`)
+
+  All three may read memory. Panic gates planning depth, not recall (the original rule
+  conflated the two; design notes, "Panic").
 
 Also: **nothing may read another sim's infection state** (`condition`, `turnsAt`).
 Knowledge of infection is local: each sim's `knownInfected` set, written when it sees a

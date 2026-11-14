@@ -139,7 +139,7 @@ The street graph is an overlay on continuous space, not a replacement for it. Si
 
 | Scalar | Lives on | 0 means | 1 means |
 | --- | --- | --- | --- |
-| `panic` | Sim | Calm, routes normally | Blind flight, no routing |
+| `panic` | Sim | Calm, routes normally | Flight, no routing |
 | `perceivedThreat` | Computed, not stored | Nothing visible | Overwhelmed, immediate danger |
 | `danger` | Memory entry, per street | Believed clear | Believed impassable |
 | `fortification` | Building | Bare, as-built | Fully barricaded |
@@ -793,13 +793,13 @@ Caution had stopped separating survival (z 0.5 and 1.5 in the last two sweeps, a
 
 ### Panic gating
 
-Panic does not modify routing. It switches between three modes, which makes behaviour legible on screen — a viewer can read a sim's state from how it moves.
+Panic does not modify routing. It switches between three modes, which makes behaviour legible on screen — a viewer can read a sim's state from how it moves. It gates how far ahead a sim plans, not what it recalls: all three read memory (flight only its last minute).
 
 | Panic | Mode | Behaviour |
 | --- | --- | --- |
 | 0 – 0.40 | Informed | Full cost function; routes around remembered danger |
 | 0.40 – 0.55 | Direct | Still routes, ignores memory; takes the shortest path regardless of what it knows |
-| 0.55 – 1.0 | Flight | No pathfinding. Pure steering away from the threat vector, no destination |
+| 0.55 – 1.0 | Flight | No pathfinding. A door in sight, else the best of the ways in front of it: away from the threat vector, away from streets it saw the dead on in the last minute (`flight.recent`), without turning back (`people/flight.ts`, `config.flight`; `features.flightMemory`) |
 
 Mild fear making people take the direct route is both plausible and useful: it puts panicking sims onto main streets, where they are visible and where they meet each other.
 
