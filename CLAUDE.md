@@ -285,7 +285,11 @@ screenshot (`scripts/view.ts`), and for anything in `src/sim/` a measurement —
 what was merged in the reference.
 
 Open, in priority order:
-1. **Tune from the 2531c88 sweep** (reference, the last "Swept" entry): both gates pass (loss in
+1. **Flight with memory** (reference, "Flight and memory"): on, swept at 18ed8ec against itself off,
+   8 seeds — survival within noise, laps 17.8 → 22.5 and stuck 5.9 → 9.6 a seed (seed 5's 50 stuck,
+   late in the run, not yet looked into). Whether direct mode should step greedily rather than route
+   (B's wording) is the user's call.
+2. **Tune from the 2531c88 sweep** (reference, the last "Swept" entry): both gates pass (loss in
    range 20 of 20, median ~77%), survival by caution 28.1% / 30.4% / 31.8% (z 10.0). (The "three points
    lower" each sweep is inside run-to-run noise: per-seed survival swings 20–40 points with any
    change, so between-setting effects under ~10 points need 40+ seeds — reference, "Why police telling".) By trait:
@@ -294,25 +298,25 @@ Open, in priority order:
    stuck 4.7, jitter 17.7. Left in the laps: officers drawn back into trouble they have only heard
    of (a cooldown after a fruitless response). Also: features that barely fire (9c3b37b entry); the
    runner gait not swept as a scenario; the fallen city's rescue arithmetic (B to say more).
-2. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
+3. **The B brief on shelters** (supermarkets claimed by the brazen, home first, leaving in
    time, more dispatchers): the user's design questions, to act on now the door rework is in.
-3. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
+4. **Dead air.** After the first hour, 9–12 ten-minute stretches per seed with nothing on
    the ticker (the sweep's timeline, `scripts/lib/run-one.ts TimelineEntry`). Find where and
    why the city goes quiet before changing anything.
-4. **Gate 3, on a real machine:** the city legible at a glance at mid zoom; 2,000 agents at
+5. **Gate 3, on a real machine:** the city legible at a glance at mid zoom; 2,000 agents at
    30 fps at 8×, by day and at night now there are street lamps (`scripts/fps.ts`). The
    ticker gate (under 6 lines a second at 1×) is measured and passes. Also confirm the
    late-game hitches when the Rangers arrive are gone.
-5. **The dead pulled back and forth between sounds** from two directions, away from any
+6. **The dead pulled back and forth between sounds** from two directions, away from any
    door (reference, "The dead went back and forth at a store's door", open note).
-6. **Rangers across the river:** line of sight no longer crosses it; confirm by eye that
+7. **Rangers across the river:** line of sight no longer crosses it; confirm by eye that
    their back-and-forth along the bank is gone.
-7. **Arms, the user's ideas (not built):** accuracy and sight-range traits, or a class perk for
+8. **Arms, the user's ideas (not built):** accuracy and sight-range traits, or a class perk for
    police, preppers and soldiers, with the untrained at a malus to accuracy and reload and a
    chance to jam or fumble the safety; guns at home tip the outbreak between 5% and 10% meanwhile
    (reference, "Setup dials"). Runner zombies may become the default.
-8. **Compliance** (reference, "The trait review"): the trait is in; stay-at-home messaging, its
+9. **Compliance** (reference, "The trait review"): the trait is in; stay-at-home messaging, its
    own channel, wants a design note before code. Kettling is a late maybe.
-9. **Decisions for the user:** what a cordon wound should mean (now: no state, the person
+10. **Decisions for the user:** what a cordon wound should mean (now: no state, the person
    turns back); whether to add the story blurbs (an opening blurb, a chronicle per named
    survivor — worker-side, from events).
