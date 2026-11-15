@@ -138,8 +138,9 @@ function fleeDoor(world: World, ctx: Context, sim: Sim, from: number | null): Bu
 /**
  * Running in the open, no door to make for: which way. Without flight memory, straight
  * away from what is in sight. With it, the ways open to it are scored and the best
- * taken — at a junction (within flight.junction of the nearer end of its street) every
- * street leaving it, a little way along each; between junctions, on toward either end.
+ * taken — at a junction (within flight.junction of the end of its street it is heading
+ * toward) every street leaving it, a little way along each; between junctions, on toward
+ * either end. With nothing in sight and nothing known of any of them, on as it was going.
  *
  *   score = flight.away    × (the way · away from what is in sight)
  *         − flight.recentWeight × danger lately seen on that street (between junctions: on
@@ -153,18 +154,31 @@ function fleeDoor(world: World, ctx: Context, sim: Sim, from: number | null): Bu
  */
 export function runOpen(world: World, ctx: Context, sim: Sim): void {
   const { config, streets, nodes } = world;
-  if (!config.features.flightMemory || sim.street === null) return steerAway(ctx, sim);
+  if (!config.features.flightMemory) return steerAway(ctx, sim);
+  // The street it is moving along: the nearest by centreline, not its membership, which
+  // is kept while within half a street's width. Across the junction at the end of a wide
+  // bridge, membership stayed the bridge: scored from its ends, a sim turned back to the
+  // junction, took a cross street, and turned back again, for good (the oddity check).
+  const on = ctx.map.nearestStreet(sim.x, sim.y, config.map.offStreetLookup);
+  if (on === null) return steerAway(ctx, sim);
   const fc = config.flight;
   const tx = ctx.threatX[sim.id]!, ty = ctx.threatY[sim.id]!;
   const tl = Math.hypot(tx, ty);
   const ax = tl > 0 ? -tx / tl : 0, ay = tl > 0 ? -ty / tl : 0;
   const hx = Math.cos(sim.heading), hy = Math.sin(sim.heading);
-  const st = streets[sim.street]!;
+  const st = streets[on]!;
   const na = nodes[st.a]!, nb = nodes[st.b]!;
   const da = Math.hypot(na.x - sim.x, na.y - sim.y), db = Math.hypot(nb.x - sim.x, nb.y - sim.y);
-  const near = da <= db ? st.a : st.b;
-  let best = -Infinity, bestStreet = Infinity, bx = 0, by = 0;
+  // The junction it is making for: the nearer end it is heading toward. Choosing at
+  // whichever end was nearer, a sim on a street shorter than twice flight.junction was
+  // always at one, and crossing the middle swung it to the other, where its own street
+  // pointed back: it sprinted to and fro there (the oddity check, at the cordons).
+  const toward = (n: typeof na, d: number) => d > 0 && ((n.x - sim.x) * hx + (n.y - sim.y) * hy) / d > 0;
+  const ta = da <= fc.junction && toward(na, da), tb = db <= fc.junction && toward(nb, db);
+  const near = ta && (!tb || da <= db) ? st.a : tb ? st.b : null;
+  let best = -Infinity, bestStreet = Infinity, bx = 0, by = 0, known = 0;
   const consider = (x: number, y: number, danger: number, street: number) => {
+    known = Math.max(known, danger);
     const ux = x - sim.x, uy = y - sim.y;
     const ul = Math.hypot(ux, uy);
     if (ul === 0) return;
@@ -172,22 +186,24 @@ export function runOpen(world: World, ctx: Context, sim: Sim): void {
     const score = fc.away * (ex * ax + ey * ay) - fc.recentWeight * danger - fc.reverse * Math.max(0, -(ex * hx + ey * hy));
     if (score > best || (score === best && street < bestStreet)) [best, bestStreet, bx, by] = [score, street, x, y];
   };
-  if (Math.min(da, db) <= fc.junction) {
+  if (near !== null) {
     const n = nodes[near]!;
     for (const adj of ctx.map.adjacency[near]!) {
       const far = nodes[adj.node]!;
       const t = Math.min(1, fc.lookahead / (adj.length || 1));
-      consider(n.x + (far.x - n.x) * t, n.y + (far.y - n.y) * t, adj.street === sim.street ? 0 : recentDanger(world, sim, adj.street), adj.street);
+      consider(n.x + (far.x - n.x) * t, n.y + (far.y - n.y) * t, adj.street === on ? 0 : recentDanger(world, sim, adj.street), adj.street);
     }
   } else {
     for (const end of [st.a, st.b]) {
       let beyond = Infinity;
-      for (const adj of ctx.map.adjacency[end]!) if (adj.street !== sim.street) beyond = Math.min(beyond, recentDanger(world, sim, adj.street));
+      for (const adj of ctx.map.adjacency[end]!) if (adj.street !== on) beyond = Math.min(beyond, recentDanger(world, sim, adj.street));
       const n = nodes[end]!;
-      consider(n.x, n.y, beyond === Infinity ? fc.deadEnd : beyond, sim.street);
+      consider(n.x, n.y, beyond === Infinity ? fc.deadEnd : beyond, on);
     }
   }
-  if (best === -Infinity || headFor(world, ctx, sim, bx, by)) steerAway(ctx, sim);
+  // Nothing in sight and nothing known of the ways in front of it: on as it was going
+  // (steerAway keeps the heading). The scores only act on what it sees or remembers.
+  if (best === -Infinity || (tl === 0 && known === 0) || headFor(world, ctx, sim, bx, by)) steerAway(ctx, sim);
 }
 
 /** Where someone getting past a closed barrier makes for next: round it, the kerb beside its end and then the road's end on that kerb; over it, straight on out. */
